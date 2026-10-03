@@ -1,0 +1,23 @@
+# Variables de entorno (se versiona solo .env.example)
+.env
+.env.*
+!.env.example
+
+# Node (server y web)
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Flutter (mobile)
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
