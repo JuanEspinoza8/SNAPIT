@@ -28,7 +28,7 @@ Requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/).
    ```bash
    docker compose ps
    ```
-4. Verificar PostGIS y pgRouting. La imagen los trae instalados, pero las extensiones las activa la migración inicial (`npx prisma migrate deploy`, ver [Servidor](#servidor-server)). Después de correrla:
+4. Verificar PostGIS y pgRouting. La imagen los trae instalados, pero las extensiones las activa la migración inicial (`npx prisma migrate deploy` o el contenedor del servidor al arrancar, ver [Servidor](#servidor-server)). Después de correrla:
    ```bash
    docker compose exec db psql -U snapit -d snapit -c "SELECT postgis_version(), pgr_version();"
    ```
@@ -51,6 +51,8 @@ npx prisma migrate deploy   # crea las tablas en la base de desarrollo
 npm run dev                 # http://localhost:3000/api/salud
 ```
 
+> **Nunca uses `prisma migrate dev` ni `prisma db push`.** El modelo está congelado y la única migración es `0_init`, que es `db/schema.sql` tal cual. `schema.prisma` no puede expresar los índices GIST ni los nombres de las restricciones, así que esos comandos generan una migración que borra los índices espaciales y renombra las claves del modelo entregado. Para aplicar migraciones, solo `prisma migrate deploy`.
+
 | Script | Qué hace |
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
@@ -59,7 +61,7 @@ npm run dev                 # http://localhost:3000/api/salud
 | `npm run format` | Formatea con Prettier |
 | `npm run build` / `npm start` | Compila a `dist/` y lo ejecuta |
 
-Para levantar el servidor en Docker junto con la base: `docker compose up -d --build`.
+Para levantar el servidor en Docker junto con la base: `docker compose up -d --build`. Al arrancar, el contenedor aplica las migraciones pendientes, así que no hace falta Node en la PC. El contenedor y `npm run dev` usan el mismo puerto: si uno está levantado, el otro no arranca y avisa que el puerto está ocupado.
 
 ### Estructura
 

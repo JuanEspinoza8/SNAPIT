@@ -3,7 +3,12 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { prisma } from './compartido/prisma.js';
 
-const servidor = app.listen(env.PORT, () => {
+// En Express 5 el callback también recibe el error si no se pudo abrir el puerto (por ejemplo, ocupado).
+const servidor = app.listen(env.PORT, (error) => {
+  if (error) {
+    logger.fatal({ err: error }, `No se pudo usar el puerto ${env.PORT}`);
+    process.exit(1);
+  }
   logger.info(`Servidor escuchando en http://localhost:${env.PORT}`);
 });
 
