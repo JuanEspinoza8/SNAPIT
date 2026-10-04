@@ -1,23 +1,44 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { ErrorApp } from './errores.js';
 
+// Errores que tira express.json(). Vienen de http-errors: traen status y expose = true si son culpa del cliente.
+const erroresDelCuerpo: Record<string, { codigo: string; mensaje: string }> = {
+  'entity.parse.failed': { codigo: 'JSON_INVALIDO', mensaje: 'El cuerpo no es un JSON válido' },
+  'entity.too.large': {
+    codigo: 'CUERPO_DEMASIADO_GRANDE',
+    mensaje: 'El cuerpo supera el tamaño máximo permitido',
+  },
+  'charset.unsupported': {
+    codigo: 'FORMATO_NO_SOPORTADO',
+    mensaje: 'La codificación del cuerpo no está soportada',
+  },
+  'encoding.unsupported': {
+    codigo: 'FORMATO_NO_SOPORTADO',
+    mensaje: 'La compresión del cuerpo no está soportada',
+  },
+};
+
 export const rutaNoEncontrada: RequestHandler = (req, _res, next) => {
   next(new ErrorApp(404, 'RUTA_NO_ENCONTRADA', `No existe ${req.method} ${req.path}`));
 };
 
-export const manejarErrores: ErrorRequestHandler = (err, req, res, _next) => {
+export const manejarErrores: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof ErrorApp) {
-    res.status(err.status).json({ error: { codigo: err.codigo, mensaje: err.message } });
+    const { codigo, message: mensaje, detalles } = err;
+    res.status(err.status).json({ error: detalles ? { codigo, mensaje, detalles } : { codigo, mensaje } });
     return;
   }
 
-  // JSON mal formado en el cuerpo de la petición.
-  if (err?.type === 'entity.parse.failed') {
-    res.status(400).json({ error: { codigo: 'JSON_INVALIDO', mensaje: 'El cuerpo no es un JSON válido' } });
+  if (err?.expose === true && err.status >= 400 && err.status < 500) {
+    const error = erroresDelCuerpo[err.type] ?? {
+      codigo: 'PETICION_INVALIDA',
+      mensaje: 'La petición no es válida',
+    };
+    res.status(err.status).json({ error });
     return;
   }
 
-  // Error no controlado: se loguea completo pero al cliente no le llega el detalle.
-  req.log.error({ err }, 'Error no controlado');
+  // Error no controlado: pino-http lo loguea completo (ver registrarPeticiones), al cliente no le llega el detalle.
+  res.err = err;
   res.status(500).json({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Ocurrió un error inesperado' } });
 };

@@ -1,0 +1,6 @@
+# LF en todos lados, también en Windows: los scripts que se copian a Docker fallan con CRLF.
+* text=auto eol=lf
+
+# Los .bat y .cmd (por ejemplo gradlew.bat de Flutter) necesitan CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
