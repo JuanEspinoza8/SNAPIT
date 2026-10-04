@@ -80,6 +80,51 @@ src/
 
 Cada módulo crea solo los archivos que necesita. Las convenciones de la API están en [`docs/api.md`](docs/api.md).
 
+## App (`mobile/`)
+
+Requisitos: Flutter 3.44 o más nuevo (Dart 3.12) con el SDK de Android, y un emulador o un celular con depuración USB. El servidor tiene que estar levantado.
+
+```bash
+cd mobile
+flutter pub get
+flutter run                 # en el emulador, contra http://10.0.2.2:3000/api
+```
+
+La URL de la API se pasa al compilar, sin tocar código:
+
+```bash
+flutter run --dart-define=API_URL=http://192.168.0.10:3000/api
+```
+
+- Por defecto es `http://10.0.2.2:3000/api`: `10.0.2.2` es la PC vista desde el emulador de Android.
+- En un celular conectado a la misma red va la IP de la PC. Si no responde, revisá que el firewall de Windows deje pasar el puerto 3000.
+- Termina en `/api`, igual que `VITE_API_URL`.
+
+| Comando | Qué hace |
+|---|---|
+| `flutter analyze` | Lint con `flutter_lints` |
+| `flutter test` | Tests |
+| `dart format lib test` | Formatea |
+
+### Estructura
+
+```
+lib/
+  config/            URL de la API (--dart-define)
+  compartido/
+    tema/            colores, textos y espaciado del sistema de diseño
+    rutas/           go_router
+    red/             cliente dio, token y renovación de la sesión, errores de la API
+    sesion/          tokens en almacenamiento seguro
+    errores/         aviso con el mensaje del error
+  funcionalidades/
+    <funcionalidad>/ pantallas, providers y repositorios de cada funcionalidad
+```
+
+### Gestión de estado: Riverpod
+
+Elegimos Riverpod en lugar de Provider porque sus providers no dependen del árbol de widgets: el cliente HTTP, la sesión y las rutas se leen sin `BuildContext`, y en los tests cualquier pieza se reemplaza con `overrides`. Se usa sin generación de código. Riverpod reintenta por su cuenta los providers que fallan; en la app eso está apagado (`retry` en `main.dart`) para que el error se muestre y el usuario decida si reintentar.
+
 ## Cómo trabajamos
 
 Ramas, commits y pull requests: ver [`CONTRIBUTING.md`](CONTRIBUTING.md).
