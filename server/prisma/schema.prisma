@@ -1,0 +1,855 @@
+// SnapIt - esquema de Prisma
+// Generado desde el modelo relacional entregado el 19/09/2026. Grupo Full Stack F.C.
+//
+// Los nombres de tablas y columnas de la base son los del modelo (snake_case) y se
+// mantienen con @map / @@map. En el codigo TypeScript se usan en camelCase.
+//
+// Las columnas de PostGIS van como Unsupported(): Prisma no las tipa. Se leen y
+// escriben con $queryRaw / $executeRaw. Ver CLAUDE.md.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, postgisRouting(map: "pgrouting")]
+}
+
+enum RolUsuario {
+  VECINO
+  OPERADOR
+  ADMINISTRADOR
+  @@map("rol_usuario")
+}
+
+enum EstadoIncidente {
+  REGISTRADO
+  VERIFICADO
+  DERIVADO
+  EN_EJECUCION
+  RESUELTO
+  DESESTIMADO
+  @@map("estado_incidente")
+}
+
+enum Severidad {
+  LEVE
+  MODERADA
+  GRAVE
+  @@map("severidad")
+}
+
+enum EstadoVerificacion {
+  VERIFICADO
+  PENDIENTE_REVISION
+  DESESTIMADO
+  @@map("estado_verificacion")
+}
+
+enum OrigenReporte {
+  APP_MOVIL
+  SITIO_WEB
+  @@map("origen_reporte")
+}
+
+enum TipoVigencia {
+  PERMANENTE
+  TEMPORAL
+  @@map("tipo_vigencia")
+}
+
+enum TipoSenal {
+  EXIF_COINCIDE
+  EXIF_AUSENTE
+  HASH_DUPLICADO
+  ORIGEN_APP
+  REPUTACION
+  FECHA_ANTIGUA
+  @@map("tipo_senal")
+}
+
+enum TipoFactor {
+  SEVERIDAD
+  EVIDENCIAS
+  ANTIGUEDAD
+  CONTEXTO_URBANO
+  AJUSTE_MANUAL
+  @@map("tipo_factor")
+}
+
+enum ResultadoComparacion {
+  VALIDADO
+  OBSERVADO
+  RECHAZADO
+  @@map("resultado_comparacion")
+}
+
+enum TipoNotificacion {
+  CAMBIO_ESTADO
+  NUEVO_EN_ZONA
+  CIERRE
+  VERIFICACION
+  @@map("tipo_notificacion")
+}
+
+enum TipoToken {
+  VERIFICACION_EMAIL
+  RECUPERACION_CLAVE
+  SESION
+  @@map("tipo_token")
+}
+
+enum TipoMovimiento {
+  CAMBIO_ESTADO
+  DERIVACION
+  FUSION
+  SEPARACION
+  AJUSTE_PRIORIDAD
+  COMENTARIO
+  @@map("tipo_movimiento")
+}
+
+enum TipoTramo {
+  VEREDA
+  CRUCE
+  ESCALERA
+  SENDA
+  @@map("tipo_tramo")
+}
+
+enum TipoPuntoInteres {
+  ESCUELA
+  CENTRO_SALUD
+  PARADA_TRANSPORTE
+  EDIFICIO_PUBLICO
+  @@map("tipo_punto_interes")
+}
+
+enum TipoIa {
+  CLASIFICACION_IMAGEN
+  COMPARACION_CIERRE
+  INFORME
+  CONSULTA_NATURAL
+  @@map("tipo_ia")
+}
+
+enum ProveedorIa {
+  OLLAMA
+  GEMINI
+  @@map("proveedor_ia")
+}
+
+enum Plataforma {
+  ANDROID
+  WEB
+  @@map("plataforma")
+}
+
+/// Persona registrada en el sistema: el vecino que reporta, el operador del organismo o el administrador.
+model Usuario {
+  /// Identificador interno.
+  id                         Int                        @id @default(autoincrement()) @map("id")
+  /// Correo con el que inicia sesión. No se puede repetir.
+  email                      String                     @unique @db.VarChar(150) @map("email")
+  /// Contraseña cifrada. Nunca se guarda en texto plano.
+  passwordHash               String                     @db.VarChar(255) @map("password_hash")
+  /// Nombre visible del usuario.
+  nombre                     String                     @db.VarChar(120) @map("nombre")
+  /// Vecino, operador o administrador.
+  rol                        RolUsuario                 @default(VECINO) @map("rol")
+  /// Organismo al que pertenece. Sólo operadores y administradores.
+  organismoId                Int?                       @map("organismo_id")
+  /// Área o cuadrilla asignada. Sólo operadores.
+  areaId                     Int?                       @map("area_id")
+  /// Momento en que confirmó su correo.
+  emailVerificadoEn          DateTime?                  @db.Timestamptz(6) @map("email_verificado_en")
+  /// Puntaje de confianza calculado con su historial de reportes.
+  reputacion                 Decimal                    @default(50.00) @db.Decimal(5, 2) @map("reputacion")
+  /// Contador de reportes suyos que resultaron válidos.
+  reportesConfirmados        Int                        @default(0) @map("reportes_confirmados")
+  /// Contador de reportes suyos que fueron descartados.
+  reportesDesestimados       Int                        @default(0) @map("reportes_desestimados")
+  /// Fecha de alta.
+  creadoEn                   DateTime                   @default(now()) @db.Timestamptz(6) @map("creado_en")
+  /// Última modificación del registro.
+  actualizadoEn              DateTime                   @default(now()) @db.Timestamptz(6) @map("actualizado_en")
+  /// Baja lógica: si está informado, la cuenta ya no se usa.
+  eliminadoEn                DateTime?                  @db.Timestamptz(6) @map("eliminado_en")
+  /// Perfil de movilidad por defecto para calcular recorridos.
+  perfilMovilidadId          Int?                       @map("perfil_movilidad_id")
+  /// Interruptor general de avisos.
+  notificacionesHabilitadas  Boolean                    @default(true) @map("notificaciones_habilitadas")
+  organismo                  Organismo?                 @relation(fields: [organismoId], references: [id], onDelete: Restrict)
+  area                       Area?                      @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  perfilMovilidad            PerfilMovilidad?           @relation(fields: [perfilMovilidadId], references: [id], onDelete: Restrict)
+  dispositivos               Dispositivo[]
+  tokenAccesos               TokenAcceso[]
+  preferenciaNotificaciones  PreferenciaNotificacion[]
+  incidentes                 Incidente[]
+  reportes                   Reporte[]
+  confirmacionIncidentes     ConfirmacionIncidente[]
+  movimientoIncidentes       MovimientoIncidente[]
+  cierreIncidentes           CierreIncidente[]
+  zonaHabituales             ZonaHabitual[]
+  seguimientoIncidentes      SeguimientoIncidente[]
+  notificaciones             Notificacion[]
+  registroIas                RegistroIa[]
+  informes                   Informe[]
+
+  @@map("usuario")
+}
+
+/// Municipio o ente público responsable de atender los incidentes.
+model Organismo {
+  /// Identificador interno.
+  id           Int        @id @default(autoincrement()) @map("id")
+  /// Nombre del organismo.
+  nombre       String     @db.VarChar(150) @map("nombre")
+  /// Detalle o jurisdicción.
+  descripcion  String?    @db.Text @map("descripcion")
+  /// Si sigue operativo dentro del sistema.
+  activo       Boolean    @default(true) @map("activo")
+  /// Fecha de alta.
+  creadoEn     DateTime   @default(now()) @db.Timestamptz(6) @map("creado_en")
+  areas        Area[]
+  usuarios     Usuario[]
+
+  @@map("organismo")
+}
+
+/// Dependencia o cuadrilla dentro del organismo a la que se deriva el trabajo.
+model Area {
+  /// Identificador interno.
+  id                    Int                    @id @default(autoincrement()) @map("id")
+  /// Organismo al que pertenece.
+  organismoId           Int                    @map("organismo_id")
+  /// Nombre del área: Bacheo, Alumbrado, Arbolado, etc.
+  nombre                String                 @db.VarChar(120) @map("nombre")
+  /// Detalle de lo que atiende.
+  descripcion           String?                @db.Text @map("descripcion")
+  /// Si se le pueden seguir derivando incidentes.
+  activa                Boolean                @default(true) @map("activa")
+  /// Fecha de alta.
+  creadoEn              DateTime               @default(now()) @db.Timestamptz(6) @map("creado_en")
+  organismo             Organismo              @relation(fields: [organismoId], references: [id], onDelete: Restrict)
+  usuarios              Usuario[]
+  categorias            Categoria[]
+  incidentes            Incidente[]
+  movimientoIncidentes  MovimientoIncidente[]
+  informes              Informe[]
+
+  @@map("area")
+}
+
+/// Celular o navegador desde el que un usuario recibe los avisos push.
+model Dispositivo {
+  /// Identificador interno.
+  id           Int         @id @default(autoincrement()) @map("id")
+  /// Dueño del dispositivo.
+  usuarioId    Int         @map("usuario_id")
+  /// Identificador que entrega el servicio de notificaciones.
+  tokenPush    String      @db.VarChar(255) @map("token_push")
+  /// Android o web.
+  plataforma   Plataforma  @map("plataforma")
+  /// Último acceso desde este dispositivo.
+  ultimoUsoEn  DateTime?   @db.Timestamptz(6) @map("ultimo_uso_en")
+  /// Si sigue habilitado para recibir avisos.
+  activo       Boolean     @default(true) @map("activo")
+  usuario      Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("dispositivo")
+}
+
+/// Tipo de problema que se puede reportar. El administrador la configura sin tocar el código.
+model Categoria {
+  /// Identificador interno.
+  id                         Int                        @id @default(autoincrement()) @map("id")
+  /// Nombre visible: Pozo, Vereda rota, Luminaria apagada, etc.
+  nombre                     String                     @unique @db.VarChar(80) @map("nombre")
+  /// Explicación para el vecino.
+  descripcion                String?                    @db.Text @map("descripcion")
+  /// Área que atiende esta categoría por defecto.
+  areaId                     Int                        @map("area_id")
+  /// Si el problema suele ser permanente o temporal.
+  tipoVigenciaDefault        TipoVigencia               @default(PERMANENTE) @map("tipo_vigencia_default")
+  /// Días tras los cuales caduca un incidente temporal.
+  diasCaducidadDefault       Int?                       @map("dias_caducidad_default")
+  /// Peso inicial de la categoría en el cálculo de prioridad.
+  pesoSeveridadBase          Decimal                    @default(1.00) @db.Decimal(4, 2) @map("peso_severidad_base")
+  /// Si se puede seguir eligiendo al reportar.
+  activa                     Boolean                    @default(true) @map("activa")
+  area                       Area                       @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  preferenciaNotificaciones  PreferenciaNotificacion[]
+  categoriaPerfiles          CategoriaPerfil[]
+  incidentes                 Incidente[]
+  reportes                   Reporte[]                  @relation(name: "Reporte_categoria_id")
+  reportesSugeridos          Reporte[]                  @relation(name: "Reporte_categoria_sugerida_id")
+
+  @@map("categoria")
+}
+
+/// Forma de desplazarse del peatón: silla de ruedas, bastón, coche de bebé o baja visión.
+model PerfilMovilidad {
+  /// Identificador interno.
+  id                 Int                @id @default(autoincrement()) @map("id")
+  /// Nombre del perfil.
+  nombre             String             @unique @db.VarChar(60) @map("nombre")
+  /// Qué dificultades tiene ese peatón.
+  descripcion        String?            @db.Text @map("descripcion")
+  /// Si se puede elegir al calcular un recorrido.
+  activo             Boolean            @default(true) @map("activo")
+  usuarios           Usuario[]
+  categoriaPerfiles  CategoriaPerfil[]
+
+  @@map("perfil_movilidad")
+}
+
+/// Cuánto estorba cada tipo de problema a cada perfil de movilidad. Es lo que hace que el mismo obstáculo cambie el recorrido de una silla de ruedas y no el de un coche de bebé.
+model CategoriaPerfil {
+  /// Categoría del problema.
+  categoriaId         Int              @map("categoria_id")
+  /// Perfil afectado.
+  perfilMovilidadId   Int              @map("perfil_movilidad_id")
+  /// Si para ese perfil el tramo queda directamente bloqueado.
+  intransitable       Boolean          @default(false) @map("intransitable")
+  /// Cuánto se encarece el tramo si no queda bloqueado.
+  factorPenalizacion  Decimal          @default(1.00) @db.Decimal(5, 2) @map("factor_penalizacion")
+  categoria           Categoria        @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  perfilMovilidad     PerfilMovilidad  @relation(fields: [perfilMovilidadId], references: [id], onDelete: Restrict)
+
+  @@id([categoriaId, perfilMovilidadId])
+  @@map("categoria_perfil")
+}
+
+/// Configuración del algoritmo, editable sin volver a desplegar la aplicación.
+model ParametroSistema {
+  /// Nombre del parámetro.
+  clave        String   @id @db.VarChar(80) @map("clave")
+  /// Valor vigente.
+  valor        String   @db.VarChar(200) @map("valor")
+  /// Tipo de dato del valor.
+  tipo         String   @db.VarChar(20) @map("tipo")
+  /// Para qué se usa.
+  descripcion  String?  @db.Text @map("descripcion")
+
+  @@map("parametro_sistema")
+}
+
+/// Problema real en la vía pública. Es la conclusión del sistema a partir de uno o varios reportes.
+model Incidente {
+  /// Identificador interno.
+  id                       Int                                    @id @default(autoincrement()) @map("id")
+  /// Tipo de problema.
+  categoriaId              Int                                    @map("categoria_id")
+  /// Área a la que está derivado.
+  areaId                   Int?                                   @map("area_id")
+  /// Situación actual del incidente.
+  estado                   EstadoIncidente                        @default(REGISTRADO) @map("estado")
+  /// Gravedad consolidada.
+  severidad                Severidad                              @default(MODERADA) @map("severidad")
+  /// Punto georreferenciado.
+  ubicacion                Unsupported("geography(Point, 4326)")  @map("ubicacion")
+  /// Dirección aproximada en texto.
+  direccion                String?                                @db.VarChar(250) @map("direccion")
+  /// Si es permanente o temporal.
+  tipoVigencia             TipoVigencia                           @default(PERMANENTE) @map("tipo_vigencia")
+  /// Fecha hasta la que se considera vigente.
+  vigenteHasta             DateTime?                              @db.Timestamptz(6) @map("vigente_hasta")
+  /// Momento en que caducó por vencimiento.
+  caducadoEn               DateTime?                              @db.Timestamptz(6) @map("caducado_en")
+  /// Prioridad calculada por el sistema.
+  puntajePrioridad         Decimal                                @default(0) @db.Decimal(6, 2) @map("puntaje_prioridad")
+  /// Prioridad forzada por un operador.
+  prioridadManual          Decimal?                               @db.Decimal(6, 2) @map("prioridad_manual")
+  /// Justificación del ajuste manual.
+  motivoPrioridadManual    String?                                @db.Text @map("motivo_prioridad_manual")
+  /// Operador que ajustó la prioridad.
+  ajustadaPorId            Int?                                   @map("ajustada_por_id")
+  /// Cantidad de reportes agrupados. Contador.
+  cantidadReportes         Int                                    @default(0) @map("cantidad_reportes")
+  /// Fecha del primer reporte que lo originó.
+  primerReporteEn          DateTime                               @default(now()) @db.Timestamptz(6) @map("primer_reporte_en")
+  /// Cuándo se dio por resuelto.
+  resueltoEn               DateTime?                              @db.Timestamptz(6) @map("resuelto_en")
+  /// Fecha de alta.
+  creadoEn                 DateTime                               @default(now()) @db.Timestamptz(6) @map("creado_en")
+  /// Última modificación.
+  actualizadoEn            DateTime                               @default(now()) @db.Timestamptz(6) @map("actualizado_en")
+  /// Si el operador unió este incidente dentro de otro, apunta al principal. Mientras esté informado, el incidente es un duplicado y queda fuera del mapa y de la bandeja, igual que uno caducado. Conserva su estado para que la separación lo devuelva tal como estaba.
+  incidentePrincipalId     Int?                                   @map("incidente_principal_id")
+  categoria                Categoria                              @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  area                     Area?                                  @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  ajustadaPor              Usuario?                               @relation(fields: [ajustadaPorId], references: [id], onDelete: SetNull)
+  incidentePrincipal       Incidente?                             @relation(fields: [incidentePrincipalId], references: [id], onDelete: SetNull, name: "Incidente_incidente_principal_id")
+  duplicados               Incidente[]                            @relation(name: "Incidente_incidente_principal_id")
+  reportes                 Reporte[]
+  confirmacionIncidentes   ConfirmacionIncidente[]
+  movimientos              MovimientoIncidente[]                  @relation(name: "MovimientoIncidente_incidente_id")
+  movimientosRelacionados  MovimientoIncidente[]                  @relation(name: "MovimientoIncidente_incidente_relacionado_id")
+  cierreIncidentes         CierreIncidente[]
+  factorPrioridades        FactorPrioridad[]
+  seguimientoIncidentes    SeguimientoIncidente[]
+  notificaciones           Notificacion[]
+  incidenteTramos          IncidenteTramo[]
+
+  @@index([estado])
+  @@index([areaId])
+  @@index([categoriaId])
+  @@index([puntajePrioridad])
+  @@map("incidente")
+}
+
+/// Lo que informa un vecino: una foto, una ubicación y una descripción.
+model Reporte {
+  /// Identificador interno.
+  id                   Int                                    @id @default(autoincrement()) @map("id")
+  /// Incidente al que quedó agrupado.
+  incidenteId          Int?                                   @map("incidente_id")
+  /// Vecino que lo cargó.
+  usuarioId            Int                                    @map("usuario_id")
+  /// Categoría elegida por el vecino.
+  categoriaId          Int                                    @map("categoria_id")
+  /// Gravedad que declaró el vecino.
+  severidadDeclarada   Severidad                              @map("severidad_declarada")
+  /// Texto libre del vecino.
+  descripcion          String?                                @db.Text @map("descripcion")
+  /// Punto donde se cargó el reporte.
+  ubicacion            Unsupported("geography(Point, 4326)")  @map("ubicacion")
+  /// Dirección aproximada en texto.
+  direccion            String?                                @db.VarChar(250) @map("direccion")
+  /// Desde la app móvil o desde el sitio web.
+  origen               OrigenReporte                          @map("origen")
+  /// Puntaje de 0 a 100 que calcula la verificación automática.
+  nivelConfianza       Int                                    @default(0) @db.SmallInt @map("nivel_confianza")
+  /// Verificado, pendiente de revisión o desestimado.
+  estadoVerificacion   EstadoVerificacion                     @default(PENDIENTE_REVISION) @map("estado_verificacion")
+  /// Categoría que propuso la IA a partir de la foto.
+  categoriaSugeridaId  Int?                                   @map("categoria_sugerida_id")
+  /// Gravedad propuesta por la IA.
+  severidadSugerida    Severidad?                             @map("severidad_sugerida")
+  /// Si el vecino aceptó la sugerencia o la corrigió.
+  sugerenciaAceptada   Boolean?                               @map("sugerencia_aceptada")
+  /// Llamada al modelo que generó la sugerencia.
+  registroIaId         Int?                                   @map("registro_ia_id")
+  /// Momento en que el vecino lo cargó, aunque fuera sin señal.
+  registradoEn         DateTime                               @default(now()) @db.Timestamptz(6) @map("registrado_en")
+  /// Momento en que llegó al servidor.
+  sincronizadoEn       DateTime?                              @db.Timestamptz(6) @map("sincronizado_en")
+  /// Fecha de alta del registro.
+  creadoEn             DateTime                               @default(now()) @db.Timestamptz(6) @map("creado_en")
+  incidente            Incidente?                             @relation(fields: [incidenteId], references: [id], onDelete: SetNull)
+  usuario              Usuario                                @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  categoria            Categoria                              @relation(fields: [categoriaId], references: [id], onDelete: Restrict, name: "Reporte_categoria_id")
+  categoriaSugerida    Categoria?                             @relation(fields: [categoriaSugeridaId], references: [id], onDelete: SetNull, name: "Reporte_categoria_sugerida_id")
+  registroIa           RegistroIa?                            @relation(fields: [registroIaId], references: [id], onDelete: SetNull)
+  fotografias          Fotografia[]
+  senalVerificaciones  SenalVerificacion[]
+
+  @@index([incidenteId])
+  @@index([usuarioId])
+  @@map("reporte")
+}
+
+/// Evidencia gráfica. Pertenece a un reporte o a un cierre, nunca a los dos.
+model Fotografia {
+  /// Identificador interno.
+  id                  Int               @id @default(autoincrement()) @map("id")
+  /// Reporte al que pertenece.
+  reporteId           Int?              @map("reporte_id")
+  /// Cierre al que pertenece.
+  cierreId            Int?              @map("cierre_id")
+  /// Ubicación del archivo en el almacenamiento.
+  rutaArchivo         String            @db.VarChar(300) @map("ruta_archivo")
+  /// Ancho en píxeles.
+  ancho               Int?              @map("ancho")
+  /// Alto en píxeles.
+  alto                Int?              @map("alto")
+  /// Peso del archivo.
+  tamanoBytes         Int?              @map("tamano_bytes")
+  /// Huella visual para detectar fotos repetidas.
+  hashPerceptual      String?           @db.Bit(64) @map("hash_perceptual")
+  /// Latitud grabada por la cámara.
+  exifLatitud         Decimal?          @db.Decimal(9, 6) @map("exif_latitud")
+  /// Longitud grabada por la cámara.
+  exifLongitud        Decimal?          @db.Decimal(9, 6) @map("exif_longitud")
+  /// Fecha y hora que grabó la cámara.
+  exifTomadaEn        DateTime?         @db.Timestamptz(6) @map("exif_tomada_en")
+  /// Marca del equipo.
+  exifMarca           String?           @db.VarChar(60) @map("exif_marca")
+  /// Modelo del equipo.
+  exifModelo          String?           @db.VarChar(60) @map("exif_modelo")
+  /// Si se sacó desde la app o se subió de la galería.
+  tomadaConCamaraApp  Boolean           @default(false) @map("tomada_con_camara_app")
+  /// Fecha de alta.
+  creadoEn            DateTime          @default(now()) @db.Timestamptz(6) @map("creado_en")
+  reporte             Reporte?          @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  cierre              CierreIncidente?  @relation(fields: [cierreId], references: [id], onDelete: Cascade)
+
+  @@index([hashPerceptual])
+  @@map("fotografia")
+}
+
+/// Cada indicio, a favor o en contra, que usó el sistema para decidir si confía en un reporte.
+model SenalVerificacion {
+  /// Identificador interno.
+  id         Int        @id @default(autoincrement()) @map("id")
+  /// Reporte al que corresponde.
+  reporteId  Int        @map("reporte_id")
+  /// Qué se comprobó: EXIF, duplicado, reputación, etc.
+  tipo       TipoSenal  @map("tipo")
+  /// Cuánto suma o resta al puntaje de confianza.
+  valor      Decimal    @db.Decimal(5, 2) @map("valor")
+  /// Explicación legible del resultado.
+  detalle    String?    @db.Text @map("detalle")
+  reporte    Reporte    @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+
+  @@map("senal_verificacion")
+}
+
+/// El “a mí también me pasa”: un vecino adhiere a un incidente ya cargado sin duplicar el reporte. La clave única (incidente, usuario) impide que la misma persona confirme dos veces.
+model ConfirmacionIncidente {
+  /// Identificador interno.
+  id           Int        @id @default(autoincrement()) @map("id")
+  /// Incidente confirmado.
+  incidenteId  Int        @map("incidente_id")
+  /// Vecino que confirma.
+  usuarioId    Int        @map("usuario_id")
+  /// Cuándo confirmó.
+  creadoEn     DateTime   @default(now()) @db.Timestamptz(6) @map("creado_en")
+  incidente    Incidente  @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+  usuario      Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([incidenteId, usuarioId], map: "confirmacion_unica")
+  @@map("confirmacion_incidente")
+}
+
+/// Bitácora del incidente: todo lo que le pasó, con autor y fecha.
+model MovimientoIncidente {
+  /// Identificador interno.
+  id                      Int               @id @default(autoincrement()) @map("id")
+  /// Incidente afectado.
+  incidenteId             Int               @map("incidente_id")
+  /// Quién hizo el movimiento.
+  usuarioId               Int?              @map("usuario_id")
+  /// Clase de movimiento: cambio de estado, derivación, fusión, etc.
+  tipo                    TipoMovimiento    @map("tipo")
+  /// Área destino cuando el movimiento es una derivación.
+  areaId                  Int?              @map("area_id")
+  /// Estado antes del movimiento.
+  estadoAnterior          EstadoIncidente?  @map("estado_anterior")
+  /// Estado después del movimiento.
+  estadoNuevo             EstadoIncidente?  @map("estado_nuevo")
+  /// Observación del operador.
+  comentario              String?           @db.Text @map("comentario")
+  /// Cuándo ocurrió.
+  creadoEn                DateTime          @default(now()) @db.Timestamptz(6) @map("creado_en")
+  /// El otro incidente involucrado cuando el movimiento es una consolidación o una separación.
+  incidenteRelacionadoId  Int?              @map("incidente_relacionado_id")
+  incidente               Incidente         @relation(fields: [incidenteId], references: [id], onDelete: Cascade, name: "MovimientoIncidente_incidente_id")
+  usuario                 Usuario?          @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  area                    Area?             @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  incidenteRelacionado    Incidente?        @relation(fields: [incidenteRelacionadoId], references: [id], onDelete: SetNull, name: "MovimientoIncidente_incidente_relacionado_id")
+
+  @@index([incidenteId])
+  @@map("movimiento_incidente")
+}
+
+/// Acto de dar por resuelto un incidente, con la foto del después como prueba.
+model CierreIncidente {
+  /// Identificador interno.
+  id                    Int                    @id @default(autoincrement()) @map("id")
+  /// Incidente cerrado. Único: un incidente se cierra una sola vez.
+  incidenteId           Int                    @unique @map("incidente_id")
+  /// Operador que firmó el cierre.
+  usuarioId             Int                    @map("usuario_id")
+  /// Distancia entre la foto de cierre y la ubicación del incidente.
+  distanciaMetros       Decimal?               @db.Decimal(7, 2) @map("distancia_metros")
+  /// Veredicto de comparar el antes con el después.
+  resultadoComparacion  ResultadoComparacion?  @map("resultado_comparacion")
+  /// Explicación de ese veredicto.
+  detalleComparacion    String?                @db.Text @map("detalle_comparacion")
+  /// Llamada al modelo que hizo la comparación.
+  registroIaId          Int?                   @map("registro_ia_id")
+  /// Fecha del cierre.
+  creadoEn              DateTime               @default(now()) @db.Timestamptz(6) @map("creado_en")
+  incidente             Incidente              @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+  usuario               Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  registroIa            RegistroIa?            @relation(fields: [registroIaId], references: [id], onDelete: SetNull)
+  fotografias           Fotografia[]
+
+  @@map("cierre_incidente")
+}
+
+/// Desglose del puntaje de prioridad: explica por qué un incidente va antes que otro.
+model FactorPrioridad {
+  /// Identificador interno.
+  id           Int         @id @default(autoincrement()) @map("id")
+  /// Incidente al que corresponde.
+  incidenteId  Int         @map("incidente_id")
+  /// Qué se tuvo en cuenta: severidad, evidencias, antigüedad, etc.
+  factor       TipoFactor  @map("factor")
+  /// Cuántos puntos aportó ese factor.
+  valor        Decimal     @db.Decimal(6, 2) @map("valor")
+  /// Explicación legible del aporte.
+  detalle      String?     @db.Text @map("detalle")
+  incidente    Incidente   @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+
+  @@map("factor_prioridad")
+}
+
+/// Zona que un vecino marcó para enterarse de lo nuevo que aparezca ahí.
+model ZonaHabitual {
+  /// Identificador interno.
+  id           Int                                    @id @default(autoincrement()) @map("id")
+  /// Vecino dueño de la zona.
+  usuarioId    Int                                    @map("usuario_id")
+  /// Nombre que le puso el vecino: Casa, Trabajo, etc.
+  nombre       String                                 @db.VarChar(80) @map("nombre")
+  /// Punto central de la zona.
+  centro       Unsupported("geography(Point, 4326)")  @map("centro")
+  /// Radio de cobertura.
+  radioMetros  Int                                    @map("radio_metros")
+  /// Si sigue generando avisos.
+  activa       Boolean                                @default(true) @map("activa")
+  /// Fecha de alta.
+  creadoEn     DateTime                               @default(now()) @db.Timestamptz(6) @map("creado_en")
+  usuario      Usuario                                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("zona_habitual")
+}
+
+/// Un vecino sigue un incidente concreto aunque no lo haya reportado él, para enterarse cuando lo arreglen. Clave única (usuario, incidente).
+model SeguimientoIncidente {
+  /// Identificador interno.
+  id           Int        @id @default(autoincrement()) @map("id")
+  /// Vecino que sigue.
+  usuarioId    Int        @map("usuario_id")
+  /// Incidente seguido.
+  incidenteId  Int        @map("incidente_id")
+  /// Cuándo empezó a seguirlo.
+  creadoEn     DateTime   @default(now()) @db.Timestamptz(6) @map("creado_en")
+  usuario      Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  incidente    Incidente  @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, incidenteId], map: "seguimiento_unico")
+  @@map("seguimiento_incidente")
+}
+
+/// Aviso concreto enviado a un usuario, con el registro de si lo leyó.
+model Notificacion {
+  /// Identificador interno.
+  id           Int               @id @default(autoincrement()) @map("id")
+  /// Destinatario.
+  usuarioId    Int               @map("usuario_id")
+  /// Incidente al que se refiere.
+  incidenteId  Int?              @map("incidente_id")
+  /// Motivo del aviso.
+  tipo         TipoNotificacion  @map("tipo")
+  /// Título corto del aviso.
+  titulo       String            @db.VarChar(150) @map("titulo")
+  /// Texto del aviso.
+  cuerpo       String            @db.Text @map("cuerpo")
+  /// Cuándo salió.
+  enviadaEn    DateTime?         @db.Timestamptz(6) @map("enviada_en")
+  /// Cuándo la abrió el usuario.
+  leidaEn      DateTime?         @db.Timestamptz(6) @map("leida_en")
+  /// Fecha de generación.
+  creadoEn     DateTime          @default(now()) @db.Timestamptz(6) @map("creado_en")
+  usuario      Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  incidente    Incidente?        @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("notificacion")
+}
+
+/// Código temporal para verificar el correo, recuperar la clave o sostener la sesión.
+model TokenAcceso {
+  /// Identificador interno.
+  id         Int        @id @default(autoincrement()) @map("id")
+  /// Usuario al que pertenece.
+  usuarioId  Int        @map("usuario_id")
+  /// Para qué sirve el token.
+  tipo       TipoToken  @map("tipo")
+  /// Valor cifrado. El original sólo lo recibe el usuario.
+  tokenHash  String     @unique @db.VarChar(255) @map("token_hash")
+  /// Momento a partir del cual deja de servir.
+  expiraEn   DateTime   @db.Timestamptz(6) @map("expira_en")
+  /// Cuándo se consumió. Evita reutilizarlo.
+  usadoEn    DateTime?  @db.Timestamptz(6) @map("usado_en")
+  /// Fecha de emisión.
+  creadoEn   DateTime   @default(now()) @db.Timestamptz(6) @map("creado_en")
+  usuario    Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("token_acceso")
+}
+
+/// De qué categorías quiere recibir avisos cada vecino. Sin esto, el interruptor de notificaciones sería todo o nada.
+model PreferenciaNotificacion {
+  /// Vecino.
+  usuarioId    Int        @map("usuario_id")
+  /// Categoría de la que quiere o no quiere avisos.
+  categoriaId  Int        @map("categoria_id")
+  /// Si recibe avisos de esa categoría.
+  habilitada   Boolean    @default(true) @map("habilitada")
+  usuario      Usuario    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  categoria    Categoria  @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, categoriaId])
+  @@map("preferencia_notificacion")
+}
+
+/// Polígono dentro del cual está habilitado el cálculo de recorridos accesibles.
+model ZonaPiloto {
+  /// Identificador interno.
+  id         Int                                      @id @default(autoincrement()) @map("id")
+  /// Nombre de la zona.
+  nombre     String                                   @db.VarChar(120) @map("nombre")
+  /// Contorno del área cubierta.
+  geometria  Unsupported("geography(Polygon, 4326)")  @map("geometria")
+  /// Si el ruteo está habilitado ahí.
+  activa     Boolean                                  @default(true) @map("activa")
+
+  @@map("zona_piloto")
+}
+
+/// Punto del grafo peatonal. En la práctica, una esquina o un cruce.
+model NodoPeatonal {
+  /// Identificador interno.
+  id                   BigInt                                 @id @default(autoincrement()) @map("id")
+  /// Identificador del nodo en OpenStreetMap.
+  osmId                BigInt?                                @unique @map("osm_id")
+  /// Coordenadas del nodo.
+  ubicacion            Unsupported("geography(Point, 4326)")  @map("ubicacion")
+  /// Si el cruce tiene señal audible.
+  tieneSemaforoSonoro  Boolean                                @default(false) @map("tiene_semaforo_sonoro")
+  /// Si tiene piso guía para personas con baja visión.
+  tienePisoPodotactil  Boolean                                @default(false) @map("tiene_piso_podotactil")
+  tramosQueSalen       TramoPeatonal[]                        @relation(name: "TramoPeatonal_nodo_origen_id")
+  tramosQueLlegan      TramoPeatonal[]                        @relation(name: "TramoPeatonal_nodo_destino_id")
+
+  @@map("nodo_peatonal")
+}
+
+/// Arista del grafo: la vereda o el cruce que une dos nodos. Es por donde se camina.
+model TramoPeatonal {
+  /// Identificador interno.
+  id                   BigInt                                      @id @default(autoincrement()) @map("id")
+  /// Nodo donde arranca el tramo.
+  nodoOrigenId         BigInt                                      @map("nodo_origen_id")
+  /// Nodo donde termina el tramo.
+  nodoDestinoId        BigInt                                      @map("nodo_destino_id")
+  /// Traza del tramo.
+  geometria            Unsupported("geography(LineString, 4326)")  @map("geometria")
+  /// Largo real.
+  longitudMetros       Decimal                                     @db.Decimal(9, 2) @map("longitud_metros")
+  /// Vereda, cruce, escalera o senda.
+  tipo                 TipoTramo                                   @map("tipo")
+  /// Si hay rampa en el cordón.
+  tieneRampa           Boolean                                     @default(false) @map("tiene_rampa")
+  /// Inclinación del tramo.
+  pendientePorcentaje  Decimal?                                    @db.Decimal(5, 2) @map("pendiente_porcentaje")
+  /// Ancho útil estimado.
+  anchoEstimado        Decimal?                                    @db.Decimal(4, 2) @map("ancho_estimado")
+  /// Material de la superficie.
+  superficie           String?                                     @db.VarChar(40) @map("superficie")
+  /// Costo del tramo antes de aplicar obstáculos y perfil.
+  costoBase            Decimal                                     @db.Decimal(9, 2) @map("costo_base")
+  nodoOrigen           NodoPeatonal                                @relation(fields: [nodoOrigenId], references: [id], onDelete: Restrict, name: "TramoPeatonal_nodo_origen_id")
+  nodoDestino          NodoPeatonal                                @relation(fields: [nodoDestinoId], references: [id], onDelete: Restrict, name: "TramoPeatonal_nodo_destino_id")
+  incidenteTramos      IncidenteTramo[]
+
+  @@map("tramo_peatonal")
+}
+
+/// Qué obstáculo bloquea qué tramo de vereda. Es la bisagra del proyecto: sin esta relación, un reporte nunca llega a cambiar un recorrido.
+model IncidenteTramo {
+  /// Incidente que obstruye.
+  incidenteId      Int            @map("incidente_id")
+  /// Tramo obstruido.
+  tramoPeatonalId  BigInt         @map("tramo_peatonal_id")
+  incidente        Incidente      @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+  tramoPeatonal    TramoPeatonal  @relation(fields: [tramoPeatonalId], references: [id], onDelete: Cascade)
+
+  @@id([incidenteId, tramoPeatonalId])
+  @@index([tramoPeatonalId])
+  @@map("incidente_tramo")
+}
+
+/// Escuela, centro de salud, parada o edificio público cuya cercanía eleva la prioridad.
+model PuntoInteres {
+  /// Identificador interno.
+  id         Int                                    @id @default(autoincrement()) @map("id")
+  /// Clase de punto.
+  tipo       TipoPuntoInteres                       @map("tipo")
+  /// Nombre del lugar.
+  nombre     String                                 @db.VarChar(150) @map("nombre")
+  /// Coordenadas.
+  ubicacion  Unsupported("geography(Point, 4326)")  @map("ubicacion")
+  /// Identificador en OpenStreetMap.
+  osmId      BigInt?                                @unique @map("osm_id")
+
+  @@map("punto_interes")
+}
+
+/// Cada llamada a un modelo de IA, con lo que se pidió y lo que respondió.
+model RegistroIa {
+  /// Identificador interno.
+  id                Int                @id @default(autoincrement()) @map("id")
+  /// Quién originó la llamada.
+  usuarioId         Int?               @map("usuario_id")
+  /// Para qué se usó el modelo.
+  tipo              TipoIa             @map("tipo")
+  /// Ollama local o Gemini.
+  proveedor         ProveedorIa        @map("proveedor")
+  /// Nombre del modelo utilizado.
+  modelo            String             @db.VarChar(80) @map("modelo")
+  /// Lo que se le envió.
+  entrada           String?            @db.Text @map("entrada")
+  /// Lo que respondió, estructurado.
+  salida            Json?              @map("salida")
+  /// Cuánto tardó.
+  duracionMs        Int?               @map("duracion_ms")
+  /// Si la llamada terminó bien.
+  exito             Boolean            @default(true) @map("exito")
+  /// Mensaje de error si falló.
+  error             String?            @db.Text @map("error")
+  /// Fecha de la llamada.
+  creadoEn          DateTime           @default(now()) @db.Timestamptz(6) @map("creado_en")
+  usuario           Usuario?           @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  reportes          Reporte[]
+  cierreIncidentes  CierreIncidente[]
+  informes          Informe[]
+
+  @@index([creadoEn])
+  @@map("registro_ia")
+}
+
+/// Informe de estado y prioridades generado automáticamente, guardado para poder releerlo.
+model Informe {
+  /// Identificador interno.
+  id            Int          @id @default(autoincrement()) @map("id")
+  /// Quién lo solicitó.
+  usuarioId     Int?         @map("usuario_id")
+  /// Área que cubre el informe.
+  areaId        Int?         @map("area_id")
+  /// Llamada al modelo que lo produjo.
+  registroIaId  Int?         @map("registro_ia_id")
+  /// Inicio del período analizado.
+  periodoDesde  DateTime     @db.Date @map("periodo_desde")
+  /// Fin del período analizado.
+  periodoHasta  DateTime     @db.Date @map("periodo_hasta")
+  /// Texto del informe.
+  contenido     String       @db.Text @map("contenido")
+  /// Números que lo respaldan.
+  metricas      Json?        @map("metricas")
+  /// Fecha de generación.
+  creadoEn      DateTime     @default(now()) @db.Timestamptz(6) @map("creado_en")
+  usuario       Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  area          Area?        @relation(fields: [areaId], references: [id], onDelete: Restrict)
+  registroIa    RegistroIa?  @relation(fields: [registroIaId], references: [id], onDelete: SetNull)
+
+  @@map("informe")
+}

@@ -17,5 +17,22 @@ services:
       timeout: 5s
       retries: 10
 
+  server:
+    build: ./server
+    container_name: snapit-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Adentro de Docker la base se llama "db", no "localhost".
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   db_data:
+
