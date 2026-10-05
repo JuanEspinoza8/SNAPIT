@@ -44,11 +44,34 @@ En el servidor, los errores esperados se lanzan con `throw new ErrorApp(status, 
 Cada respuesta incluye el encabezado `X-Request-Id`. Si el cliente manda uno (de hasta 100 caracteres), se respeta; si no, o si viene vacío, se genera. Al reportar un error, conviene pasar ese id: es el que se busca en los logs del servidor.
 
 ## Autenticación
-Las rutas las implementa la #6. La convención para los clientes:
+La misma cuenta sirve en la web y en la app. Hay dos tokens:
 
-- Las rutas que piden sesión esperan el encabezado `Authorization: Bearer <tokenAcceso>`.
-- El `tokenAcceso` dura 15 minutos. Ante un 401, el cliente pide tokens nuevos **una vez** con `POST /api/auth/renovar` (`{ tokenRenovacion }`) y reintenta. Si la renovación también falla, vuelve a la pantalla de ingreso.
-- 403 significa que la sesión es válida pero el rol no tiene permiso: no se renueva ni se reintenta.
+| Token | Dura | Para qué |
+|---|---|---|
+| `tokenAcceso` | 15 minutos | Va en cada petición: `Authorization: Bearer <tokenAcceso>`. Es un JWT con el id, el rol, el organismo y el área. |
+| `tokenRenovacion` | 30 días | Solo sirve para pedir tokens nuevos con `POST /api/auth/renovar`. Se puede usar **una sola vez**: cada renovación devuelve uno nuevo que reemplaza al anterior. |
+
+Qué hace el cliente:
+
+- Guarda los dos tokens: la app en almacenamiento seguro, la web en memoria o `sessionStorage`. Nunca en logs.
+- Ante un 401 con `TOKEN_VENCIDO`, pide tokens nuevos **una vez** con `POST /api/auth/renovar`, guarda **los dos** que vuelven y reintenta. Si la renovación también falla, vuelve a la pantalla de ingreso.
+- Ante cualquier otro 401 (`NO_AUTENTICADO`, `TOKEN_INVALIDO`), vuelve a la pantalla de ingreso.
+- 403 (`SIN_PERMISO`) significa que la sesión es válida pero el rol no tiene permiso: no se renueva ni se reintenta.
+
+| Código | Status | Cuándo |
+|---|---|---|
+| `NO_AUTENTICADO` | 401 | Falta el encabezado `Authorization: Bearer ...` |
+| `TOKEN_VENCIDO` | 401 | El `tokenAcceso` pasó los 15 minutos: hay que renovar |
+| `TOKEN_INVALIDO` | 401 | Token adulterado, mal formado o de una cuenta dada de baja |
+| `SIN_PERMISO` | 403 | El rol no puede usar esa ruta |
+
+En el servidor, una ruta protegida se arma con los middlewares de `src/compartido/autenticacion.ts`:
+
+```ts
+router.get('/bandeja', autenticar, permitirRoles('OPERADOR', 'ADMINISTRADOR'), async (req, res) => {
+  // req.usuario = { id, rol, organismoId, areaId }
+});
+```
 
 ## Endpoints
 
@@ -60,3 +83,74 @@ Indica si el servidor está activo y si llega a la base de datos. Siempre respon
 ```
 
 `baseDeDatos` vale `"error"` si la base no responde.
+
+### El objeto `usuario`
+Lo devuelven el registro, el ingreso, la renovación y `/yo`. Nunca incluye la clave.
+
+```json
+{ "id": 7, "email": "ana@ejemplo.com", "nombre": "Ana", "rol": "VECINO", "organismoId": null, "areaId": null }
+```
+
+`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` y `areaId` solo vienen informados en operadores y administradores.
+
+### `POST /api/auth/registro`
+Crea una cuenta de vecino. Pública.
+
+```json
+{ "email": "ana@ejemplo.com", "clave": "una-clave-segura", "nombre": "Ana" }
+```
+
+- `email`: se guarda en minúsculas y sin espacios. Hasta 150 caracteres.
+- `clave`: de 8 a 72 caracteres.
+- `nombre`: de 1 a 120 caracteres.
+
+Responde **201** con `{ "usuario": { ... } }`. La cuenta queda **sin confirmar**: no puede ingresar hasta confirmar el correo (#7). Mientras la #7 no esté, en desarrollo el token de confirmación aparece en la consola del servidor.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Algún campo no cumple; `detalles` dice cuál |
+| 409 | `EMAIL_EN_USO` | Ya hay una cuenta con ese correo |
+
+### `POST /api/auth/ingreso`
+Pública.
+
+```json
+{ "email": "ana@ejemplo.com", "clave": "una-clave-segura" }
+```
+
+Responde **200**:
+
+```json
+{ "tokenAcceso": "eyJ...", "tokenRenovacion": "Qm9...", "usuario": { ... } }
+```
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 401 | `CREDENCIALES_INVALIDAS` | El correo no existe o la clave no coincide. A propósito no dice cuál de las dos. |
+| 403 | `CUENTA_SIN_CONFIRMAR` | La clave es correcta pero falta confirmar el correo |
+| 403 | `CUENTA_DADA_DE_BAJA` | La clave es correcta pero la cuenta fue dada de baja |
+
+### `POST /api/auth/renovar`
+Pública (el `tokenAcceso` puede estar vencido).
+
+```json
+{ "tokenRenovacion": "Qm9..." }
+```
+
+Responde **200** con lo mismo que el ingreso: `tokenAcceso`, un `tokenRenovacion` **nuevo** y `usuario`. El token enviado deja de servir.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 401 | `TOKEN_RENOVACION_INVALIDO` | No existe, ya se usó, venció, se cerró con `/salir` o la cuenta fue dada de baja |
+
+### `POST /api/auth/salir`
+Pública. Cierra la sesión de este dispositivo.
+
+```json
+{ "tokenRenovacion": "Qm9..." }
+```
+
+Responde **204** sin cuerpo, aunque el token no exista. El cliente igual borra los dos tokens.
+
+### `GET /api/auth/yo`
+Requiere sesión. Responde **200** con `{ "usuario": { ... } }`, leído de la base en ese momento.

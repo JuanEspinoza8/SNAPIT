@@ -11,6 +11,8 @@ const esquema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   DATABASE_URL: z.url(),
+  // Firma los tokens de acceso. Si se filtra, cualquiera puede armar un token válido.
+  JWT_SECRET: z.string().min(32, 'Tiene que tener al menos 32 caracteres'),
 });
 
 const resultado = esquema.safeParse(process.env);
