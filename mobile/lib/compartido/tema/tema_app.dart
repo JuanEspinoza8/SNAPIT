@@ -179,6 +179,12 @@ ThemeData crearTema() {
       ),
       shape: forma,
     ),
+    // Material 3 redondea la hoja a 28; el sistema de diseño usa 8.
+    bottomSheetTheme: const BottomSheetThemeData(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(radioBorde)),
+      ),
+    ),
     dividerTheme: const DividerThemeData(color: ColoresSnapIt.borde),
     extensions: const [ColoresEstado.claro],
   );

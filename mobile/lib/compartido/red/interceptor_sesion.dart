@@ -5,10 +5,17 @@ import '../sesion/almacen_sesion.dart';
 /// Agrega el token de acceso a cada petición. Ante un 401 renueva la sesión
 /// una vez con `POST /auth/renovar` y reintenta (ver `docs/api.md`).
 class InterceptorSesion extends Interceptor {
-  InterceptorSesion({required this._dio, required this._almacen});
+  InterceptorSesion({
+    required this._dio,
+    required this._almacen,
+    this._alPerderSesion,
+  });
 
   final Dio _dio;
   final AlmacenSesion _almacen;
+
+  /// Se llama después de borrar los tokens, cuando la sesión ya no sirve.
+  final void Function()? _alPerderSesion;
 
   /// Marca para peticiones que no llevan token, como la propia renovación.
   static const sinSesion = 'sinSesion';
@@ -78,7 +85,7 @@ class InterceptorSesion extends Interceptor {
   Future<String?> _renovar() async {
     final tokenRenovacion = await _almacen.leerTokenRenovacion();
     if (tokenRenovacion == null) {
-      await _almacen.borrar();
+      await _descartarSesion();
       return null;
     }
 
@@ -91,7 +98,7 @@ class InterceptorSesion extends Interceptor {
       final tokenAcceso = respuesta.data?['tokenAcceso'];
       final nuevoTokenRenovacion = respuesta.data?['tokenRenovacion'];
       if (tokenAcceso is! String || nuevoTokenRenovacion is! String) {
-        await _almacen.borrar();
+        await _descartarSesion();
         return null;
       }
       await _almacen.guardar(
@@ -104,9 +111,14 @@ class InterceptorSesion extends Interceptor {
       // conexión o con un error del servidor se conserva para otro intento.
       final status = e.response?.statusCode;
       if (status != null && status >= 400 && status < 500) {
-        await _almacen.borrar();
+        await _descartarSesion();
       }
       rethrow;
     }
+  }
+
+  Future<void> _descartarSesion() async {
+    await _almacen.borrar();
+    _alPerderSesion?.call();
   }
 }

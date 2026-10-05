@@ -127,11 +127,22 @@ lib/
     tema/            colores, textos y espaciado del sistema de diseño
     rutas/           go_router
     red/             cliente dio, token y renovación de la sesión, errores de la API
-    sesion/          tokens en almacenamiento seguro
-    errores/         aviso con el mensaje del error
+    sesion/          tokens en almacenamiento seguro, usuario y estado de la sesión
+    errores/         aviso y recuadro con el mensaje del error
   funcionalidades/
+    cuenta/          arranque, ingreso, registro y «Olvidé mi clave»
+    principal/       pantalla con el menú según el rol
     <funcionalidad>/ pantallas, providers y repositorios de cada funcionalidad
 ```
+
+### Sesión
+
+- Al abrir, si hay una sesión guardada, la app pide `GET /auth/yo` y entra directo; si el acceso venció, el interceptor lo renueva antes. Si la renovación se rechaza, va al ingreso. Sin conexión, muestra el aviso y un botón para reintentar, sin pedir la clave.
+- Si la renovación se rechaza mientras se usa la app, vuelve sola al ingreso.
+- Confirmar el correo y elegir una clave nueva se hacen desde el enlace del correo, en la web. Hasta que la web tenga esas páginas (#9), para probar la app se confirma a mano con el token del enlace que llega a Mailpit (http://localhost:8025):
+  ```bash
+  curl -X POST http://localhost:3000/api/auth/confirmar-correo -H "Content-Type: application/json" -d '{"token":"<token del enlace>"}'
+  ```
 
 ### Gestión de estado: Riverpod
 
