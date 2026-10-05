@@ -78,13 +78,45 @@ describe('POST /api/auth/registro', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.codigo).toBe('DATOS_INVALIDOS');
-    expect(res.body.error.detalles).toEqual(
-      expect.arrayContaining([
-        { campo: 'email', mensaje: 'No es un correo válido' },
-        { campo: 'clave', mensaje: 'Tiene que tener al menos 8 caracteres' },
-        { campo: 'nombre', mensaje: 'Es obligatorio' },
-      ]),
-    );
+    expect(res.body.error.detalles).toEqual([
+      { campo: 'email', mensaje: 'No es un correo válido' },
+      { campo: 'clave', mensaje: 'Tiene que tener al menos 8 caracteres' },
+      { campo: 'nombre', mensaje: 'Es obligatorio' },
+    ]);
+  });
+
+  it('un campo que falla varias reglas aparece una sola vez', async () => {
+    const res = await request(app)
+      .post('/api/auth/registro')
+      .send({ email: 'a'.repeat(200), clave: CLAVE, nombre: 'Ana' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles).toEqual([{ campo: 'email', mensaje: 'No es un correo válido' }]);
+  });
+
+  it('si el cuerpo no es un objeto, el detalle sale en castellano', async () => {
+    const res = await request(app).post('/api/auth/registro').send([]);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles).toHaveLength(1);
+    expect(res.body.error.detalles[0].campo).toBe('(cuerpo)');
+    expect(res.body.error.detalles[0].mensaje).toMatch(/se esperaba objeto/);
+  });
+
+  it('la clave se limita a 72 bytes, no a 72 caracteres', async () => {
+    // Cada ñ ocupa dos bytes: 36 entran justo, una letra más ya no.
+    const justa = await request(app)
+      .post('/api/auth/registro')
+      .send({ email: correoNuevo(), clave: 'ñ'.repeat(36), nombre: 'Ana' });
+    const larga = await request(app)
+      .post('/api/auth/registro')
+      .send({ email: correoNuevo(), clave: 'ñ'.repeat(36) + 'a', nombre: 'Ana' });
+
+    expect(justa.status).toBe(201);
+    expect(larga.status).toBe(400);
+    expect(larga.body.error.detalles).toEqual([
+      { campo: 'clave', mensaje: 'Tiene que tener hasta 72 caracteres (menos si usa tildes o ñ)' },
+    ]);
   });
 
   it('sin cuerpo informa los tres campos obligatorios', async () => {

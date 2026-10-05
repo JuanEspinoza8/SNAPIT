@@ -53,17 +53,18 @@ La misma cuenta sirve en la web y en la app. Hay dos tokens:
 
 Qué hace el cliente:
 
-- Guarda los dos tokens: la app en almacenamiento seguro, la web en memoria o `sessionStorage`. Nunca en logs.
-- Ante un 401 con `TOKEN_VENCIDO`, pide tokens nuevos **una vez** con `POST /api/auth/renovar`, guarda **los dos** que vuelven y reintenta. Si la renovación también falla, vuelve a la pantalla de ingreso.
-- Ante cualquier otro 401 (`NO_AUTENTICADO`, `TOKEN_INVALIDO`), vuelve a la pantalla de ingreso.
+- Guarda los dos tokens: la app en almacenamiento seguro y la web en `localStorage`, para que la sesión siga al recargar o al volver a abrir el navegador. Nunca en logs.
+- Ante un 401 en una petición que llevaba el token, pide tokens nuevos **una vez** con `POST /api/auth/renovar`, guarda **los dos** que vuelven y reintenta. Si la renovación también falla, vuelve a la pantalla de ingreso. No hace falta mirar si el código es `TOKEN_VENCIDO` o `TOKEN_INVALIDO`: si la sesión ya no sirve, la renovación falla.
 - 403 (`SIN_PERMISO`) significa que la sesión es válida pero el rol no tiene permiso: no se renueva ni se reintenta.
 
 | Código | Status | Cuándo |
 |---|---|---|
 | `NO_AUTENTICADO` | 401 | Falta el encabezado `Authorization: Bearer ...` |
 | `TOKEN_VENCIDO` | 401 | El `tokenAcceso` pasó los 15 minutos: hay que renovar |
-| `TOKEN_INVALIDO` | 401 | Token adulterado, mal formado o de una cuenta dada de baja |
+| `TOKEN_INVALIDO` | 401 | Token adulterado o mal formado. En `/api/auth/yo`, también si la cuenta fue dada de baja |
 | `SIN_PERMISO` | 403 | El rol no puede usar esa ruta |
+
+El `tokenAcceso` no se controla contra la base en cada petición: una cuenta dada de baja puede seguir usando las rutas protegidas hasta que venza su token (15 minutos como máximo). Después, la renovación falla.
 
 En el servidor, una ruta protegida se arma con los middlewares de `src/compartido/autenticacion.ts`:
 
@@ -101,7 +102,7 @@ Crea una cuenta de vecino. Pública.
 ```
 
 - `email`: se guarda en minúsculas y sin espacios. Hasta 150 caracteres.
-- `clave`: de 8 a 72 caracteres.
+- `clave`: de 8 a 72 caracteres. El límite real es de 72 bytes, porque es lo que usa bcrypt: una ñ o una vocal con tilde ocupan dos, así que con esas letras entran menos.
 - `nombre`: de 1 a 120 caracteres.
 
 Responde **201** con `{ "usuario": { ... } }`. La cuenta queda **sin confirmar**: no puede ingresar hasta confirmar el correo (#7). Mientras la #7 no esté, en desarrollo el token de confirmación aparece en la consola del servidor.

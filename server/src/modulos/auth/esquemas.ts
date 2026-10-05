@@ -9,10 +9,13 @@ const email = z
   );
 
 // bcrypt solo usa los primeros 72 bytes de la clave: más largo no suma seguridad y confunde.
+// Se cuentan bytes y no caracteres porque una ñ o una vocal con tilde ocupan dos.
 const clave = z
   .string({ error: 'Es obligatoria' })
   .min(8, { error: 'Tiene que tener al menos 8 caracteres' })
-  .max(72, { error: 'Tiene que tener hasta 72 caracteres' });
+  .refine((valor) => Buffer.byteLength(valor) <= 72, {
+    error: 'Tiene que tener hasta 72 caracteres (menos si usa tildes o ñ)',
+  });
 
 export const esquemaRegistro = z.object({
   email,
