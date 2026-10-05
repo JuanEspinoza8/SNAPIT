@@ -47,4 +47,14 @@ describe('permitirRoles', () => {
 
     expect(res.status).toBe(401);
   });
+
+  it('un token sin firma ("alg: none") no pasa, aunque diga ADMINISTRADOR', async () => {
+    const parte = (datos: object) => Buffer.from(JSON.stringify(datos)).toString('base64url');
+    const sinFirma = `${parte({ alg: 'none', typ: 'JWT' })}.${parte({ sub: '1', rol: 'ADMINISTRADOR' })}.`;
+
+    const res = await request(app).get('/operador').set('Authorization', `Bearer ${sinFirma}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.codigo).toBe('TOKEN_INVALIDO');
+  });
 });

@@ -19,6 +19,8 @@ Requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/).
    ```bash
    cp .env.example .env
    ```
+   Completar `JWT_SECRET`, que viene vacío: el comando para generarlo está en el mismo archivo. Sin ese valor, `docker compose` no levanta ni la base.
+
    Si cambiás la clave, el usuario, la base o el puerto, cambialos también en `DATABASE_URL` y `TEST_DATABASE_URL`, que los repiten. La clave se fija la primera vez que se crea la base: si ya la levantaste, cambiarla en `.env` no alcanza y hay que empezar de cero con `docker compose down -v` (se borran los datos).
 2. Levantar la base:
    ```bash
