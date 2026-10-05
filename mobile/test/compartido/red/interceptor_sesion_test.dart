@@ -8,8 +8,10 @@ import '../../apoyo/servidor_falso.dart';
 
 void main() {
   late AlmacenSesion almacen;
+  late int sesionesPerdidas;
 
   setUp(() {
+    sesionesPerdidas = 0;
     FlutterSecureStorage.setMockInitialValues({
       'tokenAcceso': 'acceso-1',
       'tokenRenovacion': 'renovacion-1',
@@ -17,9 +19,11 @@ void main() {
     almacen = AlmacenSesion();
   });
 
-  Dio cliente(ServidorFalso servidor) =>
-      crearClienteApi(urlBase: 'http://api.test/api', almacen: almacen)
-        ..httpClientAdapter = servidor;
+  Dio cliente(ServidorFalso servidor) => crearClienteApi(
+    urlBase: 'http://api.test/api',
+    almacen: almacen,
+    alPerderSesion: () => sesionesPerdidas++,
+  )..httpClientAdapter = servidor;
 
   // Acepta solo el token nuevo; la renovación entrega acceso-2.
   Future<ResponseBody> servidorQueRenueva(RequestOptions pedido) {
@@ -50,6 +54,7 @@ void main() {
     final respuesta = await cliente(servidor).get<Object>('/recurso');
 
     expect(respuesta.statusCode, 200);
+    expect(sesionesPerdidas, 0);
     expect(servidor.pedidos.map((p) => p.ruta), [
       '/recurso',
       '/auth/renovar',
@@ -102,7 +107,8 @@ void main() {
   });
 
   test(
-    'si el servidor rechaza la renovación, borra la sesión y devuelve ese error',
+    'si el servidor rechaza la renovación, borra la sesión, avisa y devuelve '
+    'ese error',
     () async {
       final servidor = ServidorFalso((pedido) {
         if (pedido.path == '/auth/renovar') {
@@ -123,6 +129,7 @@ void main() {
       );
       expect(await almacen.leerTokenAcceso(), isNull);
       expect(await almacen.leerTokenRenovacion(), isNull);
+      expect(sesionesPerdidas, 1);
     },
   );
 
@@ -144,6 +151,7 @@ void main() {
     );
     expect(await almacen.leerTokenAcceso(), 'acceso-1');
     expect(await almacen.leerTokenRenovacion(), 'renovacion-1');
+    expect(sesionesPerdidas, 0);
   });
 
   test('un 403 no renueva la sesión', () async {
