@@ -17,7 +17,7 @@ import {
   sumarHoras,
 } from './tokens.js';
 
-const COSTO_BCRYPT = 10;
+export const COSTO_BCRYPT = 10;
 
 // Si el correo no existe se compara igual contra este hash, para que la respuesta tarde lo mismo
 // y no se pueda averiguar qué correos están registrados midiendo el tiempo.

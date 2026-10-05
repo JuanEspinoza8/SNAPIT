@@ -86,13 +86,13 @@ Indica si el servidor está activo y si llega a la base de datos. Siempre respon
 `baseDeDatos` vale `"error"` si la base no responde.
 
 ### El objeto `usuario`
-Lo devuelven el registro, el ingreso, la renovación y `/yo`. Nunca incluye la clave.
+Lo devuelven el registro, el ingreso, la renovación, `/yo` y la administración de usuarios. Nunca incluye la clave.
 
 ```json
 { "id": 7, "email": "ana@ejemplo.com", "nombre": "Ana", "rol": "VECINO", "organismoId": null, "areaId": null }
 ```
 
-`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` y `areaId` solo vienen informados en operadores y administradores.
+`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` viene informado en los operadores y, si se le asignó uno, en los administradores. `areaId`, solo en los operadores.
 
 ### `POST /api/auth/registro`
 Crea una cuenta de vecino. Pública.
@@ -226,3 +226,28 @@ No abre sesión: el cliente lleva al ingreso. El `tokenAcceso` que ya tenga otro
 |---|---|---|
 | 400 | `DATOS_INVALIDOS` | Falta el token o la clave no cumple. El link no se gasta: se puede volver a intentar |
 | 400 | `ENLACE_*` | Ver [Links de los correos](#links-de-los-correos) |
+
+## Administración
+Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
+
+### `POST /api/admin/usuarios`
+Da de alta un operador o un administrador. Los vecinos no se crean acá: se registran solos.
+
+```json
+{ "email": "olga@ejemplo.com", "clave": "clave-inicial-1", "nombre": "Olga", "rol": "OPERADOR", "organismoId": 1, "areaId": 3 }
+```
+
+- `email`, `clave` y `nombre`: mismas reglas que en el registro. La clave es la inicial: el administrador se la pasa al operador, que después la puede cambiar con «Olvidé mi clave».
+- `rol`: `OPERADOR` o `ADMINISTRADOR`.
+- `organismoId` y `areaId`: obligatorios para un `OPERADOR`. El organismo y el área tienen que existir y estar activos, y el área tiene que ser de ese organismo.
+- Para un `ADMINISTRADOR`, `organismoId` es opcional y `areaId` no se manda (o va en `null`): solo los operadores tienen área.
+
+Responde **201** con `{ "usuario": { ... } }`. El correo queda confirmado, así que la cuenta puede ingresar enseguida.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Algún campo no cumple, el organismo o el área no existen o están inactivos, o el área es de otro organismo. `detalles` dice cuál |
+| 409 | `EMAIL_EN_USO` | Ya hay una cuenta con ese correo |
+
+### `GET /api/admin/usuarios`
+Responde **200** con `{ "usuarios": [ { ... } ] }`: todos los usuarios que no están dados de baja, de cualquier rol, ordenados por nombre. Cada uno tiene la forma del [objeto `usuario`](#el-objeto-usuario).
