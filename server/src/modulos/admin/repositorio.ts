@@ -21,6 +21,23 @@ export function crearUsuario(datos: {
   return prisma.usuario.create({ data: datos });
 }
 
+/** Organismos activos con sus áreas activas: lo que se puede elegir al dar de alta un operador. */
+export function listarOrganismosActivos() {
+  return prisma.organismo.findMany({
+    where: { activo: true },
+    orderBy: [{ nombre: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true,
+      nombre: true,
+      areas: {
+        where: { activa: true },
+        orderBy: [{ nombre: 'asc' }, { id: 'asc' }],
+        select: { id: true, nombre: true },
+      },
+    },
+  });
+}
+
 /** Usuarios que no están dados de baja, de cualquier rol. */
 export function listarUsuarios() {
   return prisma.usuario.findMany({

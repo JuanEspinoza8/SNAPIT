@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
+import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 
 export const CLAVE = 'clave-de-prueba-1';
 
@@ -24,6 +25,11 @@ export async function crearUsuario(
       eliminadoEn: dadoDeBaja ? new Date() : null,
     },
   });
+}
+
+/** Token de acceso de un usuario nuevo con ese rol. */
+export async function tokenDe(rol: RolUsuario) {
+  return crearTokenAcceso(await crearUsuario({ rol }));
 }
 
 export async function ingresar(email: string, clave = CLAVE) {

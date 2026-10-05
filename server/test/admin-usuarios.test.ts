@@ -1,15 +1,11 @@
-import type { RolUsuario } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
-import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
-import { CLAVE, correoNuevo, crearUsuario, ingresar } from './apoyo.js';
+import { CLAVE, correoNuevo, crearUsuario, ingresar, tokenDe } from './apoyo.js';
 
 const ID_INEXISTENTE = 2147483647;
-
-const tokenDe = async (rol: RolUsuario) => crearTokenAcceso(await crearUsuario({ rol }));
 
 const darDeAlta = (token: string, datos: object) =>
   request(app).post('/api/admin/usuarios').set('Authorization', `Bearer ${token}`).send(datos);

@@ -230,6 +230,15 @@ No abre sesión: el cliente lleva al ingreso. El `tokenAcceso` que ya tenga otro
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
 
+### `GET /api/admin/organismos`
+Lo que se puede elegir al dar de alta un operador. Responde **200** con los organismos activos y, dentro de cada uno, sus áreas activas, los dos ordenados por nombre:
+
+```json
+{ "organismos": [{ "id": 1, "nombre": "Municipalidad de Neuquén", "areas": [{ "id": 3, "nombre": "Bacheo" }] }] }
+```
+
+Un organismo activo sin áreas activas viene con `"areas": []`: sirve para un administrador, no para un operador.
+
 ### `POST /api/admin/usuarios`
 Da de alta un operador o un administrador. Los vecinos no se crean acá: se registran solos.
 

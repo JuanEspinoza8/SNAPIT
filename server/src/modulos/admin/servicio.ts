@@ -56,6 +56,10 @@ export async function crearUsuario(datos: DatosAltaUsuario) {
   }
 }
 
+export async function listarOrganismos() {
+  return { organismos: await repositorio.listarOrganismosActivos() };
+}
+
 export async function listarUsuarios() {
   const usuarios = await repositorio.listarUsuarios();
   return { usuarios: usuarios.map(usuarioPublico) };

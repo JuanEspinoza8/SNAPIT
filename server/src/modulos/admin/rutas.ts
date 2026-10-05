@@ -9,6 +9,10 @@ export const rutasAdmin = Router();
 // Todo lo que cuelga de /api/admin es solo para administradores, también las rutas que se agreguen después.
 rutasAdmin.use(autenticar, permitirRoles('ADMINISTRADOR'));
 
+rutasAdmin.get('/organismos', async (_req, res) => {
+  res.json(await servicio.listarOrganismos());
+});
+
 rutasAdmin.post('/usuarios', async (req, res) => {
   const datos = validar(esquemaAltaUsuario, req.body ?? {});
   res.status(201).json(await servicio.crearUsuario(datos));
