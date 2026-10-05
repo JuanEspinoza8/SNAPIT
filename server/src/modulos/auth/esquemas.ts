@@ -36,3 +36,12 @@ export const esquemaIngreso = z.object({
 export const esquemaTokenRenovacion = z.object({
   tokenRenovacion: z.string({ error: 'Es obligatorio' }).min(1, { error: 'Es obligatorio' }),
 });
+
+// El token que llega en el link de un correo.
+const tokenEnlace = z.string({ error: 'Es obligatorio' }).min(1, { error: 'Es obligatorio' });
+
+export const esquemaConfirmarCorreo = z.object({ token: tokenEnlace });
+
+export const esquemaRecuperarClave = z.object({ email });
+
+export const esquemaRestablecerClave = z.object({ token: tokenEnlace, clave });

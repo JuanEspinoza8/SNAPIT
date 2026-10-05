@@ -1,36 +1,14 @@
-import { randomUUID } from 'node:crypto';
-import type { RolUsuario } from '@prisma/client';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { env } from '../src/config/env.js';
 import { generarTokenAleatorio, hashToken } from '../src/modulos/auth/tokens.js';
+import { CLAVE, correoNuevo, crearUsuario, ingresar } from './apoyo.js';
 
-const CLAVE = 'clave-de-prueba-1';
-
-// Cada test usa un correo distinto, así pueden correr en paralelo sobre la misma base.
-const correoNuevo = () => `prueba-${randomUUID()}@snapit.test`;
-
-async function crearUsuario(opciones: { rol?: RolUsuario; confirmado?: boolean; dadoDeBaja?: boolean } = {}) {
-  const { rol = 'VECINO', confirmado = true, dadoDeBaja = false } = opciones;
-  return prisma.usuario.create({
-    data: {
-      email: correoNuevo(),
-      nombre: 'Persona de prueba',
-      passwordHash: await bcrypt.hash(CLAVE, 4),
-      rol,
-      emailVerificadoEn: confirmado ? new Date() : null,
-      eliminadoEn: dadoDeBaja ? new Date() : null,
-    },
-  });
-}
-
-async function ingresar(email: string, clave = CLAVE) {
-  return request(app).post('/api/auth/ingreso').send({ email, clave });
-}
+// El registro manda un correo: en los tests no sale a ningún servidor SMTP.
+vi.mock('../src/compartido/correo.js', () => ({ enviarCorreo: vi.fn(async () => {}) }));
 
 describe('POST /api/auth/registro', () => {
   it('crea un vecino sin confirmar, con su token de verificación', async () => {

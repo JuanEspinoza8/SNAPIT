@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma, TipoToken } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
 
 export function buscarUsuarioPorEmail(email: string) {
@@ -32,20 +32,46 @@ export function crearSesion(
   return tx.tokenAcceso.create({ data: { usuarioId, tipo: 'SESION', tokenHash, expiraEn } });
 }
 
-export function buscarSesion(tokenHash: string) {
-  return prisma.tokenAcceso.findFirst({ where: { tokenHash, tipo: 'SESION' }, include: { usuario: true } });
+export function crearRecuperacionClave(usuarioId: number, tokenHash: string, expiraEn: Date) {
+  return prisma.tokenAcceso.create({ data: { usuarioId, tipo: 'RECUPERACION_CLAVE', tokenHash, expiraEn } });
+}
+
+export function buscarToken(tokenHash: string, tipo: TipoToken) {
+  return prisma.tokenAcceso.findFirst({ where: { tokenHash, tipo }, include: { usuario: true } });
 }
 
 /**
- * Marca la sesión como usada solo si todavía no lo estaba. Devuelve false si otra petición la usó antes:
- * así dos renovaciones simultáneas con el mismo token no pueden ganar las dos.
+ * Marca el token como usado solo si todavía no lo estaba. Devuelve false si otra petición lo usó antes:
+ * así dos peticiones simultáneas con el mismo token no pueden ganar las dos.
  */
-export async function consumirSesion(id: number, ahora: Date, tx: Prisma.TransactionClient = prisma) {
+export async function consumirToken(id: number, ahora: Date, tx: Prisma.TransactionClient = prisma) {
   const { count } = await tx.tokenAcceso.updateMany({
     where: { id, usadoEn: null },
     data: { usadoEn: ahora },
   });
   return count === 1;
+}
+
+/** Marca como usados todos los tokens pendientes del usuario: sesiones abiertas y links de correos. */
+export function anularTokensPendientes(usuarioId: number, ahora: Date, tx: Prisma.TransactionClient) {
+  return tx.tokenAcceso.updateMany({ where: { usuarioId, usadoEn: null }, data: { usadoEn: ahora } });
+}
+
+/** Completa email_verificado_en. Si ya estaba confirmado, conserva la fecha original. */
+export function marcarCorreoConfirmado(usuarioId: number, ahora: Date, tx: Prisma.TransactionClient) {
+  return tx.usuario.updateMany({
+    where: { id: usuarioId, emailVerificadoEn: null },
+    data: { emailVerificadoEn: ahora, actualizadoEn: ahora },
+  });
+}
+
+export function cambiarClave(
+  usuarioId: number,
+  passwordHash: string,
+  ahora: Date,
+  tx: Prisma.TransactionClient,
+) {
+  return tx.usuario.update({ where: { id: usuarioId }, data: { passwordHash, actualizadoEn: ahora } });
 }
 
 export function cerrarSesionPorHash(tokenHash: string, ahora: Date) {

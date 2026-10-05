@@ -65,12 +65,22 @@ npm run dev                 # http://localhost:3000/api/salud
 
 Para levantar el servidor en Docker junto con la base: `docker compose up -d --build`. Al arrancar, el contenedor aplica las migraciones pendientes, así que no hace falta Node en la PC. El contenedor y `npm run dev` usan el mismo puerto: si uno está levantado, el otro no arranca y avisa que el puerto está ocupado.
 
+### Correos en desarrollo
+
+Los correos de confirmación y de recuperación de clave van a [Mailpit](https://mailpit.axllent.org/), que los atrapa sin mandarlos a ninguna casilla real. Se levanta solo con `docker compose up -d --build`; para usarlo con `npm run dev`:
+
+```bash
+docker compose up -d mailpit
+```
+
+Los correos se ven en http://localhost:8025. Si tu `.env` es anterior a la #7, copiale el bloque «Correos» de `.env.example`: sin esas variables el servidor no arranca y `docker compose` no levanta.
+
 ### Estructura
 
 ```
 src/
   config/        env (validado con zod) y logger
-  compartido/    prisma, errores y middlewares comunes
+  compartido/    prisma, errores, correo y middlewares comunes
   modulos/
     <modulo>/
       rutas.ts        endpoints y validación de la entrada
