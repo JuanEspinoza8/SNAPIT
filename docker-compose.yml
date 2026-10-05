@@ -29,11 +29,28 @@ services:
       # Adentro de Docker la base se llama "db", no "localhost".
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET:?falta en el .env (ver .env.example)}
+      URL_WEB: ${URL_WEB:?falta en el .env (ver .env.example)}
+      # Adentro de Docker los correos van a Mailpit por la red interna.
+      SMTP_HOST: mailpit
+      SMTP_PUERTO: 1025
+      CORREO_REMITENTE: ${CORREO_REMITENTE:?falta en el .env (ver .env.example)}
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_healthy
+
+  # Atrapa todos los correos que manda el servidor en desarrollo: no llegan a ninguna casilla real.
+  # Se ven en http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.31
+    container_name: snapit-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
 volumes:
   db_data:

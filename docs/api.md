@@ -29,7 +29,7 @@ Todas las respuestas de error tienen el mismo formato:
 
 | Status | Cuándo |
 |---|---|
-| 400 | Datos inválidos o JSON mal formado (`JSON_INVALIDO`) |
+| 400 | Datos inválidos, JSON mal formado (`JSON_INVALIDO`) o un link de un correo que ya no sirve (`ENLACE_*`) |
 | 401 | Falta autenticación o el token no es válido |
 | 403 | Autenticado, pero sin permiso para la acción |
 | 404 | Ruta o recurso inexistente (`RUTA_NO_ENCONTRADA`) |
@@ -105,7 +105,9 @@ Crea una cuenta de vecino. Pública.
 - `clave`: de 8 a 72 caracteres. El límite real es de 72 bytes, porque es lo que usa bcrypt: una ñ o una vocal con tilde ocupan dos, así que con esas letras entran menos.
 - `nombre`: de 1 a 120 caracteres.
 
-Responde **201** con `{ "usuario": { ... } }`. La cuenta queda **sin confirmar**: no puede ingresar hasta confirmar el correo (#7). Mientras la #7 no esté, en desarrollo el token de confirmación aparece en la consola del servidor.
+Responde **201** con `{ "usuario": { ... } }`. La cuenta queda **sin confirmar** y se le manda un correo con el link de confirmación (ver [Links de los correos](#links-de-los-correos)). No puede ingresar hasta confirmar.
+
+El correo sale sin demorar la respuesta. Si no se puede enviar, el registro responde 201 igual y el error queda en el log del servidor. En ese caso, o si el link vence, el vecino puede usar «Olvidé mi clave»: al elegir una clave nueva también se confirma el correo.
 
 | Status | Código | Cuándo |
 |---|---|---|
@@ -155,3 +157,72 @@ Responde **204** sin cuerpo, aunque el token no exista. El cliente igual borra l
 
 ### `GET /api/auth/yo`
 Requiere sesión. Responde **200** con `{ "usuario": { ... } }`, leído de la base en ese momento.
+
+### Links de los correos
+Los correos llevan un link a la web, armado con la variable `URL_WEB`:
+
+| Correo | Link | Vence |
+|---|---|---|
+| Confirmación (al registrarse) | `{URL_WEB}/confirmar-correo?token=...` | 24 horas |
+| Recuperación de clave | `{URL_WEB}/restablecer-clave?token=...` | 1 hora |
+
+La web (#9) tiene que tener esas dos páginas: leen el `token` de la URL y llaman a `POST /api/auth/confirmar-correo` o `POST /api/auth/restablecer-clave`. Cada link sirve una sola vez. En la base se guarda el hash del token, no el token.
+
+Errores de los dos endpoints que reciben un link:
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `ENLACE_INVALIDO` | El token no existe, es de otro tipo de link o la cuenta fue dada de baja |
+| 400 | `ENLACE_USADO` | El link ya se usó |
+| 400 | `ENLACE_VENCIDO` | El link venció: hay que pedir otro con «Olvidé mi clave» |
+
+El `mensaje` explica qué hacer en cada caso, así que se le puede mostrar al usuario tal cual.
+
+### `POST /api/auth/confirmar-correo`
+Pública.
+
+```json
+{ "token": "Qm9..." }
+```
+
+Responde **204** sin cuerpo: la cuenta queda confirmada y ya puede ingresar. No abre sesión.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta el token |
+| 400 | `ENLACE_*` | Ver [Links de los correos](#links-de-los-correos) |
+
+### `POST /api/auth/recuperar-clave`
+Pública.
+
+```json
+{ "email": "ana@ejemplo.com" }
+```
+
+Responde **204** sin cuerpo **siempre**, exista o no el correo. Responde antes de buscarlo, así que ni la respuesta ni lo que tarda dicen si hay una cuenta con ese correo. Si la cuenta existe y no está dada de baja, se le manda el correo con el link. Una cuenta sin confirmar también lo recibe.
+
+Pedirlo varias veces genera varios links: el primero que se use anula los demás.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta el correo o no tiene formato de correo |
+
+### `POST /api/auth/restablecer-clave`
+Pública.
+
+```json
+{ "token": "Qm9...", "clave": "otra-clave-segura" }
+```
+
+`clave` sigue las mismas reglas que en el registro. Responde **204** sin cuerpo y, todo junto:
+
+- Cambia la clave.
+- Cierra todas las sesiones abiertas del usuario (sus `tokenRenovacion` dejan de servir) y anula los otros links pendientes.
+- Confirma el correo si todavía no estaba confirmado, porque el link llegó a esa casilla.
+
+No abre sesión: el cliente lleva al ingreso. El `tokenAcceso` que ya tenga otro dispositivo sigue sirviendo hasta que vence (15 minutos como máximo); después, la renovación falla y ese dispositivo vuelve al ingreso.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta el token o la clave no cumple. El link no se gasta: se puede volver a intentar |
+| 400 | `ENLACE_*` | Ver [Links de los correos](#links-de-los-correos) |

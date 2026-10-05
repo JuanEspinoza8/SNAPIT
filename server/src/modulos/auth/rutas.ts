@@ -1,7 +1,14 @@
 import { Router } from 'express';
 import { autenticar } from '../../compartido/autenticacion.js';
 import { validar } from '../../compartido/validar.js';
-import { esquemaIngreso, esquemaRegistro, esquemaTokenRenovacion } from './esquemas.js';
+import {
+  esquemaConfirmarCorreo,
+  esquemaIngreso,
+  esquemaRecuperarClave,
+  esquemaRegistro,
+  esquemaRestablecerClave,
+  esquemaTokenRenovacion,
+} from './esquemas.js';
 import * as servicio from './servicio.js';
 
 export const rutasAuth = Router();
@@ -31,4 +38,23 @@ rutasAuth.post('/salir', async (req, res) => {
 
 rutasAuth.get('/yo', autenticar, async (req, res) => {
   res.json(await servicio.obtenerUsuarioActual(req.usuario!.id));
+});
+
+rutasAuth.post('/confirmar-correo', async (req, res) => {
+  const { token } = validar(esquemaConfirmarCorreo, req.body ?? {});
+  await servicio.confirmarCorreo(token);
+  res.status(204).end();
+});
+
+rutasAuth.post('/recuperar-clave', (req, res) => {
+  const { email } = validar(esquemaRecuperarClave, req.body ?? {});
+  // Sin await a propósito: ver servicio.recuperarClave.
+  void servicio.recuperarClave(email);
+  res.status(204).end();
+});
+
+rutasAuth.post('/restablecer-clave', async (req, res) => {
+  const datos = validar(esquemaRestablecerClave, req.body ?? {});
+  await servicio.restablecerClave(datos);
+  res.status(204).end();
 });

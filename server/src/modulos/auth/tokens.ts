@@ -6,6 +6,7 @@ import { env } from '../../config/env.js';
 export const DURACION_TOKEN_ACCESO = '15m';
 export const DIAS_TOKEN_RENOVACION = 30;
 export const HORAS_TOKEN_VERIFICACION = 24;
+export const HORAS_TOKEN_RECUPERACION = 1;
 
 /** Lo que viaja dentro del tokenAcceso y queda disponible en req.usuario. */
 export interface UsuarioSesion {
@@ -46,7 +47,16 @@ export function verificarTokenAcceso(token: string): ResultadoVerificacion {
   }
 }
 
-/** Valor aleatorio para los tokens de renovación y de verificación. Solo lo recibe el usuario. */
+export type EstadoToken = 'VALIDO' | 'USADO' | 'VENCIDO';
+
+/** Un token de token_acceso sirve una sola vez y deja de servir justo en expiraEn. */
+export function estadoToken(token: { usadoEn: Date | null; expiraEn: Date }, ahora: Date): EstadoToken {
+  if (token.usadoEn) return 'USADO';
+  if (token.expiraEn <= ahora) return 'VENCIDO';
+  return 'VALIDO';
+}
+
+/** Valor aleatorio para los tokens de renovación, verificación y recuperación. Solo lo recibe el usuario. */
 export function generarTokenAleatorio(): string {
   return randomBytes(32).toString('base64url');
 }
