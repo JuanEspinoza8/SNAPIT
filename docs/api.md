@@ -227,6 +227,37 @@ No abre sesión: el cliente lleva al ingreso. El `tokenAcceso` que ya tenga otro
 | 400 | `DATOS_INVALIDOS` | Falta el token o la clave no cumple. El link no se gasta: se puede volver a intentar |
 | 400 | `ENLACE_*` | Ver [Links de los correos](#links-de-los-correos) |
 
+## Catálogo
+Rutas públicas: no piden sesión. Las listas cambian poco, así que los clientes pueden pedirlas una vez al abrir la pantalla.
+
+### `GET /api/categorias`
+Lo que el vecino puede elegir al reportar y los filtros del mapa. Responde **200** con las categorías **activas**, ordenadas por nombre:
+
+```json
+{
+  "categorias": [
+    {
+      "id": 3,
+      "nombre": "Cordón sin rampa",
+      "descripcion": "Esquina sin rampa o con la rampa rota o bloqueada",
+      "tipoVigencia": "PERMANENTE",
+      "area": { "id": 2, "nombre": "Veredas" }
+    }
+  ]
+}
+```
+
+- `tipoVigencia`: `PERMANENTE` o `TEMPORAL`. Una temporal (por ejemplo, una obra) caduca sola si no la vuelven a reportar.
+- `area`: quién lo atiende. Sirve para mostrarle al vecino a dónde va su reporte.
+- Una categoría desactivada deja de aparecer acá, pero los reportes que ya la usan la conservan.
+
+### `GET /api/perfiles-movilidad`
+Los perfiles para calcular recorridos accesibles. Responde **200** con los perfiles **activos**, ordenados por nombre:
+
+```json
+{ "perfiles": [{ "id": 1, "nombre": "Silla de ruedas", "descripcion": "No puede subir cordones ni pasar por superficies rotas" }] }
+```
+
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
 
