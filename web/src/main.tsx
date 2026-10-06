@@ -4,6 +4,7 @@ import { RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { router } from './compartido/componentes/Rutas.js';
 import { ProveedorCliente } from './compartido/red/clienteContexto.js';
+import { ProveedorSesion } from './compartido/sesion/sesionContexto.js';
 import { usarSimulacion } from './config/entorno.js';
 import '@fontsource-variable/inter';
 import './estilos.css';
@@ -27,7 +28,9 @@ async function arrancar() {
     <StrictMode>
       <QueryClientProvider client={consulta}>
         <ProveedorCliente>
-          <RouterProvider router={router} />
+          <ProveedorSesion>
+            <RouterProvider router={router} />
+          </ProveedorSesion>
         </ProveedorCliente>
       </QueryClientProvider>
     </StrictMode>,
