@@ -118,182 +118,226 @@ export const MATRIZ_CATEGORIA_PERFIL: Record<NombreCategoria, Record<NombrePerfi
 
 export const PARAMETROS: { clave: string; valor: string; tipo: 'entero' | 'decimal'; descripcion: string }[] =
   [
-    // Agrupación de reportes en incidentes
+    // Verificación automática del reporte (nivel de confianza de 0 a 100)
     {
-      clave: 'agrupacion.radio_metros',
-      valor: '30',
+      clave: 'verificacion.confianza_base',
+      valor: '50',
+      tipo: 'entero',
+      descripcion: 'Nivel de confianza con el que arranca todo reporte, antes de sumar las señales',
+    },
+    {
+      clave: 'verificacion.umbral_verificado',
+      valor: '60',
       tipo: 'entero',
       descripcion:
-        'Distancia máxima entre un reporte nuevo y un incidente abierto de la misma categoría para sumarlo a ese incidente',
+        'Desde este nivel el reporte queda verificado. Por debajo queda pendiente de revisión: el sistema nunca lo desestima solo',
+    },
+    {
+      clave: 'verificacion.distancia_exif_max_m',
+      valor: '100',
+      tipo: 'entero',
+      descripcion:
+        'Distancia máxima, en metros, entre la ubicación EXIF de la foto y el punto enviado para considerar que coinciden',
+    },
+    {
+      clave: 'verificacion.valor_exif_coincide',
+      valor: '20',
+      tipo: 'decimal',
+      descripcion: 'Suma si la ubicación EXIF de la foto coincide con el punto enviado',
+    },
+    {
+      clave: 'verificacion.valor_exif_no_coincide',
+      valor: '-30',
+      tipo: 'decimal',
+      descripcion: 'Resta si la ubicación EXIF de la foto queda más lejos que la distancia máxima',
+    },
+    {
+      clave: 'verificacion.valor_exif_ausente',
+      valor: '-10',
+      tipo: 'decimal',
+      descripcion: 'Resta si una foto subida de la galería no trae ubicación EXIF',
+    },
+    {
+      clave: 'verificacion.hamming_duplicado_max',
+      valor: '6',
+      tipo: 'entero',
+      descripcion:
+        'Bits distintos, como máximo, entre dos hashes perceptuales para considerar que son la misma foto',
+    },
+    {
+      clave: 'verificacion.valor_hash_duplicado',
+      valor: '-40',
+      tipo: 'decimal',
+      descripcion: 'Resta si la misma foto ya se usó en otro reporte',
+    },
+    {
+      clave: 'verificacion.valor_origen_app',
+      valor: '15',
+      tipo: 'decimal',
+      descripcion: 'Suma si la foto se sacó con la cámara de la app',
+    },
+    {
+      clave: 'verificacion.valor_reputacion_max',
+      valor: '20',
+      tipo: 'decimal',
+      descripcion: 'Lo máximo que la reputación del vecino suma o resta',
+    },
+    {
+      clave: 'verificacion.dias_foto_antigua',
+      valor: '7',
+      tipo: 'entero',
+      descripcion: 'Días entre la foto y el reporte a partir de los cuales la foto se considera antigua',
+    },
+    {
+      clave: 'verificacion.valor_fecha_antigua',
+      valor: '-20',
+      tipo: 'decimal',
+      descripcion: 'Resta si la foto es antigua',
+    },
+
+    // Agrupación de reportes en incidentes
+    {
+      clave: 'agrupacion.radio_m',
+      valor: '30',
+      tipo: 'entero',
+      descripcion: 'Distancia máxima, en metros, entre un reporte nuevo y un incidente candidato',
     },
     {
       clave: 'agrupacion.ventana_dias',
       valor: '30',
       tipo: 'entero',
-      descripcion: 'Solo se agrupa con incidentes cuyo último reporte tiene a lo sumo esta antigüedad',
-    },
-
-    // Verificación automática del reporte (puntaje de 0 a 100)
-    {
-      clave: 'verificacion.puntaje_base',
-      valor: '50',
-      tipo: 'entero',
-      descripcion: 'Puntaje con el que arranca todo reporte',
+      descripcion: 'Antigüedad máxima, en días, del último reporte de un incidente candidato',
     },
     {
-      clave: 'verificacion.exif_coincide',
-      valor: '20',
-      tipo: 'entero',
-      descripcion: 'Suma si la ubicación EXIF de la foto está cerca del punto reportado',
+      clave: 'agrupacion.peso_distancia',
+      valor: '0.5',
+      tipo: 'decimal',
+      descripcion: 'Peso de la cercanía en el puntaje de agrupación',
     },
     {
-      clave: 'verificacion.exif_distancia_max_metros',
-      valor: '100',
-      tipo: 'entero',
-      descripcion: 'Distancia máxima entre el EXIF y el punto reportado para considerar que coinciden',
+      clave: 'agrupacion.peso_tiempo',
+      valor: '0.2',
+      tipo: 'decimal',
+      descripcion: 'Peso del tiempo transcurrido en el puntaje de agrupación',
     },
     {
-      clave: 'verificacion.exif_ausente',
-      valor: '-10',
-      tipo: 'entero',
-      descripcion: 'Resta si la foto no trae ubicación EXIF',
+      clave: 'agrupacion.peso_foto',
+      valor: '0.3',
+      tipo: 'decimal',
+      descripcion: 'Peso del parecido entre las fotos en el puntaje de agrupación',
     },
     {
-      clave: 'verificacion.origen_app',
-      valor: '10',
-      tipo: 'entero',
-      descripcion: 'Suma si el reporte se cargó desde la app (cámara y GPS en el momento)',
-    },
-    {
-      clave: 'verificacion.foto_antigua',
-      valor: '-20',
-      tipo: 'entero',
-      descripcion: 'Resta si la foto se sacó hace más de foto_antigua_horas',
-    },
-    {
-      clave: 'verificacion.foto_antigua_horas',
-      valor: '48',
-      tipo: 'entero',
-      descripcion: 'Antigüedad a partir de la cual una foto se considera vieja',
-    },
-    {
-      clave: 'verificacion.hash_duplicado',
-      valor: '-40',
-      tipo: 'entero',
-      descripcion: 'Resta si la misma foto ya se usó en otro reporte',
-    },
-    {
-      clave: 'verificacion.reputacion_divisor',
-      valor: '5',
-      tipo: 'entero',
-      descripcion: 'La reputación suma (reputación − 50) / divisor: entre −10 y +10',
-    },
-    {
-      clave: 'verificacion.umbral_verificado',
-      valor: '70',
-      tipo: 'entero',
-      descripcion: 'Desde este puntaje el reporte queda verificado sin intervención',
-    },
-    {
-      clave: 'verificacion.umbral_desestimado',
-      valor: '30',
-      tipo: 'entero',
+      clave: 'agrupacion.umbral',
+      valor: '0.5',
+      tipo: 'decimal',
       descripcion:
-        'Hasta este puntaje el reporte se desestima. Entre ambos umbrales, va a revisión de un operador',
+        'Puntaje mínimo para sumar el reporte a un incidente. Si ningún candidato lo alcanza, se crea uno nuevo',
     },
-
-    // Reputación del vecino (0 a 100; arranca en 50 por defecto de la base)
-    {
-      clave: 'reputacion.por_confirmado',
-      valor: '2',
-      tipo: 'decimal',
-      descripcion: 'Suma a la reputación por cada reporte que resultó válido',
-    },
-    {
-      clave: 'reputacion.por_desestimado',
-      valor: '-5',
-      tipo: 'decimal',
-      descripcion: 'Resta a la reputación por cada reporte desestimado',
-    },
-    { clave: 'reputacion.minima', valor: '0', tipo: 'decimal', descripcion: 'Piso de la reputación' },
-    { clave: 'reputacion.maxima', valor: '100', tipo: 'decimal', descripcion: 'Techo de la reputación' },
 
     // Prioridad del incidente
     {
-      clave: 'prioridad.severidad_leve',
-      valor: '10',
-      tipo: 'entero',
-      descripcion: 'Puntos de severidad LEVE, antes de multiplicar por el peso de la categoría',
+      clave: 'prioridad.peso_severidad',
+      valor: '40',
+      tipo: 'decimal',
+      descripcion: 'Peso de la gravedad del incidente',
     },
     {
-      clave: 'prioridad.severidad_moderada',
-      valor: '20',
-      tipo: 'entero',
-      descripcion: 'Puntos de severidad MODERADA, antes de multiplicar por el peso de la categoría',
-    },
-    {
-      clave: 'prioridad.severidad_grave',
-      valor: '30',
-      tipo: 'entero',
-      descripcion: 'Puntos de severidad GRAVE, antes de multiplicar por el peso de la categoría',
-    },
-    {
-      clave: 'prioridad.por_reporte_extra',
-      valor: '5',
-      tipo: 'entero',
-      descripcion: 'Puntos por cada reporte agrupado además del primero',
-    },
-    {
-      clave: 'prioridad.max_evidencias',
+      clave: 'prioridad.peso_evidencias',
       valor: '25',
-      tipo: 'entero',
-      descripcion: 'Tope de puntos por reportes agrupados',
+      tipo: 'decimal',
+      descripcion: 'Peso de la cantidad de vecinos que lo informaron o confirmaron',
     },
     {
-      clave: 'prioridad.por_dia',
-      valor: '1',
-      tipo: 'entero',
-      descripcion: 'Puntos por cada día desde el primer reporte',
-    },
-    {
-      clave: 'prioridad.max_antiguedad',
-      valor: '20',
-      tipo: 'entero',
-      descripcion: 'Tope de puntos por antigüedad',
-    },
-    {
-      clave: 'prioridad.contexto_urbano',
+      clave: 'prioridad.tope_evidencias',
       valor: '15',
       tipo: 'entero',
-      descripcion: 'Puntos si hay un punto de interés (hospital, escuela, etc.) cerca',
+      descripcion: 'Vecinos a partir de los cuales el factor de evidencias no crece más',
     },
     {
-      clave: 'prioridad.contexto_radio_metros',
+      clave: 'prioridad.peso_antiguedad',
+      valor: '20',
+      tipo: 'decimal',
+      descripcion: 'Peso de los días que lleva sin resolverse',
+    },
+    {
+      clave: 'prioridad.tope_antiguedad_dias',
+      valor: '60',
+      tipo: 'entero',
+      descripcion: 'Días a partir de los cuales el factor de antigüedad no crece más',
+    },
+    {
+      clave: 'prioridad.peso_contexto',
+      valor: '15',
+      tipo: 'decimal',
+      descripcion: 'Peso de la cercanía a un punto de interés',
+    },
+    {
+      clave: 'prioridad.radio_contexto_m',
       valor: '150',
       tipo: 'entero',
-      descripcion: 'Distancia hasta la que se considera que un punto de interés está cerca',
+      descripcion: 'Distancia máxima, en metros, a un punto de interés para que sume prioridad',
+    },
+    {
+      clave: 'prioridad.factor_escuela',
+      valor: '1.0',
+      tipo: 'decimal',
+      descripcion: 'Cuánto del peso de contexto suma una escuela cercana',
+    },
+    {
+      clave: 'prioridad.factor_centro_salud',
+      valor: '1.0',
+      tipo: 'decimal',
+      descripcion: 'Cuánto del peso de contexto suma un centro de salud cercano',
+    },
+    {
+      clave: 'prioridad.factor_parada',
+      valor: '0.6',
+      tipo: 'decimal',
+      descripcion: 'Cuánto del peso de contexto suma una parada de transporte cercana',
+    },
+    {
+      clave: 'prioridad.factor_edificio_publico',
+      valor: '0.5',
+      tipo: 'decimal',
+      descripcion: 'Cuánto del peso de contexto suma un edificio público cercano',
     },
 
-    // Reportes
+    // Cierre con foto
     {
-      clave: 'reporte.max_fotos',
-      valor: '3',
+      clave: 'cierre.distancia_max_m',
+      valor: '50',
       tipo: 'entero',
-      descripcion: 'Cantidad máxima de fotos por reporte',
-    },
-    {
-      clave: 'reporte.max_mb_foto',
-      valor: '5',
-      tipo: 'entero',
-      descripcion: 'Tamaño máximo de cada foto, en MB',
+      descripcion: 'Distancia máxima, en metros, entre la foto de cierre y el incidente',
     },
 
-    // Avisos
+    // Vigencia
     {
-      clave: 'avisos.radio_zona_metros',
-      valor: '500',
+      clave: 'vigencia.dias_default',
+      valor: '30',
       tipo: 'entero',
-      descripcion: 'Radio por defecto de una zona habitual nueva',
+      descripcion: 'Días de vigencia de un incidente temporal cuando su categoría no los define',
+    },
+
+    // Recorridos
+    {
+      clave: 'ruteo.radio_obstruccion_m',
+      valor: '15',
+      tipo: 'entero',
+      descripcion:
+        'Distancia, en metros, alrededor de un incidente dentro de la cual los tramos quedan afectados',
+    },
+    {
+      clave: 'ruteo.distancia_max_al_nodo_m',
+      valor: '100',
+      tipo: 'entero',
+      descripcion:
+        'Distancia máxima, en metros, para acercar el origen o el destino al nodo más cercano de la red',
+    },
+    {
+      clave: 'ruteo.velocidad_m_por_min',
+      valor: '50',
+      tipo: 'decimal',
+      descripcion: 'Velocidad al caminar, en metros por minuto, para estimar el tiempo del recorrido',
     },
   ];
 

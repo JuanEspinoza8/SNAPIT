@@ -12,10 +12,10 @@ import {
 } from './datos.js';
 
 /**
- * Carga el catálogo y los usuarios de prueba. Se puede correr las veces que haga falta: cada dato se busca
- * por su nombre o clave y se actualiza si ya existe, así que nunca se duplica.
+ * Carga el catálogo, los parámetros y, si se pide, los usuarios de prueba. Se puede correr las veces que
+ * haga falta: cada dato se busca por su nombre o clave y se actualiza si ya existe, así que nunca se duplica.
  */
-export async function cargarSemilla(prisma: PrismaClient) {
+export async function cargarSemilla(prisma: PrismaClient, { usuariosPrueba }: { usuariosPrueba: boolean }) {
   // Fuera de la transacción: bcrypt tarda y la transacción tiene un tiempo máximo.
   const hashClavePrueba = await bcrypt.hash(CLAVE_USUARIOS_PRUEBA, 10);
 
@@ -91,31 +91,33 @@ export async function cargarSemilla(prisma: PrismaClient) {
         });
       }
 
-      for (const { email, nombre, rol, area } of USUARIOS_PRUEBA) {
-        const datos = {
-          nombre,
-          rol,
-          organismoId: rol === 'VECINO' ? null : organismo.id,
-          areaId: area ? areas.get(area)! : null,
-          eliminadoEn: null,
-        };
-        const usuario = await tx.usuario.findUnique({ where: { email } });
-        if (!usuario) {
-          await tx.usuario.create({
-            data: { email, passwordHash: hashClavePrueba, emailVerificadoEn: new Date(), ...datos },
+      if (usuariosPrueba) {
+        for (const { email, nombre, rol, area } of USUARIOS_PRUEBA) {
+          const datos = {
+            nombre,
+            rol,
+            organismoId: rol === 'VECINO' ? null : organismo.id,
+            areaId: area ? areas.get(area)! : null,
+            eliminadoEn: null,
+          };
+          const usuario = await tx.usuario.findUnique({ where: { email } });
+          if (!usuario) {
+            await tx.usuario.create({
+              data: { email, passwordHash: hashClavePrueba, emailVerificadoEn: new Date(), ...datos },
+            });
+            continue;
+          }
+          // El hash cambia en cada corrida (bcrypt usa una sal nueva): solo se reemplaza si la clave cambió.
+          const claveIgual = await bcrypt.compare(CLAVE_USUARIOS_PRUEBA, usuario.passwordHash);
+          await tx.usuario.update({
+            where: { email },
+            data: {
+              ...datos,
+              ...(claveIgual ? {} : { passwordHash: hashClavePrueba }),
+              emailVerificadoEn: usuario.emailVerificadoEn ?? new Date(),
+            },
           });
-          continue;
         }
-        // El hash cambia en cada corrida (bcrypt usa una sal nueva): solo se reemplaza si la clave cambió.
-        const claveIgual = await bcrypt.compare(CLAVE_USUARIOS_PRUEBA, usuario.passwordHash);
-        await tx.usuario.update({
-          where: { email },
-          data: {
-            ...datos,
-            ...(claveIgual ? {} : { passwordHash: hashClavePrueba }),
-            emailVerificadoEn: usuario.emailVerificadoEn ?? new Date(),
-          },
-        });
       }
 
       return {
@@ -124,7 +126,7 @@ export async function cargarSemilla(prisma: PrismaClient) {
         perfiles: perfiles.size,
         matriz: categorias.size * perfiles.size,
         parametros: PARAMETROS.length,
-        usuarios: USUARIOS_PRUEBA.length,
+        usuarios: usuariosPrueba ? USUARIOS_PRUEBA.length : 0,
       };
     },
     { maxWait: 15_000, timeout: 60_000 },

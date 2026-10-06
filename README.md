@@ -54,7 +54,9 @@ npm run semilla             # catálogo, parámetros y usuarios de prueba
 npm run dev                 # http://localhost:3000/api/salud
 ```
 
-La semilla se puede correr las veces que haga falta: no duplica nada y deja los valores de [`docs/calculos.md`](docs/calculos.md). Usuarios de prueba, todos con la clave `snapit-desarrollo` (solo en desarrollo; la semilla no corre con `NODE_ENV=production`):
+La semilla se puede correr las veces que haga falta: no duplica nada y vuelve a dejar los valores de [`docs/calculos.md`](docs/calculos.md), aunque se hayan cambiado a mano. Toma la base de `DATABASE_URL`.
+
+Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar. Con `NODE_ENV=production` no se cargan: se cargan solo el catálogo y los parámetros.
 
 | Rol | Correo |
 |---|---|
@@ -68,13 +70,20 @@ La semilla se puede correr las veces que haga falta: no duplica nada y deja los 
 | Script | Qué hace |
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
-| `npm run semilla` | Carga o restaura el catálogo, los parámetros y los usuarios de prueba |
+| `npm run semilla` | Carga o restaura el catálogo, los parámetros y los usuarios de prueba (estos, fuera de producción) |
 | `npm test` | Tests con Vitest contra la base `snapit_test` (se crea sola) |
 | `npm run lint` | ESLint |
 | `npm run format` | Formatea con Prettier |
 | `npm run build` / `npm start` | Compila a `dist/` y lo ejecuta |
 
 Para levantar el servidor en Docker junto con la base: `docker compose up -d --build`. Al arrancar, el contenedor aplica las migraciones pendientes, así que no hace falta Node en la PC. El contenedor y `npm run dev` usan el mismo puerto: si uno está levantado, el otro no arranca y avisa que el puerto está ocupado.
+
+La semilla también se corre dentro del contenedor. Como corre con `NODE_ENV=production`, carga el catálogo y los parámetros sin los usuarios de prueba; para sumarlos en desarrollo, agregá `-e NODE_ENV=development`:
+
+```bash
+docker compose exec server node dist/semilla/index.js
+docker compose exec -e NODE_ENV=development server node dist/semilla/index.js
+```
 
 ### Correos en desarrollo
 
@@ -92,6 +101,7 @@ Los correos se ven en http://localhost:8025. Si tu `.env` es anterior a la #7, c
 src/
   config/        env (validado con zod) y logger
   compartido/    prisma, errores, correo y middlewares comunes
+  semilla/       datos iniciales (npm run semilla)
   modulos/
     <modulo>/
       rutas.ts        endpoints y validación de la entrada

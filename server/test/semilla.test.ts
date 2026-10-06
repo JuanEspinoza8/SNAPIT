@@ -45,9 +45,9 @@ async function leerSemilla() {
 // Cada carga hace unas 60 consultas y compite por la base con el resto de los tests en paralelo.
 describe('semilla', { timeout: 60_000 }, () => {
   it('correrla dos veces deja exactamente los mismos datos', async () => {
-    await cargarSemilla(prisma);
+    await cargarSemilla(prisma, { usuariosPrueba: true });
     const primera = await leerSemilla();
-    await cargarSemilla(prisma);
+    await cargarSemilla(prisma, { usuariosPrueba: true });
     const segunda = await leerSemilla();
 
     expect(segunda).toEqual(primera);
@@ -61,7 +61,7 @@ describe('semilla', { timeout: 60_000 }, () => {
   });
 
   it('los usuarios de prueba quedan confirmados y pueden ingresar', async () => {
-    await cargarSemilla(prisma);
+    await cargarSemilla(prisma, { usuariosPrueba: true });
 
     const { usuarios } = await leerSemilla();
     expect(usuarios.every((u) => u.emailVerificadoEn !== null)).toBe(true);
@@ -74,32 +74,49 @@ describe('semilla', { timeout: 60_000 }, () => {
     expect(res.body.usuario.rol).toBe('OPERADOR');
   });
 
+  // No modifica categorías ni perfiles: los tests de otros módulos los leen de la misma base, en paralelo.
   it('restaura lo que se haya cambiado a mano', async () => {
-    await cargarSemilla(prisma);
-    await prisma.categoria.update({ where: { nombre: 'Vereda rota' }, data: { activa: false } });
-    await prisma.parametroSistema.update({
-      where: { clave: 'agrupacion.radio_metros' },
-      data: { valor: '999' },
+    await cargarSemilla(prisma, { usuariosPrueba: true });
+    const celda = {
+      categoriaId_perfilMovilidadId: {
+        categoriaId: (await prisma.categoria.findUniqueOrThrow({ where: { nombre: 'Vereda rota' } })).id,
+        perfilMovilidadId: (
+          await prisma.perfilMovilidad.findUniqueOrThrow({ where: { nombre: 'Silla de ruedas' } })
+        ).id,
+      },
+    };
+    await prisma.categoriaPerfil.update({
+      where: celda,
+      data: { intransitable: false, factorPenalizacion: '9.00' },
     });
+    await prisma.parametroSistema.update({ where: { clave: 'agrupacion.radio_m' }, data: { valor: '999' } });
 
-    await cargarSemilla(prisma);
+    await cargarSemilla(prisma, { usuariosPrueba: true });
 
-    expect((await prisma.categoria.findUnique({ where: { nombre: 'Vereda rota' } }))?.activa).toBe(true);
+    expect(await prisma.categoriaPerfil.findUnique({ where: celda })).toMatchObject({ intransitable: true });
     expect(
-      (await prisma.parametroSistema.findUnique({ where: { clave: 'agrupacion.radio_metros' } }))?.valor,
+      (await prisma.parametroSistema.findUnique({ where: { clave: 'agrupacion.radio_m' } }))?.valor,
     ).toBe('30');
   });
 
-  it('no corre con NODE_ENV=production', async () => {
+  it('sin usuarios de prueba carga el resto y no toca a esos usuarios', async () => {
+    await cargarSemilla(prisma, { usuariosPrueba: true });
+    await prisma.usuario.update({ where: { email: 'vecino1@snapit.test' }, data: { nombre: 'Cambiado' } });
+
+    const totales = await cargarSemilla(prisma, { usuariosPrueba: false });
+
+    expect(totales).toMatchObject({ parametros: PARAMETROS.length, usuarios: 0 });
+    const vecino = await prisma.usuario.findUniqueOrThrow({ where: { email: 'vecino1@snapit.test' } });
+    expect(vecino.nombre).toBe('Cambiado');
+  });
+
+  it('con NODE_ENV=production no carga los usuarios de prueba ni muestra la clave', async () => {
     const correr = promisify(execFile);
-    const ejecucion = correr('npx', ['tsx', 'src/semilla/index.ts'], {
+    const { stdout } = await correr(process.execPath, ['--import', 'tsx', 'src/semilla/index.ts'], {
       env: { ...process.env, NODE_ENV: 'production' },
-      shell: true,
     });
 
-    await expect(ejecucion).rejects.toMatchObject({
-      code: 1,
-      stderr: expect.stringContaining('NODE_ENV=production'),
-    });
+    expect(stdout).toContain('no se cargan los usuarios de prueba');
+    expect(stdout).not.toContain(CLAVE_USUARIOS_PRUEBA);
   }, 30_000);
 });

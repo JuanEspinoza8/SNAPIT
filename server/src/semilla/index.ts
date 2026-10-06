@@ -8,19 +8,21 @@ import { cargarSemilla } from './cargarSemilla.js';
 config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)), quiet: true });
 
 // Los usuarios de prueba tienen una clave conocida: en producción serían una puerta abierta.
-if (process.env.NODE_ENV === 'production') {
-  console.error('La semilla carga usuarios con una clave conocida: no se corre con NODE_ENV=production.');
-  process.exit(1);
-}
+// El catálogo y los parámetros se cargan igual, porque el sistema los necesita en cualquier entorno.
+const usuariosPrueba = process.env.NODE_ENV !== 'production';
 
 const prisma = new PrismaClient();
 
 try {
-  const totales = await cargarSemilla(prisma);
+  const totales = await cargarSemilla(prisma, { usuariosPrueba });
   console.log('Semilla cargada:', totales);
-  console.log(`Usuarios de prueba (clave "${CLAVE_USUARIOS_PRUEBA}"):`);
-  for (const { email, rol, area } of USUARIOS_PRUEBA) {
-    console.log(`  ${rol.padEnd(13)} ${email}${area ? ` (${area})` : ''}`);
+  if (usuariosPrueba) {
+    console.log(`Usuarios de prueba (clave "${CLAVE_USUARIOS_PRUEBA}"):`);
+    for (const { email, rol, area } of USUARIOS_PRUEBA) {
+      console.log(`  ${rol.padEnd(13)} ${email}${area ? ` (${area})` : ''}`);
+    }
+  } else {
+    console.log('Con NODE_ENV=production no se cargan los usuarios de prueba.');
   }
 } catch (error) {
   console.error('No se pudo cargar la semilla:', error);

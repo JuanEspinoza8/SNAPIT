@@ -4,7 +4,7 @@ Valores iniciales que carga la semilla (`npm run semilla`, en `server/`). Se gua
 
 Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá.
 
-> **Propuesta inicial del grupo (05/10/2026).** Son valores razonables para arrancar, no salen de mediciones. Se revisan con los datos de la prueba piloto.
+> **Valores de partida (05/10/2026).** No salen de mediciones: se revisan con los datos de la prueba piloto. Las fórmulas que usan estos parámetros se documentan acá con la issue de cada cálculo (verificación, reputación, agrupación, prioridad, cierre, vigencia y recorridos).
 
 ## Catálogo
 
@@ -20,8 +20,8 @@ Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá
 | Luminaria apagada | Alumbrado | Permanente | — | 1,00 |
 | Obra que interrumpe el paso | Obras | Temporal | 30 días | 1,20 |
 
-- **Vigencia temporal:** si el incidente no recibe reportes nuevos en `dias_caducidad_default` días, caduca solo.
-- **Peso de severidad:** multiplica los puntos de severidad al calcular la prioridad (ver más abajo). Los problemas que cortan el paso a una silla de ruedas pesan más.
+- **Vigencia temporal:** el incidente vence `dias_caducidad_default` días después de creado (si la categoría no los define, `vigencia.dias_default`). Cuando un vecino confirma que el problema sigue, la vigencia se renueva.
+- **Peso de severidad:** cuánto pesa la categoría en el factor de severidad de la prioridad. Un peso mayor sube la prioridad de los incidentes de esa categoría.
 
 ### Perfiles de movilidad y matriz categoría × perfil
 
@@ -35,80 +35,62 @@ Para calcular recorridos accesibles, cada problema afecta distinto según quién
 | Luminaria apagada | 1,2 | 1,5 | 1,2 | 3,0 |
 | Obra que interrumpe el paso | ⛔ | ⛔ | ⛔ | ⛔ |
 
-## Agrupación de reportes en incidentes
+## Parámetros del sistema
 
-Un reporte nuevo se suma a un incidente abierto si es de la **misma categoría**, está a menos de **`agrupacion.radio_metros`** y el incidente tuvo un reporte en los últimos **`agrupacion.ventana_dias`**. Si no, crea un incidente nuevo.
+### Verificación automática del reporte
 
-| Parámetro | Valor | Qué es |
-|---|---|---|
-| `agrupacion.radio_metros` | 30 | Distancia máxima al incidente |
-| `agrupacion.ventana_dias` | 30 | Antigüedad máxima del último reporte del incidente |
+El nivel de confianza va de 0 a 100. Un reporte que no llega al umbral queda pendiente de revisión: el sistema nunca lo desestima solo.
 
-## Verificación automática del reporte
+| Parámetro | Tipo | Valor | Para qué |
+|---|---|---|---|
+| `verificacion.confianza_base` | entero | 50 | Nivel con el que arranca todo reporte, antes de sumar las señales |
+| `verificacion.umbral_verificado` | entero | 60 | Desde este nivel el reporte queda verificado |
+| `verificacion.distancia_exif_max_m` | entero | 100 | Distancia máxima (m) entre la ubicación EXIF de la foto y el punto enviado para considerar que coinciden |
+| `verificacion.valor_exif_coincide` | decimal | 20 | Suma si la ubicación EXIF coincide |
+| `verificacion.valor_exif_no_coincide` | decimal | −30 | Resta si la ubicación EXIF queda más lejos que la distancia máxima |
+| `verificacion.valor_exif_ausente` | decimal | −10 | Resta si una foto subida de la galería no trae ubicación EXIF |
+| `verificacion.hamming_duplicado_max` | entero | 6 | Bits distintos, como máximo, entre dos hashes perceptuales para considerar que son la misma foto |
+| `verificacion.valor_hash_duplicado` | decimal | −40 | Resta si la misma foto ya se usó en otro reporte |
+| `verificacion.valor_origen_app` | decimal | 15 | Suma si la foto se sacó con la cámara de la app |
+| `verificacion.valor_reputacion_max` | decimal | 20 | Lo máximo que la reputación del vecino suma o resta |
+| `verificacion.dias_foto_antigua` | entero | 7 | Días entre la foto y el reporte a partir de los cuales la foto se considera antigua |
+| `verificacion.valor_fecha_antigua` | decimal | −20 | Resta si la foto es antigua |
 
-Cada reporte recibe un **puntaje de confianza de 0 a 100**. Arranca en el puntaje base y cada señal suma o resta; cada señal queda registrada en `senal_verificacion` para poder explicar el resultado.
+### Agrupación de reportes en incidentes
 
-```
-puntaje = base + Σ señales        (se limita entre 0 y 100)
-```
+El puntaje de agrupación combina la cercanía, el tiempo transcurrido y el parecido entre las fotos.
 
-| Señal | Parámetro | Valor |
-|---|---|---|
-| Puntaje base | `verificacion.puntaje_base` | 50 |
-| La ubicación EXIF de la foto coincide con el punto (a menos de `verificacion.exif_distancia_max_metros` = 100 m) | `verificacion.exif_coincide` | +20 |
-| La foto no trae ubicación EXIF | `verificacion.exif_ausente` | −10 |
-| Cargado desde la app (cámara y GPS en el momento) | `verificacion.origen_app` | +10 |
-| Foto sacada hace más de `verificacion.foto_antigua_horas` (48 h) | `verificacion.foto_antigua` | −20 |
-| La misma foto ya se usó en otro reporte | `verificacion.hash_duplicado` | −40 |
-| Reputación del vecino: `(reputación − 50) / verificacion.reputacion_divisor` | `verificacion.reputacion_divisor` | 5 (aporta entre −10 y +10) |
+| Parámetro | Tipo | Valor | Para qué |
+|---|---|---|---|
+| `agrupacion.radio_m` | entero | 30 | Distancia máxima (m) entre un reporte nuevo y un incidente candidato |
+| `agrupacion.ventana_dias` | entero | 30 | Antigüedad máxima (días) del último reporte de un incidente candidato |
+| `agrupacion.peso_distancia` | decimal | 0,5 | Peso de la cercanía |
+| `agrupacion.peso_tiempo` | decimal | 0,2 | Peso del tiempo transcurrido |
+| `agrupacion.peso_foto` | decimal | 0,3 | Peso del parecido entre las fotos |
+| `agrupacion.umbral` | decimal | 0,5 | Puntaje mínimo para sumarse a un incidente; si ningún candidato lo alcanza, se crea uno nuevo |
 
-| Resultado | Condición |
-|---|---|
-| **Verificado** | puntaje ≥ `verificacion.umbral_verificado` (70) |
-| **Desestimado** | puntaje ≤ `verificacion.umbral_desestimado` (30) |
-| **Pendiente de revisión** (lo decide un operador) | entre los dos umbrales |
+### Prioridad del incidente
 
-**Ejemplo:** un vecino nuevo (reputación 50) saca la foto con la app y el EXIF coincide: 50 + 20 + 10 + 0 = **80 → verificado**. La misma foto subida desde la web, sin EXIF: 50 − 10 = **40 → pendiente de revisión**.
+| Parámetro | Tipo | Valor | Para qué |
+|---|---|---|---|
+| `prioridad.peso_severidad` | decimal | 40 | Peso de la gravedad del incidente |
+| `prioridad.peso_evidencias` | decimal | 25 | Peso de la cantidad de vecinos que lo informaron o confirmaron |
+| `prioridad.tope_evidencias` | entero | 15 | Vecinos a partir de los cuales el factor de evidencias no crece más |
+| `prioridad.peso_antiguedad` | decimal | 20 | Peso de los días que lleva sin resolverse |
+| `prioridad.tope_antiguedad_dias` | entero | 60 | Días a partir de los cuales el factor de antigüedad no crece más |
+| `prioridad.peso_contexto` | decimal | 15 | Peso de la cercanía a un punto de interés |
+| `prioridad.radio_contexto_m` | entero | 150 | Distancia máxima (m) a un punto de interés para que sume prioridad |
+| `prioridad.factor_escuela` | decimal | 1,0 | Cuánto del peso de contexto suma una escuela cercana |
+| `prioridad.factor_centro_salud` | decimal | 1,0 | Ídem, un centro de salud |
+| `prioridad.factor_parada` | decimal | 0,6 | Ídem, una parada de transporte |
+| `prioridad.factor_edificio_publico` | decimal | 0,5 | Ídem, un edificio público |
 
-## Reputación del vecino
+### Cierre, vigencia y recorridos
 
-Empieza en **50** (valor por defecto de `usuario.reputacion`) y se mueve con el resultado final de sus reportes. Pesa más un reporte desestimado que uno confirmado, para que mandar reportes falsos no salga gratis.
-
-| Parámetro | Valor |
-|---|---|
-| `reputacion.por_confirmado` | +2 |
-| `reputacion.por_desestimado` | −5 |
-| `reputacion.minima` / `reputacion.maxima` | 0 / 100 |
-
-## Prioridad del incidente
-
-```
-prioridad = severidad × peso de la categoría
-          + mín(reportes extra × por_reporte_extra, max_evidencias)
-          + mín(días desde el primer reporte × por_dia, max_antiguedad)
-          + contexto urbano (si hay un punto de interés cerca)
-```
-
-Cada sumando se guarda en `factor_prioridad` (SEVERIDAD, EVIDENCIAS, ANTIGUEDAD, CONTEXTO_URBANO) para mostrarle al operador por qué un incidente está arriba en la bandeja. Un operador puede forzar la prioridad con una justificación (AJUSTE_MANUAL).
-
-| Parámetro | Valor | Qué es |
-|---|---|---|
-| `prioridad.severidad_leve` | 10 | Puntos de severidad LEVE |
-| `prioridad.severidad_moderada` | 20 | Puntos de severidad MODERADA |
-| `prioridad.severidad_grave` | 30 | Puntos de severidad GRAVE |
-| `prioridad.por_reporte_extra` | 5 | Por cada reporte agrupado además del primero |
-| `prioridad.max_evidencias` | 25 | Tope por reportes agrupados (5 reportes extra) |
-| `prioridad.por_dia` | 1 | Por cada día sin resolver |
-| `prioridad.max_antiguedad` | 20 | Tope por antigüedad (20 días) |
-| `prioridad.contexto_urbano` | 15 | Si hay un hospital, escuela u otro punto de interés cerca |
-| `prioridad.contexto_radio_metros` | 150 | Qué se considera "cerca" |
-
-**Ejemplo:** un cordón sin rampa (peso 1,40) reportado como grave, con 3 reportes, hace 10 días y a 100 m de una escuela: 30 × 1,40 + 2 × 5 + 10 × 1 + 15 = **77**. El máximo posible es 30 × 1,50 + 25 + 20 + 15 = **105**.
-
-## Reportes y avisos
-
-| Parámetro | Valor | Qué es |
-|---|---|---|
-| `reporte.max_fotos` | 3 | Fotos por reporte |
-| `reporte.max_mb_foto` | 5 | Tamaño máximo de cada foto, en MB |
-| `avisos.radio_zona_metros` | 500 | Radio por defecto de una zona habitual nueva |
+| Parámetro | Tipo | Valor | Para qué |
+|---|---|---|---|
+| `cierre.distancia_max_m` | entero | 50 | Distancia máxima (m) entre la foto de cierre y el incidente |
+| `vigencia.dias_default` | entero | 30 | Días de vigencia de un incidente temporal cuando su categoría no los define |
+| `ruteo.radio_obstruccion_m` | entero | 15 | Distancia (m) alrededor de un incidente dentro de la cual los tramos quedan afectados |
+| `ruteo.distancia_max_al_nodo_m` | entero | 100 | Distancia máxima (m) para acercar el origen o el destino al nodo más cercano de la red |
+| `ruteo.velocidad_m_por_min` | decimal | 50 | Velocidad al caminar, para estimar el tiempo del recorrido |
