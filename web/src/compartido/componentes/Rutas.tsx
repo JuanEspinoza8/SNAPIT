@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { Layout } from './Layout.js';
 import { Inicio } from '../../funcionalidades/Inicio.js';
 import { PaginaSalud } from '../../funcionalidades/salud/paginaSalud.js';
@@ -10,7 +10,8 @@ import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaResta
 import { SeccionEnConstruccion } from '../../funcionalidades/comun/SeccionEnConstruccion.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
 
-export const router = createBrowserRouter([
+// Se exportan aparte del router para poder probarlas con un router en memoria.
+export const rutas: RouteObject[] = [
   {
     path: '/',
     element: <Layout />,
@@ -57,14 +58,8 @@ export const router = createBrowserRouter([
           </RutaSoloSinSesion>
         ),
       },
-      {
-        path: 'mapa',
-        element: (
-          <RutaProtegida rol="VECINO">
-            <SeccionEnConstruccion titulo="Mapa" />
-          </RutaProtegida>
-        ),
-      },
+      // El mapa es público (F03): lo ve cualquiera, con o sin sesión y de cualquier rol.
+      { path: 'mapa', element: <SeccionEnConstruccion titulo="Mapa" /> },
       {
         path: 'reportar',
         element: (
@@ -99,4 +94,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(rutas);

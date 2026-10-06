@@ -4,17 +4,16 @@ import { useSesion } from '../sesion/sesionContexto.js';
 import { esAdministrador, esOperador, esVecino } from '../sesion/usuario.js';
 import type { Usuario } from '../sesion/usuario.js';
 
+// El mapa es público (F03): está en el menú de todos los roles y también sin sesión.
+const MAPA = { ruta: '/mapa', texto: 'Mapa' };
+
 function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
   if (esVecino(usuario)) {
-    return [
-      { ruta: '/mapa', texto: 'Mapa' },
-      { ruta: '/reportar', texto: 'Reportar' },
-      { ruta: '/mis-reportes', texto: 'Mis reportes' },
-    ];
+    return [MAPA, { ruta: '/reportar', texto: 'Reportar' }, { ruta: '/mis-reportes', texto: 'Mis reportes' }];
   }
-  if (esOperador(usuario)) return [{ ruta: '/bandeja', texto: 'Bandeja' }];
-  if (esAdministrador(usuario)) return [{ ruta: '/administracion', texto: 'Administración' }];
-  return [];
+  if (esOperador(usuario)) return [MAPA, { ruta: '/bandeja', texto: 'Bandeja' }];
+  if (esAdministrador(usuario)) return [MAPA, { ruta: '/administracion', texto: 'Administración' }];
+  return [MAPA];
 }
 
 export function Layout() {
@@ -59,6 +58,12 @@ export function Layout() {
           ) : (
             estado === 'sinSesion' && (
               <nav className="flex items-center gap-1">
+                <Link
+                  to={MAPA.ruta}
+                  className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
+                >
+                  {MAPA.texto}
+                </Link>
                 <Link
                   to="/ingreso"
                   className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"

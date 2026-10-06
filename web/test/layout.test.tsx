@@ -62,6 +62,7 @@ describe('layout', () => {
     montar('/');
 
     expect(screen.getByRole('link', { name: 'SnapIt' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
     expect(screen.getByRole('link', { name: 'Ingresar' })).toHaveAttribute('href', '/ingreso');
     expect(screen.getByRole('link', { name: 'Registrarse' })).toHaveAttribute('href', '/registro');
     expect(screen.getByText('Contenido del inicio')).toBeInTheDocument();
@@ -82,6 +83,7 @@ describe('layout', () => {
     montar('/', 'OPERADOR');
 
     expect(await screen.findByRole('link', { name: 'Bandeja' })).toHaveAttribute('href', '/bandeja');
+    expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
     expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
   });
 
