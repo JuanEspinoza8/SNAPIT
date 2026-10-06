@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { crearClienteApi } from '../src/compartido/red/cliente.js';
@@ -89,7 +89,7 @@ describe('cliente de la API', () => {
     servidor.use(
       http.get('*/api/recurso', () => errorDeApi('TOKEN_VENCIDO', 'El token de acceso venció', 401)),
       http.post('*/api/auth/renovar', () =>
-        errorDeApi('TOKEN_INVALIDO', 'El token de renovación ya no sirve', 401),
+        errorDeApi('TOKEN_RENOVACION_INVALIDO', 'El token de renovación ya no sirve', 401),
       ),
     );
 
@@ -101,6 +101,122 @@ describe('cliente de la API', () => {
     await expect(cliente.pedir('/recurso')).rejects.toMatchObject({ codigo: 'TOKEN_VENCIDO' });
     expect(almacen.leer()).toBeNull();
     expect(alPerderSesion).toHaveBeenCalledOnce();
+  });
+
+  it('si dos peticiones reciben 401 a la vez, renueva una sola vez', async () => {
+    let renovaciones = 0;
+    servidor.use(
+      http.get('*/api/recurso', ({ request }) =>
+        request.headers.get('authorization') === 'Bearer acceso-nuevo'
+          ? HttpResponse.json({ ok: true })
+          : errorDeApi('TOKEN_VENCIDO', 'El token de acceso venció', 401),
+      ),
+      http.post('*/api/auth/renovar', async () => {
+        renovaciones += 1;
+        await delay(50);
+        return HttpResponse.json({ tokenAcceso: 'acceso-nuevo', tokenRenovacion: 'renovacion-nueva' });
+      }),
+    );
+
+    const cliente = crearClienteApi({ urlBase, almacen: almacenConSesion() });
+
+    await expect(Promise.all([cliente.pedir('/recurso'), cliente.pedir('/recurso')])).resolves.toEqual([
+      { ok: true },
+      { ok: true },
+    ]);
+    expect(renovaciones).toBe(1);
+  });
+
+  it.each([
+    ['responde 500', () => errorDeApi('ERROR_INTERNO', 'Ocurrió un error inesperado', 500)],
+    ['no hay conexión', () => HttpResponse.error()],
+  ])('si al renovar %s, conserva la sesión y no avisa', async (_caso, respuestaRenovar) => {
+    servidor.use(
+      http.get('*/api/recurso', () => errorDeApi('TOKEN_VENCIDO', 'El token de acceso venció', 401)),
+      http.post('*/api/auth/renovar', respuestaRenovar),
+    );
+
+    const almacen = almacenConSesion();
+    const alPerderSesion = vi.fn();
+    const cliente = crearClienteApi({ urlBase, almacen, alPerderSesion });
+
+    await expect(cliente.pedir('/recurso')).rejects.toMatchObject({ codigo: 'TOKEN_VENCIDO' });
+    expect(almacen.leer()).toEqual({ tokenAcceso: 'acceso-viejo', tokenRenovacion: 'renovacion-vieja' });
+    expect(alPerderSesion).not.toHaveBeenCalled();
+  });
+
+  it('si el reintento vuelve a dar 401, no renueva otra vez', async () => {
+    let peticiones = 0;
+    let renovaciones = 0;
+    servidor.use(
+      http.get('*/api/recurso', () => {
+        peticiones += 1;
+        return errorDeApi('TOKEN_INVALIDO', 'El token no es válido', 401);
+      }),
+      http.post('*/api/auth/renovar', () => {
+        renovaciones += 1;
+        return HttpResponse.json({ tokenAcceso: 'acceso-nuevo', tokenRenovacion: 'renovacion-nueva' });
+      }),
+    );
+
+    const cliente = crearClienteApi({ urlBase, almacen: almacenConSesion() });
+
+    await expect(cliente.pedir('/recurso')).rejects.toMatchObject({ codigo: 'TOKEN_INVALIDO' });
+    expect(peticiones).toBe(2);
+    expect(renovaciones).toBe(1);
+  });
+
+  it('si el token guardado ya cambió, reintenta con ese sin renovar', async () => {
+    const almacen = almacenConSesion();
+    let renovaciones = 0;
+    servidor.use(
+      http.get('*/api/recurso', ({ request }) => {
+        if (request.headers.get('authorization') === 'Bearer acceso-nuevo') {
+          return HttpResponse.json({ ok: true });
+        }
+        // Mientras esta petición viajaba, otra ya renovó la sesión.
+        almacen.guardar({ tokenAcceso: 'acceso-nuevo', tokenRenovacion: 'renovacion-nueva' });
+        return errorDeApi('TOKEN_VENCIDO', 'El token de acceso venció', 401);
+      }),
+      http.post('*/api/auth/renovar', () => {
+        renovaciones += 1;
+        return HttpResponse.json({ tokenAcceso: 'otro', tokenRenovacion: 'otra' });
+      }),
+    );
+
+    const cliente = crearClienteApi({ urlBase, almacen });
+
+    await expect(cliente.pedir('/recurso')).resolves.toEqual({ ok: true });
+    expect(renovaciones).toBe(0);
+  });
+
+  it('si otra pestaña ya renovó con el mismo token, usa sus tokens y no cierra la sesión', async () => {
+    servidor.use(
+      http.get('*/api/recurso', ({ request }) =>
+        request.headers.get('authorization') === 'Bearer acceso-de-la-otra'
+          ? HttpResponse.json({ ok: true })
+          : errorDeApi('TOKEN_VENCIDO', 'El token de acceso venció', 401),
+      ),
+      http.post('*/api/auth/renovar', () => {
+        // La otra pestaña gastó el token y guardó los suyos: localStorage es uno solo.
+        crearAlmacenSesion().guardar({
+          tokenAcceso: 'acceso-de-la-otra',
+          tokenRenovacion: 'renovacion-de-la-otra',
+        });
+        return errorDeApi('TOKEN_RENOVACION_INVALIDO', 'El token de renovación ya no sirve', 401);
+      }),
+    );
+
+    const almacen = almacenConSesion();
+    const alPerderSesion = vi.fn();
+    const cliente = crearClienteApi({ urlBase, almacen, alPerderSesion });
+
+    await expect(cliente.pedir('/recurso')).resolves.toEqual({ ok: true });
+    expect(almacen.leer()).toEqual({
+      tokenAcceso: 'acceso-de-la-otra',
+      tokenRenovacion: 'renovacion-de-la-otra',
+    });
+    expect(alPerderSesion).not.toHaveBeenCalled();
   });
 
   it('sin sesión no intenta renovar', async () => {

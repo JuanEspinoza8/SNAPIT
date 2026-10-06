@@ -3,14 +3,16 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 
 export function PaginaSalud() {
-  const { data, isPending, isError, error } = useSalud();
+  const { data, isPending, isError, error, refetch, isFetching } = useSalud();
 
   if (isPending) {
     return <p className="text-texto-secundario">Consultando el estado del servidor…</p>;
   }
 
   if (isError) {
-    return <AvisoError error={aErrorApi(error)} />;
+    return (
+      <AvisoError error={aErrorApi(error)} alReintentar={() => void refetch()} reintentando={isFetching} />
+    );
   }
 
   return (

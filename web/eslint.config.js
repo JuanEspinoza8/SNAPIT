@@ -9,7 +9,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     rules: {
-      // Permite parámetros sin usar si empiezan con _ (ej: _req, _next).
+      // Permite parámetros sin usar si empiezan con _.
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },

@@ -1,4 +1,4 @@
-﻿@theme {
+@theme {
   /* Colores del sistema de diseño: mobile/lib/compartido/tema/tema_app.dart */
   --color-primario: #1f5e7a;
   --color-sobre-primario: #ffffff;
@@ -17,4 +17,22 @@
   --color-estado-en-ejecucion: #6b46c1;
   --color-estado-resuelto: #276749;
   --color-estado-desestimado: #4a5568;
+
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+
+  /* Escala de texto del sistema de diseño: 12 / 14 / 16 / 20 / 24 / 32 px.
+     Se borran los tamaños de Tailwind para que no se usen otros. */
+  --text-*: initial;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 2.5rem;
 }

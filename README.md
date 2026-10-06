@@ -119,7 +119,9 @@ Van en `web/.env` (no se versiona). La única pantalla de esta base es la de sal
 | Variable | Qué hace |
 |---|---|
 | `VITE_API_URL` | URL de la API, terminada en `/api`. Por defecto `/api`, que en desarrollo usa el proxy de Vite y en la demo nginx. |
-| `VITE_MSW=1` |  Simula la API con MSW (`src/compartido/red/mocks`) mientras el servidor no tenga los endpoints. Sin la variable, se llama al servidor real. |
+| `VITE_MSW=1` | Simula la API con MSW (`src/compartido/red/mocks`) mientras el servidor no tenga los endpoints. Sin la variable, se llama al servidor real. Solo funciona con `npm run dev`: el build de producción la ignora. |
+
+El worker de MSW (`public/mockServiceWorker.js`) está versionado. Si se actualiza MSW, se regenera con `npx msw init public`.
 
 ### Docker
 
@@ -127,7 +129,7 @@ Van en `web/.env` (no se versiona). La única pantalla de esta base es la de sal
 docker build -t snapit-web ./web
 ```
 
-La imagen final es nginx: sirve `dist/` y reenvía `/api` al servidor (por defecto `http://server:3000`; se cambia con `API_UPSTREAM` al correr el contenedor).
+La imagen final es nginx: sirve `dist/` y reenvía `/api` al servidor (por defecto `http://server:3000`; se cambia con `API_UPSTREAM` al correr el contenedor). Si el servidor no está, la web arranca igual y `/api` responde 502 hasta que aparezca.
 
 ### Estructura
 
@@ -137,7 +139,7 @@ src/
   compartido/
     componentes/ layout con encabezado y pie, rutas y aviso de error
     red/         cliente (token, renovación de la sesión ante un 401, errores), contexto y mocks de MSW
-    tema/        colores del sistema de diseño (Tailwind v4)
+    tema/        colores, tipografía y tamaños de texto del sistema de diseño (Tailwind v4)
   funcionalidades/
     <funcionalidad>/ pantallas y hooks de cada funcionalidad
 ```

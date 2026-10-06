@@ -1,6 +1,12 @@
 import type { ErrorApi } from '../red/error.js';
 
-export function AvisoError({ error }: { error: ErrorApi }) {
+interface Props {
+  error: ErrorApi;
+  alReintentar?: () => void;
+  reintentando?: boolean;
+}
+
+export function AvisoError({ error, alReintentar, reintentando = false }: Props) {
   return (
     <div role="alert" className="rounded-lg border border-peligro bg-superficie-alterna p-4 text-texto">
       <p className="font-semibold text-peligro">{error.mensaje}</p>
@@ -12,6 +18,16 @@ export function AvisoError({ error }: { error: ErrorApi }) {
             </li>
           ))}
         </ul>
+      )}
+      {alReintentar && (
+        <button
+          type="button"
+          onClick={alReintentar}
+          disabled={reintentando}
+          className="mt-3 rounded-md border border-borde bg-superficie px-3 py-2 text-sm font-semibold text-primario hover:bg-superficie-alterna disabled:text-texto-secundario"
+        >
+          {reintentando ? 'Reintentando…' : 'Reintentar'}
+        </button>
       )}
     </div>
   );

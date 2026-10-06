@@ -16,8 +16,6 @@ export class ErrorApi extends Error {
     this.detalles = detalles;
   }
 
-  /** Alias en español del texto de `Error`. El resto del código usa
-   *  nombres en español, como `codigo` y `detalles`. */
   get mensaje(): string {
     return this.message;
   }

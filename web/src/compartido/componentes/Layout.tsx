@@ -8,12 +8,12 @@ export function Layout() {
     <div className="flex min-h-dvh flex-col bg-superficie text-texto">
       <header className="border-b border-borde bg-superficie">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3">
-          <Link to="/" className="text-lg font-semibold text-primario">
-            SNAPit
+          <Link to="/" className="text-xl font-semibold text-primario">
+            SnapIt
           </Link>
           <Link
             to="/salud"
-            className="rounded-md px-3 py-2 text-sm font-medium text-texto-secundario hover:bg-superficie-alterna"
+            className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
           >
             Estado del servidor
           </Link>
@@ -34,7 +34,7 @@ export function Layout() {
       </main>
 
       <footer className="border-t border-borde bg-superficie">
-        <div className="mx-auto w-full max-w-5xl px-4 py-3 text-sm text-texto-secundario">SNAPit</div>
+        <div className="mx-auto w-full max-w-5xl px-4 py-3 text-sm text-texto-secundario">SnapIt</div>
       </footer>
     </div>
   );

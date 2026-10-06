@@ -57,7 +57,7 @@ export function crearClienteApi(config: {
   function descartar(): never {
     almacen.borrar();
     alPerderSesion?.();
-    throw new ErrorApi('La sesión no sirve. Vuelve a ingresar.', 'SIN_SESION');
+    throw new ErrorApi('La sesión no sirve. Volvé a ingresar.', 'SIN_SESION');
   }
 
   async function renovar(): Promise<string> {
@@ -83,7 +83,13 @@ export function crearClienteApi(config: {
       }
       // Si el servidor rechazó la renovación, la sesión ya no sirve. Con un 5xx
       // se conserva para otro intento.
-      if (respuesta.status < 500) return descartar();
+      if (respuesta.status < 500) {
+        // localStorage es compartido: si otra pestaña renovó con el mismo token,
+        // se usan los tokens que guardó en lugar de borrarlos.
+        const guardado = almacen.leer();
+        if (guardado && guardado.tokenRenovacion !== tokenRenovacion) return guardado.tokenAcceso;
+        return descartar();
+      }
       throw leerError(respuesta.status, await respuesta.json().catch(() => null));
     } catch (error) {
       throw aErrorApi(error);
@@ -118,7 +124,6 @@ export function crearClienteApi(config: {
         return interpretar<T>(respuesta); // la renovación falló: se devuelve el 401 original
       }
 
-      // Reintento único: no hay reintentos encadenados.
       return interpretar<T>(await enviar(ruta, opciones, tokenNuevo));
     },
   };

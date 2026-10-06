@@ -23,10 +23,10 @@ describe('layout base', () => {
   it('muestra el encabezado, el pie y el contenido de la ruta', () => {
     montar('/');
 
-    expect(screen.getByRole('link', { name: 'SNAPit' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'SnapIt' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: 'Estado del servidor' })).toHaveAttribute('href', '/salud');
     expect(screen.getByText('Contenido del inicio')).toBeInTheDocument();
-    expect(screen.getByRole('contentinfo')).toHaveTextContent('SNAPit');
+    expect(screen.getByRole('contentinfo')).toHaveTextContent('SnapIt');
   });
 
   it('navega al contenido de la otra ruta', () => {
