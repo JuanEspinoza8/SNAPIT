@@ -81,6 +81,30 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
   }
 }
 
+/** Lo que el vecino ve en "Mis reportes": qué mandó y en qué quedó cada uno. */
+export async function listarMisReportes(usuarioId: number) {
+  const filas = await repositorio.listarDeUsuario(usuarioId);
+  return {
+    reportes: filas.map((fila) => ({
+      id: fila.id,
+      registradoEn: fila.registradoEn,
+      categoria: { id: fila.categoriaId, nombre: fila.categoriaNombre },
+      severidadDeclarada: fila.severidadDeclarada,
+      descripcion: fila.descripcion,
+      fotos: fila.fotos.map((fotoId) => ({ id: fotoId, url: `/api/fotos/${fotoId}` })),
+      estadoVerificacion: fila.estadoVerificacion,
+      incidente:
+        fila.incidenteId === null
+          ? null
+          : {
+              id: fila.incidenteId,
+              estado: fila.incidenteEstado,
+              enRevision: fila.incidenteEstado === 'REGISTRADO',
+            },
+    })),
+  };
+}
+
 export async function buscarArchivoFoto(id: number) {
   const foto = await repositorio.buscarFoto(id);
   if (!foto) throw new ErrorApp(404, 'FOTO_NO_ENCONTRADA', 'La foto no existe');
