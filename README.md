@@ -50,14 +50,25 @@ Requisitos: Node 22 (ver `.nvmrc`) y la base levantada.
 cd server
 npm install                 # también genera el cliente de Prisma
 npx prisma migrate deploy   # crea las tablas en la base de desarrollo
+npm run semilla             # catálogo, parámetros y usuarios de prueba
 npm run dev                 # http://localhost:3000/api/salud
 ```
+
+La semilla se puede correr las veces que haga falta: no duplica nada y deja los valores de [`docs/calculos.md`](docs/calculos.md). Usuarios de prueba, todos con la clave `snapit-desarrollo` (solo en desarrollo; la semilla no corre con `NODE_ENV=production`):
+
+| Rol | Correo |
+|---|---|
+| Administrador | `admin@snapit.test` |
+| Operador de Bacheo | `bacheo@snapit.test` |
+| Operadora de Veredas | `veredas@snapit.test` |
+| Vecinos | `vecino1@snapit.test`, `vecino2@snapit.test`, `vecino3@snapit.test` |
 
 > **Nunca uses `prisma migrate dev` ni `prisma db push`.** El modelo está congelado y la única migración es `0_init`, que es `db/schema.sql` tal cual. `schema.prisma` no puede expresar los índices GIST ni los nombres de las restricciones, así que esos comandos generan una migración que borra los índices espaciales y renombra las claves del modelo entregado. Para aplicar migraciones, solo `prisma migrate deploy`.
 
 | Script | Qué hace |
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
+| `npm run semilla` | Carga o restaura el catálogo, los parámetros y los usuarios de prueba |
 | `npm test` | Tests con Vitest contra la base `snapit_test` (se crea sola) |
 | `npm run lint` | ESLint |
 | `npm run format` | Formatea con Prettier |
