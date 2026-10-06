@@ -260,6 +260,33 @@ Los perfiles para calcular recorridos accesibles. Responde **200** con los perfi
 
 ## Reportes
 
+### `GET /api/reportes/mios`
+"Mis reportes": lo que cargó el usuario de la sesión y en qué quedó cada uno. Requiere sesión. Nunca devuelve reportes de otra persona.
+
+Responde **200**, del más nuevo al más viejo (por `registradoEn`):
+
+```json
+{
+  "reportes": [
+    {
+      "id": 15,
+      "registradoEn": "2026-10-06T15:15:33.494Z",
+      "categoria": { "id": 3, "nombre": "Cordón sin rampa" },
+      "severidadDeclarada": "GRAVE",
+      "descripcion": "Pozo grande frente a la escuela",
+      "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
+      "estadoVerificacion": "PENDIENTE_REVISION",
+      "incidente": { "id": 9, "estado": "REGISTRADO", "enRevision": true }
+    }
+  ]
+}
+```
+
+- `estadoVerificacion`: qué pasó con **este reporte** (`VERIFICADO`, `PENDIENTE_REVISION` o `DESESTIMADO`).
+- `incidente`: qué pasa con **el problema** (`REGISTRADO`, `VERIFICADO`, `DERIVADO`, `EN_EJECUCION`, `RESUELTO` o `DESESTIMADO`). Si un operador unió el incidente a otro, viene el **principal**, que es el que sigue avanzando: su `id` puede no coincidir con el `incidenteId` que devolvió el `POST`.
+- `incidente` es `null` si el reporte quedó sin incidente.
+- Un vecino sin reportes recibe `{ "reportes": [] }`.
+
 ### `POST /api/reportes`
 Un vecino carga un reporte con una foto. Requiere sesión de `VECINO` (otro rol: 403 `SIN_PERMISO`).
 
