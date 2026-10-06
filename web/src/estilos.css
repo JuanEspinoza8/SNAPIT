@@ -1,0 +1,15 @@
+@import 'tailwindcss';
+@import './compartido/tema/tema.css';
+
+html,
+body,
+#raiz {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-superficie);
+  color: var(--color-texto);
+  font-family: system-ui, sans-serif;
+  font-size: 1rem;
+}

@@ -1,0 +1,20 @@
+﻿@theme {
+  /* Colores del sistema de diseño: mobile/lib/compartido/tema/tema_app.dart */
+  --color-primario: #1f5e7a;
+  --color-sobre-primario: #ffffff;
+  --color-superficie: #ffffff;
+  --color-superficie-alterna: #f6f7f9;
+  --color-borde: #d9dee5;
+  --color-texto: #1a202c;
+  --color-texto-secundario: #5a6474;
+  --color-peligro: #b42318;
+
+  /* Colores de los estados de un incidente (enum EstadoIncidente).
+     Mismos valores que mobile/lib/compartido/tema/tema_app.dart */
+  --color-estado-registrado: #975a16;
+  --color-estado-verificado: #2b6cb0;
+  --color-estado-derivado: #b83280;
+  --color-estado-en-ejecucion: #6b46c1;
+  --color-estado-resuelto: #276749;
+  --color-estado-desestimado: #4a5568;
+}
