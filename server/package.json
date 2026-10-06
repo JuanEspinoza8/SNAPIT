@@ -10,7 +10,8 @@
     "test": "vitest run",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "semilla": "tsx src/semilla/index.ts"
   },
   "keywords": [],
   "author": "",
