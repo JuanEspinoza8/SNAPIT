@@ -35,6 +35,11 @@ rutasReportes.post('/', autenticar, permitirRoles('VECINO'), recibirFoto, async 
   res.status(201).json(await servicio.crearReporte(req.usuario!.id, req.body, req.file?.buffer));
 });
 
+// Cualquier rol con sesión: devuelve solo los reportes de quien la pide.
+rutasReportes.get('/mios', autenticar, async (req, res) => {
+  res.json(await servicio.listarMisReportes(req.usuario!.id));
+});
+
 // Públicas: el mapa muestra las fotos aunque nadie haya ingresado.
 export const rutasFotos = Router();
 
