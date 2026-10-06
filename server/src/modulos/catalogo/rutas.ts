@@ -5,13 +5,7 @@ import * as repositorio from './repositorio.js';
 export const rutasCatalogo = Router();
 
 rutasCatalogo.get('/categorias', async (_req, res) => {
-  const categorias = await repositorio.listarCategoriasActivas();
-  res.json({
-    categorias: categorias.map(({ tipoVigenciaDefault, ...categoria }) => ({
-      ...categoria,
-      tipoVigencia: tipoVigenciaDefault,
-    })),
-  });
+  res.json({ categorias: await repositorio.listarCategoriasActivas() });
 });
 
 rutasCatalogo.get('/perfiles-movilidad', async (_req, res) => {

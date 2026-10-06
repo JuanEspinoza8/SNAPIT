@@ -240,14 +240,14 @@ Lo que el vecino puede elegir al reportar y los filtros del mapa. Responde **200
       "id": 3,
       "nombre": "Cordón sin rampa",
       "descripcion": "Esquina sin rampa o con la rampa rota o bloqueada",
-      "tipoVigencia": "PERMANENTE",
+      "tipoVigenciaDefault": "PERMANENTE",
       "area": { "id": 2, "nombre": "Veredas" }
     }
   ]
 }
 ```
 
-- `tipoVigencia`: `PERMANENTE` o `TEMPORAL`. Una temporal (por ejemplo, una obra) caduca sola si no la vuelven a reportar.
+- `tipoVigenciaDefault`: `PERMANENTE` o `TEMPORAL`, la vigencia con la que nace un incidente de esa categoría. Uno temporal (por ejemplo, una obra) vence solo a los días que fija la categoría; cuando un vecino confirma que el problema sigue, la vigencia se renueva.
 - `area`: quién lo atiende. Sirve para mostrarle al vecino a dónde va su reporte.
 - Una categoría desactivada deja de aparecer acá, pero los reportes que ya la usan la conservan.
 

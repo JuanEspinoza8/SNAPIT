@@ -33,7 +33,7 @@ describe('GET /api/categorias', () => {
       id: categoria.id,
       nombre: categoria.nombre,
       descripcion: 'Un pozo de prueba',
-      tipoVigencia: 'TEMPORAL',
+      tipoVigenciaDefault: 'TEMPORAL',
       area: { id: area.id, nombre: 'Área de prueba' },
     });
   });
@@ -47,6 +47,21 @@ describe('GET /api/categorias', () => {
     const res = await request(app).get('/api/categorias');
 
     expect(res.body.categorias.map((c: { id: number }) => c.id)).not.toContain(inactiva.id);
+  });
+
+  it('las ordena por nombre', async () => {
+    const area = await crearArea();
+    const base = randomUUID();
+    // Se crean al revés del orden alfabético, para que el orden no salga del id.
+    const segunda = await prisma.categoria.create({ data: { nombre: `${base} B`, areaId: area.id } });
+    const primera = await prisma.categoria.create({ data: { nombre: `${base} A`, areaId: area.id } });
+
+    const res = await request(app).get('/api/categorias');
+
+    const ids = res.body.categorias
+      .map((c: { id: number }) => c.id)
+      .filter((id: number) => id === primera.id || id === segunda.id);
+    expect(ids).toEqual([primera.id, segunda.id]);
   });
 });
 
@@ -74,5 +89,18 @@ describe('GET /api/perfiles-movilidad', () => {
     const res = await request(app).get('/api/perfiles-movilidad');
 
     expect(res.body.perfiles.map((p: { id: number }) => p.id)).not.toContain(inactivo.id);
+  });
+
+  it('los ordena por nombre', async () => {
+    const base = randomUUID();
+    const segundo = await prisma.perfilMovilidad.create({ data: { nombre: `${base} B` } });
+    const primero = await prisma.perfilMovilidad.create({ data: { nombre: `${base} A` } });
+
+    const res = await request(app).get('/api/perfiles-movilidad');
+
+    const ids = res.body.perfiles
+      .map((p: { id: number }) => p.id)
+      .filter((id: number) => id === primero.id || id === segundo.id);
+    expect(ids).toEqual([primero.id, segundo.id]);
   });
 });
