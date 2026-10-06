@@ -8,6 +8,7 @@ import { PaginaConfirmarCorreo } from '../../funcionalidades/cuenta/paginaConfir
 import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuperarClave.js';
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
 import { SeccionEnConstruccion } from '../../funcionalidades/comun/SeccionEnConstruccion.js';
+import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
 
 // Se exportan aparte del router para poder probarlas con un router en memoria.
@@ -88,7 +89,7 @@ export const rutas: RouteObject[] = [
         path: 'administracion',
         element: (
           <RutaProtegida rol="ADMINISTRADOR">
-            <SeccionEnConstruccion titulo="Administración" />
+            <PaginaAltaOperador />
           </RutaProtegida>
         ),
       },
