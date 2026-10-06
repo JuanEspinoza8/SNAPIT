@@ -11,12 +11,20 @@ export function Layout() {
           <Link to="/" className="text-xl font-semibold text-primario">
             SnapIt
           </Link>
-          <Link
-            to="/salud"
-            className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
-          >
-            Estado del servidor
-          </Link>
+          <nav className="flex gap-1">
+            <Link
+              to="/mapa"
+              className="rounded-md px-3 py-2 text-sm font-semibold text-primario hover:bg-superficie-alterna"
+            >
+              Mapa
+            </Link>
+            <Link
+              to="/salud"
+              className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
+            >
+              Estado del servidor
+            </Link>
+          </nav>
         </div>
       </header>
 
