@@ -10,6 +10,8 @@ interface ValorContexto {
   cliente: ClienteApi;
   almacen: AlmacenSesion;
   sesionPerdida: boolean;
+  /** Se llama al volver a ingresar: ya no hay sesión que haya vencido. */
+  restablecerSesion(): void;
 }
 
 const Contexto = createContext<ValorContexto | null>(null);
@@ -26,7 +28,11 @@ export function ProveedorCliente({ children }: { children: ReactNode }) {
     }),
   );
 
-  return <Contexto value={{ cliente, almacen, sesionPerdida }}>{children}</Contexto>;
+  function restablecerSesion() {
+    setSesionPerdida(false);
+  }
+
+  return <Contexto value={{ cliente, almacen, sesionPerdida, restablecerSesion }}>{children}</Contexto>;
 }
 
 export function useCliente(): ClienteApi {
@@ -45,4 +51,10 @@ export function useSesionPerdida(): boolean {
   const valor = use(Contexto);
   if (!valor) throw new Error('useSesionPerdida se usa solo dentro de ProveedorCliente');
   return valor.sesionPerdida;
+}
+
+export function useRestablecerSesion(): () => void {
+  const valor = use(Contexto);
+  if (!valor) throw new Error('useRestablecerSesion se usa solo dentro de ProveedorCliente');
+  return valor.restablecerSesion;
 }
