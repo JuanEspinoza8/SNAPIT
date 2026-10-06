@@ -299,6 +299,67 @@ curl -X POST http://localhost:3000/api/reportes \
   -F lat=-38.9516 -F lon=-68.0591 -F origen=SITIO_WEB
 ```
 
+## Mapa público
+Rutas públicas: el mapa se ve sin iniciar sesión.
+
+Lo que **nunca** aparece: incidentes desestimados, caducados (o temporales cuya vigencia ya pasó) y los que un operador unió a otro.
+
+### `GET /api/incidentes`
+Los puntos del mapa. Todos los filtros son opcionales y se combinan entre sí:
+
+| Parámetro | Ejemplo | Qué filtra |
+|---|---|---|
+| `bbox` | `-68.1,-38.97,-68.03,-38.93` | El rectángulo que se ve en pantalla: **oeste,sur,este,norte** en grados. Conviene mandarlo siempre, para no traer toda la ciudad. |
+| `categoriaId` | `3` | Una categoría (`GET /api/categorias`) |
+| `estado` | `REGISTRADO` | `REGISTRADO`, `VERIFICADO`, `DERIVADO`, `EN_EJECUCION` o `RESUELTO` |
+| `desde` / `hasta` | `2026-10-01` | Fecha del primer reporte. Con solo la fecha se toma el día completo en hora de Argentina; también aceptan fecha y hora ISO 8601. |
+
+Responde **200**, del más nuevo al más viejo:
+
+```json
+{
+  "incidentes": [
+    {
+      "id": 9,
+      "lat": -38.9516,
+      "lon": -68.0591,
+      "categoriaId": 3,
+      "estado": "REGISTRADO",
+      "enRevision": true,
+      "primerReporteEn": "2026-10-06T15:15:33.494Z",
+      "cantidadReportes": 1
+    }
+  ]
+}
+```
+
+`enRevision` es `true` mientras el incidente está `REGISTRADO` (todavía sin verificar): conviene mostrarlo distinto. Un filtro inválido responde **400** `DATOS_INVALIDOS` con `detalles`.
+
+### `GET /api/incidentes/:id`
+La ficha que se abre al tocar un punto. Si el incidente se unió a otro, responde con el **principal** (el `id` de la respuesta puede ser distinto del pedido).
+
+```json
+{
+  "id": 9,
+  "lat": -38.9516,
+  "lon": -68.0591,
+  "categoria": { "id": 3, "nombre": "Cordón sin rampa" },
+  "estado": "REGISTRADO",
+  "enRevision": true,
+  "primerReporteEn": "2026-10-06T15:15:33.494Z",
+  "cantidadReportes": 1,
+  "cantidadVecinos": 1,
+  "direccion": null,
+  "fotos": [{ "id": 1, "url": "/api/fotos/1" }]
+}
+```
+
+- `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
+- `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` es relativa al servidor.
+- `direccion`: por ahora `null`; se completa en el corte 50 %.
+
+Desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`.
+
 ### `GET /api/fotos/:id`
 Pública. Devuelve el archivo de la foto con su `Content-Type` (`image/jpeg` o `image/png`), idéntico al que se subió. Se puede usar directo en un `<img src="/api/fotos/7">`. Si no existe: **404** `FOTO_NO_ENCONTRADA`.
 
