@@ -50,20 +50,40 @@ Requisitos: Node 22 (ver `.nvmrc`) y la base levantada.
 cd server
 npm install                 # también genera el cliente de Prisma
 npx prisma migrate deploy   # crea las tablas en la base de desarrollo
+npm run semilla             # catálogo, parámetros y usuarios de prueba
 npm run dev                 # http://localhost:3000/api/salud
 ```
+
+La semilla se puede correr las veces que haga falta: no duplica nada y vuelve a dejar los valores de [`docs/calculos.md`](docs/calculos.md), aunque se hayan cambiado a mano. Toma la base de `DATABASE_URL`.
+
+Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar. Con `NODE_ENV=production` no se cargan: se cargan solo el catálogo y los parámetros.
+
+| Rol | Correo |
+|---|---|
+| Administrador | `admin@snapit.test` |
+| Operador de Bacheo | `bacheo@snapit.test` |
+| Operadora de Veredas | `veredas@snapit.test` |
+| Vecinos | `vecino1@snapit.test`, `vecino2@snapit.test`, `vecino3@snapit.test` |
 
 > **Nunca uses `prisma migrate dev` ni `prisma db push`.** El modelo está congelado y la única migración es `0_init`, que es `db/schema.sql` tal cual. `schema.prisma` no puede expresar los índices GIST ni los nombres de las restricciones, así que esos comandos generan una migración que borra los índices espaciales y renombra las claves del modelo entregado. Para aplicar migraciones, solo `prisma migrate deploy`.
 
 | Script | Qué hace |
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
+| `npm run semilla` | Carga o restaura el catálogo, los parámetros y los usuarios de prueba (estos, fuera de producción) |
 | `npm test` | Tests con Vitest contra la base `snapit_test` (se crea sola) |
 | `npm run lint` | ESLint |
 | `npm run format` | Formatea con Prettier |
 | `npm run build` / `npm start` | Compila a `dist/` y lo ejecuta |
 
 Para levantar el servidor en Docker junto con la base: `docker compose up -d --build`. Al arrancar, el contenedor aplica las migraciones pendientes, así que no hace falta Node en la PC. El contenedor y `npm run dev` usan el mismo puerto: si uno está levantado, el otro no arranca y avisa que el puerto está ocupado.
+
+La semilla también se corre dentro del contenedor. Como corre con `NODE_ENV=production`, carga el catálogo y los parámetros sin los usuarios de prueba; para sumarlos en desarrollo, agregá `-e NODE_ENV=development`:
+
+```bash
+docker compose exec server node dist/semilla/index.js
+docker compose exec -e NODE_ENV=development server node dist/semilla/index.js
+```
 
 ### Correos en desarrollo
 
@@ -81,6 +101,7 @@ Los correos se ven en http://localhost:8025. Si tu `.env` es anterior a la #7, c
 src/
   config/        env (validado con zod) y logger
   compartido/    prisma, errores, correo y middlewares comunes
+  semilla/       datos iniciales (npm run semilla)
   modulos/
     <modulo>/
       rutas.ts        endpoints y validación de la entrada
