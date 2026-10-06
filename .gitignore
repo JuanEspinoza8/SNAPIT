@@ -10,6 +10,9 @@ build/
 coverage/
 *.log
 
+# Fotos de los reportes en desarrollo (#13)
+server/fotos/
+
 # Flutter (mobile)
 mobile/.dart_tool/
 mobile/build/

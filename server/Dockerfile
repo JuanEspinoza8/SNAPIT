@@ -19,6 +19,8 @@ COPY --from=build /app/package.json /app/prisma.config.ts ./
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+# La carpeta de fotos tiene que ser de node: el volumen nuevo hereda el dueño de la carpeta de la imagen.
+RUN mkdir -p /app/fotos && chown node:node /app/fotos
 USER node
 EXPOSE 3000
 # Antes de arrancar aplica las migraciones pendientes (si no hay, no hace nada).

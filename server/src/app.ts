@@ -5,6 +5,7 @@ import { registrarPeticiones } from './compartido/registrarPeticiones.js';
 import { rutasAdmin } from './modulos/admin/rutas.js';
 import { rutasAuth } from './modulos/auth/rutas.js';
 import { rutasCatalogo } from './modulos/catalogo/rutas.js';
+import { rutasFotos, rutasReportes } from './modulos/reportes/rutas.js';
 import { rutasSalud } from './modulos/salud/rutas.js';
 
 export const app = express();
@@ -19,6 +20,8 @@ app.use('/api/salud', rutasSalud);
 app.use('/api/auth', rutasAuth);
 app.use('/api/admin', rutasAdmin);
 app.use('/api', rutasCatalogo);
+app.use('/api/reportes', rutasReportes);
+app.use('/api/fotos', rutasFotos);
 
 app.use(rutaNoEncontrada);
 app.use(manejarErrores);

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import { z } from 'zod';
@@ -21,6 +22,13 @@ const esquema = z.object({
   SMTP_USUARIO: z.string().optional(),
   SMTP_CLAVE: z.string().optional(),
   CORREO_REMITENTE: z.string().min(1),
+  // Carpeta donde se guardan las fotos de los reportes. Relativa a donde se corre el servidor.
+  FOTOS_DIR: z
+    .string()
+    .min(1)
+    .default('fotos')
+    .transform((carpeta) => path.resolve(carpeta)),
+  FOTO_MAX_MB: z.coerce.number().positive().default(10),
 });
 
 const resultado = esquema.safeParse(process.env);
