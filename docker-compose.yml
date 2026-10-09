@@ -34,6 +34,11 @@ services:
       SMTP_HOST: mailpit
       SMTP_PUERTO: 1025
       CORREO_REMITENTE: ${CORREO_REMITENTE:?falta en el .env (ver .env.example)}
+      FOTOS_DIR: /app/fotos
+      FOTO_MAX_MB: ${FOTO_MAX_MB:-10}
+    volumes:
+      # Las fotos de los reportes sobreviven aunque se reconstruya la imagen.
+      - fotos_data:/app/fotos
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
@@ -54,4 +59,5 @@ services:
 
 volumes:
   db_data:
+  fotos_data:
 

@@ -258,6 +258,50 @@ Los perfiles para calcular recorridos accesibles. Responde **200** con los perfi
 { "perfiles": [{ "id": 1, "nombre": "Silla de ruedas", "descripcion": "No puede subir cordones ni pasar por superficies rotas" }] }
 ```
 
+## Reportes
+
+### `POST /api/reportes`
+Un vecino carga un reporte con una foto. Requiere sesión de `VECINO` (otro rol: 403 `SIN_PERMISO`).
+
+Va como **`multipart/form-data`**, no como JSON, porque lleva un archivo. Todos los campos se mandan como texto:
+
+| Campo | Obligatorio | Valor |
+|---|---|---|
+| `foto` | sí | Archivo JPG o PNG de hasta `FOTO_MAX_MB` (10 MB por defecto). Se reconoce por el contenido, no por la extensión. |
+| `categoriaId` | sí | Id de una categoría activa (`GET /api/categorias`) |
+| `severidadDeclarada` | sí | `LEVE`, `MODERADA` o `GRAVE` |
+| `lat` / `lon` | sí | Grados decimales: `lat` entre -90 y 90, `lon` entre -180 y 180. Ejemplo: `-38.9516` / `-68.0591` |
+| `origen` | sí | `APP_MOVIL` o `SITIO_WEB` |
+| `descripcion` | no | Texto libre, hasta 1000 caracteres |
+| `registradoEn` | no | Cuándo lo cargó el vecino, en ISO 8601 con zona (`2026-10-06T14:30:00-03:00`). Para la app sin señal: el reporte se guarda en el celular y se manda después. Si falta, se usa el momento de llegada. No puede ser futura. |
+| `tomadaConCamaraApp` | no | `true` si la foto se sacó con la cámara de la app; `false` (por defecto) si se eligió de la galería |
+
+Responde **201**:
+
+```json
+{ "id": 15, "incidenteId": 9, "nivelConfianza": 0, "estadoVerificacion": "PENDIENTE_REVISION" }
+```
+
+- La foto se guarda **tal cual llegó**, sin recomprimir: se conserva el EXIF para la verificación (corte 50 %).
+- Por ahora cada reporte abre su propio incidente en estado `REGISTRADO`. La verificación automática y la agrupación de reportes cercanos llegan en el corte 50 %; hasta entonces `nivelConfianza` es 0 y `estadoVerificacion` es `PENDIENTE_REVISION`.
+- Si algo falla, no queda nada a medias: ni un reporte sin foto ni una foto suelta.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta la foto o no es JPG/PNG, pesa de más, coordenadas fuera de rango, categoría inexistente o inactiva, o cualquier otro campo inválido. `detalles` los lista todos juntos |
+
+Ejemplo con `curl`:
+
+```bash
+curl -X POST http://localhost:3000/api/reportes \
+  -H "Authorization: Bearer <tokenAcceso>" \
+  -F foto=@pozo.jpg -F categoriaId=1 -F severidadDeclarada=GRAVE \
+  -F lat=-38.9516 -F lon=-68.0591 -F origen=SITIO_WEB
+```
+
+### `GET /api/fotos/:id`
+Pública. Devuelve el archivo de la foto con su `Content-Type` (`image/jpeg` o `image/png`), idéntico al que se subió. Se puede usar directo en un `<img src="/api/fotos/7">`. Si no existe: **404** `FOTO_NO_ENCONTRADA`.
+
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
 
