@@ -38,24 +38,24 @@ function conTodo(usuarios = [operadorActual]) {
   );
 }
 
-async function llenarOperador(usuario = userEvent.setup()) {
+async function llenarOperador(persona = userEvent.setup()) {
   // Los organismos llegan de la API: hay que esperarlos antes de elegir.
   await screen.findByRole('option', { name: 'Municipalidad de Neuquén' });
-  await usuario.type(screen.getByLabelText('Nombre'), 'Olga');
-  await usuario.type(screen.getByLabelText('Correo'), 'olga@ejemplo.com');
-  await usuario.type(screen.getByLabelText('Clave inicial'), 'clave-inicial-1');
-  await usuario.selectOptions(screen.getByLabelText('Organismo'), '1');
-  await usuario.selectOptions(screen.getByLabelText('Área'), '1');
+  await persona.type(screen.getByLabelText('Nombre'), 'Olga');
+  await persona.type(screen.getByLabelText('Correo'), 'olga@ejemplo.com');
+  await persona.type(screen.getByLabelText('Clave inicial'), 'clave-inicial-1');
+  await persona.selectOptions(screen.getByLabelText('Organismo'), '1');
+  await persona.selectOptions(screen.getByLabelText('Área'), '1');
 }
 
 describe('alta de operadores', () => {
   it('carga los organismos y las áreas del organismo elegido', async () => {
     conTodo();
-    const usuario = userEvent.setup();
+    const persona = userEvent.setup();
     renderRuta('/administracion', <PaginaAltaOperador />);
 
     await screen.findByRole('option', { name: 'Municipalidad de Neuquén' });
-    await usuario.selectOptions(screen.getByLabelText('Organismo'), '1');
+    await persona.selectOptions(screen.getByLabelText('Organismo'), '1');
 
     expect(screen.getByLabelText('Área')).toBeEnabled();
     expect(screen.getByRole('option', { name: 'Bacheo' })).toBeInTheDocument();
@@ -82,11 +82,11 @@ describe('alta de operadores', () => {
         return HttpResponse.json({ usuario: creado }, { status: 201 });
       }),
     );
-    const usuario = userEvent.setup();
+    const persona = userEvent.setup();
     renderRuta('/administracion', <PaginaAltaOperador />);
 
-    await llenarOperador(usuario);
-    await usuario.click(screen.getByRole('button', { name: 'Dar de alta' }));
+    await llenarOperador(persona);
+    await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
 
     expect(await screen.findByText(/Operador dado de alta/)).toBeInTheDocument();
     expect(cuerpo).toEqual({
@@ -112,15 +112,15 @@ describe('alta de operadores', () => {
         return new HttpResponse(null, { status: 201 });
       }),
     );
-    const usuario = userEvent.setup();
+    const persona = userEvent.setup();
     renderRuta('/administracion', <PaginaAltaOperador />);
 
     await screen.findByRole('option', { name: 'Municipalidad de Neuquén' });
-    await usuario.type(screen.getByLabelText('Nombre'), 'Olga');
-    await usuario.type(screen.getByLabelText('Correo'), 'olga@ejemplo.com');
-    await usuario.type(screen.getByLabelText('Clave inicial'), 'clave-inicial-1');
-    await usuario.selectOptions(screen.getByLabelText('Organismo'), '1');
-    await usuario.click(screen.getByRole('button', { name: 'Dar de alta' }));
+    await persona.type(screen.getByLabelText('Nombre'), 'Olga');
+    await persona.type(screen.getByLabelText('Correo'), 'olga@ejemplo.com');
+    await persona.type(screen.getByLabelText('Clave inicial'), 'clave-inicial-1');
+    await persona.selectOptions(screen.getByLabelText('Organismo'), '1');
+    await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
 
     expect(await screen.findByText('Es obligatoria')).toBeInTheDocument();
     expect(llamadas).toBe(0);
@@ -143,11 +143,11 @@ describe('alta de operadores', () => {
         ),
       ),
     );
-    const usuario = userEvent.setup();
+    const persona = userEvent.setup();
     renderRuta('/administracion', <PaginaAltaOperador />);
 
-    await llenarOperador(usuario);
-    await usuario.click(screen.getByRole('button', { name: 'Dar de alta' }));
+    await llenarOperador(persona);
+    await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
 
     expect(screen.getByText('El área no pertenece a ese organismo')).toBeInTheDocument();
     expect(screen.getByLabelText('Nombre')).toHaveValue('Olga');
@@ -166,11 +166,11 @@ describe('alta de operadores', () => {
         ),
       ),
     );
-    const usuario = userEvent.setup();
+    const persona = userEvent.setup();
     renderRuta('/administracion', <PaginaAltaOperador />);
 
-    await llenarOperador(usuario);
-    await usuario.click(screen.getByRole('button', { name: 'Dar de alta' }));
+    await llenarOperador(persona);
+    await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
 
     expect(await screen.findByText('Ya hay una cuenta con ese correo')).toBeInTheDocument();
     expect(screen.getByLabelText('Correo')).toHaveValue('olga@ejemplo.com');
@@ -195,17 +195,17 @@ describe('alta de operadores', () => {
         return HttpResponse.json({ usuario: creado }, { status: 201 });
       }),
     );
-    const usuario = userEvent.setup();
+    const persona = userEvent.setup();
     renderRuta('/administracion', <PaginaAltaOperador />);
 
-    await usuario.selectOptions(screen.getByLabelText('Rol'), 'ADMINISTRADOR');
+    await persona.selectOptions(screen.getByLabelText('Rol'), 'ADMINISTRADOR');
     expect(screen.queryByLabelText('Área')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Organismo (opcional)')).toBeInTheDocument();
 
-    await usuario.type(screen.getByLabelText('Nombre'), 'Ana');
-    await usuario.type(screen.getByLabelText('Correo'), 'ana@ejemplo.com');
-    await usuario.type(screen.getByLabelText('Clave inicial'), 'clave-inicial-1');
-    await usuario.click(screen.getByRole('button', { name: 'Dar de alta' }));
+    await persona.type(screen.getByLabelText('Nombre'), 'Ana');
+    await persona.type(screen.getByLabelText('Correo'), 'ana@ejemplo.com');
+    await persona.type(screen.getByLabelText('Clave inicial'), 'clave-inicial-1');
+    await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
 
     expect(await screen.findByText(/Administrador dado de alta/)).toBeInTheDocument();
     expect(cuerpo).toEqual({
@@ -254,5 +254,105 @@ describe('alta de operadores', () => {
     renderRuta('/administracion', <PaginaAltaOperador />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/no se pudo|Error/i);
+  });
+
+  it('al cambiar de organismo se olvida el área del anterior', async () => {
+    const otro = { id: 2, nombre: 'Ente Provincial de Energía', areas: [{ id: 7, nombre: 'Redes' }] };
+    let llamadas = 0;
+    servidor.use(
+      http.get('*/api/admin/organismos', () => HttpResponse.json({ organismos: [organismo, otro] })),
+      http.get('*/api/admin/usuarios', () => HttpResponse.json({ usuarios: [operadorActual] })),
+      http.post('*/api/admin/usuarios', () => {
+        llamadas += 1;
+        return new HttpResponse(null, { status: 201 });
+      }),
+    );
+    const persona = userEvent.setup();
+    renderRuta('/administracion', <PaginaAltaOperador />);
+
+    await llenarOperador(persona);
+    await persona.selectOptions(screen.getByLabelText('Organismo'), '2');
+
+    expect(screen.getByLabelText('Área')).toHaveValue('');
+    await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
+
+    expect(screen.getByText('Es obligatoria')).toBeInTheDocument();
+    expect(llamadas).toBe(0);
+  });
+
+  it('un error en un campo que la pantalla no tiene se ve en el aviso general', async () => {
+    conTodo();
+    servidor.use(
+      http.post('*/api/admin/usuarios', () =>
+        HttpResponse.json(
+          {
+            error: {
+              codigo: 'DATOS_INVALIDOS',
+              mensaje: 'Hay datos inválidos',
+              detalles: [{ campo: 'rol', mensaje: 'Tiene que ser OPERADOR o ADMINISTRADOR' }],
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    const persona = userEvent.setup();
+    renderRuta('/administracion', <PaginaAltaOperador />);
+
+    await llenarOperador(persona);
+    await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
+
+    const aviso = await screen.findByRole('alert');
+    expect(aviso).toHaveTextContent('Hay datos inválidos');
+    expect(aviso).toHaveTextContent('Tiene que ser OPERADOR o ADMINISTRADOR');
+  });
+
+  it('el aviso de alta dice el rol creado y se va al cargar el siguiente', async () => {
+    conTodo();
+    servidor.use(
+      http.post('*/api/admin/usuarios', () =>
+        HttpResponse.json(
+          {
+            usuario: {
+              id: 4,
+              email: 'olga@ejemplo.com',
+              nombre: 'Olga',
+              rol: 'OPERADOR',
+              organismoId: 1,
+              areaId: 1,
+            },
+          },
+          { status: 201 },
+        ),
+      ),
+    );
+    const persona = userEvent.setup();
+    renderRuta('/administracion', <PaginaAltaOperador />);
+
+    await llenarOperador(persona);
+    await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Operador dado de alta');
+
+    await persona.selectOptions(screen.getByLabelText('Rol'), 'ADMINISTRADOR');
+
+    expect(screen.queryByText(/dado de alta/)).not.toBeInTheDocument();
+  });
+
+  it('en la lista, un área o un organismo desactivados se nombran como tales', async () => {
+    const deAreaInactiva: Usuario = { ...operadorActual, id: 5, email: 'viejo@ejemplo.com', areaId: 9 };
+    const deOrganismoInactivo: Usuario = {
+      ...operadorActual,
+      id: 6,
+      email: 'otro@ejemplo.com',
+      organismoId: 8,
+      areaId: 9,
+    };
+    conTodo([deAreaInactiva, deOrganismoInactivo]);
+    renderRuta('/administracion', <PaginaAltaOperador />);
+
+    const filaArea = (await screen.findByText('viejo@ejemplo.com')).closest('li')!;
+    expect(await within(filaArea).findByText('Municipalidad de Neuquén · área inactiva')).toBeInTheDocument();
+    const filaOrganismo = screen.getByText('otro@ejemplo.com').closest('li')!;
+    expect(within(filaOrganismo).getByText('Organismo inactivo')).toBeInTheDocument();
   });
 });

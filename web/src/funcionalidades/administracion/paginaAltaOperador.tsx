@@ -3,7 +3,9 @@ import type { ChangeEvent, Dispatch, FormEvent, SetStateAction } from 'react';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Campo } from '../../compartido/componentes/Campo.js';
 import { CampoSelecto } from '../../compartido/componentes/CampoSelecto.js';
+import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { aErrorApi } from '../../compartido/red/error.js';
+import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
 import { validarClaveNueva, validarCorreo, validarNombre } from '../cuenta/validaciones.js';
 import type { Organismo, RolDeAlta } from './tipos.js';
 import type { Usuario } from '../../compartido/sesion/usuario.js';
@@ -23,6 +25,15 @@ const ERRORES_VACIOS: Errores = {
   clave: null,
   organismo: null,
   area: null,
+};
+
+// Nombre del campo en la API → nombre del campo en el formulario.
+const CAMPOS_API: Record<string, keyof Errores> = {
+  nombre: 'nombre',
+  email: 'email',
+  clave: 'clave',
+  organismoId: 'organismo',
+  areaId: 'area',
 };
 
 const TEXTO_ROL: Record<Usuario['rol'], string> = {
@@ -47,14 +58,25 @@ export function PaginaAltaOperador() {
   const organismoElegido = todosLosOrganismos.find((o) => o.id === Number(organismoId)) ?? null;
   const areas = organismoElegido?.areas ?? [];
 
-  // Cada campo limpia su error al editar: un aviso del servidor no clava un
-  // dato que se corrigió en la pantalla, y no se pierde nada de lo cargado.
+  function marcar(campo: keyof Errores, error: string | null) {
+    setErrores((previos) => ({ ...previos, [campo]: error }));
+  }
+
+  // Al empezar a cargar otro usuario, el aviso del alta anterior ya no corresponde.
+  function empezarEdicion() {
+    if (crearUsuario.isSuccess) crearUsuario.reset();
+  }
+
+  // Cada campo limpia su error al editar, sin tocar el resto de lo cargado.
   function alCambiar(campo: keyof Errores, fijar: Dispatch<SetStateAction<string>>) {
     return (evento: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       fijar(evento.target.value);
-      setErrores((previos) => ({ ...previos, [campo]: null }));
+      marcar(campo, null);
+      empezarEdicion();
     };
   }
+
+  const rolCreado = crearUsuario.data?.usuario.rol;
 
   return (
     <section className="space-y-8">
@@ -66,13 +88,13 @@ export function PaginaAltaOperador() {
         </p>
       </div>
 
-      {crearUsuario.isSuccess && (
+      {rolCreado && (
         <div
           role="status"
           className="rounded-md border border-primario bg-superficie-alterna p-3 text-sm text-primario"
         >
-          {rol === 'OPERADOR' ? 'Operador dado de alta' : 'Administrador dado de alta'}. Ya puede ingresar con
-          la clave inicial.
+          {rolCreado === 'ADMINISTRADOR' ? 'Administrador dado de alta' : 'Operador dado de alta'}. Ya puede
+          ingresar con la clave inicial.
         </div>
       )}
 
@@ -85,6 +107,9 @@ export function PaginaAltaOperador() {
             placeholder="Nombre del operador"
             value={nombre}
             onChange={alCambiar('nombre', setNombre)}
+            onBlur={() => {
+              if (nombre) marcar('nombre', validarNombre(nombre));
+            }}
             error={errores.nombre}
           />
           <Campo
@@ -95,6 +120,9 @@ export function PaginaAltaOperador() {
             placeholder="operador@ejemplo.com"
             value={email}
             onChange={alCambiar('email', setEmail)}
+            onBlur={() => {
+              if (email) marcar('email', validarCorreo(email));
+            }}
             error={errores.email}
           />
           <Campo
@@ -104,6 +132,9 @@ export function PaginaAltaOperador() {
             autoComplete="new-password"
             value={clave}
             onChange={alCambiar('clave', setClave)}
+            onBlur={() => {
+              if (clave) marcar('clave', validarClaveNueva(clave));
+            }}
             error={errores.clave}
           />
           <CampoSelecto
@@ -113,7 +144,8 @@ export function PaginaAltaOperador() {
             onChange={(evento) => {
               const elegido = evento.target.value as RolDeAlta;
               setRol(elegido);
-              setErrores((previos) => ({ ...previos, area: null }));
+              marcar('area', null);
+              empezarEdicion();
               if (elegido === 'ADMINISTRADOR') setAreaId('');
             }}
           >
@@ -124,7 +156,13 @@ export function PaginaAltaOperador() {
             id="organismo"
             etiqueta={rol === 'OPERADOR' ? 'Organismo' : 'Organismo (opcional)'}
             value={organismoId}
-            onChange={alCambiar('organismo', setOrganismoId)}
+            onChange={(evento) => {
+              setOrganismoId(evento.target.value);
+              // Las áreas son de cada organismo: la elegida antes ya no corresponde.
+              setAreaId('');
+              setErrores((previos) => ({ ...previos, organismo: null, area: null }));
+              empezarEdicion();
+            }}
             error={errores.organismo}
             disabled={consultaOrganismos.isPending}
           >
@@ -196,21 +234,18 @@ export function PaginaAltaOperador() {
               reintentando={consultaUsuarios.isFetching}
             />
           )}
-          {consultaUsuarios.isPending && <p className="text-sm text-texto-secundario">Cargando usuarios…</p>}
+          {consultaUsuarios.isPending && <Cargando filas={4} />}
           {consultaUsuarios.data && (
             <ul className="divide-y divide-borde rounded-md border border-borde">
               {consultaUsuarios.data.usuarios.map((usuario) => (
                 <li key={usuario.id} className="flex items-baseline justify-between gap-4 p-3 text-sm">
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-texto">{usuario.nombre}</p>
+                    <p className="truncate font-semibold text-texto">{usuario.nombre}</p>
                     <p className="truncate text-texto-secundario">{usuario.email}</p>
                   </div>
                   <div className="shrink-0 text-right text-texto-secundario">
-                    <p className="font-medium text-texto-secundario">{TEXTO_ROL[usuario.rol]}</p>
-                    <p className="text-xs">
-                      {nombreOrganismo(usuario, todosLosOrganismos)}
-                      {usuario.areaId ? ` · ${nombreArea(usuario, todosLosOrganismos)}` : ''}
-                    </p>
+                    <p>{TEXTO_ROL[usuario.rol]}</p>
+                    <p className="text-xs">{textoOrganismo(usuario, consultaOrganismos.data?.organismos)}</p>
                   </div>
                 </li>
               ))}
@@ -252,31 +287,23 @@ export function PaginaAltaOperador() {
           setErrores(ERRORES_VACIOS);
         },
         onError: (error) => {
-          const api = aErrorApi(error);
-          const porCampo = new Map(api.detalles.map((detalle) => [detalle.campo, detalle.mensaje]));
-          const siguientes: Errores = {
-            ...ERRORES_VACIOS,
-            nombre: porCampo.get('nombre') ?? null,
-            email: porCampo.get('email') ?? null,
-            clave: porCampo.get('clave') ?? null,
-            organismo: porCampo.get('organismoId') ?? null,
-            area: porCampo.get('areaId') ?? null,
-          };
-          if (api.codigo === 'EMAIL_EN_USO') siguientes.email = api.mensaje;
-          setErrores(siguientes);
-          // El aviso general solo si el error no encontró el campo dónde caer.
-          setAviso(api.detalles.length === 0 && api.codigo !== 'EMAIL_EN_USO');
+          const { porCampo, sinCampo } = repartirErrores(aErrorApi(error), CAMPOS_API);
+          setErrores({ ...ERRORES_VACIOS, ...porCampo });
+          setAviso(sinCampo);
         },
       },
     );
   }
 }
 
-function nombreOrganismo(usuario: Usuario, organismos: Organismo[]): string {
-  return organismos.find((o) => o.id === usuario.organismoId)?.nombre ?? 'Sin organismo';
-}
-
-function nombreArea(usuario: Usuario, organismos: Organismo[]): string {
+// La lista de organismos trae solo los activos: si el del usuario no está,
+// es porque se desactivó después de darlo de alta.
+function textoOrganismo(usuario: Usuario, organismos: Organismo[] | undefined): string {
+  if (usuario.organismoId === null) return 'Sin organismo';
+  if (!organismos) return '';
   const organismo = organismos.find((o) => o.id === usuario.organismoId);
-  return organismo?.areas.find((a) => a.id === usuario.areaId)?.nombre ?? '';
+  if (!organismo) return 'Organismo inactivo';
+  if (usuario.areaId === null) return organismo.nombre;
+  const area = organismo.areas.find((a) => a.id === usuario.areaId);
+  return `${organismo.nombre} · ${area?.nombre ?? 'área inactiva'}`;
 }

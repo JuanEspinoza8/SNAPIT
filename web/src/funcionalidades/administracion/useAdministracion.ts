@@ -22,7 +22,6 @@ export function useAdministracion() {
   const crearUsuario = useMutation({
     mutationFn: (datos: DatosAltaUsuario) => repositorio.crearUsuario(datos),
     onSuccess: () => {
-      // Recarga la lista: ya está creado el usuario nuevo en el servidor.
       void consulta.invalidateQueries({ queryKey: ['admin', 'usuarios'] });
     },
   });
