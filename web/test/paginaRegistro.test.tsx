@@ -54,7 +54,7 @@ describe('página de registro', () => {
     expect(localStorage.getItem('snapit:tokenAcceso')).toBeNull();
   });
 
-  it('muestra el mensaje del servidor si el correo ya está en uso', async () => {
+  it('un correo en uso se marca debajo del campo, sin aviso general', async () => {
     servidor.use(
       http.post('*/api/auth/registro', () =>
         HttpResponse.json(
@@ -70,6 +70,54 @@ describe('página de registro', () => {
     await userEvent.type(screen.getByLabelText('Clave'), 'una-clave');
     await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ya hay una cuenta con ese correo.');
+    expect(await screen.findByText('Ya hay una cuenta con ese correo.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Correo')).toHaveValue('vecino@ejemplo.com');
+  });
+
+  it('los detalles del servidor caen debajo de su campo', async () => {
+    servidor.use(
+      http.post('*/api/auth/registro', () =>
+        HttpResponse.json(
+          {
+            error: {
+              codigo: 'DATOS_INVALIDOS',
+              mensaje: 'Hay datos inválidos',
+              detalles: [{ campo: 'email', mensaje: 'No es un correo válido' }],
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    renderRuta('/registro', <PaginaRegistro />);
+    await userEvent.type(screen.getByLabelText('Nombre'), 'Vecino');
+    await userEvent.type(screen.getByLabelText('Correo'), 'x@y.c');
+    await userEvent.type(screen.getByLabelText('Clave'), 'una-clave');
+    await userEvent.click(screen.getByRole('button', { name: 'Crear cuenta' }));
+
+    expect(await screen.findByText('No es un correo válido')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('valida el campo al salir de él y borra el error al corregirlo', async () => {
+    renderRuta('/registro', <PaginaRegistro />);
+
+    await userEvent.type(screen.getByLabelText('Correo'), 'sin-arroba');
+    await userEvent.tab();
+    expect(screen.getByText('No es un correo válido')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Correo'), '@ejemplo.com');
+    expect(screen.queryByText('No es un correo válido')).not.toBeInTheDocument();
+  });
+
+  it('salir de un campo vacío no lo marca hasta enviar', async () => {
+    renderRuta('/registro', <PaginaRegistro />);
+
+    await userEvent.click(screen.getByLabelText('Nombre'));
+    await userEvent.tab();
+
+    expect(screen.queryByText('Es obligatorio')).not.toBeInTheDocument();
   });
 });

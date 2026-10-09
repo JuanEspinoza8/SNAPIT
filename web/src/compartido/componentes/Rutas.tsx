@@ -1,6 +1,5 @@
-import { createBrowserRouter, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
 import { Layout } from './Layout.js';
-import { Inicio } from '../../funcionalidades/Inicio.js';
 import { PaginaSalud } from '../../funcionalidades/salud/paginaSalud.js';
 import { PaginaIngreso } from '../../funcionalidades/cuenta/paginaIngreso.js';
 import { PaginaRegistro } from '../../funcionalidades/cuenta/paginaRegistro.js';
@@ -17,7 +16,7 @@ export const rutas: RouteObject[] = [
     path: '/',
     element: <Layout />,
     children: [
-      { index: true, element: <Inicio /> },
+      { index: true, element: <Navigate to="/mapa" replace /> },
       { path: 'salud', element: <PaginaSalud /> },
       {
         path: 'ingreso',

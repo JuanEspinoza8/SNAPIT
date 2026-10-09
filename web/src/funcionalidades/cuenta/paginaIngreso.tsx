@@ -4,23 +4,44 @@ import { Link } from 'react-router-dom';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Campo } from '../../compartido/componentes/Campo.js';
 import { aErrorApi } from '../../compartido/red/error.js';
+import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
 import { useIngreso } from './useIngreso.js';
 import { validarClaveIngresada, validarCorreo } from './validaciones.js';
 
 type Errores = { email: string | null; clave: string | null };
 
+const SIN_ERRORES: Errores = { email: null, clave: null };
+
 export function PaginaIngreso() {
   const [email, setEmail] = useState('');
   const [clave, setClave] = useState('');
-  const [errores, setErrores] = useState<Errores>({ email: null, clave: null });
+  const [errores, setErrores] = useState<Errores>(SIN_ERRORES);
+  const [aviso, setAviso] = useState(false);
   const ingreso = useIngreso();
+
+  function marcar(campo: keyof Errores, error: string | null) {
+    setErrores((previos) => ({ ...previos, [campo]: error }));
+  }
 
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     const validados = { email: validarCorreo(email), clave: validarClaveIngresada(clave) };
     setErrores(validados);
+    setAviso(false);
     if (validados.email || validados.clave) return;
-    ingreso.mutate({ email, clave });
+    ingreso.mutate(
+      { email, clave },
+      {
+        onError: (error) => {
+          const { porCampo, sinCampo } = repartirErrores(aErrorApi(error), {
+            email: 'email',
+            clave: 'clave',
+          });
+          setErrores({ ...SIN_ERRORES, ...porCampo });
+          setAviso(sinCampo);
+        },
+      },
+    );
   }
 
   return (
@@ -38,7 +59,13 @@ export function PaginaIngreso() {
           autoComplete="email"
           placeholder="tunombre@ejemplo.com"
           value={email}
-          onChange={(evento) => setEmail(evento.target.value)}
+          onChange={(evento) => {
+            setEmail(evento.target.value);
+            marcar('email', null);
+          }}
+          onBlur={() => {
+            if (email) marcar('email', validarCorreo(email));
+          }}
           error={errores.email}
         />
         <Campo
@@ -47,11 +74,14 @@ export function PaginaIngreso() {
           type="password"
           autoComplete="current-password"
           value={clave}
-          onChange={(evento) => setClave(evento.target.value)}
+          onChange={(evento) => {
+            setClave(evento.target.value);
+            marcar('clave', null);
+          }}
           error={errores.clave}
         />
 
-        {ingreso.isError && <AvisoError error={aErrorApi(ingreso.error)} />}
+        {ingreso.isError && aviso && <AvisoError error={aErrorApi(ingreso.error)} />}
 
         <button
           type="submit"

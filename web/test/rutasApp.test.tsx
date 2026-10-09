@@ -66,4 +66,34 @@ describe('rutas de la aplicación', () => {
 
     expect(await screen.findByRole('heading', { name: 'Ingresar' })).toBeInTheDocument();
   });
+
+  it('la raíz lleva al mapa', async () => {
+    abrir('/');
+
+    expect(await screen.findByRole('heading', { name: 'Mapa' })).toBeInTheDocument();
+  });
+
+  it('un vecino que abre la administración vuelve al mapa', async () => {
+    abrir('/administracion', 'VECINO');
+
+    expect(await screen.findByRole('heading', { name: 'Mapa' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Alta de operadores' })).not.toBeInTheDocument();
+  });
+
+  it('un operador que abre la administración vuelve a su bandeja', async () => {
+    abrir('/administracion', 'OPERADOR');
+
+    expect(await screen.findByRole('heading', { name: 'Bandeja' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Alta de operadores' })).not.toBeInTheDocument();
+  });
+
+  it('un administrador abre la administración', async () => {
+    servidor.use(
+      http.get('*/api/admin/organismos', () => HttpResponse.json({ organismos: [] })),
+      http.get('*/api/admin/usuarios', () => HttpResponse.json({ usuarios: [] })),
+    );
+    abrir('/administracion', 'ADMINISTRADOR');
+
+    expect(await screen.findByRole('heading', { name: 'Alta de operadores' })).toBeInTheDocument();
+  });
 });

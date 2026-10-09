@@ -24,20 +24,20 @@ export function Layout() {
   return (
     <div className="flex min-h-dvh flex-col bg-superficie text-texto">
       <header className="border-b border-borde bg-superficie">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
           <Link to="/" className="text-xl font-semibold text-primario">
             SnapIt
           </Link>
 
           {estado === 'conSesion' ? (
-            <nav className="flex items-center gap-1">
+            <nav className="flex flex-wrap items-center gap-1">
               <span className="hidden pr-2 text-sm text-texto-secundario sm:inline">{usuario?.nombre}</span>
               {secciones.map((seccion) => (
                 <NavLink
                   key={seccion.ruta}
                   to={seccion.ruta}
                   className={({ isActive }) =>
-                    `rounded-md px-3 py-2 text-sm ${
+                    `whitespace-nowrap rounded-md px-3 py-2 text-sm ${
                       isActive
                         ? 'bg-superficie-alterna font-semibold text-primario'
                         : 'text-texto-secundario hover:bg-superficie-alterna'
@@ -50,29 +50,29 @@ export function Layout() {
               <button
                 type="button"
                 onClick={() => void salir()}
-                className="rounded-md px-3 py-2 text-sm text-peligro hover:bg-superficie-alterna"
+                className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-peligro hover:bg-superficie-alterna"
               >
                 Salir
               </button>
             </nav>
           ) : (
             estado === 'sinSesion' && (
-              <nav className="flex items-center gap-1">
+              <nav className="flex flex-wrap items-center gap-1">
                 <Link
                   to={MAPA.ruta}
-                  className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
+                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
                 >
                   {MAPA.texto}
                 </Link>
                 <Link
                   to="/ingreso"
-                  className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
+                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
                 >
                   Ingresar
                 </Link>
                 <Link
                   to="/registro"
-                  className="rounded-md bg-primario px-3 py-2 text-sm font-semibold text-sobre-primario hover:opacity-90"
+                  className="whitespace-nowrap rounded-md bg-primario px-3 py-2 text-sm font-semibold text-sobre-primario hover:opacity-90"
                 >
                   Registrarse
                 </Link>

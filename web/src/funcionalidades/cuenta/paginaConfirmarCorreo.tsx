@@ -18,6 +18,8 @@ export function PaginaConfirmarCorreo() {
     confirmar.mutate(token);
   }, [token, confirmar]);
 
+  const error = confirmar.isError ? aErrorApi(confirmar.error) : null;
+
   if (!token) {
     return (
       <section className="mx-auto w-full max-w-md space-y-4">
@@ -53,19 +55,29 @@ export function PaginaConfirmarCorreo() {
         </>
       )}
 
-      {confirmar.isError && (
+      {error && (
         <>
+          {/* Un enlace usado, vencido o inválido da siempre el mismo error: reintentar no sirve. */}
           <AvisoError
-            error={aErrorApi(confirmar.error)}
-            alReintentar={() => confirmar.mutate(token)}
-            reintentando={confirmar.isPending}
+            error={error}
+            alReintentar={error.codigo.startsWith('ENLACE_') ? undefined : () => confirmar.mutate(token)}
           />
-          <Link
-            to="/ingreso"
-            className="inline-block rounded-md border border-borde px-4 py-2 text-sm font-semibold text-primario"
-          >
-            Volver al ingreso
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/ingreso"
+              className="inline-block rounded-md border border-borde px-4 py-2 text-sm font-semibold text-primario"
+            >
+              Volver al ingreso
+            </Link>
+            {error.codigo === 'ENLACE_VENCIDO' && (
+              <Link
+                to="/recuperar-clave"
+                className="inline-block rounded-md border border-borde px-4 py-2 text-sm font-semibold text-primario"
+              >
+                Olvidé mi clave
+              </Link>
+            )}
+          </div>
         </>
       )}
     </section>

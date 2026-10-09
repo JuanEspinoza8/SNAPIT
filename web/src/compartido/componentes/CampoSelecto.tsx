@@ -9,7 +9,7 @@ interface Props extends SelectHTMLAttributes<HTMLSelectElement> {
 export function CampoSelecto({ id, etiqueta, error, ...select }: Props) {
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-texto">
+      <label htmlFor={id} className="block text-sm font-semibold text-texto">
         {etiqueta}
       </label>
       <select

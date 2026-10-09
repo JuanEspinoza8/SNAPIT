@@ -9,7 +9,7 @@ interface Props extends InputHTMLAttributes<HTMLInputElement> {
 export function Campo({ id, etiqueta, error, type = 'text', ...input }: Props) {
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-texto">
+      <label htmlFor={id} className="block text-sm font-semibold text-texto">
         {etiqueta}
       </label>
       <input

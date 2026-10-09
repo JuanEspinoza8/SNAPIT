@@ -91,4 +91,50 @@ describe('página de restablecer clave', () => {
 
     expect(await screen.findByRole('heading', { name: 'Clave nueva lista' })).toBeInTheDocument();
   });
+
+  it('el error del servidor sobre la clave queda debajo del campo', async () => {
+    servidor.use(
+      http.post('*/api/auth/restablecer-clave', () =>
+        HttpResponse.json(
+          {
+            error: {
+              codigo: 'DATOS_INVALIDOS',
+              mensaje: 'Hay datos inválidos',
+              detalles: [{ campo: 'clave', mensaje: 'Tiene que tener hasta 72 caracteres' }],
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    montar('/restablecer-clave?token=enlace-123');
+    await userEvent.type(screen.getByLabelText('Clave nueva'), 'clave-nueva');
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar mi clave' }));
+
+    expect(await screen.findByText('Tiene que tener hasta 72 caracteres')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('con un enlace usado o vencido ofrece pedir otro en lugar de reintentar', async () => {
+    servidor.use(
+      http.post('*/api/auth/restablecer-clave', () =>
+        HttpResponse.json(
+          { error: { codigo: 'ENLACE_USADO', mensaje: 'Este enlace ya se usó.' } },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    montar('/restablecer-clave?token=enlace-123');
+    await userEvent.type(screen.getByLabelText('Clave nueva'), 'clave-nueva');
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar mi clave' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Este enlace ya se usó.');
+    expect(screen.queryByRole('button', { name: 'Cambiar mi clave' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Pedir un enlace nuevo' })).toHaveAttribute(
+      'href',
+      '/recuperar-clave',
+    );
+  });
 });

@@ -72,7 +72,7 @@ export const handlers = [
         { status: 401 },
       );
     }
-    // Corpus para probar el rol de cada uno: admin, operador o vecino.
+    // Cada correo de prueba entra con un rol distinto.
     if (cuerpo.email === 'admin@ejemplo.com') {
       return HttpResponse.json(sesionDe(usuarioAdministrador));
     }

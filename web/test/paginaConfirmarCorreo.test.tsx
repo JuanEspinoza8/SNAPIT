@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ProveedorCliente } from '../src/compartido/red/clienteContexto.js';
@@ -73,5 +74,24 @@ describe('página de confirmar correo', () => {
     montar('/confirmar-correo?token=enlace-123');
 
     expect(await screen.findByRole('alert')).toHaveTextContent('El enlace venció. Pedí otro.');
+    // Reintentar con el mismo enlace daría el mismo error: se ofrece pedir otro.
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Olvidé mi clave' })).toHaveAttribute('href', '/recuperar-clave');
+  });
+
+  it('sin conexión ofrece reintentar', async () => {
+    let llamadas = 0;
+    servidor.use(
+      http.post('*/api/auth/confirmar-correo', () => {
+        llamadas += 1;
+        return llamadas === 1 ? HttpResponse.error() : new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    montar('/confirmar-correo?token=enlace-123');
+    await userEvent.click(await screen.findByRole('button', { name: 'Reintentar' }));
+
+    expect(await screen.findByText('Correo confirmado. Ya podés ingresar.')).toBeInTheDocument();
+    expect(llamadas).toBe(2);
   });
 });
