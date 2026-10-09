@@ -2,6 +2,7 @@ import { imageSize } from 'image-size';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
+import { logger } from '../../config/logger.js';
 import { esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 
@@ -24,6 +25,16 @@ function leerImagen(contenido: Buffer): { tipo: 'jpg' | 'png'; ancho: number; al
   return null;
 }
 
+// Por si falta el parámetro (la semilla lo carga): antes que rechazar el reporte, se usa este valor.
+const DIAS_VIGENCIA_SI_FALTA = 30;
+
+async function diasVigenciaPorDefecto() {
+  const dias = await repositorio.leerParametroEntero('vigencia.dias_default');
+  if (dias !== null) return dias;
+  logger.warn('Falta el parámetro vigencia.dias_default: se usan %d días', DIAS_VIGENCIA_SI_FALTA);
+  return DIAS_VIGENCIA_SI_FALTA;
+}
+
 export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: Buffer | undefined) {
   const imagen = archivo ? leerImagen(archivo) : null;
   const problemaFoto = !archivo
@@ -42,12 +53,12 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
   const categoria = await repositorio.buscarCategoriaActiva(datos.categoriaId);
   if (!categoria) throw datosInvalidos('categoriaId', 'No existe o no está activa');
 
-  // Un incidente temporal (por ejemplo, una obra) vence solo: la base exige la fecha.
+  // Un incidente temporal (por ejemplo, una obra) vence solo: la base exige la fecha. Se cuenta desde
+  // que llega y no desde registradoEn: un celular con la hora atrasada lo haría nacer vencido.
   let vigenteHasta: Date | null = null;
   if (categoria.tipoVigenciaDefault === 'TEMPORAL') {
-    const dias =
-      categoria.diasCaducidadDefault ?? (await repositorio.leerParametroEntero('vigencia.dias_default', 30));
-    vigenteHasta = new Date(registradoEn.getTime() + dias * DIA_MS);
+    const dias = categoria.diasCaducidadDefault ?? (await diasVigenciaPorDefecto());
+    vigenteHasta = new Date(ahora.getTime() + dias * DIA_MS);
   }
 
   // Primero el archivo y después la base. Si la base falla, se borra el archivo: nunca queda
@@ -57,7 +68,6 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
     return await repositorio.crearReporteConIncidente({
       usuarioId,
       categoriaId: categoria.id,
-      areaId: categoria.areaId,
       severidad: datos.severidadDeclarada,
       descripcion: datos.descripcion,
       lat: datos.lat,
@@ -106,7 +116,8 @@ export async function listarMisReportes(usuarioId: number) {
 }
 
 export async function buscarArchivoFoto(id: number) {
-  const foto = await repositorio.buscarFoto(id);
+  const foto = await repositorio.buscarFotoVisible(id);
+  // Una foto que no se ve en el mapa responde igual que una que no existe: no se revela cuál es cuál.
   if (!foto) throw new ErrorApp(404, 'FOTO_NO_ENCONTRADA', 'La foto no existe');
   return almacenFotos.ubicacion(foto.rutaArchivo);
 }

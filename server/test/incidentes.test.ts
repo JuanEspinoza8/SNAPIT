@@ -102,6 +102,7 @@ describe('GET /api/incidentes', () => {
         lat: expect.closeTo(punto.lat, 9),
         lon: expect.closeTo(punto.lon, 9),
         categoriaId: categoria.id,
+        categoriaNombre: categoria.nombre,
         estado: 'VERIFICADO',
         enRevision: false,
         primerReporteEn: '2026-10-01T12:00:00.000Z',
@@ -147,6 +148,17 @@ describe('GET /api/incidentes', () => {
       await crearIncidente({ categoriaId, punto: zona.punto(0.6, 0) });
 
       const res = await listar({ bbox: zona.bbox });
+
+      expect(ids(res)).toEqual([adentro]);
+    });
+
+    it('bbox deja afuera un punto apenas pasado el borde', async () => {
+      // A unos 40 m del borde este. Con solo && sobre geography (cajas en 3D) entraba igual.
+      const { id: categoriaId } = await crearCategoria();
+      const adentro = await crearIncidente({ categoriaId, punto: { lon: -60, lat: -39 } });
+      await crearIncidente({ categoriaId, punto: { lon: -60 + 0.0205, lat: -39 } });
+
+      const res = await listar({ categoriaId: String(categoriaId), bbox: '-60.02,-39.01,-59.98,-38.99' });
 
       expect(ids(res)).toEqual([adentro]);
     });
@@ -265,6 +277,7 @@ describe('GET /api/incidentes', () => {
       [{ bbox: 'a,b,c,d' }, 'bbox'],
       [{ estado: 'DESESTIMADO' }, 'estado'],
       [{ categoriaId: 'pozo' }, 'categoriaId'],
+      [{ categoriaId: '99999999999' }, 'categoriaId'],
       [{ desde: 'ayer' }, 'desde'],
       [{ desde: '2026-10-05', hasta: '2026-10-01' }, 'hasta'],
     ])('%o', async (consulta, campo) => {
@@ -360,6 +373,13 @@ describe('GET /api/incidentes/:id', () => {
       expect(res.status).toBe(404);
       expect(res.body.error.codigo).toBe('INCIDENTE_NO_ENCONTRADO');
     }
+  });
+
+  it('un id que no entra en la base responde 400', async () => {
+    const res = await request(app).get('/api/incidentes/99999999999');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.codigo).toBe('DATOS_INVALIDOS');
   });
 
   it('un reporte nuevo aparece en el mapa', async () => {

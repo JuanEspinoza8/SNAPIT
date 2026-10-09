@@ -261,7 +261,7 @@ Los perfiles para calcular recorridos accesibles. Responde **200** con los perfi
 ## Reportes
 
 ### `GET /api/reportes/mios`
-"Mis reportes": lo que cargó el usuario de la sesión y en qué quedó cada uno. Requiere sesión. Nunca devuelve reportes de otra persona.
+"Mis reportes": lo que cargó el vecino de la sesión y en qué quedó cada uno. Requiere sesión de `VECINO` (otro rol: 403 `SIN_PERMISO`). Nunca devuelve reportes de otra persona.
 
 Responde **200**, del más nuevo al más viejo (por `registradoEn`):
 
@@ -285,6 +285,7 @@ Responde **200**, del más nuevo al más viejo (por `registradoEn`):
 - `estadoVerificacion`: qué pasó con **este reporte** (`VERIFICADO`, `PENDIENTE_REVISION` o `DESESTIMADO`).
 - `incidente`: qué pasa con **el problema** (`REGISTRADO`, `VERIFICADO`, `DERIVADO`, `EN_EJECUCION`, `RESUELTO` o `DESESTIMADO`). Si un operador unió el incidente a otro, viene el **principal**, que es el que sigue avanzando: su `id` puede no coincidir con el `incidenteId` que devolvió el `POST`.
 - `incidente` es `null` si el reporte quedó sin incidente.
+- `fotos`: todas las del reporte. Las de un reporte desestimado o de un incidente que ya no está en el mapa todavía no se pueden bajar (`GET /api/fotos/:id` responde 404); se resuelve cuando la web y la app muestren las fotos propias (#16, #18).
 - Un vecino sin reportes recibe `{ "reportes": [] }`.
 
 ### `POST /api/reportes`
@@ -312,10 +313,12 @@ Responde **201**:
 - La foto se guarda **tal cual llegó**, sin recomprimir: se conserva el EXIF para la verificación (corte 50 %).
 - Por ahora cada reporte abre su propio incidente en estado `REGISTRADO`. La verificación automática y la agrupación de reportes cercanos llegan en el corte 50 %; hasta entonces `nivelConfianza` es 0 y `estadoVerificacion` es `PENDIENTE_REVISION`.
 - Si algo falla, no queda nada a medias: ni un reporte sin foto ni una foto suelta.
+- El incidente nace sin área (`area_id` vacío): es el área a la que se deriva, y eso lo hace el operador.
+- Si la categoría es temporal, el incidente vence a los días de la categoría contados desde que llega el reporte (no desde `registradoEn`).
 
 | Status | Código | Cuándo |
 |---|---|---|
-| 400 | `DATOS_INVALIDOS` | Falta la foto o no es JPG/PNG, pesa de más, coordenadas fuera de rango, categoría inexistente o inactiva, o cualquier otro campo inválido. `detalles` los lista todos juntos |
+| 400 | `DATOS_INVALIDOS` | Falta la foto o no es JPG/PNG, pesa de más, coordenadas fuera de rango, categoría inexistente o inactiva, o cualquier otro campo inválido. `detalles` los lista todos juntos. Si el formulario llegó cortado o trae demasiados campos, viene sin `detalles` y con el mensaje "No se pudo leer el formulario. Volvé a enviarlo." |
 
 Ejemplo con `curl`:
 
@@ -336,7 +339,7 @@ Los puntos del mapa. Todos los filtros son opcionales y se combinan entre sí:
 
 | Parámetro | Ejemplo | Qué filtra |
 |---|---|---|
-| `bbox` | `-68.1,-38.97,-68.03,-38.93` | El rectángulo que se ve en pantalla: **oeste,sur,este,norte** en grados. Conviene mandarlo siempre, para no traer toda la ciudad. |
+| `bbox` | `-68.1,-38.97,-68.03,-38.93` | El rectángulo que se ve en pantalla: **oeste,sur,este,norte** en grados. Conviene mandarlo siempre, para no traer toda la ciudad. Un punto justo sobre el borde cuenta como adentro. |
 | `categoriaId` | `3` | Una categoría (`GET /api/categorias`) |
 | `estado` | `REGISTRADO` | `REGISTRADO`, `VERIFICADO`, `DERIVADO`, `EN_EJECUCION` o `RESUELTO` |
 | `desde` / `hasta` | `2026-10-01` | Fecha del primer reporte. Con solo la fecha se toma el día completo en hora de Argentina; también aceptan fecha y hora ISO 8601. |
@@ -351,6 +354,7 @@ Responde **200**, del más nuevo al más viejo:
       "lat": -38.9516,
       "lon": -68.0591,
       "categoriaId": 3,
+      "categoriaNombre": "Cordón sin rampa",
       "estado": "REGISTRADO",
       "enRevision": true,
       "primerReporteEn": "2026-10-06T15:15:33.494Z",
@@ -360,7 +364,7 @@ Responde **200**, del más nuevo al más viejo:
 }
 ```
 
-`enRevision` es `true` mientras el incidente está `REGISTRADO` (todavía sin verificar): conviene mostrarlo distinto. Un filtro inválido responde **400** `DATOS_INVALIDOS` con `detalles`.
+`enRevision` es `true` mientras el incidente está `REGISTRADO` (todavía sin verificar): conviene mostrarlo distinto. `categoriaNombre` viene aunque la categoría esté desactivada (`GET /api/categorias` solo lista las activas). Un filtro inválido responde **400** `DATOS_INVALIDOS` con `detalles`.
 
 ### `GET /api/incidentes/:id`
 La ficha que se abre al tocar un punto. Si el incidente se unió a otro, responde con el **principal** (el `id` de la respuesta puede ser distinto del pedido).
@@ -382,13 +386,15 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
 ```
 
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
-- `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` es relativa al servidor.
+- `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` ya incluye `/api`: la web la usa tal cual (pasa por el proxy); la app, que tiene la base terminada en `/api`, arma `fotos/<id>` sobre esa base.
 - `direccion`: por ahora `null`; se completa en el corte 50 %.
 
-Desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`.
+Desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`. Un id que no es un entero positivo (o no entra en la base): **400** `DATOS_INVALIDOS`.
 
 ### `GET /api/fotos/:id`
-Pública. Devuelve el archivo de la foto con su `Content-Type` (`image/jpeg` o `image/png`), idéntico al que se subió. Se puede usar directo en un `<img src="/api/fotos/7">`. Si no existe: **404** `FOTO_NO_ENCONTRADA`.
+Pública. Devuelve el archivo de la foto con su `Content-Type` (`image/jpeg` o `image/png`), idéntico al que se subió (con su EXIF). Se puede usar directo en un `<img src="/api/fotos/7">`.
+
+Solo sirve las fotos que se ven en el mapa: las de un reporte **no desestimado** cuyo incidente (o su principal, si se unió a otro) aparece en `GET /api/incidentes`. Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA`. Las fotos de los cierres todavía no se sirven (llegan con el cierre, corte 75 %). Se guardan una hora en caché (`Cache-Control: public, max-age=3600`).
 
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.

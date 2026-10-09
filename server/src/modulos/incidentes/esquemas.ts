@@ -37,8 +37,7 @@ export const esquemaFiltros = z
   .object({
     categoriaId: z.coerce
       .number({ error: 'Tiene que ser un número' })
-      .int({ error: 'Tiene que ser un número entero' })
-      .positive({ error: 'Tiene que ser un número entero' })
+      .pipe(z.int32({ error: 'No es un id válido' }).positive({ error: 'No es un id válido' }))
       .optional(),
     estado: z.enum(ESTADOS_VISIBLES, { error: `Tiene que ser ${ESTADOS_VISIBLES.join(', ')}` }).optional(),
     desde: fecha.optional(),
@@ -67,6 +66,9 @@ const finDe = (texto: string) =>
     ? new Date(new Date(`${texto}T00:00:00-03:00`).getTime() + 86_400_000 - 1)
     : new Date(texto);
 
+// int32 porque las columnas id son int: un número más grande haría fallar la consulta con un 500.
 export const esquemaId = z.object({
-  id: z.coerce.number({ error: 'No es válido' }).int().positive({ error: 'No es válido' }),
+  id: z.coerce
+    .number({ error: 'No es válido' })
+    .pipe(z.int32({ error: 'No es válido' }).positive({ error: 'No es válido' })),
 });

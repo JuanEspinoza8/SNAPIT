@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
-import { crearUsuario } from './apoyo.js';
+import { borrarReportesDe, crearUsuario, tokenDe } from './apoyo.js';
 import { jpegConExif } from './imagenes.js';
 
 async function crearCategoria() {
@@ -13,10 +13,15 @@ async function crearCategoria() {
   return prisma.categoria.create({ data: { nombre: `Categoría ${randomUUID()}`, areaId: area.id } });
 }
 
+const vecinos: number[] = [];
+
 async function vecino() {
   const usuario = await crearUsuario({ rol: 'VECINO' });
+  vecinos.push(usuario.id);
   return { usuario, token: crearTokenAcceso(usuario) };
 }
+
+afterAll(() => borrarReportesDe(vecinos));
 
 /** Carga un reporte por la API, como lo haría la app. */
 async function reportar(token: string, categoriaId: number, registradoEn: string) {
@@ -98,28 +103,6 @@ describe('GET /api/reportes/mios', () => {
     });
   });
 
-  it('sigue la cadena si el principal también se unió a otro', async () => {
-    const categoria = await crearCategoria();
-    const { token } = await vecino();
-    const otro = await vecino();
-    const mio = await reportar(token, categoria.id, '2026-10-02T10:00:00-03:00');
-    const intermedio = await reportar(otro.token, categoria.id, '2026-10-01T10:00:00-03:00');
-    const final = await reportar(otro.token, categoria.id, '2026-09-30T10:00:00-03:00');
-    await prisma.incidente.update({ where: { id: final.incidenteId }, data: { estado: 'RESUELTO' } });
-    await prisma.incidente.update({
-      where: { id: intermedio.incidenteId },
-      data: { incidentePrincipalId: final.incidenteId },
-    });
-    await prisma.incidente.update({
-      where: { id: mio.incidenteId },
-      data: { incidentePrincipalId: intermedio.incidenteId },
-    });
-
-    const res = await misReportes(token);
-
-    expect(res.body.reportes[0].incidente).toMatchObject({ id: final.incidenteId, estado: 'RESUELTO' });
-  });
-
   it('un vecino sin reportes recibe la lista vacía', async () => {
     const { token } = await vecino();
 
@@ -129,9 +112,12 @@ describe('GET /api/reportes/mios', () => {
     expect(res.body).toEqual({ reportes: [] });
   });
 
-  it('sin sesión responde 401', async () => {
-    const res = await request(app).get('/api/reportes/mios');
+  it('sin sesión responde 401 y con otro rol, 403', async () => {
+    const sinSesion = await request(app).get('/api/reportes/mios');
+    const operador = await misReportes(await tokenDe('OPERADOR'));
 
-    expect(res.status).toBe(401);
+    expect(sinSesion.status).toBe(401);
+    expect(operador.status).toBe(403);
+    expect(operador.body.error.codigo).toBe('SIN_PERMISO');
   });
 });

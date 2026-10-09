@@ -1,13 +1,13 @@
 import { access } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { almacenFotos } from '../src/compartido/almacenFotos.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import * as repositorio from '../src/modulos/reportes/repositorio.js';
-import { crearUsuario } from './apoyo.js';
+import { borrarReportesDe, crearUsuario } from './apoyo.js';
 import { jpegConExif } from './imagenes.js';
 
 // Envuelve la función real para poder hacerla fallar en un test puntual.
@@ -20,6 +20,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const vecinos: number[] = [];
+afterAll(() => borrarReportesDe(vecinos));
+
 async function preparar() {
   const organismo = await prisma.organismo.create({ data: { nombre: 'Organismo de prueba' } });
   const area = await prisma.area.create({ data: { organismoId: organismo.id, nombre: 'Área de prueba' } });
@@ -27,6 +30,7 @@ async function preparar() {
     data: { nombre: `Categoría ${randomUUID()}`, areaId: area.id },
   });
   const usuario = await crearUsuario({ rol: 'VECINO' });
+  vecinos.push(usuario.id);
   return { categoria, usuario, token: crearTokenAcceso(usuario) };
 }
 
