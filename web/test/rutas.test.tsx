@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ProveedorCliente } from '../src/compartido/red/clienteContexto.js';
@@ -98,5 +99,41 @@ describe('guardas de rutas', () => {
 
     expect(await screen.findByText('Mapa')).toBeInTheDocument();
     expect(screen.queryByText('Registro')).not.toBeInTheDocument();
+  });
+
+  it('si no se pudo consultar la sesión, avisa y deja reintentar en lugar de mandar al ingreso', async () => {
+    localStorage.setItem('snapit:tokenAcceso', 'acceso');
+    localStorage.setItem('snapit:tokenRenovacion', 'renovacion');
+    let llamadas = 0;
+    servidor.use(
+      http.get('*/api/auth/yo', () => {
+        llamadas += 1;
+        return llamadas === 1
+          ? HttpResponse.error()
+          : HttpResponse.json({
+              usuario: {
+                id: 1,
+                email: 'x@ejemplo.com',
+                nombre: 'X',
+                rol: 'OPERADOR',
+                organismoId: 1,
+                areaId: 1,
+              },
+            });
+      }),
+    );
+    montarRuta(
+      '/bandeja',
+      <RutaProtegida rol="OPERADOR">
+        <SeccionEnConstruccion titulo="Bandeja" />
+      </RutaProtegida>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/No se pudo conectar con el servidor/);
+    expect(screen.queryByText('Ingreso')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+    expect(await screen.findByRole('heading', { name: 'Bandeja' })).toBeInTheDocument();
   });
 });

@@ -9,7 +9,10 @@ const numero = (mensaje: string) =>
     .pipe(z.coerce.number({ error: mensaje }));
 
 export const esquemaReporte = z.object({
-  categoriaId: numero('Tiene que ser un número').pipe(z.number().int().positive({ error: 'No es válida' })),
+  // int32 porque las columnas id son int: un número más grande haría fallar la consulta con un 500.
+  categoriaId: numero('Tiene que ser un número').pipe(
+    z.int32({ error: 'No es válida' }).positive({ error: 'No es válida' }),
+  ),
   severidadDeclarada: z.enum(['LEVE', 'MODERADA', 'GRAVE'], {
     error: 'Tiene que ser LEVE, MODERADA o GRAVE',
   }),
@@ -50,5 +53,7 @@ export const esquemaReporte = z.object({
 export type DatosReporte = z.output<typeof esquemaReporte>;
 
 export const esquemaIdFoto = z.object({
-  id: z.coerce.number({ error: 'No es válido' }).int().positive({ error: 'No es válido' }),
+  id: z.coerce
+    .number({ error: 'No es válido' })
+    .pipe(z.int32({ error: 'No es válido' }).positive({ error: 'No es válido' })),
 });

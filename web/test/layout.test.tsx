@@ -87,6 +87,18 @@ describe('layout', () => {
     expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
   });
 
+  it('un administrador ve la administración y no las secciones de los otros roles', async () => {
+    montar('/', 'ADMINISTRADOR');
+
+    expect(await screen.findByRole('link', { name: 'Administración' })).toHaveAttribute(
+      'href',
+      '/administracion',
+    );
+    expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
+    expect(screen.queryByRole('link', { name: 'Bandeja' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
+  });
+
   it('salir borra la sesión y vuelve a mostrar el acceso a las cuentas', async () => {
     montar('/', 'VECINO');
     await userEvent.click(await screen.findByRole('button', { name: 'Salir' }));

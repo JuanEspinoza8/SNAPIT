@@ -3,6 +3,7 @@ import type { RolUsuario } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { app } from '../src/app.js';
+import { almacenFotos } from '../src/compartido/almacenFotos.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 
@@ -34,4 +35,19 @@ export async function tokenDe(rol: RolUsuario) {
 
 export async function ingresar(email: string, clave = CLAVE) {
   return request(app).post('/api/auth/ingreso').send({ email, clave });
+}
+
+/**
+ * Borra los reportes de estos usuarios, sus fotos (filas y archivos) y los incidentes que abrieron.
+ * La base de tests se reutiliza entre corridas: así no se acumulan incidentes en Neuquén.
+ */
+export async function borrarReportesDe(usuarioIds: number[]) {
+  const reportes = await prisma.reporte.findMany({
+    where: { usuarioId: { in: usuarioIds } },
+    select: { incidenteId: true, fotografias: { select: { rutaArchivo: true } } },
+  });
+  await Promise.all(reportes.flatMap((r) => r.fotografias.map((f) => almacenFotos.borrar(f.rutaArchivo))));
+  await prisma.reporte.deleteMany({ where: { usuarioId: { in: usuarioIds } } });
+  const incidentes = reportes.flatMap((r) => (r.incidenteId === null ? [] : [r.incidenteId]));
+  await prisma.incidente.deleteMany({ where: { id: { in: incidentes } } });
 }

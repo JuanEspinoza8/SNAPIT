@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { TipoVigencia } from '@prisma/client';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
-import { crearUsuario, tokenDe } from './apoyo.js';
+import { borrarReportesDe, crearUsuario, tokenDe } from './apoyo.js';
 import { jpegConExif, png1x1 } from './imagenes.js';
 
 async function crearCategoria(
@@ -25,10 +25,15 @@ async function crearCategoria(
   });
 }
 
+const vecinos: number[] = [];
+
 async function vecino() {
   const usuario = await crearUsuario({ rol: 'VECINO' });
+  vecinos.push(usuario.id);
   return { usuario, token: crearTokenAcceso(usuario) };
 }
+
+afterAll(() => borrarReportesDe(vecinos));
 
 const CAMPOS = {
   severidadDeclarada: 'GRAVE',
@@ -95,7 +100,8 @@ describe('POST /api/reportes', () => {
     expect(reporte.incidente).toMatchObject({
       estado: 'REGISTRADO',
       categoriaId: categoria.id,
-      areaId: categoria.areaId,
+      // Recién lo deriva el operador.
+      areaId: null,
       severidad: 'GRAVE',
       cantidadReportes: 1,
       tipoVigencia: 'PERMANENTE',
@@ -178,15 +184,19 @@ describe('POST /api/reportes', () => {
     expect(reporte.sincronizadoEn!.getTime()).toBeGreaterThan(reporte.registradoEn.getTime());
   });
 
-  it('una categoría temporal deja el incidente con fecha de vencimiento', async () => {
+  it('una categoría temporal vence a los días de la categoría, contados desde que llega el reporte', async () => {
     const categoria = await crearCategoria({ tipoVigencia: 'TEMPORAL', diasCaducidad: 10 });
     const { token } = await vecino();
+    const DIEZ_DIAS = 10 * 86_400_000;
+    const antes = Date.now();
 
-    const res = await enviar(token, categoria.id, { campos: { registradoEn: '2026-10-01T12:00:00Z' } });
+    // Cargado hace mucho (o con la hora del celular atrasada): igual tiene que nacer vigente.
+    const res = await enviar(token, categoria.id, { campos: { registradoEn: '2020-01-01T12:00:00Z' } });
 
     const incidente = await prisma.incidente.findUniqueOrThrow({ where: { id: res.body.incidenteId } });
     expect(incidente.tipoVigencia).toBe('TEMPORAL');
-    expect(incidente.vigenteHasta?.toISOString()).toBe('2026-10-11T12:00:00.000Z');
+    expect(incidente.vigenteHasta!.getTime()).toBeGreaterThanOrEqual(antes + DIEZ_DIAS);
+    expect(incidente.vigenteHasta!.getTime()).toBeLessThanOrEqual(Date.now() + DIEZ_DIAS);
   });
 
   describe('datos inválidos → 400 con detalle', () => {
@@ -252,6 +262,28 @@ describe('POST /api/reportes', () => {
 
       expect(res.status).toBe(400);
       expect(detalleDe(res, 'categoriaId')).toBe('No existe o no está activa');
+    });
+
+    it('con un id de categoría que no entra en la base', async () => {
+      const { token } = await vecino();
+
+      const res = await enviar(token, 99_999_999_999);
+
+      expect(res.status).toBe(400);
+      expect(detalleDe(res, 'categoriaId')).toBe('No es válida');
+    });
+
+    it('con el formulario cortado a la mitad', async () => {
+      const { token } = await vecino();
+
+      const res = await request(app)
+        .post('/api/reportes')
+        .set('Authorization', `Bearer ${token}`)
+        .set('Content-Type', 'multipart/form-data; boundary=corte')
+        .send('--corte\r\nContent-Disposition: form-data; name="foto"; filename="a.jpg"\r\n\r\nabc');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.codigo).toBe('DATOS_INVALIDOS');
     });
 
     it('con una categoría que no existe', async () => {
@@ -320,10 +352,65 @@ describe('POST /api/reportes', () => {
 });
 
 describe('GET /api/fotos/:id', () => {
+  /** Carga un reporte por la API y devuelve el id de su foto, el del reporte y el de su incidente. */
+  async function reporteConFoto() {
+    const categoria = await crearCategoria();
+    const { token } = await vecino();
+    const res = await enviar(token, categoria.id);
+    const foto = await prisma.fotografia.findFirstOrThrow({ where: { reporteId: res.body.id } });
+    return { fotoId: foto.id, reporteId: res.body.id as number, incidenteId: res.body.incidenteId as number };
+  }
+
+  const bajar = (fotoId: number) => request(app).get(`/api/fotos/${fotoId}`);
+
   it('una foto que no existe responde 404', async () => {
-    const res = await request(app).get('/api/fotos/999999999');
+    const res = await bajar(999999999);
 
     expect(res.status).toBe(404);
     expect(res.body.error.codigo).toBe('FOTO_NO_ENCONTRADA');
+  });
+
+  it('un id que no entra en la base responde 400', async () => {
+    const res = await bajar(99_999_999_999);
+
+    expect(res.status).toBe(400);
+  });
+
+  it('la foto de un reporte desestimado no se sirve, aunque su incidente siga en el mapa', async () => {
+    const { fotoId, reporteId } = await reporteConFoto();
+    expect((await bajar(fotoId)).status).toBe(200);
+
+    await prisma.reporte.update({ where: { id: reporteId }, data: { estadoVerificacion: 'DESESTIMADO' } });
+
+    const res = await bajar(fotoId);
+    expect(res.status).toBe(404);
+    expect(res.body.error.codigo).toBe('FOTO_NO_ENCONTRADA');
+  });
+
+  it('la foto de un incidente que no está en el mapa no se sirve', async () => {
+    const desestimado = await reporteConFoto();
+    const caducado = await reporteConFoto();
+    await prisma.incidente.update({
+      where: { id: desestimado.incidenteId },
+      data: { estado: 'DESESTIMADO' },
+    });
+    await prisma.incidente.update({ where: { id: caducado.incidenteId }, data: { caducadoEn: new Date() } });
+
+    expect((await bajar(desestimado.fotoId)).status).toBe(404);
+    expect((await bajar(caducado.fotoId)).status).toBe(404);
+  });
+
+  it('la foto de un incidente unido se sirve mientras el principal esté en el mapa', async () => {
+    const unido = await reporteConFoto();
+    const principal = await reporteConFoto();
+    await prisma.incidente.update({
+      where: { id: unido.incidenteId },
+      data: { incidentePrincipalId: principal.incidenteId },
+    });
+    expect((await bajar(unido.fotoId)).status).toBe(200);
+
+    await prisma.incidente.update({ where: { id: principal.incidenteId }, data: { estado: 'DESESTIMADO' } });
+
+    expect((await bajar(unido.fotoId)).status).toBe(404);
   });
 });

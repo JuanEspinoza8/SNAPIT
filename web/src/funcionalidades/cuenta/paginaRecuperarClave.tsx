@@ -4,20 +4,32 @@ import { Link } from 'react-router-dom';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Campo } from '../../compartido/componentes/Campo.js';
 import { aErrorApi } from '../../compartido/red/error.js';
+import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
 import { useRecuperarClave } from './useRecuperarClave.js';
 import { validarCorreo } from './validaciones.js';
 
 export function PaginaRecuperarClave() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState(false);
   const recuperar = useRecuperarClave();
 
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     const validado = validarCorreo(email);
     setError(validado);
+    setAviso(false);
     if (validado) return;
-    recuperar.mutate({ email: email.trim() });
+    recuperar.mutate(
+      { email: email.trim() },
+      {
+        onError: (causa) => {
+          const { porCampo, sinCampo } = repartirErrores(aErrorApi(causa), { email: 'email' });
+          setError(porCampo.email ?? null);
+          setAviso(sinCampo);
+        },
+      },
+    );
   }
 
   if (recuperar.isSuccess) {
@@ -55,11 +67,17 @@ export function PaginaRecuperarClave() {
           autoComplete="email"
           placeholder="tunombre@ejemplo.com"
           value={email}
-          onChange={(evento) => setEmail(evento.target.value)}
+          onChange={(evento) => {
+            setEmail(evento.target.value);
+            setError(null);
+          }}
+          onBlur={() => {
+            if (email) setError(validarCorreo(email));
+          }}
           error={error}
         />
 
-        {recuperar.isError && <AvisoError error={aErrorApi(recuperar.error)} />}
+        {recuperar.isError && aviso && <AvisoError error={aErrorApi(recuperar.error)} />}
 
         <button
           type="submit"

@@ -13,3 +13,41 @@ body {
   font-family: var(--font-sans);
   font-size: 1rem;
 }
+
+/* Marcadores del mapa: HTML dentro de un divIcon de Leaflet. El color de fondo sale de ESTADOS (estados.ts). */
+.marcador-punto {
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--color-superficie);
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--color-texto) 40%, transparent);
+}
+/* En revisión: borde punteado, para que no dependa solo del color. */
+.marcador-punto--revision {
+  border-style: dashed;
+  border-color: var(--color-texto);
+}
+.marcador-punto--chico {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+}
+.marcador-grupo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid var(--color-superficie);
+  border-radius: 9999px;
+  background-color: var(--color-primario);
+  color: var(--color-sobre-primario);
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--color-texto) 40%, transparent);
+}
+.marcador-grupo--chico {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+  font-size: 0.75rem;
+}

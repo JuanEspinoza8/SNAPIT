@@ -5,6 +5,7 @@ import { registrarPeticiones } from './compartido/registrarPeticiones.js';
 import { rutasAdmin } from './modulos/admin/rutas.js';
 import { rutasAuth } from './modulos/auth/rutas.js';
 import { rutasCatalogo } from './modulos/catalogo/rutas.js';
+import { rutasIncidentes } from './modulos/incidentes/rutas.js';
 import { rutasFotos, rutasReportes } from './modulos/reportes/rutas.js';
 import { rutasSalud } from './modulos/salud/rutas.js';
 
@@ -22,6 +23,7 @@ app.use('/api/admin', rutasAdmin);
 app.use('/api', rutasCatalogo);
 app.use('/api/reportes', rutasReportes);
 app.use('/api/fotos', rutasFotos);
+app.use('/api/incidentes', rutasIncidentes);
 
 app.use(rutaNoEncontrada);
 app.use(manejarErrores);

@@ -1,22 +1,21 @@
-import type { InputHTMLAttributes } from 'react';
+import type { SelectHTMLAttributes } from 'react';
 
-interface Props extends InputHTMLAttributes<HTMLInputElement> {
+interface Props extends SelectHTMLAttributes<HTMLSelectElement> {
   id: string;
   etiqueta: string;
   error?: string | null;
 }
 
-export function Campo({ id, etiqueta, error, type = 'text', ...input }: Props) {
+export function CampoSelecto({ id, etiqueta, error, ...select }: Props) {
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="block text-sm font-semibold text-texto">
         {etiqueta}
       </label>
-      <input
+      <select
         id={id}
-        type={type}
-        {...input}
-        className={`w-full rounded-md border bg-superficie px-3 py-2 text-texto placeholder:text-texto-secundario focus:outline-none ${
+        {...select}
+        className={`w-full rounded-md border bg-superficie px-3 py-2 text-texto focus:outline-none ${
           error ? 'border-peligro' : 'border-borde focus:border-primario'
         }`}
       />
