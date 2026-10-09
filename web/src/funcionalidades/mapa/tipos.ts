@@ -7,6 +7,7 @@ export interface PuntoMapa {
   lat: number;
   lon: number;
   categoriaId: number;
+  categoriaNombre: string;
   estado: EstadoVisible;
   enRevision: boolean;
   primerReporteEn: string;

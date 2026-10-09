@@ -15,10 +15,12 @@ vi.mock('../src/funcionalidades/mapa/MapaIncidentes.js', () => ({
     puntos,
     alCambiarVista,
     alElegir,
+    alElegirVarios,
   }: {
     puntos: PuntoMapa[];
     alCambiarVista: (vista: unknown) => void;
     alElegir: (id: number) => void;
+    alElegirVarios: (puntos: PuntoMapa[]) => void;
   }) => {
     useEffect(() => {
       alCambiarVista({ rectangulo: { oeste: -68.1, sur: -38.97, este: -68.03, norte: -38.93 }, zoom: 14 });
@@ -32,6 +34,12 @@ vi.mock('../src/funcionalidades/mapa/MapaIncidentes.js', () => ({
             </button>
           </li>
         ))}
+        {/* Como si todos estuvieran en el mismo lugar. */}
+        <li>
+          <button type="button" onClick={() => alElegirVarios(puntos)}>
+            Grupo superpuesto
+          </button>
+        </li>
       </ul>
     );
   },
@@ -42,6 +50,7 @@ const punto = (id: number, estado: PuntoMapa['estado']): PuntoMapa => ({
   lat: -38.95,
   lon: -68.06,
   categoriaId: 3,
+  categoriaNombre: 'Cordón sin rampa',
   estado,
   enRevision: estado === 'REGISTRADO',
   primerReporteEn: '2026-10-01T12:00:00.000Z',
@@ -151,6 +160,30 @@ describe('mapa público', () => {
 
     await usuario.click(within(ficha).getByRole('button', { name: 'Cerrar la ficha' }));
     expect(screen.queryByRole('complementary', { name: 'Ficha del incidente' })).not.toBeInTheDocument();
+  });
+
+  it('si varios incidentes están en el mismo lugar, muestra la lista y deja abrir cada ficha', async () => {
+    const usuario = userEvent.setup();
+    renderRuta('/mapa', <PaginaMapa />);
+
+    await usuario.click(await screen.findByRole('button', { name: 'Grupo superpuesto' }));
+
+    const lista = screen.getByRole('complementary', { name: 'Incidentes en el mismo lugar' });
+    expect(
+      within(lista).getByRole('heading', { name: '2 incidentes en el mismo lugar' }),
+    ).toBeInTheDocument();
+    const opciones = within(lista).getAllByRole('button', { name: /Cordón sin rampa/ });
+    expect(opciones).toHaveLength(2);
+    expect(within(opciones[0]!).getByText('En revisión')).toBeInTheDocument();
+    expect(within(opciones[1]!).getByText('Resuelto')).toBeInTheDocument();
+
+    await usuario.click(opciones[0]!);
+
+    const ficha = await screen.findByRole('complementary', { name: 'Ficha del incidente' });
+    expect(await within(ficha).findByText('2')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('complementary', { name: 'Incidentes en el mismo lugar' }),
+    ).not.toBeInTheDocument();
   });
 
   it('las referencias explican cada estado con texto', async () => {

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { crearAgrupador } from './agrupar.js';
+import { crearAgrupador, ZOOM_MAXIMO } from './agrupar.js';
 import { ESTADOS } from './estados.js';
-import type { Categoria, PuntoMapa, Rectangulo } from './tipos.js';
+import type { PuntoMapa, Rectangulo } from './tipos.js';
 
 /** Centro de Neuquén capital. */
 const CENTRO_INICIAL: [number, number] = [-38.9516, -68.0591];
@@ -17,9 +17,10 @@ export interface Vista {
 
 interface Props {
   puntos: PuntoMapa[];
-  categorias: Categoria[];
   alCambiarVista: (vista: Vista) => void;
   alElegir: (id: number) => void;
+  /** Varios incidentes tan juntos que acercando no se separan: se muestran en una lista. */
+  alElegirVarios: (puntos: PuntoMapa[]) => void;
 }
 
 function leerVista(mapa: L.Map): Vista {
@@ -64,45 +65,59 @@ function iconoPunto(punto: PuntoMapa) {
   });
 }
 
-function Marcadores({ puntos, categorias, alElegir }: Omit<Props, 'alCambiarVista'>) {
+function Marcadores({ puntos, alElegir, alElegirVarios }: Omit<Props, 'alCambiarVista'>) {
   const mapa = useMap();
   const [vista, setVista] = useState<Vista>(() => leerVista(mapa));
   useMapEvents({ moveend: () => setVista(leerVista(mapa)) });
 
   const agrupar = useMemo(() => crearAgrupador(puntos), [puntos]);
-  const nombres = useMemo(() => new Map(categorias.map((c) => [c.id, c.nombre])), [categorias]);
 
-  return agrupar(vista.rectangulo, vista.zoom).map((elemento) =>
-    elemento.tipo === 'grupo' ? (
-      <Marker
-        key={elemento.clave}
-        position={[elemento.lat, elemento.lon]}
-        icon={iconoGrupo(elemento.cantidad)}
-        title={`${elemento.cantidad} incidentes. Acercar para verlos`}
-        eventHandlers={{ click: () => mapa.setView([elemento.lat, elemento.lon], elemento.zoomParaAbrir) }}
-      />
-    ) : (
+  return agrupar(vista.rectangulo, vista.zoom).map((elemento) => {
+    if (elemento.tipo === 'grupo') {
+      return (
+        <Marker
+          key={elemento.clave}
+          position={[elemento.lat, elemento.lon]}
+          icon={iconoGrupo(elemento.cantidad)}
+          title={`${elemento.cantidad} incidentes. Acercar para verlos`}
+          eventHandlers={{ click: () => mapa.setView([elemento.lat, elemento.lon], elemento.zoomParaAbrir) }}
+        />
+      );
+    }
+    if (elemento.tipo === 'superpuestos') {
+      return (
+        <Marker
+          key={elemento.clave}
+          position={[elemento.lat, elemento.lon]}
+          icon={iconoGrupo(elemento.puntos.length)}
+          title={`${elemento.puntos.length} incidentes en el mismo lugar. Ver la lista`}
+          eventHandlers={{ click: () => alElegirVarios(elemento.puntos) }}
+        />
+      );
+    }
+    return (
       <Marker
         key={elemento.clave}
         position={[elemento.punto.lat, elemento.punto.lon]}
         icon={iconoPunto(elemento.punto)}
         // El título lleva el estado en texto: lo leen el lector de pantalla y el cartel al pasar el mouse.
-        title={`${nombres.get(elemento.punto.categoriaId) ?? 'Incidente'}: ${ESTADOS[elemento.punto.estado].etiqueta}`}
+        title={`${elemento.punto.categoriaNombre}: ${ESTADOS[elemento.punto.estado].etiqueta}`}
         eventHandlers={{ click: () => alElegir(elemento.punto.id) }}
       />
-    ),
-  );
+    );
+  });
 }
 
-export function MapaIncidentes({ puntos, categorias, alCambiarVista, alElegir }: Props) {
+export function MapaIncidentes({ puntos, alCambiarVista, alElegir, alElegirVarios }: Props) {
   return (
-    <MapContainer center={CENTRO_INICIAL} zoom={ZOOM_INICIAL} className="h-full w-full">
+    <MapContainer center={CENTRO_INICIAL} zoom={ZOOM_INICIAL} maxZoom={ZOOM_MAXIMO} className="h-full w-full">
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maxZoom={ZOOM_MAXIMO}
       />
       <SeguirVista alCambiar={alCambiarVista} />
-      <Marcadores puntos={puntos} categorias={categorias} alElegir={alElegir} />
+      <Marcadores puntos={puntos} alElegir={alElegir} alElegirVarios={alElegirVarios} />
     </MapContainer>
   );
 }

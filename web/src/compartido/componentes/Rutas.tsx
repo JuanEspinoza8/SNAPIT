@@ -1,4 +1,6 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
+import { Cargando } from './Cargando.js';
 import { Layout } from './Layout.js';
 import { PaginaSalud } from '../../funcionalidades/salud/paginaSalud.js';
 import { PaginaIngreso } from '../../funcionalidades/cuenta/paginaIngreso.js';
@@ -8,8 +10,12 @@ import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuper
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
 import { SeccionEnConstruccion } from '../../funcionalidades/comun/SeccionEnConstruccion.js';
 import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
-import { PaginaMapa } from '../../funcionalidades/mapa/PaginaMapa.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
+
+// El mapa trae Leaflet, que es pesado: se baja recién cuando alguien abre /mapa.
+const PaginaMapa = lazy(() =>
+  import('../../funcionalidades/mapa/PaginaMapa.js').then((modulo) => ({ default: modulo.PaginaMapa })),
+);
 
 // Se exportan aparte del router para poder probarlas con un router en memoria.
 export const rutas: RouteObject[] = [
@@ -60,7 +66,14 @@ export const rutas: RouteObject[] = [
         ),
       },
       // El mapa es público (F03): lo ve cualquiera, con o sin sesión y de cualquier rol.
-      { path: 'mapa', element: <PaginaMapa /> },
+      {
+        path: 'mapa',
+        element: (
+          <Suspense fallback={<Cargando />}>
+            <PaginaMapa />
+          </Suspense>
+        ),
+      },
       {
         path: 'reportar',
         element: (

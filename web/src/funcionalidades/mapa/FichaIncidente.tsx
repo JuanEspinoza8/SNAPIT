@@ -3,6 +3,7 @@ import { aErrorApi } from '../../compartido/red/error.js';
 import { apiUrl } from '../../config/entorno.js';
 import { useFicha } from './consultas.js';
 import { EtiquetaEstado } from './EtiquetaEstado.js';
+import { useTraerALaVista } from './useTraerALaVista.js';
 
 const fecha = new Intl.DateTimeFormat('es-AR', {
   dateStyle: 'long',
@@ -17,11 +18,14 @@ interface Props {
 /** Lo que se abre al tocar un punto del mapa. */
 export function FichaIncidente({ id, alCerrar }: Props) {
   const { data: ficha, isPending, isError, error, refetch, isFetching } = useFicha(id);
+  const panel = useTraerALaVista(id);
 
   return (
     <aside
+      ref={panel}
+      tabIndex={-1}
       aria-label="Ficha del incidente"
-      className="flex flex-col gap-3 rounded-lg border border-borde bg-superficie p-4 shadow-sm"
+      className="flex flex-col gap-3 rounded-lg border border-borde bg-superficie p-4 shadow-sm outline-none"
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-xl font-semibold text-texto">{ficha?.categoria.nombre ?? 'Incidente'}</h2>
@@ -29,13 +33,20 @@ export function FichaIncidente({ id, alCerrar }: Props) {
           type="button"
           onClick={alCerrar}
           aria-label="Cerrar la ficha"
-          className="rounded-md px-2 py-1 text-texto-secundario hover:bg-superficie-alterna"
+          className="rounded-md px-2 py-1 text-sm text-texto-secundario hover:bg-superficie-alterna"
         >
-          ✕
+          Cerrar
         </button>
       </div>
 
-      {isPending && <p className="text-sm text-texto-secundario">Cargando…</p>}
+      {isPending && (
+        <div role="status" aria-label="Cargando la ficha" className="flex flex-col gap-2">
+          <div className="h-5 w-24 animate-pulse rounded-md bg-superficie-alterna" />
+          <div className="h-4 w-full animate-pulse rounded-md bg-superficie-alterna" />
+          <div className="h-4 w-2/3 animate-pulse rounded-md bg-superficie-alterna" />
+          <div className="aspect-square w-1/2 animate-pulse rounded-md bg-superficie-alterna" />
+        </div>
+      )}
 
       {isError && (
         <AvisoError error={aErrorApi(error)} alReintentar={() => void refetch()} reintentando={isFetching} />

@@ -5,19 +5,25 @@ import { useCategorias, useIncidentes } from './consultas.js';
 import { ESTADOS, ORDEN_ESTADOS } from './estados.js';
 import { FichaIncidente } from './FichaIncidente.js';
 import { FiltrosMapa } from './FiltrosMapa.js';
+import { ListaIncidentes } from './ListaIncidentes.js';
 import { MapaIncidentes, type Vista } from './MapaIncidentes.js';
-import type { FiltrosMapa as Filtros, Rectangulo } from './tipos.js';
+import type { FiltrosMapa as Filtros, PuntoMapa, Rectangulo } from './tipos.js';
+
+/** Lo que se abre a la derecha del mapa: la ficha de un incidente o la lista de varios superpuestos. */
+type Seleccion = { tipo: 'ficha'; id: number } | { tipo: 'lista'; puntos: PuntoMapa[] } | null;
 
 /** Mapa público (F03): se ve sin iniciar sesión. */
 export function PaginaMapa() {
   const [filtros, setFiltros] = useState<Filtros>({});
   const [rectangulo, setRectangulo] = useState<Rectangulo | null>(null);
-  const [elegido, setElegido] = useState<number | null>(null);
+  const [seleccion, setSeleccion] = useState<Seleccion>(null);
 
   const categorias = useCategorias();
   const incidentes = useIncidentes(filtros, rectangulo);
 
   const alCambiarVista = useCallback((vista: Vista) => setRectangulo(vista.rectangulo), []);
+  const abrirFicha = useCallback((id: number) => setSeleccion({ tipo: 'ficha', id }), []);
+  const abrirLista = useCallback((puntos: PuntoMapa[]) => setSeleccion({ tipo: 'lista', puntos }), []);
 
   return (
     <section className="flex flex-col gap-4">
@@ -44,13 +50,22 @@ export function PaginaMapa() {
         <div className="h-[60vh] min-h-80 overflow-hidden rounded-lg border border-borde">
           <MapaIncidentes
             puntos={incidentes.data ?? []}
-            categorias={categorias.data ?? []}
             alCambiarVista={alCambiarVista}
-            alElegir={setElegido}
+            alElegir={abrirFicha}
+            alElegirVarios={abrirLista}
           />
         </div>
         <div className="flex flex-col gap-4">
-          {elegido !== null && <FichaIncidente id={elegido} alCerrar={() => setElegido(null)} />}
+          {seleccion?.tipo === 'ficha' && (
+            <FichaIncidente id={seleccion.id} alCerrar={() => setSeleccion(null)} />
+          )}
+          {seleccion?.tipo === 'lista' && (
+            <ListaIncidentes
+              puntos={seleccion.puntos}
+              alElegir={abrirFicha}
+              alCerrar={() => setSeleccion(null)}
+            />
+          )}
           <section aria-label="Referencias" className="rounded-lg border border-borde p-4 text-sm">
             <h2 className="mb-2 font-semibold text-texto">Referencias</h2>
             <ul className="flex flex-col gap-1.5">
@@ -69,7 +84,8 @@ export function PaginaMapa() {
                 <span aria-hidden="true" className="marcador-grupo marcador-grupo--chico">
                   3
                 </span>
-                Varios incidentes juntos: acercá el mapa para separarlos
+                Varios incidentes juntos: tocalo para acercar el mapa o, si están en el mismo lugar, para ver
+                la lista
               </li>
             </ul>
           </section>
