@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
 import 'package:snapit/funcionalidades/cuenta/pantalla_ingreso.dart';
+import 'package:snapit/funcionalidades/mapa/mapa_incidentes.dart';
 
 import '../../apoyo/app_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
@@ -11,9 +12,11 @@ void main() {
   setUp(guardarSesion);
 
   ServidorFalso servidorCon({String rol = 'VECINO'}) => ServidorFalso(
-    (pedido) => pedido.path == '/auth/salir'
-        ? json(204, '')
-        : json(200, {'usuario': usuarioJson(rol: rol)}),
+    (pedido) => switch (pedido.path) {
+      '/auth/salir' => json(204, ''),
+      '/incidentes' => json(200, {'incidentes': <Object>[]}),
+      _ => json(200, {'usuario': usuarioJson(rol: rol)}),
+    },
   );
 
   const avisoPanelWeb =
@@ -25,6 +28,8 @@ void main() {
 
     expect(find.byType(NavigationDestination), findsNWidgets(3));
     expect(find.text(avisoPanelWeb), findsNothing);
+    expect(find.widgetWithText(AppBar, 'Mapa de incidentes'), findsOneWidget);
+    expect(find.byType(MapaIncidentes), findsOneWidget);
 
     await tester.tap(find.text('Reportar'));
     await tester.pumpAndSettle();
@@ -35,12 +40,29 @@ void main() {
     expect(find.widgetWithText(AppBar, 'Mis reportes'), findsOneWidget);
   });
 
+  testWidgets('el mapa no se vuelve a armar al cambiar de pestaña', (
+    tester,
+  ) async {
+    final servidor = servidorCon();
+    await abrirApp(tester, servidor);
+    final pedidos = servidor.cantidad('/incidentes');
+
+    await tester.tap(find.text('Reportar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mapa'));
+    await tester.pumpAndSettle();
+
+    expect(pedidos, 1);
+    expect(servidor.cantidad('/incidentes'), pedidos);
+  });
+
   for (final rol in ['OPERADOR', 'ADMINISTRADOR']) {
     testWidgets('$rol ve el mapa y el aviso del panel web', (tester) async {
       await abrirApp(tester, servidorCon(rol: rol));
 
       expect(find.text(avisoPanelWeb), findsOneWidget);
       expect(find.widgetWithText(AppBar, 'Mapa de incidentes'), findsOneWidget);
+      expect(find.byType(MapaIncidentes), findsOneWidget);
       expect(find.byType(NavigationBar), findsNothing);
       expect(find.text('Reportar'), findsNothing);
     });

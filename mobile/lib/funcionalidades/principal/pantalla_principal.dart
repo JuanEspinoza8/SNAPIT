@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../compartido/sesion/sesion.dart';
 import '../../compartido/sesion/usuario.dart';
 import '../../compartido/tema/tema_app.dart';
+import '../mapa/mapa_incidentes.dart';
 
 /// Lo primero que se ve con sesión. El vecino tiene mapa, reportar y mis
 /// reportes; operador y administrador, solo el mapa: la gestión es en la web.
@@ -17,7 +18,7 @@ class PantallaPrincipal extends ConsumerStatefulWidget {
 class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   var _seccion = 0;
 
-  // El contenido de cada sección llega con su issue (#21, #15 y #16).
+  // Reportar y mis reportes llegan con la #15 y la #16.
   static const _seccionesVecino = [
     _Seccion('Mapa', Icons.map_outlined, 'Mapa de incidentes'),
     _Seccion('Reportar', Icons.add_a_photo_outlined, 'Reportar un problema'),
@@ -50,13 +51,24 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (!esVecino) const _AvisoPanelWeb(),
-            Expanded(child: _SeccionPendiente(seccion)),
-          ],
-        ),
+        child: esVecino
+            // Las secciones quedan vivas al cambiar de pestaña: el mapa no
+            // pierde la zona ni los filtros.
+            ? IndexedStack(
+                index: _seccion,
+                children: [
+                  const MapaIncidentes(),
+                  for (final s in _seccionesVecino.skip(1))
+                    _SeccionPendiente(s),
+                ],
+              )
+            : const Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _AvisoPanelWeb(),
+                  Expanded(child: MapaIncidentes()),
+                ],
+              ),
       ),
       bottomNavigationBar: esVecino
           ? NavigationBar(

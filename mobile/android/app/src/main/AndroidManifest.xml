@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Con las dos, Android deja elegir entre ubicación precisa y aproximada. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <!-- Sin backup: al restaurarlo, los tokens cifrados vuelven sin su clave
          y flutter_secure_storage no los puede leer. -->
     <application

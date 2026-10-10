@@ -42,7 +42,8 @@ void main() {
     await ingresar(tester, correo: '  ana@ejemplo.com ');
 
     expect(find.byType(PantallaPrincipal), findsOneWidget);
-    expect(servidor.pedidos.single.datos, {
+    expect(servidor.pedidos.first.ruta, '/auth/ingreso');
+    expect(servidor.pedidos.first.datos, {
       'email': 'ana@ejemplo.com',
       'clave': 'una-clave-segura',
     });
@@ -128,7 +129,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PantallaRegistro), findsOneWidget);
 
-    await tester.pageBack();
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Olvidé mi clave'));
     await tester.pumpAndSettle();

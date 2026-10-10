@@ -202,9 +202,11 @@ lib/
     red/             cliente dio, token y renovación de la sesión, errores de la API
     sesion/          tokens en almacenamiento seguro, usuario y estado de la sesión
     errores/         aviso y recuadro con el mensaje del error
+    formato/         fechas para mostrar y para la API
   funcionalidades/
     cuenta/          arranque, ingreso, registro y «Olvidé mi clave»
     principal/       pantalla con el menú según el rol
+    mapa/            mapa público: agrupación, filtros, ficha y ubicación
     <funcionalidad>/ pantallas, providers y repositorios de cada funcionalidad
 ```
 
@@ -216,6 +218,12 @@ lib/
   ```bash
   curl -X POST http://localhost:3000/api/auth/confirmar-correo -H "Content-Type: application/json" -d '{"token":"<token del enlace>"}'
   ```
+
+### Mapa
+
+- Se ve sin sesión, con «Ver el mapa sin ingresar» desde el ingreso. Con sesión está en la pantalla principal.
+- Usa `flutter_map` con las teselas de OpenStreetMap, así que necesita internet además del servidor.
+- Al abrirlo pide la ubicación; Android deja elegir entre precisa y aproximada. Si se da el permiso se centra ahí (con la aproximada, Android la corre hasta un par de kilómetros); si no, en Neuquén. En el emulador, la ubicación se simula desde *Extended controls → Location*.
 
 ### Gestión de estado: Riverpod
 
