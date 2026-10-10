@@ -42,12 +42,34 @@ class EtiquetaEstado extends StatelessWidget {
   final EstadoVisible estado;
 
   @override
+  Widget build(BuildContext context) => Etiqueta(
+    texto: estado.etiqueta,
+    icono: estado.icono,
+    color: estado.color(context),
+  );
+}
+
+/// El dibujo de [EtiquetaEstado], para estados que el mapa no muestra (mis
+/// reportes también tiene «Desestimado»).
+class Etiqueta extends StatelessWidget {
+  const Etiqueta({
+    super.key,
+    required this.texto,
+    required this.icono,
+    required this.color,
+  });
+
+  final String texto;
+  final IconData icono;
+  final Color color;
+
+  @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    final texto = tema.colorScheme.onPrimary;
+    final colorTexto = tema.colorScheme.onPrimary;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: estado.color(context),
+        color: color,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Padding(
@@ -58,11 +80,11 @@ class EtiquetaEstado extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(estado.icono, size: 16, color: texto),
+            Icon(icono, size: 16, color: colorTexto),
             const SizedBox(width: Espacio.xs),
             Text(
-              estado.etiqueta,
-              style: tema.textTheme.labelMedium?.copyWith(color: texto),
+              texto,
+              style: tema.textTheme.labelMedium?.copyWith(color: colorTexto),
             ),
           ],
         ),
