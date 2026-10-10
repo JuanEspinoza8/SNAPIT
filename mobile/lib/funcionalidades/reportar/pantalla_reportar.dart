@@ -228,11 +228,20 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
             const SizedBox(height: Espacio.xl),
             const _Titulo('Gravedad'),
             SegmentedButton<Severidad>(
+              // Con la tilde de elegido, «Moderada» no entra en un celular
+              // angosto: menos margen y, si igual no alcanza, la letra se
+              // achica en vez de partir la palabra.
+              style: SegmentedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: Espacio.sm),
+              ),
               segments: [
                 for (final severidad in Severidad.values)
                   ButtonSegment(
                     value: severidad,
-                    label: Text(severidad.etiqueta),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(severidad.etiqueta, maxLines: 1),
+                    ),
                   ),
               ],
               selected: {?borrador.severidad},

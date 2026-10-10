@@ -124,10 +124,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // La etiqueta flotante no recibe el toque: se toca el campo.
+  final campoCategoria = find.widgetWithText(
+    DropdownButtonFormField<int>,
+    'Categoría',
+  );
+
   /// Foto con la cámara, «Bache», «Grave» y una descripción.
   Future<void> completar(WidgetTester tester) async {
     await tocar(tester, find.text('Sacar foto'));
-    await tocar(tester, find.text('Categoría'));
+    await tocar(tester, campoCategoria);
     await tester.tap(find.text('Bache').last);
     await tester.pumpAndSettle();
     await tocar(tester, find.text('Grave'));
@@ -298,6 +304,18 @@ void main() {
     });
   });
 
+  testWidgets('la gravedad elegida no parte la palabra', (tester) async {
+    await abrirReportar(tester, ServidorDeReportes());
+
+    await tocar(tester, find.text('Moderada'));
+
+    // Con la tilde de elegido, «Moderada» queda en una línea, como «Leve».
+    expect(
+      tester.getSize(find.text('Moderada')).height,
+      tester.getSize(find.text('Leve')).height,
+    );
+  });
+
   testWidgets('sin completar marca cada campo que falta', (tester) async {
     final servidor = ServidorDeReportes();
     await abrirReportar(tester, servidor);
@@ -451,7 +469,7 @@ void main() {
     servidor.categorias = null;
     await tocar(tester, find.text('Reintentar'));
 
-    await tocar(tester, find.text('Categoría'));
+    await tocar(tester, campoCategoria);
     expect(find.text('Cordón sin rampa'), findsWidgets);
   });
 }
