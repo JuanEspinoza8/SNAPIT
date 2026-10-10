@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../funcionalidades/cuenta/pantalla_arranque.dart';
 import '../../funcionalidades/cuenta/pantalla_ingreso.dart';
 import '../../funcionalidades/cuenta/pantalla_recuperar_clave.dart';
 import '../../funcionalidades/cuenta/pantalla_registro.dart';
+import '../../funcionalidades/mapa/mapa_incidentes.dart';
 import '../../funcionalidades/mapa/pantalla_mapa_publico.dart';
 import '../../funcionalidades/principal/pantalla_principal.dart';
+import '../../funcionalidades/reportar/pantalla_elegir_punto.dart';
 import '../sesion/sesion.dart';
 import '../sesion/usuario.dart';
 
@@ -18,6 +21,9 @@ abstract final class Rutas {
   static const recuperarClave = '/recuperar-clave';
   static const mapa = '/mapa';
   static const principal = '/';
+
+  /// Recibe el punto actual en `extra` y devuelve el elegido al volver.
+  static const elegirPunto = '/elegir-punto';
 }
 
 /// Las que se usan sin sesión. Con sesión, llevan a la principal.
@@ -51,6 +57,12 @@ final rutasProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Rutas.principal,
         builder: (_, _) => const PantallaPrincipal(),
+      ),
+      GoRoute(
+        path: Rutas.elegirPunto,
+        builder: (_, estado) => PantallaElegirPunto(
+          inicial: estado.extra as LatLng? ?? centroInicial,
+        ),
       ),
     ],
   );
