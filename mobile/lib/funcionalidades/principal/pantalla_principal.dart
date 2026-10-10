@@ -7,6 +7,7 @@ import '../../compartido/sesion/usuario.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../mapa/foco_mapa.dart';
 import '../mapa/mapa_incidentes.dart';
+import '../mis_reportes/pantalla_mis_reportes.dart';
 import '../reportar/pantalla_reportar.dart';
 
 /// Lo primero que se ve con sesión. El vecino tiene mapa, reportar y mis
@@ -21,12 +22,12 @@ class PantallaPrincipal extends ConsumerStatefulWidget {
 class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   var _seccion = 0;
 
-  // Reportar se arma recién la primera vez que se abre: pide la ubicación al
-  // aparecer, y si lo hiciera junto con el mapa, Android rechaza el segundo
-  // pedido de permiso.
-  var _reportarAbierto = false;
+  // Reportar y Mis reportes se arman recién la primera vez que se abren.
+  // Reportar pide la ubicación al aparecer, y si lo hiciera junto con el mapa,
+  // Android rechaza el segundo pedido de permiso. Mis reportes no pide la
+  // lista si el vecino nunca la mira.
+  final _abiertas = {0};
 
-  // Mis reportes llega con la #16.
   static const _seccionesVecino = [
     _Seccion('Mapa', Icons.map_outlined, 'Mapa de incidentes'),
     _Seccion('Reportar', Icons.add_a_photo_outlined, 'Reportar un problema'),
@@ -66,11 +67,14 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
                 index: _seccion,
                 children: [
                   const MapaIncidentes(),
-                  if (_reportarAbierto)
+                  if (_abiertas.contains(1))
                     PantallaReportar(alVerEnMapa: _verEnMapa)
                   else
                     const SizedBox.shrink(),
-                  _SeccionPendiente(_seccionesVecino[2]),
+                  if (_abiertas.contains(2))
+                    PantallaMisReportes(alReportar: () => _abrir(1))
+                  else
+                    const SizedBox.shrink(),
                 ],
               )
             : const Column(
@@ -84,10 +88,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
       bottomNavigationBar: esVecino
           ? NavigationBar(
               selectedIndex: _seccion,
-              onDestinationSelected: (i) => setState(() {
-                _seccion = i;
-                if (i == 1) _reportarAbierto = true;
-              }),
+              onDestinationSelected: _abrir,
               destinations: [
                 for (final s in _seccionesVecino)
                   NavigationDestination(icon: Icon(s.icono), label: s.nombre),
@@ -97,8 +98,13 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     );
   }
 
+  void _abrir(int seccion) => setState(() {
+    _seccion = seccion;
+    _abiertas.add(seccion);
+  });
+
   void _verEnMapa(LatLng punto) {
-    setState(() => _seccion = 0);
+    _abrir(0);
     ref.read(focoMapaProvider.notifier).enfocar(punto);
   }
 
@@ -178,42 +184,6 @@ class _AvisoPanelWeb extends StatelessWidget {
               child: Text(
                 'Desde la app podés ver el mapa. La gestión de incidentes se '
                 'hace en el panel web.',
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SeccionPendiente extends StatelessWidget {
-  const _SeccionPendiente(this.seccion);
-
-  final _Seccion seccion;
-
-  @override
-  Widget build(BuildContext context) {
-    final tema = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(Espacio.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              seccion.icono,
-              size: Espacio.xxxl,
-              color: tema.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(height: Espacio.lg),
-            Text(seccion.titulo, style: tema.textTheme.titleMedium),
-            const SizedBox(height: Espacio.xs),
-            Text(
-              'Todavía no está disponible en esta versión.',
-              textAlign: TextAlign.center,
-              style: tema.textTheme.bodyMedium?.copyWith(
-                color: tema.colorScheme.onSurfaceVariant,
               ),
             ),
           ],

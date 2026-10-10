@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../compartido/sesion/sesion.dart';
 import '../mapa/repositorio_mapa.dart';
+import '../mis_reportes/repositorio_mis_reportes.dart';
 import 'borrador_reporte.dart';
 import 'repositorio_reportes.dart';
 import 'selector_foto.dart';
@@ -43,9 +44,9 @@ class ReporteEnCurso extends Notifier<BorradorReporte> {
   void moverPunto(LatLng punto) =>
       state = state.copyWith(punto: punto, puntoMovido: true);
 
-  /// Envía el borrador completo. Si sale bien, lo vacía y recarga el mapa
-  /// para que aparezca el reporte; si falla, lo deja como estaba (con su
-  /// fecha de registro) y relanza el error.
+  /// Envía el borrador completo. Si sale bien, lo vacía y recarga el mapa y
+  /// mis reportes para que aparezca el reporte; si falla, lo deja como estaba
+  /// (con su fecha de registro) y relanza el error.
   Future<ReporteEnviado> enviar() async {
     final borrador = state.registradoEn == null
         ? state.copyWith(registradoEn: DateTime.now())
@@ -55,6 +56,7 @@ class ReporteEnCurso extends Notifier<BorradorReporte> {
         .read(repositorioReportesProvider)
         .enviar(borrador);
     ref.invalidate(incidentesProvider);
+    ref.invalidate(misReportesProvider);
     state = const BorradorReporte();
     return enviado;
   }

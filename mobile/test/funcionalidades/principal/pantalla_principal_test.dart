@@ -15,6 +15,7 @@ void main() {
     (pedido) => switch (pedido.path) {
       '/auth/salir' => json(204, ''),
       '/incidentes' => json(200, {'incidentes': <Object>[]}),
+      '/reportes/mios' => json(200, {'reportes': <Object>[]}),
       _ => json(200, {'usuario': usuarioJson(rol: rol)}),
     },
   );
@@ -38,6 +39,7 @@ void main() {
     await tester.tap(find.text('Mis reportes'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Mis reportes'), findsOneWidget);
+    expect(find.text('Todavía no hiciste reportes'), findsOneWidget);
   });
 
   testWidgets('el mapa no se vuelve a armar al cambiar de pestaña', (
