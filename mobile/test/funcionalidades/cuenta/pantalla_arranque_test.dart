@@ -22,7 +22,11 @@ void main() {
 
     expect(find.byType(PantallaPrincipal), findsOneWidget);
     expect(find.byType(PantallaIngreso), findsNothing);
-    expect(servidor.pedidos.map((p) => p.ruta), ['/auth/yo']);
+    // Lo demás es el mapa de la pantalla principal.
+    expect(
+      servidor.pedidos.map((p) => p.ruta).where((r) => r.startsWith('/auth')),
+      ['/auth/yo'],
+    );
   });
 
   testWidgets('con el acceso vencido renueva y entra directo', (tester) async {

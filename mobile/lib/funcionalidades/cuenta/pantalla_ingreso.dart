@@ -97,6 +97,11 @@ class _PantallaIngresoState extends ConsumerState<PantallaIngreso> {
                     onPressed: () => context.push(Rutas.registro),
                     child: const Text('Crear una cuenta'),
                   ),
+                  const SizedBox(height: Espacio.sm),
+                  TextButton(
+                    onPressed: () => context.push(Rutas.mapa),
+                    child: const Text('Ver el mapa sin ingresar'),
+                  ),
                 ],
               ),
             ),

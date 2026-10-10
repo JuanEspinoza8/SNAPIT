@@ -6,6 +6,7 @@ import '../../funcionalidades/cuenta/pantalla_arranque.dart';
 import '../../funcionalidades/cuenta/pantalla_ingreso.dart';
 import '../../funcionalidades/cuenta/pantalla_recuperar_clave.dart';
 import '../../funcionalidades/cuenta/pantalla_registro.dart';
+import '../../funcionalidades/mapa/pantalla_mapa_publico.dart';
 import '../../funcionalidades/principal/pantalla_principal.dart';
 import '../sesion/sesion.dart';
 import '../sesion/usuario.dart';
@@ -15,6 +16,7 @@ abstract final class Rutas {
   static const ingreso = '/ingreso';
   static const registro = '/registro';
   static const recuperarClave = '/recuperar-clave';
+  static const mapa = '/mapa';
   static const principal = '/';
 }
 
@@ -45,6 +47,7 @@ final rutasProvider = Provider<GoRouter>((ref) {
         path: Rutas.recuperarClave,
         builder: (_, _) => const PantallaRecuperarClave(),
       ),
+      GoRoute(path: Rutas.mapa, builder: (_, _) => const PantallaMapaPublico()),
       GoRoute(
         path: Rutas.principal,
         builder: (_, _) => const PantallaPrincipal(),
@@ -66,6 +69,11 @@ String? redireccion(AsyncValue<Usuario?> sesion, String ruta) {
     return ruta == Rutas.arranque ? null : Rutas.arranque;
   }
   final esDeCuenta = _rutasDeCuenta.contains(ruta);
-  if (sesion.value == null) return esDeCuenta ? null : Rutas.ingreso;
-  return esDeCuenta || ruta == Rutas.arranque ? Rutas.principal : null;
+  // El mapa es público. Con sesión ya está en la pantalla principal.
+  if (sesion.value == null) {
+    return esDeCuenta || ruta == Rutas.mapa ? null : Rutas.ingreso;
+  }
+  return esDeCuenta || ruta == Rutas.arranque || ruta == Rutas.mapa
+      ? Rutas.principal
+      : null;
 }

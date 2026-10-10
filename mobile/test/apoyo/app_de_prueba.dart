@@ -2,8 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:snapit/app.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
+import 'package:snapit/funcionalidades/mapa/ubicacion.dart';
 
 import 'servidor_falso.dart';
 
@@ -33,9 +35,32 @@ Future<ResponseBody> ingresoCorrecto({String rol = 'VECINO'}) => json(200, {
   'usuario': usuarioJson(rol: rol),
 });
 
-/// Los providers reales de la app; solo la red se reemplaza por [servidor].
-ProviderContainer contenedorDePrueba(ServidorFalso servidor) {
-  final contenedor = ProviderContainer(retry: (_, _) => null);
+/// Ubicación del teléfono fija. Null: sin permiso.
+class UbicacionFalsa implements ServicioUbicacion {
+  UbicacionFalsa([this.posicion]);
+
+  final LatLng? posicion;
+  var pedidos = 0;
+
+  @override
+  Future<LatLng?> actual() async {
+    pedidos++;
+    return posicion;
+  }
+}
+
+/// Los providers reales de la app; solo la red se reemplaza por [servidor] y
+/// la ubicación por [ubicacion] (por defecto, sin permiso).
+ProviderContainer contenedorDePrueba(
+  ServidorFalso servidor, {
+  ServicioUbicacion? ubicacion,
+}) {
+  final contenedor = ProviderContainer(
+    retry: (_, _) => null,
+    overrides: [
+      ubicacionProvider.overrideWithValue(ubicacion ?? UbicacionFalsa()),
+    ],
+  );
   addTearDown(contenedor.dispose);
   contenedor.read(clienteApiProvider).httpClientAdapter = servidor;
   return contenedor;
@@ -45,9 +70,10 @@ ProviderContainer contenedorDePrueba(ServidorFalso servidor) {
 /// almacenamiento seguro (`FlutterSecureStorage.setMockInitialValues`).
 Future<ProviderContainer> abrirApp(
   WidgetTester tester,
-  ServidorFalso servidor,
-) async {
-  final contenedor = contenedorDePrueba(servidor);
+  ServidorFalso servidor, {
+  ServicioUbicacion? ubicacion,
+}) async {
+  final contenedor = contenedorDePrueba(servidor, ubicacion: ubicacion);
   await tester.pumpWidget(
     UncontrolledProviderScope(container: contenedor, child: const AppSnapIt()),
   );

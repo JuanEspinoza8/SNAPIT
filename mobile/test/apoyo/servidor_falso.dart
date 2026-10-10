@@ -3,7 +3,12 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-typedef Pedido = ({String ruta, String? token, Object? datos});
+typedef Pedido = ({
+  String ruta,
+  String? token,
+  Object? datos,
+  Map<String, dynamic> consulta,
+});
 
 /// Reemplaza la red de dio: cada petición se responde con [responder] y queda
 /// registrada en [pedidos] con el token que llevaba en ese momento.
@@ -25,6 +30,7 @@ class ServidorFalso implements HttpClientAdapter {
       ruta: options.path,
       token: options.headers['Authorization'] as String?,
       datos: options.data,
+      consulta: options.queryParameters,
     ));
     return responder(options);
   }

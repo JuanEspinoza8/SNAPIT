@@ -19,6 +19,7 @@ void main() {
     expect(redireccion(cargando, Rutas.arranque), isNull);
     expect(redireccion(cargando, Rutas.principal), Rutas.arranque);
     expect(redireccion(cargando, Rutas.ingreso), Rutas.arranque);
+    expect(redireccion(cargando, Rutas.mapa), Rutas.arranque);
   });
 
   test('si no se pudo revisar la sesión, se queda en el arranque', () {
@@ -26,12 +27,14 @@ void main() {
     expect(redireccion(conError, Rutas.principal), Rutas.arranque);
   });
 
-  test('sin sesión solo se puede estar en las pantallas de cuenta', () {
+  test('sin sesión solo se puede estar en las pantallas de cuenta y en el '
+      'mapa', () {
     expect(redireccion(sinSesion, Rutas.arranque), Rutas.ingreso);
     expect(redireccion(sinSesion, Rutas.principal), Rutas.ingreso);
     expect(redireccion(sinSesion, Rutas.ingreso), isNull);
     expect(redireccion(sinSesion, Rutas.registro), isNull);
     expect(redireccion(sinSesion, Rutas.recuperarClave), isNull);
+    expect(redireccion(sinSesion, Rutas.mapa), isNull);
   });
 
   test('con sesión, las pantallas de cuenta llevan a la principal', () {
@@ -40,5 +43,9 @@ void main() {
     expect(redireccion(conSesion, Rutas.registro), Rutas.principal);
     expect(redireccion(conSesion, Rutas.recuperarClave), Rutas.principal);
     expect(redireccion(conSesion, Rutas.principal), isNull);
+  });
+
+  test('con sesión, el mapa está en la principal', () {
+    expect(redireccion(conSesion, Rutas.mapa), Rutas.principal);
   });
 }
