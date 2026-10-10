@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:snapit/app.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
 import 'package:snapit/funcionalidades/mapa/ubicacion.dart';
+import 'package:snapit/funcionalidades/reportar/selector_foto.dart';
 
 import 'servidor_falso.dart';
 
@@ -37,28 +38,66 @@ Future<ResponseBody> ingresoCorrecto({String rol = 'VECINO'}) => json(200, {
 
 /// Ubicación del teléfono fija. Null: sin permiso.
 class UbicacionFalsa implements ServicioUbicacion {
-  UbicacionFalsa([this.posicion]);
+  UbicacionFalsa([this.posicion, this.problema = ProblemaUbicacion.sinPermiso]);
 
-  final LatLng? posicion;
+  /// Se puede cambiar en medio de un test, por ejemplo después de «dar» el
+  /// permiso.
+  LatLng? posicion;
+
+  /// Lo que responde [paraReportar] cuando no hay [posicion].
+  ProblemaUbicacion problema;
   var pedidos = 0;
+  var pedidosParaReportar = 0;
+  final ajustesAbiertos = <ProblemaUbicacion>[];
 
   @override
   Future<LatLng?> actual() async {
     pedidos++;
     return posicion;
   }
+
+  @override
+  Future<LatLng> paraReportar() async {
+    pedidosParaReportar++;
+    return posicion ?? (throw ErrorUbicacion(problema));
+  }
+
+  @override
+  Future<void> abrirAjustes(ProblemaUbicacion problema) async {
+    ajustesAbiertos.add(problema);
+  }
 }
 
-/// Los providers reales de la app; solo la red se reemplaza por [servidor] y
-/// la ubicación por [ubicacion] (por defecto, sin permiso).
+/// Devuelve siempre [ruta], o lanza [error] si no es null.
+class SelectorFotoFalso implements SelectorFoto {
+  SelectorFotoFalso(this.ruta);
+
+  final String ruta;
+  ErrorFoto? error;
+  final fuentes = <FuenteFoto>[];
+
+  @override
+  Future<String?> elegir(FuenteFoto fuente) async {
+    fuentes.add(fuente);
+    if (error case final error?) throw error;
+    return ruta;
+  }
+}
+
+/// Los providers reales de la app; solo la red se reemplaza por [servidor],
+/// la ubicación por [ubicacion] (por defecto, sin permiso) y, si se pasa, la
+/// cámara y la galería por [selectorFoto].
 ProviderContainer contenedorDePrueba(
   ServidorFalso servidor, {
   ServicioUbicacion? ubicacion,
+  SelectorFoto? selectorFoto,
 }) {
   final contenedor = ProviderContainer(
     retry: (_, _) => null,
     overrides: [
       ubicacionProvider.overrideWithValue(ubicacion ?? UbicacionFalsa()),
+      if (selectorFoto != null)
+        selectorFotoProvider.overrideWithValue(selectorFoto),
     ],
   );
   addTearDown(contenedor.dispose);
@@ -72,8 +111,13 @@ Future<ProviderContainer> abrirApp(
   WidgetTester tester,
   ServidorFalso servidor, {
   ServicioUbicacion? ubicacion,
+  SelectorFoto? selectorFoto,
 }) async {
-  final contenedor = contenedorDePrueba(servidor, ubicacion: ubicacion);
+  final contenedor = contenedorDePrueba(
+    servidor,
+    ubicacion: ubicacion,
+    selectorFoto: selectorFoto,
+  );
   await tester.pumpWidget(
     UncontrolledProviderScope(container: contenedor, child: const AppSnapIt()),
   );

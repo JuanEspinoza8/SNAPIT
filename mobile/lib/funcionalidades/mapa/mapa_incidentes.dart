@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../compartido/errores/mensaje_error.dart';
+import '../../compartido/mapa/capa_osm.dart';
 import '../../compartido/red/error_api.dart';
 import '../../compartido/tema/tema_app.dart';
 import 'agrupar.dart';
 import 'estados.dart';
 import 'ficha_incidente.dart';
 import 'filtros_mapa.dart';
+import 'foco_mapa.dart';
 import 'lista_incidentes.dart';
 import 'modelos.dart';
 import 'referencias_mapa.dart';
@@ -22,6 +24,7 @@ import 'ubicacion.dart';
 const centroInicial = LatLng(-38.9516, -68.0591);
 const _zoomInicial = 14.0;
 const _zoomUbicacion = 16.0;
+const _zoomFoco = 17.0;
 
 /// Mapa público de incidentes (F03), con filtros y ficha. Se ve con o sin
 /// sesión: lo usan la pantalla del visitante y la principal.
@@ -88,6 +91,15 @@ class _MapaIncidentesState extends ConsumerState<MapaIncidentes> {
 
   @override
   Widget build(BuildContext context) {
+    // Otra pantalla pide mostrar un punto (un reporte recién enviado): se
+    // muestra aunque la persona haya movido el mapa.
+    ref.listen(focoMapaProvider, (_, punto) {
+      if (punto == null) return;
+      _movidoPorLaPersona = true;
+      _controlador.move(punto, _zoomFoco);
+      ref.read(focoMapaProvider.notifier).limpiar();
+    });
+
     final vista = _vista;
     final consulta = vista == null ? null : (filtros: _filtros, vista: vista);
     final incidentes = consulta == null
@@ -140,13 +152,7 @@ class _MapaIncidentesState extends ConsumerState<MapaIncidentes> {
                   onPositionChanged: _alMover,
                 ),
                 children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    // La política de uso de OpenStreetMap pide identificar
-                    // la app.
-                    userAgentPackageName: 'ar.edu.uncoma.fi.snapit',
-                  ),
+                  const CapaOsm(),
                   _Marcadores(
                     agrupar: _agrupar,
                     alTocarGrupo: (grupo) => _controlador.move(
@@ -154,7 +160,7 @@ class _MapaIncidentesState extends ConsumerState<MapaIncidentes> {
                       grupo.zoomParaAbrir.toDouble(),
                     ),
                   ),
-                  const _Atribucion(),
+                  const AtribucionOsm(),
                 ],
               ),
               if (cargando)
@@ -337,30 +343,6 @@ class _Tocable extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: alTocar,
         child: Center(child: child),
-      ),
-    );
-  }
-}
-
-/// La atribución que pide OpenStreetMap, corta para que entre en cualquier
-/// pantalla.
-class _Atribucion extends StatelessWidget {
-  const _Atribucion();
-
-  @override
-  Widget build(BuildContext context) {
-    final tema = Theme.of(context);
-    return Align(
-      alignment: Alignment.bottomRight,
-      child: ColoredBox(
-        color: tema.colorScheme.surface.withValues(alpha: 0.85),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Espacio.xs,
-            vertical: 2,
-          ),
-          child: Text('© OpenStreetMap', style: tema.textTheme.labelSmall),
-        ),
       ),
     );
   }
