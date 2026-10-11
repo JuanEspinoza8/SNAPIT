@@ -203,10 +203,12 @@ lib/
     sesion/          tokens en almacenamiento seguro, usuario y estado de la sesión
     errores/         aviso y recuadro con el mensaje del error
     formato/         fechas para mostrar y para la API
+    mapa/            fondo de OpenStreetMap que usan todos los mapas
   funcionalidades/
     cuenta/          arranque, ingreso, registro y «Olvidé mi clave»
     principal/       pantalla con el menú según el rol
     mapa/            mapa público: agrupación, filtros, ficha y ubicación
+    reportar/        cargar un reporte: borrador, foto, punto y envío
     <funcionalidad>/ pantallas, providers y repositorios de cada funcionalidad
 ```
 
@@ -224,6 +226,13 @@ lib/
 - Se ve sin sesión, con «Ver el mapa sin ingresar» desde el ingreso. Con sesión está en la pantalla principal.
 - Usa `flutter_map` con las teselas de OpenStreetMap, así que necesita internet además del servidor.
 - Al abrirlo pide la ubicación; Android deja elegir entre precisa y aproximada. Si se da el permiso se centra ahí (con la aproximada, Android la corre hasta un par de kilómetros); si no, en Neuquén. En el emulador, la ubicación se simula desde *Extended controls → Location*.
+
+### Reportar
+
+- Solo para vecinos, en la pestaña «Reportar». La foto se saca con la app de cámara del teléfono (SnapIt no pide el permiso de cámara) o se elige de la galería, y se manda el archivo original, sin achicar ni recomprimir, para conservar el EXIF.
+- La ubicación es una lectura nueva del GPS, nunca la última conocida. Sin permiso o con la ubicación apagada no se puede enviar, y la pantalla dice qué hacer. «Mover el punto» abre un mapa donde el punto es el centro: se arrastra el mapa, no el pin.
+- Lo cargado vive en un borrador (`reporteEnCursoProvider`) que se manda con `RepositorioReportes`. Si el envío falla, sigue en pantalla y el reintento manda la misma fecha de registro. Al salir de la cuenta, se descarta.
+- En el emulador, la cámara muestra una escena virtual y la ubicación se fija en *Extended controls → Location* (o con `adb emu geo fix <lon> <lat>`).
 
 ### Gestión de estado: Riverpod
 

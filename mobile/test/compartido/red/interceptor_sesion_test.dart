@@ -68,6 +68,27 @@ void main() {
     expect(await almacen.leerTokenRenovacion(), 'renovacion-2');
   });
 
+  test(
+    'un formulario con archivo se reintenta igual después de renovar',
+    () async {
+      final servidor = ServidorFalso(servidorQueRenueva);
+      final formulario = FormData.fromMap({
+        'categoriaId': '3',
+        'foto': MultipartFile.fromBytes([1, 2, 3], filename: 'foto.jpg'),
+      });
+
+      final respuesta = await cliente(
+        servidor,
+      ).post<Object>('/reportes', data: formulario);
+
+      expect(respuesta.statusCode, 200);
+      final reintento = servidor.pedidos.last.datos as FormData;
+      expect(reintento, isNot(same(formulario)));
+      expect(reintento.fields, formulario.fields);
+      expect(reintento.files.single.value.filename, 'foto.jpg');
+    },
+  );
+
   test('si el reintento también da 401, no vuelve a renovar', () async {
     final servidor = ServidorFalso((pedido) {
       if (pedido.path == '/auth/renovar') return servidorQueRenueva(pedido);

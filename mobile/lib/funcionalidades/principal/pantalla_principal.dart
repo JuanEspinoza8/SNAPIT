@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../compartido/sesion/sesion.dart';
 import '../../compartido/sesion/usuario.dart';
 import '../../compartido/tema/tema_app.dart';
+import '../mapa/foco_mapa.dart';
 import '../mapa/mapa_incidentes.dart';
+import '../reportar/pantalla_reportar.dart';
 
 /// Lo primero que se ve con sesión. El vecino tiene mapa, reportar y mis
 /// reportes; operador y administrador, solo el mapa: la gestión es en la web.
@@ -18,7 +21,12 @@ class PantallaPrincipal extends ConsumerStatefulWidget {
 class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   var _seccion = 0;
 
-  // Reportar y mis reportes llegan con la #15 y la #16.
+  // Reportar se arma recién la primera vez que se abre: pide la ubicación al
+  // aparecer, y si lo hiciera junto con el mapa, Android rechaza el segundo
+  // pedido de permiso.
+  var _reportarAbierto = false;
+
+  // Mis reportes llega con la #16.
   static const _seccionesVecino = [
     _Seccion('Mapa', Icons.map_outlined, 'Mapa de incidentes'),
     _Seccion('Reportar', Icons.add_a_photo_outlined, 'Reportar un problema'),
@@ -58,8 +66,11 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
                 index: _seccion,
                 children: [
                   const MapaIncidentes(),
-                  for (final s in _seccionesVecino.skip(1))
-                    _SeccionPendiente(s),
+                  if (_reportarAbierto)
+                    PantallaReportar(alVerEnMapa: _verEnMapa)
+                  else
+                    const SizedBox.shrink(),
+                  _SeccionPendiente(_seccionesVecino[2]),
                 ],
               )
             : const Column(
@@ -73,7 +84,10 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
       bottomNavigationBar: esVecino
           ? NavigationBar(
               selectedIndex: _seccion,
-              onDestinationSelected: (i) => setState(() => _seccion = i),
+              onDestinationSelected: (i) => setState(() {
+                _seccion = i;
+                if (i == 1) _reportarAbierto = true;
+              }),
               destinations: [
                 for (final s in _seccionesVecino)
                   NavigationDestination(icon: Icon(s.icono), label: s.nombre),
@@ -81,6 +95,11 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
             )
           : null,
     );
+  }
+
+  void _verEnMapa(LatLng punto) {
+    setState(() => _seccion = 0);
+    ref.read(focoMapaProvider.notifier).enfocar(punto);
   }
 
   void _mostrarCuenta(BuildContext context, Usuario usuario) {

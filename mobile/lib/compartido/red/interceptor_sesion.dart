@@ -59,6 +59,11 @@ class InterceptorSesion extends Interceptor {
         return;
       }
       opciones.extra[_reintentada] = true;
+      // Un formulario con archivo (la foto de un reporte) se puede mandar una
+      // sola vez: para reintentar hace falta una copia.
+      if (opciones.data case final FormData formulario) {
+        opciones.data = formulario.clone();
+      }
       handler.resolve(await _dio.fetch<dynamic>(opciones));
     } on DioException catch (e) {
       handler.next(e);
