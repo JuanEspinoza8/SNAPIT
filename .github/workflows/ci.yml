@@ -1,0 +1,172 @@
+# Integración continua (#22): ningún PR se revisa sin lint y tests en verde.
+# Cada capa corre solo si cambió su carpeta. Los trabajos que no corren quedan "omitidos", que para la
+# protección de main cuenta como aprobado: así se pueden exigir todos sin trabar los PR de una sola capa.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Si se sube otro commit al mismo PR, se cancela la corrida anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cambios:
+    name: Qué cambió
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      server: ${{ steps.filtro.outputs.server }}
+      web: ${{ steps.filtro.outputs.web }}
+      mobile: ${{ steps.filtro.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filtro
+        with:
+          filters: |
+            server:
+              - 'server/**'
+              - 'db/**'
+              - '.nvmrc'
+              - '.github/workflows/ci.yml'
+            web:
+              - 'web/**'
+              - '.nvmrc'
+              - '.github/workflows/ci.yml'
+            mobile:
+              - 'mobile/**'
+              - '.github/workflows/ci.yml'
+
+  modelo:
+    name: Modelo congelado
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # La única migración tiene que ser el schema.sql entregado, byte a byte (ver CONTRIBUTING.md).
+      - name: 0_init es idéntica a db/schema.sql
+        run: |
+          if ! cmp -s db/schema.sql server/prisma/migrations/0_init/migration.sql; then
+            echo "::error::server/prisma/migrations/0_init/migration.sql no es igual a db/schema.sql"
+            diff db/schema.sql server/prisma/migrations/0_init/migration.sql | head -40
+            exit 1
+          fi
+      - name: No hay migraciones nuevas
+        run: |
+          migraciones=$(find server/prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)
+          if [ "$migraciones" -ne 1 ]; then
+            echo "::error::Solo puede existir la migración 0_init: el modelo está congelado"
+            ls server/prisma/migrations
+            exit 1
+          fi
+
+  server:
+    name: Servidor
+    needs: cambios
+    if: needs.cambios.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    services:
+      # La misma imagen que docker-compose.yml: los tests de integración corren contra PostGIS real.
+      db:
+        image: pgrouting/pgrouting:16-3.5-3.8
+        env:
+          POSTGRES_USER: snapit
+          POSTGRES_PASSWORD: snapit
+          POSTGRES_DB: snapit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U snapit -d snapit_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      # El registro manda el correo en segundo plano: sin SMTP cada envío esperaría el timeout.
+      mailpit:
+        image: axllent/mailpit:v1.31
+        ports:
+          - 1025:1025
+    env:
+      # Sin .env en CI: las variables van acá. Ninguna es un secreto real.
+      TEST_DATABASE_URL: postgresql://snapit:snapit@localhost:5432/snapit_test
+      DATABASE_URL: postgresql://snapit:snapit@localhost:5432/snapit_test
+      JWT_SECRET: secreto-solo-para-ci-con-mas-de-32-caracteres
+      URL_WEB: http://localhost:5173
+      SMTP_HOST: localhost
+      SMTP_PUERTO: '1025'
+      CORREO_REMITENTE: SnapIt CI <ci@snapit.local>
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Formato
+        run: npm run format:check
+      - name: Tipos
+        run: npx tsc --noEmit
+      - name: Tests
+        run: npm test
+
+  web:
+    name: Web
+    needs: cambios
+    if: needs.cambios.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Formato
+        run: npm run format:check
+      # El build también chequea los tipos (tsc && vite build).
+      - name: Tests
+        run: npm test
+      - name: Tipos y build
+        run: npm run build
+
+  mobile:
+    name: App
+    needs: cambios
+    if: needs.cambios.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Instalar dependencias
+        run: flutter pub get
+      - name: Análisis (lint y tipos)
+        run: flutter analyze
+      - name: Tests
+        run: flutter test

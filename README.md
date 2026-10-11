@@ -238,6 +238,19 @@ lib/
 
 Elegimos Riverpod en lugar de Provider porque sus providers no dependen del árbol de widgets: el cliente HTTP, la sesión y las rutas se leen sin `BuildContext`, y en los tests cualquier pieza se reemplaza con `overrides`. Se usa sin generación de código. Riverpod reintenta por su cuenta los providers que fallan; en la app eso está apagado (`retry` en `main.dart`) para que el error se muestre y el usuario decida si reintentar.
 
+## Integración continua
+
+Cada PR y cada push a `main` corren [`.github/workflows/ci.yml`](.github/workflows/ci.yml) en GitHub Actions. Hay un trabajo por capa y cada uno corre solo si cambió su carpeta; un trabajo que no corre figura como omitido, no como fallido.
+
+| Trabajo | Qué revisa | Lo mismo en local |
+|---|---|---|
+| **Modelo congelado** | `server/prisma/migrations/0_init/migration.sql` es idéntica a `db/schema.sql`, y no hay otras migraciones | `cmp db/schema.sql server/prisma/migrations/0_init/migration.sql` |
+| **Servidor** | Lint, formato, tipos y tests contra PostGIS real (la misma imagen que `docker-compose.yml`) | En `server/`: `npm run lint`, `npm run format:check`, `npx tsc --noEmit` y `npm test` (con `docker compose up -d db`) |
+| **Web** | Lint, formato, tests, tipos y build | En `web/`: `npm run lint`, `npm run format:check`, `npm test` y `npm run build` |
+| **App** | `flutter analyze` y `flutter test` | En `mobile/`: los mismos dos comandos |
+
+Si un trabajo queda en rojo, en la pestaña **Checks** del PR se ve el paso que falló con su salida. Antes de pedir revisión, correr lo de la columna "en local" para la capa que se tocó.
+
 ## Cómo trabajamos
 
 Ramas, commits y pull requests: ver [`CONTRIBUTING.md`](CONTRIBUTING.md).
