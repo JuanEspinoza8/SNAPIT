@@ -23,8 +23,8 @@ const categoriasJson = {
 };
 
 /// El servidor de una sesión de vecino. Los reportes que recibe aparecen en
-/// `GET /incidentes`, como en el servidor real. [reportes] decide qué contesta
-/// `POST /reportes`; por defecto, 201.
+/// `GET /incidentes` y en `GET /reportes/mios`, como en el servidor real.
+/// [reportes] decide qué contesta `POST /reportes`; por defecto, 201.
 class ServidorDeReportes {
   ServidorDeReportes() {
     servidor = ServidorFalso(_responder);
@@ -34,6 +34,7 @@ class ServidorDeReportes {
   Future<ResponseBody> Function(RequestOptions pedido)? reportes;
   Future<ResponseBody> Function(RequestOptions pedido)? categorias;
   final incidentes = <Map<String, Object?>>[];
+  final mios = <Map<String, Object?>>[];
 
   List<FormData> get enviados => [
     for (final pedido in servidor.pedidos)
@@ -48,6 +49,8 @@ class ServidorDeReportes {
         return categorias?.call(pedido) ?? json(200, categoriasJson);
       case '/incidentes':
         return json(200, {'incidentes': incidentes});
+      case '/reportes/mios':
+        return json(200, {'reportes': mios});
       case '/reportes':
         if (reportes case final responder?) return responder(pedido);
         final campos = Map.fromEntries((pedido.data as FormData).fields);
@@ -61,6 +64,18 @@ class ServidorDeReportes {
           'enRevision': true,
           'primerReporteEn': '2026-10-10T17:30:00.000Z',
           'cantidadReportes': 1,
+        });
+        mios.insert(0, {
+          'id': 15,
+          'registradoEn': campos['registradoEn'],
+          'categoria': {'id': 1, 'nombre': 'Bache'},
+          'severidadDeclarada': campos['severidadDeclarada'],
+          'descripcion': campos['descripcion'],
+          'fotos': [
+            {'id': 1, 'url': '/api/fotos/1'},
+          ],
+          'estadoVerificacion': 'PENDIENTE_REVISION',
+          'incidente': {'id': 9, 'estado': 'REGISTRADO', 'enRevision': true},
         });
         return json(201, {
           'id': 15,
@@ -429,6 +444,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.bySemanticsLabel('Bache, En revisión'), findsOneWidget);
+  });
+
+  testWidgets('el reporte enviado aparece en mis reportes', (tester) async {
+    final servidor = ServidorDeReportes();
+    await abrirReportar(tester, servidor);
+    // La lista ya se había abierto, todavía vacía.
+    await tester.tap(find.text('Mis reportes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Todavía no hiciste reportes'), findsOneWidget);
+    await tester.tap(find.text('Reportar'));
+    await tester.pumpAndSettle();
+
+    await completar(tester);
+    await enviar(tester);
+    await tester.tap(find.text('Mis reportes'));
+    await tester.pumpAndSettle();
+
+    expect(servidor.servidor.cantidad('/reportes/mios'), 2);
+    expect(find.text('Bache'), findsOneWidget);
+    expect(find.text('En revisión'), findsOneWidget);
   });
 
   testWidgets('«Reportar otro» arranca vacío y vuelve a leer el GPS', (
