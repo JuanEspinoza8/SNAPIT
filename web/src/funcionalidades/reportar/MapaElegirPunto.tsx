@@ -25,7 +25,11 @@ function iconoPunto() {
 
 function CapturarClic({ alElegirPunto }: { alElegirPunto: Props['alElegirPunto'] }) {
   useMapEvents({
-    click: (evento) => alElegirPunto(evento.latlng.lat, evento.latlng.lng),
+    click: (evento) => {
+      // Leaflet no recorta la longitud: en otra copia del mundo podría dar -428 y el servidor la rechaza.
+      const { lat, lng } = evento.latlng.wrap();
+      alElegirPunto(lat, lng);
+    },
   });
   return null;
 }

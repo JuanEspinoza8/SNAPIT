@@ -36,6 +36,14 @@ describe('errores de la API', () => {
     expect(error.mensaje).toBeTruthy();
   });
 
+  it('ante un 413 de nginx (sin el formato de la API) avisa que pesa demasiado', () => {
+    const error = leerError(413, '<html>413 Request Entity Too Large</html>');
+
+    expect(error.codigo).toBe('CUERPO_DEMASIADO_GRANDE');
+    expect(error.status).toBe(413);
+    expect(error.mensaje).toBe('El archivo pesa demasiado para enviarlo.');
+  });
+
   it('ante un error del proxy (502/503/504) avisa que no hay conexión', () => {
     // Con la API apagada, el proxy de Vite (y nginx en la demo) responde 502 con
     // un cuerpo HTML: no es un error de la aplicación sino "no llega el servidor".

@@ -56,6 +56,27 @@ describe('cliente de la API', () => {
     expect(rutaVista).toBe('/api/salud');
   });
 
+  it('manda un objeto como JSON y un FormData como multipart', async () => {
+    const tipos: (string | null)[] = [];
+    servidor.use(
+      // Solo se miran las cabeceras: en jsdom, leer un cuerpo con un archivo no termina nunca.
+      http.post('*/api/recurso', ({ request }) => {
+        tipos.push(request.headers.get('content-type'));
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    const cliente = crearClienteApi({ urlBase, almacen: almacenConSesion() });
+    const formulario = new FormData();
+    formulario.append('foto', new File(['foto'], 'pozo.jpg', { type: 'image/jpeg' }));
+
+    await cliente.pedir('/recurso', { metodo: 'POST', cuerpo: { campo: 1 } });
+    await cliente.pedir('/recurso', { metodo: 'POST', cuerpo: formulario });
+
+    expect(tipos[0]).toBe('application/json');
+    // El boundary lo pone fetch: si el cliente fijara el tipo, el servidor no podría leer las partes.
+    expect(tipos[1]).toMatch(/^multipart\/form-data; boundary=/);
+  });
+
   it('ante un 401 renueva la sesión una sola vez y reintenta', async () => {
     let peticiones = 0;
     servidor.use(

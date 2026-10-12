@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Campo } from '../../compartido/componentes/Campo.js';
 import { CampoSelecto } from '../../compartido/componentes/CampoSelecto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
-import { useCategorias } from '../mapa/consultas.js';
+import type { EstadoNavegacionMapa } from '../mapa/tipos.js';
 import { MapaElegirPunto, type Punto } from './MapaElegirPunto.js';
 import type { Severidad } from './tipos.js';
 import { useReportar } from './useReportar.js';
@@ -36,6 +37,13 @@ const CAMPOS_API: Record<string, keyof Errores> = {
   lat: 'ubicacion',
   lon: 'ubicacion',
 };
+
+// Las que acepta el servidor. Cualquier otra la rechazaría recién al enviar.
+const TIPOS_FOTO = ['image/jpeg', 'image/png'];
+
+// El tope de nginx en la demo (client_max_body_size de nginx.conf): más pesada, ni llega al servidor.
+// El límite del servidor (FOTO_MAX_MB) es menor y lo avisa él, debajo de la foto.
+const PESO_MAXIMO_MB = 20;
 
 const SEVERIDADES: { valor: Severidad; etiqueta: string }[] = [
   { valor: 'LEVE', etiqueta: 'Leve' },
@@ -78,14 +86,28 @@ export function PaginaReportar() {
   }
 
   function alElegirFoto(evento: ChangeEvent<HTMLInputElement>) {
-    setFoto(evento.target.files?.[0] ?? null);
+    const archivo = evento.target.files?.[0] ?? null;
+    const problema = !archivo
+      ? null
+      : !TIPOS_FOTO.includes(archivo.type)
+        ? 'Tiene que ser una foto JPG o PNG'
+        : archivo.size > PESO_MAXIMO_MB * 1024 * 1024
+          ? `Pesa demasiado: elegí una foto de hasta ${PESO_MAXIMO_MB} MB`
+          : null;
+    if (problema) {
+      evento.target.value = '';
+      setFoto(null);
+      marcar('foto', problema);
+      return;
+    }
+    setFoto(archivo);
     marcar('foto', null);
   }
 
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     const validados: Errores = {
-      foto: foto ? null : 'Sacá una foto o elegí una de la galería',
+      foto: foto ? null : 'Elegí una foto del problema',
       categoria: categoriaId ? null : 'Falta la categoría',
       severidad: severidad ? null : 'Falta la gravedad',
       descripcion: null,
@@ -93,7 +115,6 @@ export function PaginaReportar() {
     };
     setErrores(validados);
     setAviso(false);
-    // Sin foto ni punto no se envía (criterio 1 del issue).
     if (!foto || !categoriaId || !severidad || !punto) return;
 
     reportar.mutate(
@@ -117,15 +138,21 @@ export function PaginaReportar() {
   }
 
   if (reportar.isSuccess) {
+    // Desde la verificación automática (#50) un reporte puede quedar verificado al llegar.
+    const verificado = reportar.data.estadoVerificacion === 'VERIFICADO';
+    const foco: EstadoNavegacionMapa | undefined = punto ? { foco: punto } : undefined;
     return (
       <section className="space-y-4">
         <h1 className="text-2xl font-semibold text-texto">Reporte enviado</h1>
         <p className="text-texto-secundario">
-          Ya está en el mapa como «En revisión», hasta que se verifique.
+          {verificado
+            ? 'Se verificó y ya está en el mapa.'
+            : 'Ya está en el mapa y queda pendiente de revisión hasta que se verifique.'}
         </p>
         <div className="flex flex-wrap gap-2">
           <Link
             to="/mapa"
+            state={foco}
             className="rounded-md bg-primario px-4 py-2 text-sm font-semibold text-sobre-primario hover:opacity-90"
           >
             Ver en el mapa
@@ -170,30 +197,37 @@ export function PaginaReportar() {
           )}
         </div>
 
-        <CampoSelecto
-          id="categoria"
-          etiqueta="Categoría"
-          value={categoriaId}
-          onChange={(evento) => {
-            setCategoriaId(evento.target.value);
-            marcar('categoria', null);
-          }}
-          error={errores.categoria}
-          disabled={categorias.isPending}
-        >
-          {categorias.isPending ? (
-            <option value="">Cargando categorías…</option>
-          ) : (
-            <>
-              <option value="">Elegí una categoría</option>
-              {(categorias.data ?? []).map((categoria) => (
-                <option key={categoria.id} value={categoria.id}>
-                  {categoria.nombre}
-                </option>
-              ))}
-            </>
+        <div className="space-y-1">
+          <CampoSelecto
+            id="categoria"
+            etiqueta="Categoría"
+            value={categoriaId}
+            onChange={(evento) => {
+              setCategoriaId(evento.target.value);
+              marcar('categoria', null);
+            }}
+            error={errores.categoria}
+            disabled={categorias.isPending}
+          >
+            {categorias.isPending ? (
+              <option value="">Cargando categorías…</option>
+            ) : (
+              <>
+                <option value="">Elegí una categoría</option>
+                {(categorias.data ?? []).map((categoria) => (
+                  <option key={categoria.id} value={categoria.id}>
+                    {categoria.nombre}
+                  </option>
+                ))}
+              </>
+            )}
+          </CampoSelecto>
+          {categorias.isSuccess && categorias.data.length === 0 && (
+            <p className="text-sm text-texto-secundario">
+              Todavía no hay categorías cargadas, así que no se puede reportar. Probá más tarde.
+            </p>
           )}
-        </CampoSelecto>
+        </div>
 
         <CampoSelecto
           id="severidad"

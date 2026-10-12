@@ -1,7 +1,11 @@
 import type { DetalleError, ErrorApi } from './error.js';
 
-// El 409 de correo repetido no trae `detalles`, pero es del campo del correo.
-const campoDelCodigo: Record<string, string> = { EMAIL_EN_USO: 'email' };
+// Errores sin `detalles` que igual son de un campo: el 409 de correo repetido y lo que corta
+// nginx por pesado, que en la práctica es la foto de un reporte.
+const campoDelCodigo: Record<string, string> = {
+  EMAIL_EN_USO: 'email',
+  CUERPO_DEMASIADO_GRANDE: 'foto',
+};
 
 export interface ErroresRepartidos<C extends string> {
   porCampo: Partial<Record<C, string>>;

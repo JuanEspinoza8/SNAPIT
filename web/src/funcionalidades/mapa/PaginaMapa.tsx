@@ -1,13 +1,15 @@
 import { useCallback, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { aErrorApi } from '../../compartido/red/error.js';
-import { useCategorias, useIncidentes } from './consultas.js';
+import { useIncidentes } from './consultas.js';
 import { ESTADOS, ORDEN_ESTADOS } from './estados.js';
 import { FichaIncidente } from './FichaIncidente.js';
 import { FiltrosMapa } from './FiltrosMapa.js';
 import { ListaIncidentes } from './ListaIncidentes.js';
 import { MapaIncidentes, type Vista } from './MapaIncidentes.js';
-import type { FiltrosMapa as Filtros, PuntoMapa, Rectangulo } from './tipos.js';
+import type { EstadoNavegacionMapa, FiltrosMapa as Filtros, PuntoMapa, Rectangulo } from './tipos.js';
 
 /** Lo que se abre a la derecha del mapa: la ficha de un incidente o la lista de varios superpuestos. */
 type Seleccion = { tipo: 'ficha'; id: number } | { tipo: 'lista'; puntos: PuntoMapa[] } | null;
@@ -17,6 +19,8 @@ export function PaginaMapa() {
   const [filtros, setFiltros] = useState<Filtros>({});
   const [rectangulo, setRectangulo] = useState<Rectangulo | null>(null);
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
+  // «Ver en el mapa» después de reportar: el mapa arranca en el punto del reporte.
+  const foco = (useLocation().state as EstadoNavegacionMapa | null)?.foco ?? null;
 
   const categorias = useCategorias();
   const incidentes = useIncidentes(filtros, rectangulo);
@@ -50,6 +54,7 @@ export function PaginaMapa() {
         <div className="h-[60vh] min-h-80 overflow-hidden rounded-lg border border-borde">
           <MapaIncidentes
             puntos={incidentes.data ?? []}
+            foco={foco}
             alCambiarVista={alCambiarVista}
             alElegir={abrirFicha}
             alElegirVarios={abrirLista}

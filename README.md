@@ -158,6 +158,7 @@ La imagen final es nginx: sirve `dist/` y reenvía `/api` al servidor (por defec
 src/
   config/        URL de la API y modo de simulación
   compartido/
+    catalogo/    categorías activas, que usan el mapa y el formulario de reporte
     componentes/ layout con encabezado y pie, rutas y aviso de error
     red/         cliente (token, renovación de la sesión ante un 401, errores), contexto y mocks de MSW
     tema/        colores, tipografía y tamaños de texto del sistema de diseño (Tailwind v4)

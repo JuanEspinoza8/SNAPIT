@@ -51,11 +51,14 @@ const organismoMunicipalidad: Organismo = {
 
 const organismos: Organismo[] = [organismoMunicipalidad];
 
-// Categorías activas que devuelve GET /categorias (id y nombre alcanzan para el formulario).
+// Las categorías de la semilla, ordenadas por nombre como las devuelve GET /categorias
+// (id y nombre alcanzan para el formulario).
 const categorias = [
-  { id: 1, nombre: 'Bache en la calzada' },
-  { id: 2, nombre: 'Luminaria apagada' },
   { id: 3, nombre: 'Cordón sin rampa' },
+  { id: 4, nombre: 'Luminaria apagada' },
+  { id: 5, nombre: 'Obra que interrumpe el paso' },
+  { id: 1, nombre: 'Pozo en la calzada' },
+  { id: 2, nombre: 'Vereda rota' },
 ];
 
 const nombreCategoria = (id: number) =>
@@ -141,7 +144,7 @@ export const handlers = [
     const incidente = incidentes.find((item) => item.id === Number(params.id));
     if (!incidente) {
       return HttpResponse.json(
-        { error: { codigo: 'NO_ENCONTRADO', mensaje: 'El incidente no existe' } },
+        { error: { codigo: 'INCIDENTE_NO_ENCONTRADO', mensaje: 'El incidente no existe' } },
         { status: 404 },
       );
     }
