@@ -1,6 +1,7 @@
 # Integración continua (#22): ningún PR se revisa sin lint y tests en verde.
 # Cada capa corre solo si cambió su carpeta. Los trabajos que no corren quedan "omitidos", que para la
 # protección de main cuenta como aprobado: así se pueden exigir todos sin trabar los PR de una sola capa.
+# "Qué cambió" también se exige: si falla, las capas quedan omitidas y se darían por aprobadas sin haber corrido.
 name: CI
 
 on:
@@ -8,10 +9,10 @@ on:
   push:
     branches: [main]
 
-# Si se sube otro commit al mismo PR, se cancela la corrida anterior.
+# Si se sube otro commit al mismo PR, se cancela la corrida anterior. En main no: cada merge se verifica.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -28,18 +29,22 @@ jobs:
       web: ${{ steps.filtro.outputs.web }}
       mobile: ${{ steps.filtro.outputs.mobile }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filtro
         with:
+          # Prettier toma la sangría y el fin de línea de .editorconfig.
           filters: |
             server:
               - 'server/**'
               - 'db/**'
+              - '.env.example'
+              - '.editorconfig'
               - '.nvmrc'
               - '.github/workflows/ci.yml'
             web:
               - 'web/**'
+              - '.editorconfig'
               - '.nvmrc'
               - '.github/workflows/ci.yml'
             mobile:
@@ -50,7 +55,7 @@ jobs:
     name: Modelo congelado
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # La única migración tiene que ser el schema.sql entregado, byte a byte (ver CONTRIBUTING.md).
       - name: 0_init es idéntica a db/schema.sql
         run: |
@@ -91,27 +96,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
-      # El registro manda el correo en segundo plano: sin SMTP cada envío esperaría el timeout.
-      mailpit:
-        image: axllent/mailpit:v1.31
-        ports:
-          - 1025:1025
+    # Estas pisan las de .env.example (dotenv no reemplaza lo que ya está en el entorno). Ninguna es un secreto real.
     env:
-      # Sin .env en CI: las variables van acá. Ninguna es un secreto real.
       TEST_DATABASE_URL: postgresql://snapit:snapit@localhost:5432/snapit_test
       DATABASE_URL: postgresql://snapit:snapit@localhost:5432/snapit_test
       JWT_SECRET: secreto-solo-para-ci-con-mas-de-32-caracteres
-      URL_WEB: http://localhost:5173
-      SMTP_HOST: localhost
-      SMTP_PUERTO: '1025'
-      CORREO_REMITENTE: SnapIt CI <ci@snapit.local>
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: server/package-lock.json
+      # El resto de las variables sale del ejemplo: si le falta una obligatoria, el servidor no arranca y esto queda en rojo.
+      - name: Variables de .env.example
+        run: cp ../.env.example ../.env
       - name: Instalar dependencias
         run: npm ci
       - name: Lint
@@ -132,8 +131,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -159,10 +158,12 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      # La misma versión que en las PCs (mobile/.metadata). Si se actualiza Flutter, se cambia también acá.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.44.1
           cache: true
       - name: Instalar dependencias
         run: flutter pub get
