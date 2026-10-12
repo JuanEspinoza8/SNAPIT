@@ -52,6 +52,7 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
   /// El punto del reporte recién enviado. Mientras no es null se ve la
   /// confirmación en lugar del formulario.
   LatLng? _enviadoEn;
+  var _enviadoVerificado = false;
 
   @override
   void initState() {
@@ -146,11 +147,12 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
       _erroresServidor = {};
     });
     try {
-      await _reporte.enviar();
+      final enviado = await _reporte.enviar();
       if (!mounted) return;
       _descripcion.clear();
       setState(() {
         _enviadoEn = borrador.punto;
+        _enviadoVerificado = enviado.verificado;
         _mostrarFaltantes = false;
       });
     } catch (e) {
@@ -188,6 +190,7 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
   Widget build(BuildContext context) {
     if (_enviadoEn case final punto?) {
       return _Enviado(
+        verificado: _enviadoVerificado,
         alVerEnMapa: () => widget.alVerEnMapa(punto),
         alReportarOtro: _reportarOtro,
       );
@@ -686,8 +689,13 @@ class _AvisoUbicacion extends StatelessWidget {
 }
 
 class _Enviado extends StatelessWidget {
-  const _Enviado({required this.alVerEnMapa, required this.alReportarOtro});
+  const _Enviado({
+    required this.verificado,
+    required this.alVerEnMapa,
+    required this.alReportarOtro,
+  });
 
+  final bool verificado;
   final VoidCallback alVerEnMapa;
   final VoidCallback alReportarOtro;
 
@@ -716,8 +724,11 @@ class _Enviado extends StatelessWidget {
               ),
             ),
             const SizedBox(height: Espacio.sm),
-            const Text(
-              'Ya está en el mapa como «En revisión», hasta que se verifique.',
+            Text(
+              verificado
+                  ? 'Se verificó y ya está en el mapa.'
+                  : 'Ya está en el mapa y queda pendiente de revisión hasta '
+                        'que se verifique.',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: Espacio.xl),
