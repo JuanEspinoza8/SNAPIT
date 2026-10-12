@@ -4,6 +4,7 @@ import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
+import { extraerBarrio, SIN_BARRIO } from '../src/modulos/geocodificacion/calculo.js';
 import { crearUsuario } from './apoyo.js';
 
 /**
@@ -36,6 +37,7 @@ async function crearIncidente(datos: {
   vigenteHasta?: Date | null;
   principalId?: number | null;
   cantidadReportes?: number;
+  direccion?: string | null;
 }) {
   const {
     categoriaId,
@@ -46,15 +48,16 @@ async function crearIncidente(datos: {
     vigenteHasta = null,
     principalId = null,
     cantidadReportes = 1,
+    direccion = null,
   } = datos;
   const [{ id }] = (await prisma.$queryRaw<{ id: number }[]>`
     INSERT INTO incidente (categoria_id, estado, ubicacion, primer_reporte_en, caducado_en,
-                           tipo_vigencia, vigente_hasta, incidente_principal_id, cantidad_reportes)
+                           tipo_vigencia, vigente_hasta, incidente_principal_id, cantidad_reportes, direccion)
     VALUES (${categoriaId}, ${estado}::estado_incidente,
             ST_SetSRID(ST_MakePoint(${punto.lon}, ${punto.lat}), 4326)::geography,
             ${primerReporteEn}, ${caducadoEn},
             ${vigenteHasta ? 'TEMPORAL' : 'PERMANENTE'}::tipo_vigencia, ${vigenteHasta},
-            ${principalId}, ${cantidadReportes})
+            ${principalId}, ${cantidadReportes}, ${direccion})
     RETURNING id`) as [{ id: number }];
   creados.push(id);
   return id;
@@ -220,6 +223,70 @@ describe('GET /api/incidentes', () => {
       expect(soloHasta).toEqual(expect.arrayContaining([antes, primeraHora, ultimaHora]));
       expect(soloHasta).not.toContain(despues);
     });
+
+    it('barrio', async () => {
+      const zona = zonaNueva();
+      const { id: categoriaId } = await crearCategoria();
+      const barrio = `Barrio ${randomUUID()}`;
+      const conCalle = await crearIncidente({
+        categoriaId,
+        punto: zona.punto(),
+        direccion: `Lanín 120, ${barrio}`,
+      });
+      const sinCalle = await crearIncidente({ categoriaId, punto: zona.punto(0.1), direccion: barrio });
+      // El nombre del barrio buscado aparece, pero como calle: no cuenta.
+      await crearIncidente({ categoriaId, punto: zona.punto(0.2), direccion: `${barrio} 50, Otro barrio` });
+      await crearIncidente({ categoriaId, punto: zona.punto(0.3), direccion: null });
+
+      const res = await listar({ barrio });
+
+      expect(ids(res)).toEqual([conCalle, sinCalle].sort());
+    });
+
+    it('barrio "Sin barrio": los que Nominatim no ubicó, no los que todavía no tienen dirección', async () => {
+      const zona = zonaNueva();
+      const { id: categoriaId } = await crearCategoria();
+      const conCalle = await crearIncidente({
+        categoriaId,
+        punto: zona.punto(),
+        direccion: 'Ruta 22, Sin barrio',
+      });
+      const sinNada = await crearIncidente({ categoriaId, punto: zona.punto(0.1), direccion: SIN_BARRIO });
+      await crearIncidente({ categoriaId, punto: zona.punto(0.2), direccion: null });
+      await crearIncidente({ categoriaId, punto: zona.punto(0.3), direccion: 'Lanín, Villa Ceferino' });
+
+      const res = await listar({ bbox: zona.bbox, barrio: SIN_BARRIO });
+
+      expect(ids(res)).toEqual([conCalle, sinNada].sort());
+    });
+  });
+
+  it('el filtro barrio usa la misma regla que extraerBarrio()', async () => {
+    const zona = zonaNueva();
+    const { id: categoriaId } = await crearCategoria();
+    const direcciones = [
+      'Avenida Argentina 250, Área Centro Este',
+      'Lanín, Área Centro Este',
+      'Ruta 22 1500, Sin barrio',
+      'Bouquet Roldán',
+      SIN_BARRIO,
+      'Una, dos, Tres',
+      'Calle 1,   Espacios  ',
+      'Calle 1, ',
+    ];
+    const incidentes = [];
+    for (const [i, direccion] of direcciones.entries()) {
+      incidentes.push({
+        id: await crearIncidente({ categoriaId, punto: zona.punto(i * 0.01), direccion }),
+        direccion,
+      });
+    }
+
+    for (const barrio of new Set(direcciones.map(extraerBarrio))) {
+      const res = await listar({ bbox: zona.bbox, barrio });
+      const esperados = incidentes.filter((i) => extraerBarrio(i.direccion) === barrio).map((i) => i.id);
+      expect(ids(res), barrio).toEqual(esperados.sort());
+    }
   });
 
   it('todos los filtros combinados', async () => {
@@ -227,36 +294,50 @@ describe('GET /api/incidentes', () => {
     const una = await crearCategoria();
     const otra = await crearCategoria();
     const fecha = new Date('2026-10-05T10:00:00-03:00');
+    const barrio = `Barrio ${randomUUID()}`;
+    const enElBarrio = `Lanín 120, ${barrio}`;
     const buscado = await crearIncidente({
       categoriaId: una.id,
       punto: zona.punto(),
       estado: 'EN_EJECUCION',
       primerReporteEn: fecha,
+      direccion: enElBarrio,
     });
     // Cada uno falla en un solo filtro.
+    await crearIncidente({
+      categoriaId: una.id,
+      punto: zona.punto(0.1),
+      estado: 'EN_EJECUCION',
+      primerReporteEn: fecha,
+      direccion: 'Lanín 120, Otro barrio',
+    });
     await crearIncidente({
       categoriaId: otra.id,
       punto: zona.punto(0.1),
       estado: 'EN_EJECUCION',
       primerReporteEn: fecha,
+      direccion: enElBarrio,
     });
     await crearIncidente({
       categoriaId: una.id,
       punto: zona.punto(0.1),
       estado: 'DERIVADO',
       primerReporteEn: fecha,
+      direccion: enElBarrio,
     });
     await crearIncidente({
       categoriaId: una.id,
       punto: zona.punto(0.1),
       estado: 'EN_EJECUCION',
       primerReporteEn: new Date('2026-09-01T10:00:00-03:00'),
+      direccion: enElBarrio,
     });
     await crearIncidente({
       categoriaId: una.id,
       punto: zona.punto(2),
       estado: 'EN_EJECUCION',
       primerReporteEn: fecha,
+      direccion: enElBarrio,
     });
 
     const res = await listar({
@@ -265,6 +346,7 @@ describe('GET /api/incidentes', () => {
       estado: 'EN_EJECUCION',
       desde: '2026-10-04',
       hasta: '2026-10-05',
+      barrio,
     });
 
     expect(ids(res)).toEqual([buscado]);
@@ -280,6 +362,9 @@ describe('GET /api/incidentes', () => {
       [{ categoriaId: '99999999999' }, 'categoriaId'],
       [{ desde: 'ayer' }, 'desde'],
       [{ desde: '2026-10-05', hasta: '2026-10-01' }, 'hasta'],
+      [{ barrio: '' }, 'barrio'],
+      [{ barrio: '   ' }, 'barrio'],
+      [{ barrio: 'x'.repeat(251) }, 'barrio'],
     ])('%o', async (consulta, campo) => {
       const res = await listar(consulta);
 
@@ -392,5 +477,81 @@ describe('GET /api/incidentes/:id', () => {
 
     expect(ids(lista)).toEqual([id]);
     expect(ficha.body.enRevision).toBe(true);
+  });
+
+  it('la ficha muestra la dirección cuando ya se completó', async () => {
+    const zona = zonaNueva();
+    const { id: categoriaId } = await crearCategoria();
+    const id = await crearIncidente({
+      categoriaId,
+      punto: zona.punto(),
+      direccion: 'Lanín 120, Villa Ceferino',
+    });
+
+    const res = await request(app).get(`/api/incidentes/${id}`);
+
+    expect(res.body.direccion).toBe('Lanín 120, Villa Ceferino');
+  });
+});
+
+describe('GET /api/barrios', () => {
+  it('es pública y lista los barrios con incidentes en el mapa, sin repetir y en orden alfabético', async () => {
+    const zona = zonaNueva();
+    const { id: categoriaId } = await crearCategoria();
+    // Un sufijo propio: la base de tests es compartida y puede tener otros barrios.
+    const s = randomUUID();
+    await crearIncidente({ categoriaId, punto: zona.punto(), direccion: `Lanín 120, Zapala ${s}` });
+    await crearIncidente({ categoriaId, punto: zona.punto(0.01), direccion: `Mitre 5, Zapala ${s}` });
+    await crearIncidente({ categoriaId, punto: zona.punto(0.02), direccion: `Ruta 7, Área ${s}` });
+    await crearIncidente({ categoriaId, punto: zona.punto(0.03), direccion: `Bouquet ${s}` });
+
+    const res = await request(app).get('/api/barrios');
+
+    expect(res.status).toBe(200);
+    // En orden castellano, "Área" va antes que "Bouquet" (por código de carácter iría al final).
+    expect(res.body.barrios.filter((b: string) => b.endsWith(s))).toEqual([
+      `Área ${s}`,
+      `Bouquet ${s}`,
+      `Zapala ${s}`,
+    ]);
+  });
+
+  it('no cuenta los incidentes que no están en el mapa ni los que todavía no tienen dirección', async () => {
+    const zona = zonaNueva();
+    const { id: categoriaId } = await crearCategoria();
+    const s = randomUUID();
+    const principal = await crearIncidente({
+      categoriaId,
+      punto: zona.punto(),
+      direccion: `Calle, Visible ${s}`,
+    });
+    await crearIncidente({
+      categoriaId,
+      punto: zona.punto(),
+      estado: 'DESESTIMADO',
+      direccion: `C, Desestimado ${s}`,
+    });
+    await crearIncidente({
+      categoriaId,
+      punto: zona.punto(),
+      caducadoEn: new Date(),
+      direccion: `C, Caducado ${s}`,
+    });
+    await crearIncidente({
+      categoriaId,
+      punto: zona.punto(),
+      vigenteHasta: new Date(Date.now() - 1000),
+      direccion: `C, Vencido ${s}`,
+    });
+    await crearIncidente({
+      categoriaId,
+      punto: zona.punto(),
+      principalId: principal,
+      direccion: `C, Unido ${s}`,
+    });
+
+    const res = await request(app).get('/api/barrios');
+
+    expect(res.body.barrios.filter((b: string) => b.endsWith(s))).toEqual([`Visible ${s}`]);
   });
 });
