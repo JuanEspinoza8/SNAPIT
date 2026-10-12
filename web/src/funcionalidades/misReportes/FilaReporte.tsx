@@ -61,8 +61,8 @@ function Miniatura({ url }: { url: string | undefined }) {
 
   if (!url || fallo) {
     return (
-      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-borde bg-superficie-alterna text-xs text-texto-secundario">
-        Sin foto
+      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-borde bg-superficie-alterna text-center text-xs leading-tight text-texto-secundario">
+        Foto no disponible
       </span>
     );
   }
