@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import type { Usuario } from '../../sesion/usuario.js';
 import type { DatosAltaUsuario, Organismo } from '../../../funcionalidades/administracion/tipos.js';
+import type { FichaIncidente, PuntoMapa } from '../../../funcionalidades/mapa/tipos.js';
 import { apiUrl } from '../../../config/entorno.js';
 
 const usuarioVecino: Usuario = {
@@ -49,6 +50,36 @@ const organismoMunicipalidad: Organismo = {
 };
 
 const organismos: Organismo[] = [organismoMunicipalidad];
+
+// Las categorías de la semilla, ordenadas por nombre como las devuelve GET /categorias
+// (id y nombre alcanzan para el formulario).
+const categorias = [
+  { id: 3, nombre: 'Cordón sin rampa' },
+  { id: 4, nombre: 'Luminaria apagada' },
+  { id: 5, nombre: 'Obra que interrumpe el paso' },
+  { id: 1, nombre: 'Pozo en la calzada' },
+  { id: 2, nombre: 'Vereda rota' },
+];
+
+const nombreCategoria = (id: number) =>
+  categorias.find((categoria) => categoria.id === id)?.nombre ?? 'Sin categoría';
+
+// Incidentes que devuelve GET /incidentes. Arranca con uno de muestra y crece
+// cuando POST /reportes suma uno: así el mapa público muestra lo que se reporta.
+let incidentes: PuntoMapa[] = [
+  {
+    id: 1,
+    lat: -38.9516,
+    lon: -68.0591,
+    categoriaId: 3,
+    categoriaNombre: 'Cordón sin rampa',
+    estado: 'REGISTRADO',
+    enRevision: true,
+    primerReporteEn: '2026-01-15T10:00:00.000Z',
+    cantidadReportes: 1,
+  },
+];
+let proximoIncidenteId = 2;
 
 // La lista de usuarios vive en memoria: al dar de alta uno nuevo se agrega acá
 // y la pantalla lo muestra al refrescar la lista (GET /admin/usuarios).
@@ -105,6 +136,33 @@ export const handlers = [
   http.post(`${apiUrl}/auth/recuperar-clave`, () => new HttpResponse(null, { status: 204 })),
   http.post(`${apiUrl}/auth/restablecer-clave`, () => new HttpResponse(null, { status: 204 })),
 
+  http.get(`${apiUrl}/categorias`, () => HttpResponse.json({ categorias })),
+
+  http.get(`${apiUrl}/incidentes`, () => HttpResponse.json({ incidentes })),
+
+  http.get(`${apiUrl}/incidentes/:id`, ({ params }) => {
+    const incidente = incidentes.find((item) => item.id === Number(params.id));
+    if (!incidente) {
+      return HttpResponse.json(
+        { error: { codigo: 'INCIDENTE_NO_ENCONTRADO', mensaje: 'El incidente no existe' } },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json({
+      id: incidente.id,
+      lat: incidente.lat,
+      lon: incidente.lon,
+      categoria: { id: incidente.categoriaId, nombre: incidente.categoriaNombre },
+      estado: incidente.estado,
+      enRevision: incidente.enRevision,
+      primerReporteEn: incidente.primerReporteEn,
+      cantidadReportes: incidente.cantidadReportes,
+      cantidadVecinos: 1,
+      direccion: null,
+      fotos: [],
+    } satisfies FichaIncidente);
+  }),
+
   http.get(`${apiUrl}/admin/organismos`, () => HttpResponse.json({ organismos })),
 
   http.get(`${apiUrl}/admin/usuarios`, () => HttpResponse.json({ usuarios })),
@@ -144,5 +202,32 @@ export const handlers = [
     };
     usuarios = [...usuarios, creado];
     return HttpResponse.json({ usuario: creado }, { status: 201 });
+  }),
+
+  http.post(`${apiUrl}/reportes`, async ({ request }) => {
+    const formulario = await request.formData();
+    const categoriaId = Number(formulario.get('categoriaId'));
+    const id = proximoIncidenteId++;
+
+    // El reporte nuevo se guarda y lo devuelve GET /incidentes: así aparece en el mapa.
+    incidentes = [
+      ...incidentes,
+      {
+        id,
+        lat: Number(formulario.get('lat')),
+        lon: Number(formulario.get('lon')),
+        categoriaId,
+        categoriaNombre: nombreCategoria(categoriaId),
+        estado: 'REGISTRADO',
+        enRevision: true,
+        primerReporteEn: new Date().toISOString(),
+        cantidadReportes: 1,
+      },
+    ];
+
+    return HttpResponse.json(
+      { id, incidenteId: id, nivelConfianza: 0, estadoVerificacion: 'PENDIENTE_REVISION' },
+      { status: 201 },
+    );
   }),
 ];

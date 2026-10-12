@@ -29,13 +29,20 @@ export function crearClienteApi(config: {
   async function enviar(ruta: string, opciones: OpcionesPeticion, token: string | null) {
     const cabeceras: Record<string, string> = {};
     if (token) cabeceras.Authorization = `Bearer ${token}`;
-    if (opciones.cuerpo !== undefined) cabeceras['Content-Type'] = 'application/json';
+    // Con FormData el Content-Type lo pone el navegador, con su boundary: si lo
+    // fijáramos en 'application/json', el servidor no sabría leer el formulario.
+    const cuerpo = opciones.cuerpo;
+    const esFormData = cuerpo instanceof FormData;
+    if (cuerpo !== undefined && !esFormData) {
+      cabeceras['Content-Type'] = 'application/json';
+    }
     // 'salud' y '/salud' son la misma ruta: sin la barra, urlBase + ruta daría '/apisalud'.
     const camino = ruta.startsWith('/') ? ruta : `/${ruta}`;
     return fetch(`${urlBase}${camino}`, {
       method: opciones.metodo ?? 'GET',
       headers: cabeceras,
-      body: opciones.cuerpo === undefined ? undefined : JSON.stringify(opciones.cuerpo),
+      // El instanceof vuelve a estrechar `cuerpo`: así `fetch` acepta el FormData.
+      body: cuerpo === undefined ? undefined : cuerpo instanceof FormData ? cuerpo : JSON.stringify(cuerpo),
       signal: opciones.señal,
     });
   }

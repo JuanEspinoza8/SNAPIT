@@ -13,11 +13,13 @@ import { renderRuta } from './apoyo.js';
 vi.mock('../src/funcionalidades/mapa/MapaIncidentes.js', () => ({
   MapaIncidentes: ({
     puntos,
+    foco,
     alCambiarVista,
     alElegir,
     alElegirVarios,
   }: {
     puntos: PuntoMapa[];
+    foco: { lat: number; lon: number } | null;
     alCambiarVista: (vista: unknown) => void;
     alElegir: (id: number) => void;
     alElegirVarios: (puntos: PuntoMapa[]) => void;
@@ -27,6 +29,7 @@ vi.mock('../src/funcionalidades/mapa/MapaIncidentes.js', () => ({
     }, [alCambiarVista]);
     return (
       <ul aria-label="Mapa simulado">
+        <li>Arranca en {foco ? `${foco.lat}, ${foco.lon}` : 'el centro de Neuquén'}</li>
         {puntos.map((p) => (
           <li key={p.id}>
             <button type="button" onClick={() => alElegir(p.id)}>
@@ -193,6 +196,18 @@ describe('mapa público', () => {
     for (const texto of ['En revisión', 'Verificado', 'Derivado al área', 'En ejecución', 'Resuelto']) {
       expect(within(referencias).getByText(texto)).toBeInTheDocument();
     }
+  });
+
+  it('sin foco arranca en el centro de Neuquén', async () => {
+    renderRuta('/mapa', <PaginaMapa />);
+
+    expect(await screen.findByText('Arranca en el centro de Neuquén')).toBeInTheDocument();
+  });
+
+  it('al llegar desde «Ver en el mapa», arranca en el punto del reporte', async () => {
+    renderRuta('/mapa', <PaginaMapa />, { foco: { lat: -38.94, lon: -68.07 } });
+
+    expect(await screen.findByText('Arranca en -38.94, -68.07')).toBeInTheDocument();
   });
 
   it('si el servidor falla, muestra el error y deja reintentar', async () => {

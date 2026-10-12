@@ -28,16 +28,16 @@ export interface FichaIncidente {
   fotos: { id: number; url: string }[];
 }
 
-export interface Categoria {
-  id: number;
-  nombre: string;
-}
-
 export interface FiltrosMapa {
   categoriaId?: number;
   estado?: EstadoVisible;
   desde?: string;
   hasta?: string;
+}
+
+/** Lo que otra pantalla le pasa a /mapa al navegar (estado del router): el punto donde arrancar. */
+export interface EstadoNavegacionMapa {
+  foco: { lat: number; lon: number };
 }
 
 /** El rectángulo visible del mapa, en grados. */

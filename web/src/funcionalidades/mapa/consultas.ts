@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useCliente } from '../../compartido/red/clienteContexto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
-import type { Categoria, FichaIncidente, FiltrosMapa, PuntoMapa, Rectangulo } from './tipos.js';
+import type { FichaIncidente, FiltrosMapa, PuntoMapa, Rectangulo } from './tipos.js';
 
 /** Arma la consulta de GET /api/incidentes. El bbox se redondea para no pedir de nuevo por un píxel. */
 export function rutaIncidentes(filtros: FiltrosMapa, vista: Rectangulo | null) {
@@ -58,22 +58,5 @@ export function useFicha(id: number | null) {
       }
     },
     enabled: id !== null,
-  });
-}
-
-export function useCategorias() {
-  const cliente = useCliente();
-  return useQuery({
-    queryKey: ['categorias'],
-    queryFn: async () => {
-      try {
-        return (await cliente.pedir<{ categorias: Categoria[] }>('categorias', { sinSesion: true }))
-          .categorias;
-      } catch (error) {
-        throw aErrorApi(error);
-      }
-    },
-    // Las categorías casi no cambian.
-    staleTime: 10 * 60 * 1000,
   });
 }

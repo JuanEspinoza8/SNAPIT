@@ -264,6 +264,28 @@ void main() {
     expect(enviado['tomadaConCamaraApp'], 'true');
     expect(servidor.enviados.single.files.single.value.filename, 'pozo.jpg');
     expect(find.text('Reporte enviado'), findsOneWidget);
+    expect(
+      find.text(
+        'Ya está en el mapa y queda pendiente de revisión hasta que se verifique.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('si el reporte llega verificado, lo dice', (tester) async {
+    final servidor = ServidorDeReportes()
+      ..reportes = (_) => json(201, {
+        'id': 15,
+        'incidenteId': 9,
+        'nivelConfianza': 80,
+        'estadoVerificacion': 'VERIFICADO',
+      });
+    await abrirReportar(tester, servidor);
+    await completar(tester);
+
+    await enviar(tester);
+
+    expect(find.text('Se verificó y ya está en el mapa.'), findsOneWidget);
   });
 
   testWidgets('volver del mapa sin elegir deja el punto del GPS', (

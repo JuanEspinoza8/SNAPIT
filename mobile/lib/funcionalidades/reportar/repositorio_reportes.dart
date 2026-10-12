@@ -13,15 +13,25 @@ final repositorioReportesProvider = Provider<RepositorioReportes>(
 
 /// Respuesta de `POST /reportes`.
 class ReporteEnviado {
-  const ReporteEnviado({required this.id, required this.incidenteId});
+  const ReporteEnviado({
+    required this.id,
+    required this.incidenteId,
+    required this.verificado,
+  });
 
   factory ReporteEnviado.desdeJson(Map<String, dynamic> json) => ReporteEnviado(
     id: json['id'] as int,
     incidenteId: json['incidenteId'] as int?,
+    // Un valor desconocido cuenta como pendiente: el reporte ya se guardó y
+    // no tiene que parecer un envío fallido.
+    verificado: json['estadoVerificacion'] == 'VERIFICADO',
   );
 
   final int id;
   final int? incidenteId;
+
+  /// Si la verificación automática (#50) lo dio por bueno al llegar.
+  final bool verificado;
 }
 
 /// Por dónde sale un reporte. Hoy va directo al servidor; el modo sin conexión

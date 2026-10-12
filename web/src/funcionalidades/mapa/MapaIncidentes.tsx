@@ -4,11 +4,13 @@ import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-lea
 import 'leaflet/dist/leaflet.css';
 import { crearAgrupador, ZOOM_MAXIMO } from './agrupar.js';
 import { ESTADOS } from './estados.js';
-import type { PuntoMapa, Rectangulo } from './tipos.js';
+import type { EstadoNavegacionMapa, PuntoMapa, Rectangulo } from './tipos.js';
 
 /** Centro de Neuquén capital. */
 const CENTRO_INICIAL: [number, number] = [-38.9516, -68.0591];
 const ZOOM_INICIAL = 14;
+// Cerca, como la app al volver de reportar: se ve la cuadra.
+const ZOOM_FOCO = 17;
 
 export interface Vista {
   rectangulo: Rectangulo;
@@ -17,6 +19,8 @@ export interface Vista {
 
 interface Props {
   puntos: PuntoMapa[];
+  /** Dónde arranca el mapa. Sin foco, en el centro de Neuquén. */
+  foco?: EstadoNavegacionMapa['foco'] | null;
   alCambiarVista: (vista: Vista) => void;
   alElegir: (id: number) => void;
   /** Varios incidentes tan juntos que acercando no se separan: se muestran en una lista. */
@@ -65,7 +69,7 @@ function iconoPunto(punto: PuntoMapa) {
   });
 }
 
-function Marcadores({ puntos, alElegir, alElegirVarios }: Omit<Props, 'alCambiarVista'>) {
+function Marcadores({ puntos, alElegir, alElegirVarios }: Omit<Props, 'alCambiarVista' | 'foco'>) {
   const mapa = useMap();
   const [vista, setVista] = useState<Vista>(() => leerVista(mapa));
   useMapEvents({ moveend: () => setVista(leerVista(mapa)) });
@@ -108,9 +112,14 @@ function Marcadores({ puntos, alElegir, alElegirVarios }: Omit<Props, 'alCambiar
   });
 }
 
-export function MapaIncidentes({ puntos, alCambiarVista, alElegir, alElegirVarios }: Props) {
+export function MapaIncidentes({ puntos, foco, alCambiarVista, alElegir, alElegirVarios }: Props) {
   return (
-    <MapContainer center={CENTRO_INICIAL} zoom={ZOOM_INICIAL} maxZoom={ZOOM_MAXIMO} className="h-full w-full">
+    <MapContainer
+      center={foco ? [foco.lat, foco.lon] : CENTRO_INICIAL}
+      zoom={foco ? ZOOM_FOCO : ZOOM_INICIAL}
+      maxZoom={ZOOM_MAXIMO}
+      className="h-full w-full"
+    >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"

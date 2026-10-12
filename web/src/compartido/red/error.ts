@@ -41,6 +41,11 @@ export function leerError(status: number, cuerpo: unknown, requestId?: string | 
     }
   }
 
+  // 413 sin el formato de la API: lo cortó nginx (client_max_body_size) antes de llegar al servidor.
+  if (status === 413) {
+    return new ErrorApi('El archivo pesa demasiado para enviarlo.', 'CUERPO_DEMASIADO_GRANDE', status);
+  }
+
   // 502/503/504 con un cuerpo que no es el de la API: el proxy (Vite en
   // desarrollo, nginx en la demo) no llegó al servidor. Es como no tener
   // conexión, no un error de la aplicación.

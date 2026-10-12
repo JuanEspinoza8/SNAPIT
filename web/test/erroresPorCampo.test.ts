@@ -50,6 +50,16 @@ describe('repartirErrores', () => {
     expect(repartirErrores(error, { clave: 'clave' })).toEqual({ porCampo: {}, sinCampo: true });
   });
 
+  it('lo que nginx corta por pesado cae en la foto, si el formulario tiene foto', () => {
+    const error = new ErrorApi('El archivo pesa demasiado para enviarlo.', 'CUERPO_DEMASIADO_GRANDE', 413);
+
+    expect(repartirErrores(error, { foto: 'foto' })).toEqual({
+      porCampo: { foto: 'El archivo pesa demasiado para enviarlo.' },
+      sinCampo: false,
+    });
+    expect(repartirErrores(error, campos)).toEqual({ porCampo: {}, sinCampo: true });
+  });
+
   it('si un campo trae dos detalles, queda el primero', () => {
     const error = new ErrorApi('Hay datos inválidos', 'DATOS_INVALIDOS', 400, [
       { campo: 'email', mensaje: 'Es obligatorio' },

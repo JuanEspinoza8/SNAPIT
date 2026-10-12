@@ -1,5 +1,6 @@
+import type { Categoria } from '../../compartido/catalogo/categorias.js';
 import { ESTADOS, ORDEN_ESTADOS } from './estados.js';
-import type { Categoria, EstadoVisible, FiltrosMapa as Filtros } from './tipos.js';
+import type { EstadoVisible, FiltrosMapa as Filtros } from './tipos.js';
 
 interface Props {
   filtros: Filtros;

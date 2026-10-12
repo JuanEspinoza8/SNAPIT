@@ -17,6 +17,13 @@ const PaginaMapa = lazy(() =>
   import('../../funcionalidades/mapa/PaginaMapa.js').then((modulo) => ({ default: modulo.PaginaMapa })),
 );
 
+// Reportar también trae Leaflet (el mapa para marcar el punto): se baja al abrir /reportar.
+const PaginaReportar = lazy(() =>
+  import('../../funcionalidades/reportar/paginaReportar.js').then((modulo) => ({
+    default: modulo.PaginaReportar,
+  })),
+);
+
 // Se exportan aparte del router para poder probarlas con un router en memoria.
 export const rutas: RouteObject[] = [
   {
@@ -78,7 +85,9 @@ export const rutas: RouteObject[] = [
         path: 'reportar',
         element: (
           <RutaProtegida rol="VECINO">
-            <SeccionEnConstruccion titulo="Reportar" />
+            <Suspense fallback={<Cargando />}>
+              <PaginaReportar />
+            </Suspense>
           </RutaProtegida>
         ),
       },

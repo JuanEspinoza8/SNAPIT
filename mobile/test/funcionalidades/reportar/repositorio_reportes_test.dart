@@ -67,6 +67,7 @@ void main() {
 
     expect(enviado.id, 15);
     expect(enviado.incidenteId, 9);
+    expect(enviado.verificado, isFalse);
     final pedido = servidor.pedidos.single;
     expect(pedido.ruta, '/reportes');
     expect(pedido.token, 'Bearer acceso-1');
@@ -82,6 +83,24 @@ void main() {
         .expand((b) => b)
         .toList();
     expect(enviados, foto.readAsBytesSync());
+  });
+
+  test('dice si el reporte llegó verificado', () async {
+    Future<ReporteEnviado> enviarCon(String estado) => repositorio(
+      ServidorFalso(
+        (_) => json(201, {
+          'id': 15,
+          'incidenteId': 9,
+          'nivelConfianza': 80,
+          'estadoVerificacion': estado,
+        }),
+      ),
+    ).enviar(borrador);
+
+    expect((await enviarCon('VERIFICADO')).verificado, isTrue);
+    expect((await enviarCon('PENDIENTE_REVISION')).verificado, isFalse);
+    // Un estado que no conoce no hace fallar un envío que ya se guardó.
+    expect((await enviarCon('OTRO')).verificado, isFalse);
   });
 
   test('un 400 llega con los detalles de cada campo', () async {
