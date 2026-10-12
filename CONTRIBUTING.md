@@ -22,5 +22,5 @@
 
 - Título con el mismo formato que el commit: `capa: qué se hizo`.
 - En la descripción: qué incluye, cómo probarlo y `Closes #N` para que se cierre la issue.
-- Antes de pedir revisión, lint y tests en verde.
+- Antes de pedir revisión, lint y tests en verde. GitHub Actions los corre en cada PR (ver "Integración continua" en el README): un PR con la CI en rojo no se revisa.
 - `main` está protegida: no se pushea directo y cada PR necesita la aprobación de otro integrante antes de mergearse. Nadie mergea su propio PR sin esa aprobación.
