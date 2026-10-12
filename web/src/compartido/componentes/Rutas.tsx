@@ -10,6 +10,7 @@ import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuper
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
 import { SeccionEnConstruccion } from '../../funcionalidades/comun/SeccionEnConstruccion.js';
 import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
+import { PaginaMisReportes } from '../../funcionalidades/misReportes/paginaMisReportes.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
 
 // El mapa trae Leaflet, que es pesado: se baja recién cuando alguien abre /mapa.
@@ -95,7 +96,7 @@ export const rutas: RouteObject[] = [
         path: 'mis-reportes',
         element: (
           <RutaProtegida rol="VECINO">
-            <SeccionEnConstruccion titulo="Mis reportes" />
+            <PaginaMisReportes />
           </RutaProtegida>
         ),
       },

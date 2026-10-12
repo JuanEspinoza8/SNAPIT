@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 import type { Usuario } from '../../sesion/usuario.js';
 import type { DatosAltaUsuario, Organismo } from '../../../funcionalidades/administracion/tipos.js';
 import type { FichaIncidente, PuntoMapa } from '../../../funcionalidades/mapa/tipos.js';
+import type { ReporteMio } from '../../../funcionalidades/misReportes/tipos.js';
 import { apiUrl } from '../../../config/entorno.js';
 
 const usuarioVecino: Usuario = {
@@ -78,8 +79,55 @@ let incidentes: PuntoMapa[] = [
     primerReporteEn: '2026-01-15T10:00:00.000Z',
     cantidadReportes: 1,
   },
+  {
+    id: 2,
+    lat: -38.9544,
+    lon: -68.0621,
+    categoriaId: 1,
+    categoriaNombre: 'Pozo en la calzada',
+    estado: 'RESUELTO',
+    enRevision: false,
+    primerReporteEn: '2026-02-10T13:20:00.000Z',
+    cantidadReportes: 1,
+  },
 ];
-let proximoIncidenteId = 2;
+let proximoIncidenteId = 3;
+
+// Reportes del vecino que devuelve GET /reportes/mios, del más nuevo al más viejo.
+// Cubren los tres casos de la pantalla: con ficha, sin incidente y desestimado.
+let reportesMios: ReporteMio[] = [
+  {
+    id: 102,
+    registradoEn: '2026-02-10T13:20:00.000Z',
+    categoria: { id: 1, nombre: 'Pozo en la calzada' },
+    severidadDeclarada: 'GRAVE',
+    descripcion: 'Pozo hondo en la esquina, peligroso para las motos.',
+    fotos: [{ id: 1, url: '/api/fotos/1' }],
+    estadoVerificacion: 'VERIFICADO',
+    incidente: { id: 2, estado: 'RESUELTO', enRevision: false },
+  },
+  {
+    id: 101,
+    registradoEn: '2026-01-28T09:05:00.000Z',
+    categoria: { id: 4, nombre: 'Luminaria apagada' },
+    severidadDeclarada: 'MODERADA',
+    descripcion: null,
+    fotos: [{ id: 2, url: '/api/fotos/2' }],
+    estadoVerificacion: 'PENDIENTE_REVISION',
+    incidente: null,
+  },
+  {
+    id: 100,
+    registradoEn: '2026-01-12T20:40:00.000Z',
+    categoria: { id: 2, nombre: 'Vereda rota' },
+    severidadDeclarada: 'LEVE',
+    descripcion: 'Un par de baldosas levantadas.',
+    fotos: [],
+    estadoVerificacion: 'DESESTIMADO',
+    incidente: { id: 5, estado: 'DESESTIMADO', enRevision: false },
+  },
+];
+let proximoReporteId = 103;
 
 // La lista de usuarios vive en memoria: al dar de alta uno nuevo se agrega acá
 // y la pantalla lo muestra al refrescar la lista (GET /admin/usuarios).
@@ -163,6 +211,8 @@ export const handlers = [
     } satisfies FichaIncidente);
   }),
 
+  http.get(`${apiUrl}/reportes/mios`, () => HttpResponse.json({ reportes: reportesMios })),
+
   http.get(`${apiUrl}/admin/organismos`, () => HttpResponse.json({ organismos })),
 
   http.get(`${apiUrl}/admin/usuarios`, () => HttpResponse.json({ usuarios })),
@@ -223,6 +273,22 @@ export const handlers = [
         primerReporteEn: new Date().toISOString(),
         cantidadReportes: 1,
       },
+    ];
+
+    // El reporte recién creado también entra en «Mis reportes» (del más nuevo al más viejo).
+    reportesMios = [
+      {
+        id: proximoReporteId++,
+        registradoEn: new Date().toISOString(),
+        categoria: { id: categoriaId, nombre: nombreCategoria(categoriaId) },
+        severidadDeclarada:
+          (formulario.get('severidadDeclarada') as ReporteMio['severidadDeclarada']) ?? 'LEVE',
+        descripcion: (formulario.get('descripcion') as string | null) || null,
+        fotos: [],
+        estadoVerificacion: 'PENDIENTE_REVISION',
+        incidente: { id, estado: 'REGISTRADO', enRevision: true },
+      },
+      ...reportesMios,
     ];
 
     return HttpResponse.json(
