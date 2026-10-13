@@ -258,6 +258,17 @@ Los perfiles para calcular recorridos accesibles. Responde **200** con los perfi
 { "perfiles": [{ "id": 1, "nombre": "Silla de ruedas", "descripcion": "No puede subir cordones ni pasar por superficies rotas" }] }
 ```
 
+### `GET /api/barrios`
+Los barrios que tienen al menos un incidente en el mapa. Son los valores que acepta el filtro `barrio` de [`GET /api/incidentes`](#get-apiincidentes). Responde **200**, en orden alfabético:
+
+```json
+{ "barrios": ["Área Centro Este", "Sin barrio", "Villa Ceferino"] }
+```
+
+- El barrio sale de la `direccion` del incidente: lo que está después de la última coma (ver [`GET /api/incidentes/:id`](#get-apiincidentesid)).
+- `"Sin barrio"` aparece si hay incidentes en un lugar donde OpenStreetMap no tiene barrio cargado.
+- No cuentan los incidentes que no se ven en el mapa ni los que todavía no tienen dirección.
+
 ## Reportes
 
 ### `GET /api/reportes/mios`
@@ -315,6 +326,7 @@ Responde **201**:
 - Si algo falla, no queda nada a medias: ni un reporte sin foto ni una foto suelta.
 - El incidente nace sin área (`area_id` vacío): es el área a la que se deriva, y eso lo hace el operador.
 - Si la categoría es temporal, el incidente vence a los días de la categoría contados desde que llega el reporte (no desde `registradoEn`).
+- La dirección no se espera: el servidor responde y recién después se la pide a Nominatim (OpenStreetMap). La guarda en el reporte y, si todavía no tiene una, en el incidente, con el formato de [`direccion`](#get-apiincidentesid). Si Nominatim falla, el reporte queda igual y se vuelve a intentar cada 10 minutos.
 
 | Status | Código | Cuándo |
 |---|---|---|
@@ -343,6 +355,7 @@ Los puntos del mapa. Todos los filtros son opcionales y se combinan entre sí:
 | `categoriaId` | `3` | Una categoría (`GET /api/categorias`) |
 | `estado` | `REGISTRADO` | `REGISTRADO`, `VERIFICADO`, `DERIVADO`, `EN_EJECUCION` o `RESUELTO` |
 | `desde` / `hasta` | `2026-10-01` | Fecha del primer reporte. Con solo la fecha se toma el día completo en hora de Argentina; también aceptan fecha y hora ISO 8601. |
+| `barrio` | `Villa Ceferino` | Un barrio, escrito tal como lo devuelve [`GET /api/barrios`](#get-apibarrios) (incluido `Sin barrio`). Los incidentes que todavía no tienen dirección no entran en ningún barrio. |
 
 Responde **200**, del más nuevo al más viejo:
 
@@ -380,14 +393,19 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   "primerReporteEn": "2026-10-06T15:15:33.494Z",
   "cantidadReportes": 1,
   "cantidadVecinos": 1,
-  "direccion": null,
+  "direccion": "Lago Huechulafquen, Villa Ceferino",
   "fotos": [{ "id": 1, "url": "/api/fotos/1" }]
 }
 ```
 
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
 - `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` ya incluye `/api`: la web la usa tal cual (pasa por el proxy); la app, que tiene la base terminada en `/api`, arma `fotos/<id>` sobre esa base.
-- `direccion`: por ahora `null`; se completa en el corte 50 %.
+- `direccion`: `"<calle> <altura>, <barrio>"`, según Nominatim (OpenStreetMap), del primer reporte del incidente. El barrio es lo que está después de la última coma. Si falta algo:
+  - Sin altura (en Neuquén es lo más común): `"Lago Huechulafquen, Villa Ceferino"`.
+  - Sin barrio: `"Ruta 22 1500, Sin barrio"`.
+  - Sin calle: solo el barrio, `"Villa Ceferino"`.
+  - Sin nada cargado cerca: `"Sin barrio"`.
+  - `null` mientras todavía no se completó (unos segundos después de reportar, o más si Nominatim no respondía).
 
 Desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`. Un id que no es un entero positivo (o no entra en la base): **400** `DATOS_INVALIDOS`.
 

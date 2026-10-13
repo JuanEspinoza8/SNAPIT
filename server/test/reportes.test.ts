@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import type { TipoVigencia } from '@prisma/client';
 import request from 'supertest';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { borrarReportesDe, crearUsuario, tokenDe } from './apoyo.js';
 import { jpegConExif, png1x1 } from './imagenes.js';
+
+// La dirección se prueba en direcciones.test.ts: acá no se consulta Nominatim.
+vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
 
 async function crearCategoria(
   opciones: { activa?: boolean; tipoVigencia?: TipoVigencia; diasCaducidad?: number | null } = {},

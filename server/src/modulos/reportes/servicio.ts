@@ -3,6 +3,7 @@ import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import { logger } from '../../config/logger.js';
+import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 
@@ -64,8 +65,9 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
   // Primero el archivo y después la base. Si la base falla, se borra el archivo: nunca queda
   // un reporte sin foto ni una foto suelta.
   const rutaArchivo = await almacenFotos.guardar(archivo!, imagen!.tipo);
+  let reporte: Awaited<ReturnType<typeof repositorio.crearReporteConIncidente>>;
   try {
-    return await repositorio.crearReporteConIncidente({
+    reporte = await repositorio.crearReporteConIncidente({
       usuarioId,
       categoriaId: categoria.id,
       severidad: datos.severidadDeclarada,
@@ -89,6 +91,10 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
     await almacenFotos.borrar(rutaArchivo).catch(() => {});
     throw error;
   }
+
+  // No se espera: Nominatim puede tardar y el vecino no tiene por qué esperarlo.
+  completarDireccionSinEsperar({ id: reporte.id, lat: datos.lat, lon: datos.lon });
+  return reporte;
 }
 
 /** Lo que el vecino ve en "Mis reportes": qué mandó y en qué quedó cada uno. */

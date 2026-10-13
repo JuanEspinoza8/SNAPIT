@@ -44,6 +44,13 @@ export const esquemaFiltros = z
     hasta: fecha.optional(),
     // El rectángulo que se ve en el mapa: así el cliente pide solo lo que entra en pantalla.
     bbox: coordenadas.optional(),
+    // El nombre tal como lo devuelve GET /api/barrios.
+    barrio: z
+      .string({ error: 'Tiene que ser un texto' })
+      .trim()
+      .min(1, { error: 'No puede estar vacío' })
+      .max(250, { error: 'Puede tener hasta 250 caracteres' })
+      .optional(),
   })
   .transform(({ desde, hasta, bbox, ...resto }) => ({
     ...resto,

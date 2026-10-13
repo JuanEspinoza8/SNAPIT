@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
+import { SIN_BARRIO } from '../geocodificacion/calculo.js';
 import type { Filtros } from './esquemas.js';
 
 /**
@@ -12,6 +13,16 @@ export const INCIDENTE_VISIBLE = Prisma.sql`
   AND i.caducado_en IS NULL
   AND i.incidente_principal_id IS NULL
   AND (i.vigente_hasta IS NULL OR i.vigente_hasta > now())`;
+
+/**
+ * El barrio del incidente, con la misma regla que extraerBarrio() (geocodificacion/calculo.ts): lo que
+ * está después de la última coma de la dirección, o la dirección entera si no tiene coma. Null mientras
+ * la dirección no se completó. Va con el alias `i`.
+ */
+const BARRIO = Prisma.sql`
+  CASE WHEN i.direccion IS NOT NULL
+       THEN coalesce(nullif(btrim(substring(i.direccion from '[^,]*$')), ''), ${SIN_BARRIO})
+  END`;
 
 export interface PuntoMapa {
   id: number;
@@ -31,6 +42,7 @@ export function listarVisibles(filtros: Filtros) {
   if (filtros.estado) condiciones.push(Prisma.sql`i.estado = ${filtros.estado}::estado_incidente`);
   if (filtros.desde) condiciones.push(Prisma.sql`i.primer_reporte_en >= ${filtros.desde}`);
   if (filtros.hasta) condiciones.push(Prisma.sql`i.primer_reporte_en <= ${filtros.hasta}`);
+  if (filtros.barrio) condiciones.push(Prisma.sql`${BARRIO} = ${filtros.barrio}`);
   if (filtros.bbox) {
     const { oeste, sur, este, norte } = filtros.bbox;
     const rectangulo = Prisma.sql`ST_MakeEnvelope(${oeste}, ${sur}, ${este}, ${norte}, 4326)`;

@@ -11,3 +11,7 @@ rutasCatalogo.get('/categorias', async (_req, res) => {
 rutasCatalogo.get('/perfiles-movilidad', async (_req, res) => {
   res.json({ perfiles: await repositorio.listarPerfilesActivos() });
 });
+
+rutasCatalogo.get('/barrios', async (_req, res) => {
+  res.json({ barrios: await repositorio.listarBarriosConIncidentes() });
+});

@@ -29,6 +29,13 @@ const esquema = z.object({
     .default('fotos')
     .transform((carpeta) => path.resolve(carpeta)),
   FOTO_MAX_MB: z.coerce.number().positive().default(10),
+  // Dirección y barrio de cada reporte. Sin barra final, para armar `${NOMINATIM_URL}/reverse`.
+  NOMINATIM_URL: z
+    .url()
+    .default('https://nominatim.openstreetmap.org')
+    .transform((url) => url.replace(/\/+$/, '')),
+  // El servicio público rechaza los pedidos que no dicen de qué aplicación vienen.
+  NOMINATIM_USER_AGENT: z.string().min(1).default('SnapIt/1.0 (+https://github.com/JuanEspinoza8/SNAPIT)'),
 });
 
 const resultado = esquema.safeParse(process.env);

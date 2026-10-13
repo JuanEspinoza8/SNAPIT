@@ -19,6 +19,9 @@ export default defineConfig({
       FOTOS_DIR: path.join(os.tmpdir(), 'snapit-fotos-test'),
       // Chico, para probar el límite sin mandar archivos enormes.
       FOTO_MAX_MB: '1',
+      // Los tests simulan Nominatim. Si alguno se olvida, falla contra esta dirección local y no le
+      // pega al servicio público.
+      NOMINATIM_URL: 'http://127.0.0.1:9',
     },
     globalSetup: './test/prepararBase.ts',
     // El primer test de cada archivo abre la conexión a la base: en una PC lenta o en CI pasa los 5 s por defecto.

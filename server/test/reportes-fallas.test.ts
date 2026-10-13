@@ -10,6 +10,9 @@ import * as repositorio from '../src/modulos/reportes/repositorio.js';
 import { borrarReportesDe, crearUsuario } from './apoyo.js';
 import { jpegConExif } from './imagenes.js';
 
+// La dirección se prueba en direcciones.test.ts: acá no se consulta Nominatim.
+vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
+
 // Envuelve la función real para poder hacerla fallar en un test puntual.
 vi.mock('../src/modulos/reportes/repositorio.js', async (original) => {
   const real = await original<typeof import('../src/modulos/reportes/repositorio.js')>();
