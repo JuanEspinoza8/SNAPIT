@@ -1,5 +1,6 @@
 import { createContext, use, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAlmacen, useCliente, useRestablecerSesion, useSesionPerdida } from '../red/clienteContexto.js';
 import { aErrorApi } from '../red/error.js';
 import type { ErrorApi } from '../red/error.js';
@@ -28,6 +29,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   const almacen = useAlmacen();
   const sesionPerdida = useSesionPerdida();
   const restablecerSesion = useRestablecerSesion();
+  const consulta = useQueryClient();
   const repositorio = useMemo(() => crearRepositorioAuth(cliente), [cliente]);
 
   // undefined queda únicamente en la primera render de una recarga que tiene
@@ -66,6 +68,8 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   }
 
   function guardarSesion(nuevo: Usuario) {
+    // La caché es de la sesión anterior: quien ingresa después no tiene que ver sus datos.
+    consulta.removeQueries();
     // Después de volver a ingresar ya no se muestra el aviso de sesión vencida.
     restablecerSesion();
     setError(null);
