@@ -31,6 +31,12 @@ export interface NuevoReporte {
     alto: number;
     tamanoBytes: number;
     tomadaConCamaraApp: boolean;
+    hashPerceptual: string | null;
+    exifLatitud: number | null;
+    exifLongitud: number | null;
+    exifTomadaEn: Date | null;
+    exifMarca: string | null;
+    exifModelo: string | null;
   };
 }
 
