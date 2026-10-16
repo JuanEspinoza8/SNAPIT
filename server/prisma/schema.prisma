@@ -139,6 +139,7 @@ enum TipoIa {
 enum ProveedorIa {
   OLLAMA
   GEMINI
+  ANTHROPIC
   @@map("proveedor_ia")
 }
 
@@ -802,7 +803,7 @@ model RegistroIa {
   usuarioId         Int?               @map("usuario_id")
   /// Para qué se usó el modelo.
   tipo              TipoIa             @map("tipo")
-  /// Ollama local o Gemini.
+  /// Quién respondió: Anthropic (Claude), Ollama local o Gemini.
   proveedor         ProveedorIa        @map("proveedor")
   /// Nombre del modelo utilizado.
   modelo            String             @db.VarChar(80) @map("modelo")

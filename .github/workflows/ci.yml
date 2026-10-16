@@ -51,25 +51,55 @@ jobs:
               - 'mobile/**'
               - '.github/workflows/ci.yml'
 
+  # El nombre lo exige la protección de main: si se cambia, hay que cambiarlo también ahí.
   modelo:
     name: Modelo congelado
     runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgrouting/pgrouting:16-3.5-3.8
+        env:
+          POSTGRES_USER: snapit
+          POSTGRES_PASSWORD: snapit
+          POSTGRES_DB: snapit
+        options: >-
+          --health-cmd "pg_isready -U snapit -d snapit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v7
-      # La única migración tiene que ser el schema.sql entregado, byte a byte (ver CONTRIBUTING.md).
-      - name: 0_init es idéntica a db/schema.sql
+        with:
+          # Para comparar las migraciones con las de la rama base del PR.
+          fetch-depth: 0
+      # Una migración ya aplicada en alguna base no se vuelve a correr: cambiarla deja esa base distinta
+      # de las demás sin que nadie se entere. Solo se pueden agregar migraciones nuevas (ver CONTRIBUTING.md).
+      - name: Las migraciones existentes no cambian
+        if: github.event_name == 'pull_request'
         run: |
-          if ! cmp -s db/schema.sql server/prisma/migrations/0_init/migration.sql; then
-            echo "::error::server/prisma/migrations/0_init/migration.sql no es igual a db/schema.sql"
-            diff db/schema.sql server/prisma/migrations/0_init/migration.sql | head -40
+          cambiadas=$(git diff --name-only --diff-filter=MDR "${{ github.event.pull_request.base.sha }}"...HEAD -- server/prisma/migrations)
+          if [ -n "$cambiadas" ]; then
+            echo "::error::No se modifican ni se borran migraciones existentes: agregá una nueva"
+            echo "$cambiadas"
             exit 1
           fi
-      - name: No hay migraciones nuevas
+      # db/schema.sql es el modelo vigente: las migraciones aplicadas en orden tienen que dar exactamente ese
+      # esquema. psql y pg_dump se usan desde el contenedor de la base, para que sean de su misma versión.
+      - name: Las migraciones dan el esquema de db/schema.sql
+        env:
+          BASE: ${{ job.services.db.id }}
         run: |
-          migraciones=$(find server/prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)
-          if [ "$migraciones" -ne 1 ]; then
-            echo "::error::Solo puede existir la migración 0_init: el modelo está congelado"
-            ls server/prisma/migrations
+          sql() { docker exec -i "$BASE" psql -q -U snapit -v ON_ERROR_STOP=1 -d "$@"; }
+          echo "CREATE DATABASE desde_migraciones; CREATE DATABASE desde_schema;" | sql snapit
+          for migracion in $(ls -d server/prisma/migrations/*/ | sort); do
+            echo "Aplicando $migracion"
+            sql desde_migraciones < "${migracion}migration.sql"
+          done
+          sql desde_schema < db/schema.sql
+          volcar() { docker exec "$BASE" pg_dump -U snapit -d "$1" --schema-only --no-owner; }
+          if ! diff <(volcar desde_schema) <(volcar desde_migraciones) > diferencias.txt; then
+            echo "::error::Las migraciones no dan el mismo esquema que db/schema.sql (< schema.sql, > migraciones)"
+            head -60 diferencias.txt
             exit 1
           fi
 

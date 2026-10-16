@@ -36,6 +36,14 @@ const esquema = z.object({
     .transform((url) => url.replace(/\/+$/, '')),
   // El servicio público rechaza los pedidos que no dicen de qué aplicación vienen.
   NOMINATIM_USER_AGENT: z.string().min(1).default('SnapIt/1.0 (+https://github.com/JuanEspinoza8/SNAPIT)'),
+  // IA (Claude). Sin clave el servidor arranca igual: cada consulta a la IA falla con IaNoDisponible.
+  ANTHROPIC_API_KEY: z
+    .string()
+    .optional()
+    .transform((clave) => clave || undefined),
+  IA_MODELO: z.string().min(1).default('claude-haiku-5-5'),
+  // Lo máximo que se espera cada intento; el SDK reintenta una vez los errores pasajeros.
+  IA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
 });
 
 const resultado = esquema.safeParse(process.env);

@@ -406,7 +406,7 @@ Cada llamada a un modelo de IA, con lo que se pidió y lo que respondió.
 | `id` | `serial` | PK | no | Identificador interno. |
 | `usuario_id` | `int` | FK | si | Quién originó la llamada. |
 | `tipo` | `tipo_ia` |  | no | Para qué se usó el modelo. |
-| `proveedor` | `proveedor_ia` |  | no | Ollama local o Gemini. |
+| `proveedor` | `proveedor_ia` |  | no | Quién respondió: Anthropic (Claude), Ollama local o Gemini. |
 | `modelo` | `varchar(80)` |  | no | Nombre del modelo utilizado. |
 | `entrada` | `text` |  | si | Lo que se le envió. |
 | `salida` | `jsonb` |  | si | Lo que respondió, estructurado. |
@@ -450,7 +450,7 @@ Informe de estado y prioridades generado automáticamente, guardado para poder r
 | `tipo_tramo` | VEREDA · CRUCE · ESCALERA · SENDA |
 | `tipo_punto_interes` | ESCUELA · CENTRO_SALUD · PARADA_TRANSPORTE · EDIFICIO_PUBLICO |
 | `tipo_ia` | CLASIFICACION_IMAGEN · COMPARACION_CIERRE · INFORME · CONSULTA_NATURAL |
-| `proveedor_ia` | OLLAMA · GEMINI |
+| `proveedor_ia` | OLLAMA · GEMINI · ANTHROPIC |
 | `plataforma` | ANDROID · WEB |
 
 ## Notas de modelado

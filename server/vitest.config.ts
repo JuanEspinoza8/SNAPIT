@@ -22,6 +22,10 @@ export default defineConfig({
       // Los tests simulan Nominatim. Si alguno se olvida, falla contra esta dirección local y no le
       // pega al servicio público.
       NOMINATIM_URL: 'http://127.0.0.1:9',
+      // Los tests simulan la API de Claude: sin clave y con una dirección local, aunque el .env tenga una
+      // clave real, ningún test hace una llamada que se cobre.
+      ANTHROPIC_API_KEY: '',
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:9',
     },
     globalSetup: './test/prepararBase.ts',
     // El primer test de cada archivo abre la conexión a la base: en una PC lenta o en CI pasa los 5 s por defecto.
