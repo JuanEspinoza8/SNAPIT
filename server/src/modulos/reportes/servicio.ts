@@ -3,6 +3,7 @@ import { analizarFoto } from '../../compartido/analisisFoto.js';
 import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import { logger } from '../../config/logger.js';
+import type { UsuarioSesion } from '../auth/tokens.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
@@ -115,9 +116,18 @@ export async function listarMisReportes(usuarioId: number) {
   };
 }
 
-export async function buscarArchivoFoto(id: number) {
-  const foto = await repositorio.buscarFotoVisible(id);
-  // Una foto que no se ve en el mapa responde igual que una que no existe: no se revela cuál es cuál.
+/**
+ * Sin sesión, solo las fotos del mapa. Con sesión, además, las de los reportes propios y, para
+ * operadores y administradores, las de los incidentes de su organismo.
+ */
+export async function buscarArchivoFoto(id: number, usuario: UsuarioSesion | null) {
+  const gestiona = usuario?.rol === 'OPERADOR' || usuario?.rol === 'ADMINISTRADOR';
+  const foto = await repositorio.buscarFotoPermitida(id, {
+    usuarioId: usuario?.id ?? null,
+    // Un administrador sin organismo no gestiona incidentes: ve solo las del mapa.
+    organismoId: gestiona ? usuario.organismoId : null,
+  });
+  // Una foto que no puede ver responde igual que una que no existe: no se revela cuál es cuál.
   if (!foto) throw new ErrorApp(404, 'FOTO_NO_ENCONTRADA', 'La foto no existe');
   return almacenFotos.ubicacion(foto.rutaArchivo);
 }

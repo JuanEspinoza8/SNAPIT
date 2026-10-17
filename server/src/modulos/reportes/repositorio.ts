@@ -1,4 +1,4 @@
-import type { OrigenReporte, Severidad, TipoVigencia } from '@prisma/client';
+import { type OrigenReporte, Prisma, type Severidad, type TipoVigencia } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
 import { INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
 
@@ -84,20 +84,35 @@ export function crearReporteConIncidente(datos: NuevoReporte) {
   });
 }
 
+/** Quién pide la foto. Null en lo que no corresponde (sin sesión, o un vecino no tiene organismo). */
+export interface PedidoFoto {
+  usuarioId: number | null;
+  organismoId: number | null;
+}
+
 /**
- * Una foto que se puede ver sin sesión: la de un reporte no desestimado cuyo incidente (o el
- * principal, si se unió a otro) está en el mapa. Las fotos de los cierres todavía no se sirven.
+ * Una foto que puede ver quien la pide. Cualquiera, la de un reporte no desestimado cuyo incidente
+ * (o el principal, si se unió a otro) está en el mapa. El dueño, las de sus reportes. Un operador
+ * o administrador, las de los incidentes de su organismo: el del área a la que se derivó el
+ * principal o, si todavía no se derivó, el del área de su categoría (como la bandeja).
+ * Las fotos de los cierres todavía no se sirven.
  */
-export async function buscarFotoVisible(id: number) {
+export async function buscarFotoPermitida(id: number, pedido: PedidoFoto) {
+  const permisos = [Prisma.sql`(r.estado_verificacion <> 'DESESTIMADO' AND ${INCIDENTE_VISIBLE})`];
+  if (pedido.usuarioId !== null) permisos.push(Prisma.sql`r.usuario_id = ${pedido.usuarioId}`);
+  if (pedido.organismoId !== null) permisos.push(Prisma.sql`a.organismo_id = ${pedido.organismoId}`);
+
+  // LEFT JOIN: un reporte que quedó sin incidente sigue siendo de su dueño.
   const [foto] = await prisma.$queryRaw<{ rutaArchivo: string }[]>`
     SELECT f.ruta_archivo AS "rutaArchivo"
     FROM fotografia f
     JOIN reporte r ON r.id = f.reporte_id
-    JOIN incidente propio ON propio.id = r.incidente_id
-    JOIN incidente i ON i.id = coalesce(propio.incidente_principal_id, propio.id)
+    LEFT JOIN incidente propio ON propio.id = r.incidente_id
+    LEFT JOIN incidente i ON i.id = coalesce(propio.incidente_principal_id, propio.id)
+    LEFT JOIN categoria c ON c.id = i.categoria_id
+    LEFT JOIN area a ON a.id = coalesce(i.area_id, c.area_id)
     WHERE f.id = ${id}
-      AND r.estado_verificacion <> 'DESESTIMADO'
-      AND ${INCIDENTE_VISIBLE}`;
+      AND (${Prisma.join(permisos, ' OR ')})`;
   return foto;
 }
 

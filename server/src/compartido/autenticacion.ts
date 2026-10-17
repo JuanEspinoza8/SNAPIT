@@ -15,7 +15,23 @@ declare global {
 
 /** Exige un tokenAcceso válido en el encabezado Authorization: Bearer <token>. */
 export const autenticar: RequestHandler = (req, _res, next) => {
-  const [esquema, token] = req.headers.authorization?.split(' ') ?? [];
+  req.usuario = usuarioDelEncabezado(req.headers.authorization);
+  next();
+};
+
+/**
+ * Para rutas públicas que muestran algo más con sesión. Sin el encabezado sigue sin usuario; si
+ * viene, se valida igual que en autenticar: un token vencido da 401 para que el cliente renueve.
+ */
+export const sesionOpcional: RequestHandler = (req, _res, next) => {
+  if (req.headers.authorization !== undefined) {
+    req.usuario = usuarioDelEncabezado(req.headers.authorization);
+  }
+  next();
+};
+
+function usuarioDelEncabezado(encabezado: string | undefined): UsuarioSesion {
+  const [esquema, token] = encabezado?.split(' ') ?? [];
   if (esquema !== 'Bearer' || !token) {
     throw new ErrorApp(401, 'NO_AUTENTICADO', 'Tenés que ingresar para continuar');
   }
@@ -27,10 +43,8 @@ export const autenticar: RequestHandler = (req, _res, next) => {
       ? new ErrorApp(401, 'TOKEN_VENCIDO', 'La sesión venció')
       : new ErrorApp(401, 'TOKEN_INVALIDO', 'La sesión no es válida. Volvé a ingresar');
   }
-
-  req.usuario = resultado.usuario;
-  next();
-};
+  return resultado.usuario;
+}
 
 /** Deja pasar solo a los roles indicados. Va siempre después de autenticar. */
 export function permitirRoles(...roles: RolUsuario[]): RequestHandler {
