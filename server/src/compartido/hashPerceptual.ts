@@ -17,7 +17,9 @@ export const BITS_HASH = 64;
  * tamaño y a ajustes leves de brillo. Lanza un error si la imagen no se puede decodificar.
  */
 export async function calcularHashPerceptual(contenido: Buffer): Promise<string> {
-  const { data, info } = await sharp(contenido)
+  // Una foto incompleta se decodifica con lo que llegó. Si no, alcanzaría con cortarle los últimos
+  // bytes a una foto ya usada para que quede sin hash y no se detecte como repetida.
+  const { data, info } = await sharp(contenido, { failOn: 'none' })
     .rotate()
     // Una zona transparente de un PNG cuenta como blanco.
     .flatten({ background: '#ffffff' })

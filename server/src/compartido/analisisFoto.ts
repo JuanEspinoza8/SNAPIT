@@ -8,7 +8,7 @@ export interface FotoAnalizada {
   tipo: 'jpg' | 'png';
   ancho: number;
   alto: number;
-  /** dHash de 64 bits (ver hashPerceptual.ts). Null si la imagen no se pudo decodificar entera. */
+  /** dHash de 64 bits (ver hashPerceptual.ts). Null si la imagen no se pudo decodificar. */
   hashPerceptual: string | null;
   exif: DatosExif;
 }
@@ -84,8 +84,8 @@ export async function leerExif(contenido: Buffer): Promise<DatosExif> {
   }
   if (!crudo) return SIN_EXIF;
 
-  let latitud = coordenada(crudo.GPSLatitude, crudo.GPSLatitudeRef, 'S', 90);
-  let longitud = coordenada(crudo.GPSLongitude, crudo.GPSLongitudeRef, 'W', 180);
+  let latitud = coordenada(crudo.GPSLatitude, crudo.GPSLatitudeRef, ['N', 'S'], 90);
+  let longitud = coordenada(crudo.GPSLongitude, crudo.GPSLongitudeRef, ['E', 'W'], 180);
   // Sin las dos no hay ubicación. Y 0, 0 es lo que graban algunos celulares cuando no tienen señal.
   if (latitud === null || longitud === null || (latitud === 0 && longitud === 0)) {
     latitud = null;
@@ -102,13 +102,20 @@ export async function leerExif(contenido: Buffer): Promise<DatosExif> {
 }
 
 /** Grados, minutos y segundos a grados decimales, con 6 decimales (unos 10 cm), como la columna. */
-function coordenada(valor: unknown, referencia: unknown, negativa: 'S' | 'W', maximo: number) {
+function coordenada(
+  valor: unknown,
+  referencia: unknown,
+  [positiva, negativa]: readonly [string, string],
+  maximo: number,
+) {
   if (!Array.isArray(valor) || valor.length !== 3 || !valor.every(Number.isFinite)) return null;
   const [grados, minutos, segundos] = valor as [number, number, number];
   const absoluta = grados + minutos / 60 + segundos / 3600;
   if (absoluta > maximo) return null;
-  const signo = typeof referencia === 'string' && referencia.trim().toUpperCase() === negativa ? -1 : 1;
-  return Math.round(signo * absoluta * 1e6) / 1e6;
+  // Sin el hemisferio no se sabe el signo: mejor sin ubicación que una en la otra punta del mundo.
+  const hemisferio = typeof referencia === 'string' ? referencia.trim().toUpperCase() : null;
+  if (hemisferio !== positiva && hemisferio !== negativa) return null;
+  return Math.round((hemisferio === negativa ? -1 : 1) * absoluta * 1e6) / 1e6;
 }
 
 /** "2026:10:15 14:30:00" más la zona ("-03:00") a una fecha. Null si falta o es inválida (p. ej. "0000:00:00"). */
@@ -117,6 +124,8 @@ function fechaExif(valor: unknown, zona: unknown): Date | null {
   const partes = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(valor.trim());
   if (!partes) return null;
   const [, anio, mes, dia, hora, minuto, segundo] = partes;
+  // Date pasa al mes siguiente un día que no existe (31 de febrero → 3 de marzo) en lugar de rechazarlo.
+  if (Number(dia) > new Date(Date.UTC(Number(anio), Number(mes), 0)).getUTCDate()) return null;
   const zonaValida = typeof zona === 'string' && /^[+-]\d{2}:\d{2}$/.test(zona.trim());
   const fecha = new Date(
     `${anio}-${mes}-${dia}T${hora}:${minuto}:${segundo}${zonaValida ? zona.trim() : ZONA_HORARIA_SI_FALTA}`,

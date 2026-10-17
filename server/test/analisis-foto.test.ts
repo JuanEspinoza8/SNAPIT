@@ -52,13 +52,25 @@ describe('analizarFoto', () => {
     expect(await analizarFoto(webp)).toBeNull();
   });
 
-  it('si la imagen está cortada a la mitad, la acepta igual con el hash en null', async () => {
+  it('a una foto sin los últimos bytes le calcula el mismo hash que a la entera', async () => {
+    const original = jpegConExif();
+
+    // Los 2 últimos bytes son el marcador de fin del JPEG: la imagen está entera.
+    const sinFinal = await analizarFoto(original.subarray(0, original.length - 2));
+
+    expect(sinFinal).toMatchObject({ tipo: 'jpg', ancho: 640, alto: 480, exif: EXIF_DE_PRUEBA });
+    expect(
+      distanciaHamming(await calcularHashPerceptual(original), sinFinal!.hashPerceptual!),
+    ).toBeLessThanOrEqual(6);
+  });
+
+  it('si la foto está cortada a la mitad, la acepta igual y calcula el hash con lo que llegó', async () => {
     const original = jpegSinExif();
-    const cortada = original.subarray(0, original.length / 2);
 
-    const foto = await analizarFoto(cortada);
+    const foto = await analizarFoto(original.subarray(0, original.length / 2));
 
-    expect(foto).toMatchObject({ tipo: 'jpg', ancho: 640, alto: 480, hashPerceptual: null });
+    expect(foto).toMatchObject({ tipo: 'jpg', ancho: 640, alto: 480 });
+    expect(foto!.hashPerceptual).toMatch(/^[01]{64}$/);
   });
 });
 
@@ -81,6 +93,15 @@ describe('leerExif', () => {
     const foto = await jpegCon({ IFD2: { DateTimeOriginal: '0000:00:00 00:00:00' } });
 
     expect((await leerExif(foto)).tomadaEn).toBeNull();
+  });
+
+  it('descarta un día que no existe', async () => {
+    const fecha = async (texto: string) =>
+      (await leerExif(await jpegCon({ IFD2: { DateTimeOriginal: texto } }))).tomadaEn;
+
+    expect(await fecha('2026:02:31 10:00:00')).toBeNull();
+    expect(await fecha('2026:02:29 10:00:00')).toBeNull();
+    expect(await fecha('2024:02:29 10:00:00')).toEqual(new Date('2024-02-29T13:00:00Z'));
   });
 
   it('el hemisferio norte y el este dan coordenadas positivas', async () => {
@@ -111,6 +132,25 @@ describe('leerExif', () => {
 
   it('sin longitud no guarda tampoco la latitud', async () => {
     const foto = await jpegCon({ IFD3: { GPSLatitudeRef: 'S', GPSLatitude: '38/1 57/1 6/1' } });
+
+    expect(await leerExif(foto)).toMatchObject({ latitud: null, longitud: null });
+  });
+
+  it('sin el hemisferio no guarda la ubicación', async () => {
+    const foto = await jpegCon({ IFD3: { GPSLatitude: '38/1 57/1 6/1', GPSLongitude: '68/1 3/1 33/1' } });
+
+    expect(await leerExif(foto)).toMatchObject({ latitud: null, longitud: null });
+  });
+
+  it('descarta una latitud de más de 90 grados', async () => {
+    const foto = await jpegCon({
+      IFD3: {
+        GPSLatitudeRef: 'S',
+        GPSLatitude: '91/1 0/1 0/1',
+        GPSLongitudeRef: 'W',
+        GPSLongitude: '68/1 3/1 33/1',
+      },
+    });
 
     expect(await leerExif(foto)).toMatchObject({ latitud: null, longitud: null });
   });
@@ -156,6 +196,36 @@ describe('hash perceptual', () => {
     const vereda = await calcularHashPerceptual(jpegSinExif());
 
     expect(distanciaHamming(calle, vereda)).toBeGreaterThan(20);
+  });
+
+  it('las zonas transparentes de un PNG cuentan como blanco', async () => {
+    const mitadNegra = {
+      input: { create: { width: 32, height: 32, channels: 3, background: '#000000' } },
+      left: 32,
+      top: 0,
+    } as const;
+    const transparente = await sharp({
+      create: { width: 64, height: 32, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([mitadNegra])
+      .png()
+      .toBuffer();
+    const blanca = await sharp({ create: { width: 64, height: 32, channels: 3, background: '#ffffff' } })
+      .composite([mitadNegra])
+      .png()
+      .toBuffer();
+
+    expect(await calcularHashPerceptual(transparente)).toBe(await calcularHashPerceptual(blanca));
+  });
+
+  it('una imagen lisa da 64 ceros, sea del color que sea', async () => {
+    for (const color of ['#000000', '#7f7f7f', '#ffffff']) {
+      const lisa = await sharp({ create: { width: 64, height: 48, channels: 3, background: color } })
+        .jpeg()
+        .toBuffer();
+
+      expect(await calcularHashPerceptual(lisa)).toBe('0'.repeat(64));
+    }
   });
 
   it('distanciaHamming cuenta los bits distintos y rechaza hashes de otro largo', () => {
