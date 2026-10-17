@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,7 +27,8 @@ const fichaJson = {
 };
 
 /// El servidor de una sesión de vecino. [mios] es lo que contesta
-/// `GET /reportes/mios`; por defecto, la lista [reportes].
+/// `GET /reportes/mios`; por defecto, la lista [reportes]. Las fotos dan 404
+/// salvo que se cargue [fotos].
 class ServidorMisReportes {
   ServidorMisReportes([List<Map<String, Object?>>? reportes])
     : reportes = reportes ?? [] {
@@ -34,6 +38,7 @@ class ServidorMisReportes {
   late final ServidorFalso servidor;
   List<Map<String, Object?>> reportes;
   Future<ResponseBody> Function(RequestOptions pedido)? mios;
+  Uint8List? fotos;
 
   int get pedidosLista => servidor.cantidad('/reportes/mios');
 
@@ -49,6 +54,8 @@ class ServidorMisReportes {
         return json(200, fichaJson);
       case '/reportes/mios':
         return mios?.call(pedido) ?? json(200, {'reportes': reportes});
+      case final ruta when ruta.startsWith('/fotos/') && fotos != null:
+        return imagen(fotos!);
       default:
         return errorApi(404, 'RUTA_NO_ENCONTRADA', 'No existe');
     }
@@ -176,10 +183,34 @@ void main() {
     expect(find.byIcon(Icons.chevron_right), findsNothing);
   });
 
+  testWidgets(
+    'baja la foto con la sesión y la muestra, aunque el reporte esté desestimado',
+    (tester) async {
+      final servidor = ServidorMisReportes([
+        reporteJson(
+          estadoVerificacion: 'DESESTIMADO',
+          incidente: const {
+            'id': 9,
+            'estado': 'DESESTIMADO',
+            'enRevision': false,
+          },
+        ),
+      ])..fotos = pngDePrueba;
+      await abrirMisReportes(tester, servidor);
+
+      final pedido = servidor.servidor.pedidos.singleWhere(
+        (p) => p.ruta == '/fotos/1',
+      );
+      expect(pedido.token, 'Bearer acceso-1');
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.byIcon(Icons.hide_image_outlined), findsNothing);
+    },
+  );
+
   testWidgets('una foto que no se puede bajar deja un recuadro', (
     tester,
   ) async {
-    // En los tests toda imagen de la red falla, igual que un 404.
+    // Sin fotos cargadas, el servidor falso contesta 404.
     final servidor = ServidorMisReportes([
       reporteJson(),
       reporteJson(id: 16, fotos: const []),
@@ -187,6 +218,22 @@ void main() {
     await abrirMisReportes(tester, servidor);
 
     expect(find.byIcon(Icons.hide_image_outlined), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('una foto que llega pero no se puede mostrar deja un recuadro', (
+    tester,
+  ) async {
+    final servidor = ServidorMisReportes([reporteJson()])
+      ..fotos = Uint8List.fromList(utf8.encode('no es una imagen'));
+    await abrirMisReportes(tester, servidor);
+    // La imagen se decodifica fuera del reloj simulado del test.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.hide_image_outlined), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

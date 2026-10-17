@@ -6,7 +6,6 @@ import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/formato/fechas.dart';
 import '../../compartido/red/error_api.dart';
 import '../../compartido/tema/tema_app.dart';
-import '../../config/entorno.dart';
 import '../mapa/estados.dart';
 import '../mapa/ficha_incidente.dart';
 import '../mapa/modelos.dart';
@@ -144,7 +143,9 @@ class _EtiquetaReporte extends StatelessWidget {
   }
 }
 
-class _Miniatura extends StatelessWidget {
+/// La foto se baja con la sesión ([fotoMiaProvider]): así el vecino ve también
+/// la de un reporte desestimado o la de un incidente que salió del mapa.
+class _Miniatura extends ConsumerWidget {
   const _Miniatura(this.fotoId);
 
   final int? fotoId;
@@ -152,10 +153,9 @@ class _Miniatura extends StatelessWidget {
   static const _lado = 64.0;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tema = Theme.of(context);
-    // Hoy el servidor no le da a su dueño la foto de un reporte desestimado ni
-    // la de un incidente que salió del mapa (404): queda este recuadro.
+    // Sin foto, o si no se pudo bajar o mostrar, queda este recuadro.
     final noDisponible = ColoredBox(
       color: tema.colorScheme.surfaceContainerLow,
       child: Center(
@@ -173,20 +173,27 @@ class _Miniatura extends StatelessWidget {
         dimension: _lado,
         child: switch (fotoId) {
           null => noDisponible,
-          final id => Image.network(
-            '${Entorno.apiUrl}/fotos/$id',
-            fit: BoxFit.cover,
-            excludeFromSemantics: true,
-            // La foto llega entera (sin recomprimir, varios MB). Se decodifica
-            // chica para que una lista larga no llene la memoria; el doble del
-            // lado alcanza para que una foto apaisada cubra el cuadrado.
-            cacheWidth: (_lado * 2 * MediaQuery.devicePixelRatioOf(context))
-                .round(),
-            loadingBuilder: (_, imagen, progreso) => progreso == null
-                ? imagen
-                : ColoredBox(color: tema.colorScheme.surfaceContainerLow),
-            errorBuilder: (_, _, _) => noDisponible,
-          ),
+          final id =>
+            ref
+                .watch(fotoMiaProvider(id))
+                .when(
+                  data: (archivo) => Image.memory(
+                    archivo,
+                    fit: BoxFit.cover,
+                    excludeFromSemantics: true,
+                    // La foto llega entera (sin recomprimir, varios MB). Se
+                    // decodifica chica para que una lista larga no llene la
+                    // memoria; el doble del lado alcanza para que una foto
+                    // apaisada cubra el cuadrado.
+                    cacheWidth:
+                        (_lado * 2 * MediaQuery.devicePixelRatioOf(context))
+                            .round(),
+                    errorBuilder: (_, _, _) => noDisponible,
+                  ),
+                  loading: () =>
+                      ColoredBox(color: tema.colorScheme.surfaceContainerLow),
+                  error: (_, _) => noDisponible,
+                ),
         },
       ),
     );

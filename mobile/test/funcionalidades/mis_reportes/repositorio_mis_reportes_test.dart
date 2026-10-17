@@ -52,6 +52,25 @@ void main() {
     );
   });
 
+  test('baja la foto con la sesión y devuelve el archivo tal cual', () async {
+    final servidor = ServidorFalso((_) => imagen(pngDePrueba));
+
+    final archivo = await repositorio(servidor).foto(7);
+
+    expect(archivo, pngDePrueba);
+    final pedido = servidor.pedidos.single;
+    expect(pedido.ruta, '/fotos/7');
+    expect(pedido.token, 'Bearer acceso-1');
+  });
+
+  test('una foto que el servidor no da (404) sale como ErrorApi', () async {
+    final servidor = ServidorFalso(
+      (_) => errorApi(404, 'FOTO_NO_ENCONTRADA', 'La foto no existe'),
+    );
+
+    await expectLater(repositorio(servidor).foto(7), throwsA(isA<ErrorApi>()));
+  });
+
   test('una respuesta que no se entiende también sale como ErrorApi', () async {
     final servidor = ServidorFalso(
       (_) => json(200, {
