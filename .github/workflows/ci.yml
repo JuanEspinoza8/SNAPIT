@@ -96,7 +96,8 @@ jobs:
             sql desde_migraciones < "${migracion}migration.sql"
           done
           sql desde_schema < db/schema.sql
-          volcar() { docker exec "$BASE" pg_dump -U snapit -d "$1" --schema-only --no-owner; }
+          # Desde PostgreSQL 16.10, pg_dump abre y cierra cada volcado con \restrict y una clave al azar.
+          volcar() { docker exec "$BASE" pg_dump -U snapit -d "$1" --schema-only --no-owner | grep -Ev '^[\](un)?restrict '; }
           if ! diff <(volcar desde_schema) <(volcar desde_migraciones) > diferencias.txt; then
             echo "::error::Las migraciones no dan el mismo esquema que db/schema.sql (< schema.sql, > migraciones)"
             head -60 diferencias.txt

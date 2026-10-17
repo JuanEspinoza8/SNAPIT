@@ -42,7 +42,7 @@ const esquema = z.object({
     .optional()
     .transform((clave) => clave || undefined),
   IA_MODELO: z.string().min(1).default('claude-haiku-5-5'),
-  // Lo máximo que se espera cada intento; el SDK reintenta una vez los errores pasajeros.
+  // Lo máximo que se espera una consulta, contando el reintento ante errores pasajeros.
   IA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
 });
 

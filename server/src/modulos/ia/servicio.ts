@@ -73,7 +73,7 @@ class RespuestaInvalida extends Error {
 }
 
 export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa) {
-  // Un solo reintento: con el valor por defecto del SDK (2) un vecino podría esperar el triple del timeout.
+  // Un solo reintento, y solo si entra dentro del plazo de la consulta (ver pedir).
   const cliente = apiKey ? new Anthropic({ apiKey, timeout: timeoutMs, maxRetries: 1, fetch }) : null;
 
   /**
@@ -97,12 +97,15 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
     } catch (error) {
       const motivo = motivoDelFallo(error, timeoutMs);
       logger.warn({ err: error, tipo: consulta.tipo }, 'La IA no respondió: %s', motivo);
+      // Si tampoco se puede registrar, se responde igual 503: quien llamó tiene su alternativa sin IA.
       await registrarIntento({
         ...intento,
         salida: error instanceof RespuestaInvalida ? error.salida : null,
         duracionMs: Date.now() - inicio,
         exito: false,
         error: motivo,
+      }).catch((errorBase: unknown) => {
+        logger.error({ err: errorBase, tipo: consulta.tipo }, 'No se pudo registrar el fallo en registro_ia');
       });
       throw new IaNoDisponible(motivo, { cause: error });
     }
@@ -118,35 +121,40 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
   }
 
   async function pedir<T>(cliente: Anthropic, consulta: ConsultaIa<T>) {
-    const respuesta = await cliente.messages.create({
-      model: modelo,
-      max_tokens: consulta.maxTokens ?? MAX_TOKENS_POR_DEFECTO,
-      system: consulta.instrucciones,
-      // La API garantiza la estructura (campos, tipos y obligatorios). Las demás restricciones de zod
-      // (valores de un enum, mínimos, máximos) el SDK las manda solo como descripción: por eso la
-      // respuesta se vuelve a validar abajo. Se usa create y no parse para conservar la respuesta cruda
-      // cuando no valida: parse la descarta y en registro_ia hace falta para entender qué pasó.
-      output_config: {
-        format: zodOutputFormat(consulta.esquema),
-        ...(consulta.esfuerzo && { effort: consulta.esfuerzo }),
-      },
-      messages: [
-        {
-          role: 'user',
-          content: [
-            ...(consulta.imagenes ?? []).map((imagen) => ({
-              type: 'image' as const,
-              source: {
-                type: 'base64' as const,
-                media_type: imagen.tipo,
-                data: imagen.contenido.toString('base64'),
-              },
-            })),
-            { type: 'text' as const, text: consulta.texto },
-          ],
+    const respuesta = await cliente.messages.create(
+      {
+        model: modelo,
+        max_tokens: consulta.maxTokens ?? MAX_TOKENS_POR_DEFECTO,
+        system: consulta.instrucciones,
+        // La API garantiza la estructura (campos, tipos y obligatorios). Las demás restricciones de zod
+        // (valores de un enum, mínimos, máximos) el SDK las manda solo como descripción: por eso la
+        // respuesta se vuelve a validar abajo. Se usa create y no parse para conservar la respuesta cruda
+        // cuando no valida: parse la descarta y en registro_ia hace falta para entender qué pasó.
+        output_config: {
+          format: zodOutputFormat(consulta.esquema),
+          ...(consulta.esfuerzo && { effort: consulta.esfuerzo }),
         },
-      ],
-    });
+        messages: [
+          {
+            role: 'user',
+            content: [
+              ...(consulta.imagenes ?? []).map((imagen) => ({
+                type: 'image' as const,
+                source: {
+                  type: 'base64' as const,
+                  media_type: imagen.tipo,
+                  data: imagen.contenido.toString('base64'),
+                },
+              })),
+              { type: 'text' as const, text: consulta.texto },
+            ],
+          },
+        ],
+      },
+      // El SDK también reintenta cuando se vence el tiempo. Con un plazo para toda la consulta, el
+      // reintento solo usa lo que queda y nadie espera más que IA_TIMEOUT_MS.
+      { signal: AbortSignal.timeout(timeoutMs) },
+    );
 
     // Las respuestas pueden empezar con bloques de razonamiento: la respuesta es el texto.
     const texto = respuesta.content
@@ -196,7 +204,9 @@ function motivoDelFallo(error: unknown, timeoutMs: number) {
   if (error instanceof RespuestaInvalida) return error.message;
   if (error instanceof Anthropic.AuthenticationError) return 'La API rechazó la clave (401)';
   if (error instanceof Anthropic.RateLimitError) return 'Se superó el límite de uso de la API (429)';
-  if (error instanceof Anthropic.APIConnectionTimeoutError) return `La API tardó más de ${timeoutMs} ms`;
+  // El único que corta la consulta desde afuera es el plazo de pedir().
+  if (error instanceof Anthropic.APIConnectionTimeoutError || error instanceof Anthropic.APIUserAbortError)
+    return `La API tardó más de ${timeoutMs} ms`;
   if (error instanceof Anthropic.APIConnectionError) return 'No se pudo conectar con la API';
   if (error instanceof Anthropic.APIError)
     return `La API respondió con error ${error.status}: ${error.message}`;

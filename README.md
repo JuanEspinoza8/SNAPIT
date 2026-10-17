@@ -95,6 +95,18 @@ docker compose up -d mailpit
 
 Los correos se ven en http://localhost:8025. Si tu `.env` es anterior a la #7, copiale el bloque «Correos» de `.env.example`: sin esas variables el servidor no arranca y `docker compose` no levanta.
 
+### IA
+
+Por ahora la IA es Claude, por la API de Anthropic: lo decidió el grupo en lugar de la cadena Gemini + Pollinations que estaba prevista. Si Claude no funciona, se vuelve a Gemini + Pollinations (#56). Todo pasa por `servicioIa.consultar` (`src/modulos/ia/servicio.ts`), así que cambiar de proveedor es reemplazar ese módulo.
+
+| Variable | Qué hace |
+|---|---|
+| `ANTHROPIC_API_KEY` | Clave de la API. Cada llamada se cobra. Sin clave el servidor arranca igual y las consultas responden 503 `IA_NO_DISPONIBLE`. |
+| `IA_MODELO` | Modelo para todas las consultas (`claude-haiku-5-5` por defecto). |
+| `IA_TIMEOUT_MS` | Tiempo máximo de cada consulta, con el reintento incluido (30000 por defecto). |
+
+Cada consulta, salga bien o mal, queda en `registro_ia`. Los tests simulan la API: no hace falta clave y no se gasta.
+
 ### Estructura
 
 ```

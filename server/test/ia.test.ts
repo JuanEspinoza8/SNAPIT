@@ -43,9 +43,16 @@ const responderTexto = (texto: string, extra?: Record<string, unknown>) =>
 function errorApi(status: number, tipo: string) {
   return new Response(JSON.stringify({ type: 'error', error: { type: tipo, message: 'Error simulado' } }), {
     status,
-    headers: { 'Content-Type': 'application/json', 'retry-after-ms': '0' },
+    // Con 0 el SDK ignora el encabezado y espera su pausa por defecto (casi medio segundo).
+    headers: { 'Content-Type': 'application/json', 'retry-after-ms': '1' },
   });
 }
+
+/** Un pedido que nunca responde: solo termina cuando se corta la espera. */
+const nuncaResponde: typeof fetch = (_url, opciones) =>
+  new Promise((_resolver, rechazar) => {
+    opciones?.signal?.addEventListener('abort', () => rechazar(opciones.signal!.reason));
+  });
 
 /** Lo que mandó el servidor a la API en la llamada número `n`. */
 function pedidoEnviado(n = 0) {
@@ -234,17 +241,37 @@ describe('servicio de IA', () => {
       expect(fetchSimulado).toHaveBeenCalledTimes(2);
     });
 
-    it('si la API tarda más que el timeout', async () => {
-      // Nunca responde: solo termina cuando el SDK corta la espera.
-      fetchSimulado.mockImplementation(
-        (_url, opciones) =>
-          new Promise((_resolver, rechazar) => {
-            opciones?.signal?.addEventListener('abort', () => rechazar(opciones.signal!.reason));
-          }),
-      );
+    it('si la API tarda más que el timeout, sin reintentar', async () => {
+      fetchSimulado.mockImplementation(nuncaResponde);
 
-      await fallaCon(/tardó más de 50 ms/, { timeoutMs: 50 });
+      const registro = await fallaCon(/tardó más de 50 ms/, { timeoutMs: 50 });
+      // Sin el plazo total, el SDK esperaría otros 50 ms más la pausa entre intentos.
+      expect(fetchSimulado).toHaveBeenCalledTimes(1);
+      expect(registro.duracionMs).toBeLessThan(300);
     });
+
+    it('si el reintento no termina dentro del plazo de la consulta', async () => {
+      // El primero tarda 300 ms en fallar y el segundo nunca responde: el plazo de 400 ms es para los dos.
+      fetchSimulado
+        .mockImplementationOnce(async () => {
+          await new Promise((listo) => setTimeout(listo, 300));
+          return errorApi(529, 'overloaded_error');
+        })
+        .mockImplementation(nuncaResponde);
+
+      const registro = await fallaCon(/tardó más de 400 ms/, { timeoutMs: 400 });
+      expect(fetchSimulado).toHaveBeenCalledTimes(2);
+      expect(registro.duracionMs).toBeLessThan(600);
+    });
+  });
+
+  it('si no se puede registrar el fallo, igual lanza IaNoDisponible', async () => {
+    // Un usuario que no existe hace fallar el insert en registro_ia por la clave foránea.
+    const error = await servicio({ apiKey: undefined })
+      .consultar(consulta({ usuarioId: 999_999_999 }))
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(IaNoDisponible);
   });
 
   it('un reintento que sale bien cuenta como un solo intento exitoso', async () => {
