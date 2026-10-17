@@ -15,7 +15,8 @@
 ## Base de datos
 
 - El modelo está congelado: no se agregan, renombran ni borran tablas, columnas ni enums sin acordarlo con el grupo.
-- La única migración es `server/prisma/migrations/0_init`, igual a `db/schema.sql`. No se crean migraciones nuevas.
+- `0_init` es el `db/schema.sql` entregado. Cada cambio acordado va en una migración nueva, escrita a mano en SQL (`server/prisma/migrations/N_descripcion/migration.sql`, con `N` el número siguiente), y en el mismo PR se aplica igual en `db/schema.sql`, `db/DICCIONARIO.md` y `schema.prisma`. La CI comprueba que las migraciones den exactamente el esquema de `db/schema.sql`.
+- Las migraciones que ya existen no se modifican ni se borran: una base que ya las aplicó no las vuelve a correr.
 - Solo `npx prisma migrate deploy`. Nunca `prisma migrate dev` ni `prisma db push`: generan una migración que borra los índices GIST y renombra las claves del modelo.
 
 ## Pull requests

@@ -28,7 +28,7 @@ CREATE TYPE tipo_movimiento AS ENUM ('CAMBIO_ESTADO', 'DERIVACION', 'FUSION', 'S
 CREATE TYPE tipo_tramo AS ENUM ('VEREDA', 'CRUCE', 'ESCALERA', 'SENDA');
 CREATE TYPE tipo_punto_interes AS ENUM ('ESCUELA', 'CENTRO_SALUD', 'PARADA_TRANSPORTE', 'EDIFICIO_PUBLICO');
 CREATE TYPE tipo_ia AS ENUM ('CLASIFICACION_IMAGEN', 'COMPARACION_CIERRE', 'INFORME', 'CONSULTA_NATURAL');
-CREATE TYPE proveedor_ia AS ENUM ('OLLAMA', 'GEMINI');
+CREATE TYPE proveedor_ia AS ENUM ('OLLAMA', 'GEMINI', 'ANTHROPIC');
 CREATE TYPE plataforma AS ENUM ('ANDROID', 'WEB');
 
 -- ==========================================================================
@@ -532,7 +532,7 @@ COMMENT ON TABLE registro_ia IS 'Cada llamada a un modelo de IA, con lo que se p
 COMMENT ON COLUMN registro_ia.id IS 'Identificador interno.';
 COMMENT ON COLUMN registro_ia.usuario_id IS 'Quién originó la llamada.';
 COMMENT ON COLUMN registro_ia.tipo IS 'Para qué se usó el modelo.';
-COMMENT ON COLUMN registro_ia.proveedor IS 'Ollama local o Gemini.';
+COMMENT ON COLUMN registro_ia.proveedor IS 'Quién respondió: Anthropic (Claude), Ollama local o Gemini.';
 COMMENT ON COLUMN registro_ia.modelo IS 'Nombre del modelo utilizado.';
 COMMENT ON COLUMN registro_ia.entrada IS 'Lo que se le envió.';
 COMMENT ON COLUMN registro_ia.salida IS 'Lo que respondió, estructurado.';

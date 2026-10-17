@@ -8,7 +8,7 @@ Reportes ciudadanos sobre la vía pública con verificación, priorización de i
 | `server/` | API (Express + TypeScript + Prisma)                             |
 | `web/`    | Panel web (React + Tailwind)                                    |
 | `mobile/` | App (Flutter)                                                   |
-| `db/`     | `schema.sql` y `DICCIONARIO.md` de la entrega del 19/09 (congelados) |
+| `db/`     | `schema.sql` y `DICCIONARIO.md` de la entrega del 19/09, con los cambios acordados después (ver CONTRIBUTING.md) |
 | `docs/`   | Documentación del proyecto                                      |
 
 ## Levantar la base de datos
@@ -65,7 +65,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 | Operadora de Veredas | `veredas@snapit.test` |
 | Vecinos | `vecino1@snapit.test`, `vecino2@snapit.test`, `vecino3@snapit.test` |
 
-> **Nunca uses `prisma migrate dev` ni `prisma db push`.** El modelo está congelado y la única migración es `0_init`, que es `db/schema.sql` tal cual. `schema.prisma` no puede expresar los índices GIST ni los nombres de las restricciones, así que esos comandos generan una migración que borra los índices espaciales y renombra las claves del modelo entregado. Para aplicar migraciones, solo `prisma migrate deploy`.
+> **Nunca uses `prisma migrate dev` ni `prisma db push`.** El modelo está congelado: `0_init` es el `db/schema.sql` entregado y cada cambio acordado con el grupo va en una migración escrita a mano (ver [CONTRIBUTING.md](CONTRIBUTING.md)). `schema.prisma` no puede expresar los índices GIST ni los nombres de las restricciones, así que esos comandos generan una migración que borra los índices espaciales y renombra las claves del modelo entregado. Para aplicar migraciones, solo `prisma migrate deploy`.
 
 | Script | Qué hace |
 |---|---|
@@ -94,6 +94,18 @@ docker compose up -d mailpit
 ```
 
 Los correos se ven en http://localhost:8025. Si tu `.env` es anterior a la #7, copiale el bloque «Correos» de `.env.example`: sin esas variables el servidor no arranca y `docker compose` no levanta.
+
+### IA
+
+Por ahora la IA es Claude, por la API de Anthropic: lo decidió el grupo en lugar de la cadena Gemini + Pollinations que estaba prevista. Si Claude no funciona, se vuelve a Gemini + Pollinations (#56). Todo pasa por `servicioIa.consultar` (`src/modulos/ia/servicio.ts`), así que cambiar de proveedor es reemplazar ese módulo.
+
+| Variable | Qué hace |
+|---|---|
+| `ANTHROPIC_API_KEY` | Clave de la API. Cada llamada se cobra. Sin clave el servidor arranca igual y las consultas responden 503 `IA_NO_DISPONIBLE`. |
+| `IA_MODELO` | Modelo para todas las consultas (`claude-haiku-5-5` por defecto). |
+| `IA_TIMEOUT_MS` | Tiempo máximo de cada consulta, con el reintento incluido (30000 por defecto). |
+
+Cada consulta, salga bien o mal, queda en `registro_ia`. Los tests simulan la API: no hace falta clave y no se gasta.
 
 ### Estructura
 
@@ -245,7 +257,7 @@ Cada PR y cada push a `main` corren [`.github/workflows/ci.yml`](.github/workflo
 
 | Trabajo | Qué revisa | Lo mismo en local |
 |---|---|---|
-| **Modelo congelado** | `server/prisma/migrations/0_init/migration.sql` es idéntica a `db/schema.sql`, y no hay otras migraciones | `git diff --no-index --exit-code db/schema.sql server/prisma/migrations/0_init/migration.sql` (sin salida si son iguales) y `ls server/prisma/migrations` (solo `0_init` y `migration_lock.toml`) |
+| **Modelo congelado** | Las migraciones aplicadas en orden dan exactamente el esquema de `db/schema.sql` (compara el `pg_dump` de las dos bases), y en un PR no se modifica ni se borra ninguna migración existente | Los pasos del trabajo `modelo` en [`ci.yml`](.github/workflows/ci.yml), con `docker compose exec db` en lugar de `docker exec` |
 | **Servidor** | Lint, formato, tipos y tests contra PostGIS real (la misma imagen que `docker-compose.yml`) | En `server/`: `npm run lint`, `npm run format:check`, `npx tsc --noEmit` y `npm test` (con `docker compose up -d db`) |
 | **Web** | Lint, formato, tests, tipos y build | En `web/`: `npm run lint`, `npm run format:check`, `npm test` y `npm run build` |
 | **App** | `flutter analyze` y `flutter test`, con Flutter 3.44.1 | En `mobile/`: los mismos dos comandos, con esa versión |

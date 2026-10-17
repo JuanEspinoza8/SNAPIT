@@ -36,6 +36,10 @@ services:
       CORREO_REMITENTE: ${CORREO_REMITENTE:?falta en el .env (ver .env.example)}
       FOTOS_DIR: /app/fotos
       FOTO_MAX_MB: ${FOTO_MAX_MB:-10}
+      # Sin clave el servidor arranca igual y las funciones de IA responden "no disponible".
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      IA_MODELO: ${IA_MODELO:-claude-haiku-5-5}
+      IA_TIMEOUT_MS: ${IA_TIMEOUT_MS:-30000}
     volumes:
       # Las fotos de los reportes sobreviven aunque se reconstruya la imagen.
       - fotos_data:/app/fotos
