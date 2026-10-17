@@ -122,12 +122,15 @@ let reportesMios: ReporteMio[] = [
     categoria: { id: 2, nombre: 'Vereda rota' },
     severidadDeclarada: 'LEVE',
     descripcion: 'Un par de baldosas levantadas.',
-    fotos: [],
+    fotos: [{ id: 3, url: '/api/fotos/3' }],
     estadoVerificacion: 'DESESTIMADO',
     incidente: { id: 5, estado: 'DESESTIMADO', enRevision: false },
   },
 ];
 let proximoReporteId = 103;
+
+const FOTO_SIMULADA =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="#D9DEE5"/></svg>';
 
 // La lista de usuarios vive en memoria: al dar de alta uno nuevo se agrega acá
 // y la pantalla lo muestra al refrescar la lista (GET /admin/usuarios).
@@ -212,6 +215,17 @@ export const handlers = [
   }),
 
   http.get(`${apiUrl}/reportes/mios`, () => HttpResponse.json({ reportes: reportesMios })),
+
+  // Cualquier foto es un recuadro gris. Sin sesión, la del reporte desestimado da 404, como en el servidor.
+  http.get(`${apiUrl}/fotos/:id`, ({ params, request }) => {
+    if (params.id === '3' && !request.headers.get('Authorization')) {
+      return HttpResponse.json(
+        { error: { codigo: 'FOTO_NO_ENCONTRADA', mensaje: 'La foto no existe' } },
+        { status: 404 },
+      );
+    }
+    return new HttpResponse(FOTO_SIMULADA, { headers: { 'Content-Type': 'image/svg+xml' } });
+  }),
 
   http.get(`${apiUrl}/admin/organismos`, () => HttpResponse.json({ organismos })),
 

@@ -271,6 +271,36 @@ describe('cliente de la API', () => {
     expect(peticiones).toBe(1);
   });
 
+  it('con comoArchivo devuelve el cuerpo como Blob, renovando la sesión ante un 401', async () => {
+    servidor.use(
+      http.get('*/api/fotos/7', ({ request }) =>
+        request.headers.get('authorization') === 'Bearer acceso-nuevo'
+          ? new HttpResponse('contenido de la foto', { headers: { 'Content-Type': 'image/jpeg' } })
+          : errorDeApi('TOKEN_VENCIDO', 'El token de acceso venció', 401),
+      ),
+      http.post('*/api/auth/renovar', () =>
+        HttpResponse.json({ tokenAcceso: 'acceso-nuevo', tokenRenovacion: 'renovacion-nueva' }),
+      ),
+    );
+
+    const cliente = crearClienteApi({ urlBase, almacen: almacenConSesion() });
+
+    const archivo = await cliente.pedir<Blob>('/fotos/7', { comoArchivo: true });
+    expect(archivo.type).toBe('image/jpeg');
+    expect(await archivo.text()).toBe('contenido de la foto');
+  });
+
+  it('con comoArchivo, un error se sigue leyendo como error de la API', async () => {
+    servidor.use(http.get('*/api/fotos/7', () => errorDeApi('FOTO_NO_ENCONTRADA', 'La foto no existe', 404)));
+
+    const cliente = crearClienteApi({ urlBase, almacen: almacenConSesion() });
+
+    await expect(cliente.pedir('/fotos/7', { comoArchivo: true })).rejects.toMatchObject({
+      codigo: 'FOTO_NO_ENCONTRADA',
+      status: 404,
+    });
+  });
+
   it('lee el mensaje y los detalles del error de la API', async () => {
     servidor.use(
       http.get('*/api/recurso', () =>

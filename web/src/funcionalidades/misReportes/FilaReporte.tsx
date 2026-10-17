@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { EtiquetaReporte } from './EtiquetaReporte.js';
 import { estadoParaElVecino, tieneFicha } from './tipos.js';
 import type { ReporteMio } from './tipos.js';
@@ -20,7 +20,7 @@ export function FilaReporte({ reporte, alAbrirFicha }: Props) {
 
   const contenido = (
     <>
-      <Miniatura url={reporte.fotos[0]?.url} />
+      <Miniatura fotoId={reporte.fotos[0]?.id} />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="font-semibold text-texto">{reporte.categoria.nombre}</span>
         <span className="text-sm text-texto-secundario">{fecha.format(new Date(reporte.registradoEn))}</span>
@@ -55,24 +55,23 @@ export function FilaReporte({ reporte, alAbrirFicha }: Props) {
   );
 }
 
-/** Miniatura de la foto del reporte. Si falta o no carga (un desestimado da 404), queda un recuadro. */
-function Miniatura({ url }: { url: string | undefined }) {
-  const [fallo, setFallo] = useState(false);
+/**
+ * Miniatura de la foto del reporte. Se pide con la sesión: así el vecino ve también la de un reporte
+ * desestimado o la de un incidente que ya no está en el mapa. Si falta o no carga, queda un recuadro.
+ */
+function Miniatura({ fotoId }: { fotoId: number | undefined }) {
+  const noDisponible = (
+    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-borde bg-superficie-alterna text-center text-xs leading-tight text-texto-secundario">
+      Foto no disponible
+    </span>
+  );
 
-  if (!url || fallo) {
-    return (
-      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-borde bg-superficie-alterna text-center text-xs leading-tight text-texto-secundario">
-        Foto no disponible
-      </span>
-    );
-  }
+  if (fotoId === undefined) return noDisponible;
   return (
-    <img
-      src={url}
-      alt=""
-      loading="lazy"
-      onError={() => setFallo(true)}
+    <FotoConSesion
+      fotoId={fotoId}
       className="h-16 w-16 shrink-0 rounded-md border border-borde object-cover"
+      siFalla={noDisponible}
     />
   );
 }
