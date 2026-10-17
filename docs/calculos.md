@@ -94,3 +94,50 @@ El puntaje de agrupación combina la cercanía, el tiempo transcurrido y el pare
 | `ruteo.radio_obstruccion_m` | entero | 15 | Distancia (m) alrededor de un incidente dentro de la cual los tramos quedan afectados |
 | `ruteo.distancia_max_al_nodo_m` | entero | 100 | Distancia máxima (m) para acercar el origen o el destino al nodo más cercano de la red |
 | `ruteo.velocidad_m_por_min` | decimal | 50 | Velocidad al caminar, para estimar el tiempo del recorrido |
+
+## Cálculos
+
+### Datos de cada foto
+
+Al recibir una foto (`server/src/compartido/analisisFoto.ts`) se guarda el archivo tal como llegó y se completan estas columnas de `fotografia`. Si alguno de estos datos no se puede leer, queda en null y la foto se acepta igual: solo se rechaza si no es un JPG o PNG.
+
+| Columna | De dónde sale |
+|---|---|
+| `ancho`, `alto` | Encabezado de la imagen, sin girarla según el EXIF |
+| `exif_latitud`, `exif_longitud` | GPS del EXIF, de grados, minutos y segundos a decimales (6 decimales, unos 10 cm). Sur y oeste son negativos. Si falta una de las dos o su hemisferio (N/S, E/O), o las dos son 0 (lo que graban algunos celulares sin señal), quedan las dos en null |
+| `exif_tomada_en` | `DateTimeOriginal` del EXIF, con la zona de `OffsetTimeOriginal`. Si la cámara no grabó la zona, se toma la de Argentina (−03:00). Una fecha que no existe (un 31 de febrero) queda en null |
+| `exif_marca`, `exif_modelo` | `Make` y `Model` del EXIF, recortados a 60 caracteres |
+| `hash_perceptual` | dHash de 64 bits (abajo) |
+
+### Hash perceptual
+
+Una huella de la imagen que cambia poco si la foto se recomprime, se achica o se le ajusta el brillo, y mucho si es otra foto. Sirve para detectar fotos repetidas (verificación) y para medir el parecido entre fotos (agrupación). Es un **dHash** ("difference hash") de 64 bits, calculado en `server/src/compartido/hashPerceptual.ts`:
+
+1. Se endereza la imagen según su orientación EXIF: la misma foto da el mismo hash aunque un celular la guarde acostada con la marca "girar 90°" y otro la guarde ya derecha.
+2. Se pasa a escala de grises (las zonas transparentes de un PNG cuentan como blanco) y se reduce a **9 × 8 píxeles**, sin respetar la proporción.
+3. En cada una de las 8 filas se compara cada píxel con el de su derecha: **1** si es más claro, **0** si no. Son 8 × 8 = 64 bits, que se leen de arriba hacia abajo y de izquierda a derecha.
+
+Una foto incompleta (cortada al subirla, o a propósito) se decodifica con lo que llegó. Si quedara sin hash, alcanzaría con cortarle los últimos bytes a una foto ya usada para que no se detecte como repetida.
+
+**Distancia entre dos fotos:** la distancia de Hamming, es decir cuántos de los 64 bits son distintos. 0 es la misma imagen; dos fotos sin relación quedan cerca de 32.
+
+- En TypeScript: `distanciaHamming(a, b)`.
+- En SQL: `bit_count(a # b)`, donde `#` es el XOR entre las dos cadenas de bits (`distanciaHammingSql`). Sirve para buscar parecidas en la base sin traer todas las fotos.
+
+**Ejemplo con las fotos de prueba** (`server/test/fotos`):
+
+| Comparación | Distancia |
+|---|---|
+| La misma foto recomprimida en JPEG al 30 % de calidad | 0–1 |
+| La misma foto achicada a la mitad | 0–1 |
+| La misma foto pasada a PNG | 1 |
+| La misma foto acostada con la marca "girar 90°" | 0–1 |
+| La misma foto sin los 2 bytes del final | 0 |
+| Una calle con un pozo contra una vereda rota | 36 |
+
+Con `verificacion.hamming_duplicado_max` = 6 queda margen de sobra para la misma foto. La agrupación usa `similitud = max(0, 1 − distancia / 32)`.
+
+**Límites conocidos.** El dHash solo mira si la luz sube o baja de izquierda a derecha:
+
+- En una foto con grandes zonas lisas (un cielo parejo, asfalto sin textura) dos zonas vecinas pueden quedar casi iguales, y entonces una recompresión puede dar vuelta esos bits. En las fotos reales casi no pasa (la luz y la perspectiva nunca son parejas), pero conviene revisar las distancias con las fotos de la prueba piloto antes de ajustar `hamming_duplicado_max`.
+- Al revés, dos fotos lisas u oscuras distintas pueden parecer la misma. Una imagen lisa da 64 ceros, sea negra, gris o blanca. En escenas nocturnas dibujadas para probarlo (fondo casi negro con una luz chica en distintos lugares), dos escenas distintas quedaron a 8–11 bits, cerca del umbral de 6. Pasa con «Luminaria apagada», que se fotografía de noche. Qué hacer con un hash de pocos unos se decide en la verificación (#50) y en la agrupación (#53).

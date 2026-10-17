@@ -6,7 +6,7 @@ import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { borrarReportesDe, crearUsuario, tokenDe } from './apoyo.js';
-import { jpegConExif, png1x1 } from './imagenes.js';
+import { EXIF_DE_PRUEBA, jpegConExif, jpegSinExif, png1x1 } from './imagenes.js';
 
 // La dirección se prueba en direcciones.test.ts: acá no se consulta Nominatim.
 vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
@@ -95,11 +95,17 @@ describe('POST /api/reportes', () => {
     expect(reporte.sincronizadoEn).not.toBeNull();
     expect(reporte.fotografias).toHaveLength(1);
     expect(reporte.fotografias[0]).toMatchObject({
-      ancho: 3,
-      alto: 2,
+      ancho: 640,
+      alto: 480,
       tamanoBytes: jpegConExif().length,
       tomadaConCamaraApp: true,
+      exifTomadaEn: EXIF_DE_PRUEBA.tomadaEn,
+      exifMarca: EXIF_DE_PRUEBA.marca,
+      exifModelo: EXIF_DE_PRUEBA.modelo,
     });
+    expect(reporte.fotografias[0]!.exifLatitud?.toNumber()).toBe(EXIF_DE_PRUEBA.latitud);
+    expect(reporte.fotografias[0]!.exifLongitud?.toNumber()).toBe(EXIF_DE_PRUEBA.longitud);
+    expect(reporte.fotografias[0]!.hashPerceptual).toMatch(/^[01]{64}$/);
     expect(reporte.incidente).toMatchObject({
       estado: 'REGISTRADO',
       categoriaId: categoria.id,
@@ -152,7 +158,7 @@ describe('POST /api/reportes', () => {
     expect(descarga.status).toBe(200);
     expect(descarga.headers['content-type']).toBe('image/jpeg');
     expect(Buffer.compare(descarga.body as Buffer, original)).toBe(0);
-    expect((descarga.body as Buffer).includes(Buffer.from('marca-de-prueba-snapit'))).toBe(true);
+    expect((descarga.body as Buffer).includes(Buffer.from(EXIF_DE_PRUEBA.modelo))).toBe(true);
   });
 
   it('acepta PNG', async () => {
@@ -162,6 +168,24 @@ describe('POST /api/reportes', () => {
     const res = await enviar(token, categoria.id, { foto: png1x1, nombreFoto: 'foto.png' });
 
     expect(res.status).toBe(201);
+  });
+
+  it('una foto sin EXIF se acepta y deja esos campos en null, con el hash calculado', async () => {
+    const categoria = await crearCategoria();
+    const { token } = await vecino();
+
+    const res = await enviar(token, categoria.id, { foto: jpegSinExif() });
+
+    expect(res.status).toBe(201);
+    const foto = await prisma.fotografia.findFirstOrThrow({ where: { reporteId: res.body.id } });
+    expect(foto).toMatchObject({
+      exifLatitud: null,
+      exifLongitud: null,
+      exifTomadaEn: null,
+      exifMarca: null,
+      exifModelo: null,
+    });
+    expect(foto.hashPerceptual).toMatch(/^[01]{64}$/);
   });
 
   it('sin descripción ni fecha de registro, usa null y el momento de llegada', async () => {

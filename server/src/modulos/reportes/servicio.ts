@@ -1,5 +1,5 @@
-import { imageSize } from 'image-size';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
+import { analizarFoto } from '../../compartido/analisisFoto.js';
 import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import { logger } from '../../config/logger.js';
@@ -14,18 +14,6 @@ const TOLERANCIA_FUTURO_MS = 5 * 60 * 1000;
 const datosInvalidos = (campo: string, mensaje: string) =>
   new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [{ campo, mensaje }]);
 
-/** Lee el tipo y las medidas de la imagen mirando su contenido, no la extensión ni lo que dice el cliente. */
-function leerImagen(contenido: Buffer): { tipo: 'jpg' | 'png'; ancho: number; alto: number } | null {
-  try {
-    const { type, width, height } = imageSize(contenido);
-    if ((type === 'jpg' || type === 'png') && width && height)
-      return { tipo: type, ancho: width, alto: height };
-  } catch {
-    // No es una imagen que image-size reconozca.
-  }
-  return null;
-}
-
 // Por si falta el parámetro (la semilla lo carga): antes que rechazar el reporte, se usa este valor.
 const DIAS_VIGENCIA_SI_FALTA = 30;
 
@@ -37,7 +25,7 @@ async function diasVigenciaPorDefecto() {
 }
 
 export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: Buffer | undefined) {
-  const imagen = archivo ? leerImagen(archivo) : null;
+  const imagen = archivo ? await analizarFoto(archivo) : null;
   const problemaFoto = !archivo
     ? [{ campo: 'foto', mensaje: 'Es obligatoria' }]
     : !imagen
@@ -85,6 +73,12 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
         alto: imagen!.alto,
         tamanoBytes: archivo!.length,
         tomadaConCamaraApp: datos.tomadaConCamaraApp,
+        hashPerceptual: imagen!.hashPerceptual,
+        exifLatitud: imagen!.exif.latitud,
+        exifLongitud: imagen!.exif.longitud,
+        exifTomadaEn: imagen!.exif.tomadaEn,
+        exifMarca: imagen!.exif.marca,
+        exifModelo: imagen!.exif.modelo,
       },
     });
   } catch (error) {
