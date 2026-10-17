@@ -49,6 +49,21 @@ Future<ResponseBody> json(int status, Object cuerpo) async {
   );
 }
 
+/// Un PNG válido de 1 × 1 píxel, como lo devuelve `GET /fotos/:id`.
+final pngDePrueba = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+);
+
+Future<ResponseBody> imagen(Uint8List contenido) async {
+  return ResponseBody.fromBytes(
+    contenido,
+    200,
+    headers: {
+      Headers.contentTypeHeader: ['image/png'],
+    },
+  );
+}
+
 Future<ResponseBody> errorApi(int status, String codigo, String mensaje) {
   return json(status, {
     'error': {'codigo': codigo, 'mensaje': mensaje},
