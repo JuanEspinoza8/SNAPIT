@@ -1,5 +1,8 @@
 import { type OrigenReporte, Prisma, type Severidad, type TipoVigencia } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
+import { elegirIncidente, type ParametrosAgrupacion, severidadConsolidada } from '../agrupacion/calculo.js';
+import * as agrupacion from '../agrupacion/repositorio.js';
+import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import { INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
 
 export function buscarCategoriaActiva(id: number) {
@@ -67,24 +70,45 @@ export interface NuevoReporte {
 }
 
 /**
- * Crea el incidente, el reporte y la fotografía en una sola transacción: o quedan los tres o ninguno.
- * La ubicación es una columna de PostGIS que Prisma no maneja, por eso los INSERT van en SQL.
+ * Guarda el reporte y su fotografía, y lo suma al incidente que corresponde (F05): al mejor candidato si
+ * supera el umbral de agrupación, o a un incidente nuevo si no. Todo en una sola transacción: o queda todo
+ * o nada. La ubicación es una columna de PostGIS que Prisma no maneja, por eso los INSERT van en SQL.
  */
-export function crearReporteConIncidente(datos: NuevoReporte) {
-  // ST_MakePoint recibe primero la longitud y después la latitud.
+export function crearReporteConIncidente(datos: NuevoReporte, parametros: ParametrosAgrupacion) {
   return prisma.$transaction(async (tx) => {
-    // Mientras no exista la agrupación (corte 50 %), cada reporte abre su propio incidente.
-    // area_id queda vacío: es el área a la que se deriva, y eso lo hace el operador.
-    const [incidente] = await tx.$queryRaw<{ id: number }[]>`
-      INSERT INTO incidente (
-        categoria_id, estado, severidad, ubicacion, tipo_vigencia, vigente_hasta,
-        cantidad_reportes, primer_reporte_en
-      ) VALUES (
-        ${datos.categoriaId}, 'REGISTRADO', ${datos.severidad}::severidad,
-        ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
-        ${datos.tipoVigencia}::tipo_vigencia, ${datos.vigenteHasta}, 1, ${datos.registradoEn}
-      )
-      RETURNING id`;
+    await agrupacion.bloquearCategoria(tx, datos.categoriaId);
+    const candidatos = await agrupacion.buscarCandidatos(tx, {
+      categoriaId: datos.categoriaId,
+      lat: datos.lat,
+      lon: datos.lon,
+      hashPerceptual: datos.foto.hashPerceptual,
+      radioM: parametros.radioM,
+    });
+    const elegido = elegirIncidente(
+      { categoriaId: datos.categoriaId, registradoEn: datos.registradoEn },
+      candidatos,
+      parametros,
+      datos.sincronizadoEn,
+    );
+
+    let incidenteId: number;
+    if (elegido) {
+      incidenteId = elegido.incidenteId;
+    } else {
+      // area_id queda vacío: es el área a la que se deriva, y eso lo hace el operador.
+      // cantidad_reportes arranca en 0: se suma abajo, igual que cuando se agrupa.
+      const [incidente] = await tx.$queryRaw<{ id: number }[]>`
+        INSERT INTO incidente (
+          categoria_id, estado, severidad, ubicacion, tipo_vigencia, vigente_hasta,
+          cantidad_reportes, primer_reporte_en
+        ) VALUES (
+          ${datos.categoriaId}, 'REGISTRADO', ${datos.severidad}::severidad,
+          ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
+          ${datos.tipoVigencia}::tipo_vigencia, ${datos.vigenteHasta}, 0, ${datos.registradoEn}
+        )
+        RETURNING id`;
+      incidenteId = incidente!.id;
+    }
 
     const sugerencia = datos.sugerencia;
     const [reporte] = await tx.$queryRaw<
@@ -95,7 +119,7 @@ export function crearReporteConIncidente(datos: NuevoReporte) {
         registrado_en, sincronizado_en,
         categoria_sugerida_id, severidad_sugerida, sugerencia_aceptada, registro_ia_id
       ) VALUES (
-        ${incidente!.id}, ${datos.usuarioId}, ${datos.categoriaId}, ${datos.severidad}::severidad,
+        ${incidenteId}, ${datos.usuarioId}, ${datos.categoriaId}, ${datos.severidad}::severidad,
         ${datos.descripcion}, ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
         ${datos.origen}::origen_reporte, ${datos.registradoEn}, ${datos.sincronizadoEn},
         ${sugerencia?.categoriaSugeridaId ?? null}, ${sugerencia?.severidadSugerida ?? null}::severidad,
@@ -105,9 +129,17 @@ export function crearReporteConIncidente(datos: NuevoReporte) {
 
     await tx.fotografia.create({ data: { reporteId: reporte!.id, ...datos.foto } });
 
+    // Con el reporte ya guardado: la cantidad y la severidad consolidada lo incluyen.
+    const severidad = severidadConsolidada(await agrupacion.severidadesDeclaradas(tx, incidenteId));
+    await tx.incidente.update({
+      where: { id: incidenteId },
+      data: { cantidadReportes: { increment: 1 }, severidad, actualizadoEn: datos.sincronizadoEn },
+    });
+    await avisarCambioIncidente(tx, incidenteId);
+
     return {
       id: reporte!.id,
-      incidenteId: incidente!.id,
+      incidenteId,
       nivelConfianza: reporte!.nivelConfianza,
       estadoVerificacion: reporte!.estadoVerificacion,
     };

@@ -325,7 +325,7 @@ Responde **201**:
 ```
 
 - La foto se guarda **tal cual llegó**, sin recomprimir: se conserva el EXIF para la verificación (corte 50 %).
-- Por ahora cada reporte abre su propio incidente en estado `REGISTRADO`. La verificación automática y la agrupación de reportes cercanos llegan en el corte 50 %; hasta entonces `nivelConfianza` es 0 y `estadoVerificacion` es `PENDIENTE_REVISION`.
+- El reporte se suma al incidente de la misma categoría que más se le parece por cercanía, tiempo y foto, o abre uno nuevo en estado `REGISTRADO` si ninguno alcanza el umbral (ver "Agrupación de reportes en incidentes" en [`calculos.md`](calculos.md)). `incidenteId` puede ser el de un incidente que ya existía. La verificación automática llega con la #50; hasta entonces `nivelConfianza` es 0 y `estadoVerificacion` es `PENDIENTE_REVISION`.
 - Si algo falla, no queda nada a medias: ni un reporte sin foto ni una foto suelta.
 - El incidente nace sin área (`area_id` vacío): es el área a la que se deriva, y eso lo hace el operador.
 - Si la categoría es temporal, el incidente vence a los días de la categoría contados desde que llega el reporte (no desde `registradoEn`).

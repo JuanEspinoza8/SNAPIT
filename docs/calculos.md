@@ -69,6 +69,34 @@ El puntaje de agrupación combina la cercanía, el tiempo transcurrido y el pare
 | `agrupacion.peso_foto` | decimal | 0,3 | Peso del parecido entre las fotos |
 | `agrupacion.umbral` | decimal | 0,5 | Puntaje mínimo para sumarse a un incidente; si ningún candidato lo alcanza, se crea uno nuevo |
 
+Cada reporte nuevo se suma al incidente que más se le parece, o abre uno nuevo (#53, `server/src/modulos/agrupacion/calculo.ts`).
+
+**Candidatos:** incidentes de la **misma categoría**, a no más de `radio_m` metros, no resueltos ni desestimados, no caducados ni vencidos, no unidos a otro, y con algún reporte en los últimos `ventana_dias` días.
+
+**Puntaje** de cada candidato, de 0 a 1:
+
+```latex
+\text{puntaje} = p_d \left(1 - \frac{d}{\text{radio}}\right) + p_t \left(1 - \frac{\Delta t}{\text{ventana}}\right) + p_f \cdot \text{similitud}
+```
+
+- `d`: distancia en metros entre el reporte y el incidente.
+- `Δt`: días entre el reporte y el último reporte del incidente (un reporte cargado sin señal, anterior a ese, cuenta como simultáneo).
+- `similitud` = max(0, 1 − hamming/32), con `hamming` = bits distintos entre el hash perceptual de la foto nueva y el de la foto más parecida del incidente (#47). Sin hash, 0.
+
+El reporte se suma al candidato de mayor puntaje si llega a `umbral`; ante un empate, al más cercano. Si ninguno llega, abre un incidente nuevo.
+
+**Al sumarse**, en la misma transacción: se actualizan `reporte.incidente_id` y `cantidad_reportes`, se recalcula la **severidad consolidada** (la más declarada por los reportes no desestimados; ante un empate, la más alta) y se avisa al módulo de prioridad (`incidentes/eventos.ts`).
+
+| Caso (valores de partida) | Puntaje | Resultado |
+|---|---|---|
+| Mismo lugar, mismo día, otra foto | 0,5 + 0,2 + 0 = 0,7 | Se agrupa |
+| A 20 m, mismo día, la misma foto | 0,17 + 0,2 + 0,3 = 0,67 | Se agrupa |
+| A 20 m, mismo día, otra foto | 0,17 + 0,2 + 0 = 0,37 | Incidente nuevo |
+| Mismo lugar, hace 25 días, otra foto | 0,5 + 0,03 + 0 = 0,53 | Se agrupa |
+| A 30 m o más | — | No es candidato |
+
+Dos reportes de la misma categoría que llegan a la vez se procesan de a uno (un bloqueo por categoría en la base): así el segundo ve el incidente que abrió el primero.
+
 ### Prioridad del incidente
 
 | Parámetro | Tipo | Valor | Para qué |

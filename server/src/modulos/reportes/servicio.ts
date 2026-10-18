@@ -4,6 +4,7 @@ import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import { logger } from '../../config/logger.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
+import { leerParametros as leerParametrosAgrupacion } from '../agrupacion/repositorio.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { type DatosReporte, esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
@@ -99,38 +100,43 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
     vigenteHasta = new Date(ahora.getTime() + dias * DIA_MS);
   }
 
+  const parametrosAgrupacion = await leerParametrosAgrupacion();
+
   // Primero el archivo y después la base. Si la base falla, se borra el archivo: nunca queda
   // un reporte sin foto ni una foto suelta.
   const rutaArchivo = await almacenFotos.guardar(archivo!, imagen!.tipo);
   let reporte: Awaited<ReturnType<typeof repositorio.crearReporteConIncidente>>;
   try {
-    reporte = await repositorio.crearReporteConIncidente({
-      usuarioId,
-      categoriaId: categoria.id,
-      severidad: datos.severidadDeclarada,
-      sugerencia,
-      descripcion: datos.descripcion,
-      lat: datos.lat,
-      lon: datos.lon,
-      origen: datos.origen,
-      registradoEn,
-      sincronizadoEn: ahora,
-      tipoVigencia: categoria.tipoVigenciaDefault,
-      vigenteHasta,
-      foto: {
-        rutaArchivo,
-        ancho: imagen!.ancho,
-        alto: imagen!.alto,
-        tamanoBytes: archivo!.length,
-        tomadaConCamaraApp: datos.tomadaConCamaraApp,
-        hashPerceptual: imagen!.hashPerceptual,
-        exifLatitud: imagen!.exif.latitud,
-        exifLongitud: imagen!.exif.longitud,
-        exifTomadaEn: imagen!.exif.tomadaEn,
-        exifMarca: imagen!.exif.marca,
-        exifModelo: imagen!.exif.modelo,
+    reporte = await repositorio.crearReporteConIncidente(
+      {
+        usuarioId,
+        categoriaId: categoria.id,
+        severidad: datos.severidadDeclarada,
+        sugerencia,
+        descripcion: datos.descripcion,
+        lat: datos.lat,
+        lon: datos.lon,
+        origen: datos.origen,
+        registradoEn,
+        sincronizadoEn: ahora,
+        tipoVigencia: categoria.tipoVigenciaDefault,
+        vigenteHasta,
+        foto: {
+          rutaArchivo,
+          ancho: imagen!.ancho,
+          alto: imagen!.alto,
+          tamanoBytes: archivo!.length,
+          tomadaConCamaraApp: datos.tomadaConCamaraApp,
+          hashPerceptual: imagen!.hashPerceptual,
+          exifLatitud: imagen!.exif.latitud,
+          exifLongitud: imagen!.exif.longitud,
+          exifTomadaEn: imagen!.exif.tomadaEn,
+          exifMarca: imagen!.exif.marca,
+          exifModelo: imagen!.exif.modelo,
+        },
       },
-    });
+      parametrosAgrupacion,
+    );
   } catch (error) {
     await almacenFotos.borrar(rutaArchivo).catch(() => {});
     throw error;
