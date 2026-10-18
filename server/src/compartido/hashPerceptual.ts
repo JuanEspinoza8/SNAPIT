@@ -50,6 +50,16 @@ export function distanciaHamming(a: string, b: string): number {
 }
 
 /**
+ * Cuántos unos tiene un hash. Una imagen lisa (negra, gris o blanca) da 64 ceros, y una muy oscura casi:
+ * con pocos unos, el hash se parece al de cualquier otra foto lisa u oscura. En SQL: `bit_count(hash)`.
+ */
+export function contarUnos(hash: string): number {
+  let unos = 0;
+  for (const bit of hash) if (bit === '1') unos++;
+  return unos;
+}
+
+/**
  * La misma distancia calculada en la base, para buscar fotos parecidas sin traerlas todas:
  * `#` es el XOR entre cadenas de bits y `bit_count` cuenta los unos que quedan.
  * Ejemplo: prisma.$queryRaw`SELECT id FROM fotografia f WHERE ${distanciaHammingSql(Prisma.sql`f.hash_perceptual`, Prisma.sql`${hash}::bit(64)`)} <= 6`

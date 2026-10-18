@@ -39,7 +39,9 @@ async function prepararFoto(contenido: Buffer) {
   try {
     const { format } = await sharp(contenido).metadata();
     if (format !== 'jpeg' && format !== 'png') return null;
-    return await sharp(contenido)
+    // Una foto incompleta se manda con lo que llegó, igual que el hash (analisisFoto.ts): si no, el
+    // reporte la aceptaría pero la sugerencia no.
+    return await sharp(contenido, { failOn: 'none' })
       .rotate()
       .resize({ width: LADO_MAXIMO_PX, height: LADO_MAXIMO_PX, fit: 'inside', withoutEnlargement: true })
       // Un PNG con transparencia: el fondo transparente pasa a blanco.

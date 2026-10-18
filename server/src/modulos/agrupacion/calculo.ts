@@ -8,13 +8,13 @@ export interface ParametrosAgrupacion {
   pesoTiempo: number;
   pesoFoto: number;
   umbral: number;
+  /** Con menos unos, el hash de la foto no sirve para compararla (una foto lisa u oscura): no suma parecido. */
+  unosMinimosHash: number;
 }
 
 /** El reporte que acaba de llegar. */
 export interface ReporteNuevo {
   categoriaId: number;
-  /** Cuándo lo cargó el vecino: con él se mide el tiempo hasta el último reporte del incidente. */
-  registradoEn: Date;
 }
 
 /** Un incidente cercano, con lo que hace falta para puntuarlo. */
@@ -28,9 +28,15 @@ export interface Candidato {
   vigenteHasta: Date | null;
   /** Distancia en metros al punto del reporte nuevo. */
   distanciaM: number;
-  /** El reporte más reciente del incidente. */
-  ultimoReporteEn: Date;
-  /** Bits distintos entre la foto nueva y la más parecida del incidente. Null si falta algún hash. */
+  /**
+   * Cuándo llegó al servidor el reporte más reciente del incidente (sin contar desestimados, y sumando
+   * los de los incidentes que se le unieron). Null si no le queda ninguno válido.
+   */
+  ultimoReporteEn: Date | null;
+  /**
+   * Bits distintos entre la foto nueva y la más parecida del incidente. Null si falta algún hash o si
+   * tiene menos de `unosMinimosHash` unos.
+   */
   hamming: number | null;
 }
 
@@ -50,9 +56,13 @@ export function similitudFoto(hamming: number | null) {
  *
  *   puntaje = peso_distancia·(1 − d/radio) + peso_tiempo·(1 − Δt/ventana) + peso_foto·similitud
  *
+ * Δt son los días entre la llegada del reporte nuevo (`ahora`) y la del último reporte del incidente. Se
+ * mide con la llegada al servidor y no con registradoEn, que lo manda el celular: una fecha vieja no
+ * puede revivir un incidente que quedó fuera de la ventana.
+ *
  * Devuelve null si el candidato no puede recibir reportes: otra categoría, cerrado (resuelto o
- * desestimado), caducado o vencido, unido a otro incidente, más lejos que el radio o con su último
- * reporte fuera de la ventana de tiempo.
+ * desestimado), caducado o vencido, unido a otro incidente, más lejos que el radio, sin reportes
+ * válidos o con su último reporte fuera de la ventana de tiempo.
  */
 export function puntajeAgrupacion(
   reporte: ReporteNuevo,
@@ -66,10 +76,10 @@ export function puntajeAgrupacion(
   if (candidato.caducadoEn !== null) return null;
   if (candidato.vigenteHasta !== null && candidato.vigenteHasta <= ahora) return null;
   if (candidato.distanciaM > parametros.radioM) return null;
+  if (candidato.ultimoReporteEn === null) return null;
 
-  // Un reporte cargado sin señal puede ser anterior al último del incidente: cuenta como simultáneo.
-  const diasEntre =
-    Math.max(0, reporte.registradoEn.getTime() - candidato.ultimoReporteEn.getTime()) / DIA_MS;
+  // En valor absoluto: un último reporte con fecha posterior a `ahora` no da un Δt negativo que sume de más.
+  const diasEntre = Math.abs(ahora.getTime() - candidato.ultimoReporteEn.getTime()) / DIA_MS;
   if (diasEntre > parametros.ventanaDias) return null;
 
   return (
@@ -80,8 +90,8 @@ export function puntajeAgrupacion(
 }
 
 /**
- * El incidente al que se suma el reporte: el de mayor puntaje, si alcanza el umbral. Null si ninguno lo
- * alcanza (se crea un incidente nuevo). Ante un empate, el más cercano.
+ * El incidente al que se suma el reporte: el de mayor puntaje, si supera el umbral (§7.2 del plan y la
+ * #53). Null si ninguno lo supera (se crea un incidente nuevo). Ante un empate, el más cercano.
  */
 export function elegirIncidente(
   reporte: ReporteNuevo,
@@ -92,7 +102,7 @@ export function elegirIncidente(
   let mejor: { incidenteId: number; puntaje: number; distanciaM: number } | null = null;
   for (const candidato of candidatos) {
     const puntaje = puntajeAgrupacion(reporte, candidato, parametros, ahora);
-    if (puntaje === null || puntaje < parametros.umbral) continue;
+    if (puntaje === null || puntaje <= parametros.umbral) continue;
     if (
       !mejor ||
       puntaje > mejor.puntaje ||

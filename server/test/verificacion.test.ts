@@ -7,7 +7,7 @@ import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { crearUsuario } from './apoyo.js';
-import { EXIF_DE_PRUEBA, jpegConExif, jpegSinExif } from './imagenes.js';
+import { EXIF_DE_PRUEBA, escenaNocturna, jpegConExif, jpegLiso, jpegSinExif } from './imagenes.js';
 
 let categoria: Categoria;
 
@@ -101,6 +101,55 @@ describe('verificación automática al crear el reporte (F04)', () => {
     });
     // 50 − 10 (sin EXIF) − 40 (repetida) = 0
     expect(segundo.nivelConfianza).toBe(0);
+  });
+
+  it('dos fotos lisas distintas no cuentan como la misma foto', async () => {
+    const [vecino, otro] = await Promise.all([
+      crearUsuario({ rol: 'VECINO' }),
+      crearUsuario({ rol: 'VECINO' }),
+    ]);
+
+    // Las dos tienen el hash de 64 ceros, igual que cualquier otra foto lisa ya guardada por otros tests.
+    await reportar(vecino, { camara: true, foto: await jpegLiso(0) });
+    const segundo = await reportar(otro, { camara: true, foto: await jpegLiso(255), lat: -38.99 });
+
+    expect((await senales(segundo.id)).map((s) => s.tipo)).not.toContain('HASH_DUPLICADO');
+    // Cámara de la app sin GPS (+15) y reputación inicial: 50 + 15 = 65.
+    expect(segundo).toMatchObject({ nivelConfianza: 65, estadoVerificacion: 'VERIFICADO' });
+  });
+
+  it('una foto oscura con algo de información sí se detecta si se repite', async () => {
+    const vecino = await crearUsuario({ rol: 'VECINO' });
+    const foto = await escenaNocturna(320, 60);
+
+    await reportar(vecino, { foto });
+    const segundo = await reportar(vecino, { foto, lat: -38.99 });
+
+    expect((await senales(segundo.id)).map((s) => s.tipo)).toContain('HASH_DUPLICADO');
+  });
+
+  it('desde el sitio web la foto no puede venir de la cámara de la app: 400', async () => {
+    const vecino = await crearUsuario({ rol: 'VECINO' });
+
+    const res = await request(app)
+      .post('/api/reportes')
+      .set('Authorization', `Bearer ${crearTokenAcceso(vecino)}`)
+      .field('categoriaId', String(categoria.id))
+      .field('severidadDeclarada', 'MODERADA')
+      .field('lat', String(EXIF_DE_PRUEBA.latitud))
+      .field('lon', String(EXIF_DE_PRUEBA.longitud))
+      .field('origen', 'SITIO_WEB')
+      .field('tomadaConCamaraApp', 'true')
+      .attach('foto', await fotoUnica(jpegSinExif()), 'foto.jpg');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles).toEqual([
+      {
+        campo: 'tomadaConCamaraApp',
+        mensaje: 'Desde el sitio web la foto no puede ser de la cámara de la app',
+      },
+    ]);
+    expect(await prisma.reporte.count({ where: { usuarioId: vecino.id } })).toBe(0);
   });
 
   it('la reputación del vecino suma o resta', async () => {

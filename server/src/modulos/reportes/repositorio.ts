@@ -1,10 +1,7 @@
 import { type OrigenReporte, Prisma, type Severidad, type TipoVigencia } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
-import { elegirIncidente, type ParametrosAgrupacion, severidadConsolidada } from '../agrupacion/calculo.js';
-import * as agrupacion from '../agrupacion/repositorio.js';
-import { avisarCambioIncidente } from '../incidentes/eventos.js';
-import type { ResultadoConfianza } from '../verificacion/calculo.js';
 import { INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
+import type { ResultadoConfianza, Senal } from '../verificacion/calculo.js';
 
 export function buscarCategoriaActiva(id: number) {
   return prisma.categoria.findFirst({ where: { id, activa: true } });
@@ -42,122 +39,117 @@ export interface SugerenciaDelReporte {
   sugerenciaAceptada: boolean;
 }
 
+/**
+ * La transacción del alta de un reporte. Los valores por defecto de Prisma (2 s para conseguir conexión, 5 s
+ * en total) se quedan cortos si varios reportes de la misma categoría esperan el bloqueo de la agrupación.
+ */
+export function transaccion<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) {
+  return prisma.$transaction(fn, { maxWait: 10_000, timeout: 20_000 });
+}
+
+// Las escrituras del alta de un reporte. Las encadena reportes/servicio.ts dentro de la transacción.
+// La ubicación es una columna de PostGIS que Prisma no maneja, por eso los INSERT van en SQL.
+
+export interface NuevoIncidente {
+  categoriaId: number;
+  severidad: Severidad;
+  lat: number;
+  lon: number;
+  tipoVigencia: TipoVigencia;
+  vigenteHasta: Date | null;
+  primerReporteEn: Date;
+}
+
+/** Un incidente nuevo para un reporte que no se sumó a ninguno. Devuelve su id. */
+export async function insertarIncidente(tx: Prisma.TransactionClient, datos: NuevoIncidente) {
+  // area_id queda vacío: es el área a la que se deriva, y eso lo hace el operador.
+  // cantidad_reportes arranca en 0: se suma con sumarReporte, igual que cuando se agrupa.
+  const [incidente] = await tx.$queryRaw<{ id: number }[]>`
+    INSERT INTO incidente (
+      categoria_id, estado, severidad, ubicacion, tipo_vigencia, vigente_hasta,
+      cantidad_reportes, primer_reporte_en
+    ) VALUES (
+      ${datos.categoriaId}, 'REGISTRADO', ${datos.severidad}::severidad,
+      ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
+      ${datos.tipoVigencia}::tipo_vigencia, ${datos.vigenteHasta}, 0, ${datos.primerReporteEn}
+    )
+    RETURNING id`;
+  return incidente!.id;
+}
+
 export interface NuevoReporte {
+  incidenteId: number;
   usuarioId: number;
   categoriaId: number;
   severidad: Severidad;
   sugerencia: SugerenciaDelReporte | null;
   /** El resultado de la verificación automática (#50). */
-  verificacion: ResultadoConfianza;
+  verificacion: Pick<ResultadoConfianza, 'nivel' | 'estado'>;
   descripcion: string | null;
   lat: number;
   lon: number;
   origen: OrigenReporte;
   registradoEn: Date;
   sincronizadoEn: Date;
-  tipoVigencia: TipoVigencia;
-  vigenteHasta: Date | null;
-  foto: {
-    rutaArchivo: string;
-    ancho: number;
-    alto: number;
-    tamanoBytes: number;
-    tomadaConCamaraApp: boolean;
-    hashPerceptual: string | null;
-    exifLatitud: number | null;
-    exifLongitud: number | null;
-    exifTomadaEn: Date | null;
-    exifMarca: string | null;
-    exifModelo: string | null;
-  };
 }
 
-/**
- * Guarda el reporte y su fotografía, y lo suma al incidente que corresponde (F05): al mejor candidato si
- * supera el umbral de agrupación, o a un incidente nuevo si no. Todo en una sola transacción: o queda todo
- * o nada. La ubicación es una columna de PostGIS que Prisma no maneja, por eso los INSERT van en SQL.
- */
-export function crearReporteConIncidente(datos: NuevoReporte, parametros: ParametrosAgrupacion) {
-  return prisma.$transaction(
-    async (tx) => {
-      await agrupacion.bloquearCategoria(tx, datos.categoriaId);
-      const candidatos = await agrupacion.buscarCandidatos(tx, {
-        categoriaId: datos.categoriaId,
-        lat: datos.lat,
-        lon: datos.lon,
-        hashPerceptual: datos.foto.hashPerceptual,
-        radioM: parametros.radioM,
-      });
-      const elegido = elegirIncidente(
-        { categoriaId: datos.categoriaId, registradoEn: datos.registradoEn },
-        candidatos,
-        parametros,
-        datos.sincronizadoEn,
-      );
+export async function insertarReporte(tx: Prisma.TransactionClient, datos: NuevoReporte) {
+  const { sugerencia, verificacion } = datos;
+  const [reporte] = await tx.$queryRaw<{ id: number; nivelConfianza: number; estadoVerificacion: string }[]>`
+    INSERT INTO reporte (
+      incidente_id, usuario_id, categoria_id, severidad_declarada, descripcion, ubicacion, origen,
+      registrado_en, sincronizado_en,
+      categoria_sugerida_id, severidad_sugerida, sugerencia_aceptada, registro_ia_id,
+      nivel_confianza, estado_verificacion
+    ) VALUES (
+      ${datos.incidenteId}, ${datos.usuarioId}, ${datos.categoriaId}, ${datos.severidad}::severidad,
+      ${datos.descripcion}, ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
+      ${datos.origen}::origen_reporte, ${datos.registradoEn}, ${datos.sincronizadoEn},
+      ${sugerencia?.categoriaSugeridaId ?? null}, ${sugerencia?.severidadSugerida ?? null}::severidad,
+      ${sugerencia?.sugerenciaAceptada ?? null}, ${sugerencia?.registroIaId ?? null},
+      ${verificacion.nivel}, ${verificacion.estado}::estado_verificacion
+    )
+    RETURNING id, nivel_confianza AS "nivelConfianza", estado_verificacion::text AS "estadoVerificacion"`;
+  return reporte!;
+}
 
-      let incidenteId: number;
-      if (elegido) {
-        incidenteId = elegido.incidenteId;
-      } else {
-        // area_id queda vacío: es el área a la que se deriva, y eso lo hace el operador.
-        // cantidad_reportes arranca en 0: se suma abajo, igual que cuando se agrupa.
-        const [incidente] = await tx.$queryRaw<{ id: number }[]>`
-        INSERT INTO incidente (
-          categoria_id, estado, severidad, ubicacion, tipo_vigencia, vigente_hasta,
-          cantidad_reportes, primer_reporte_en
-        ) VALUES (
-          ${datos.categoriaId}, 'REGISTRADO', ${datos.severidad}::severidad,
-          ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
-          ${datos.tipoVigencia}::tipo_vigencia, ${datos.vigenteHasta}, 0, ${datos.registradoEn}
-        )
-        RETURNING id`;
-        incidenteId = incidente!.id;
-      }
+export interface FotoDelReporte {
+  rutaArchivo: string;
+  ancho: number;
+  alto: number;
+  tamanoBytes: number;
+  tomadaConCamaraApp: boolean;
+  hashPerceptual: string | null;
+  exifLatitud: number | null;
+  exifLongitud: number | null;
+  exifTomadaEn: Date | null;
+  exifMarca: string | null;
+  exifModelo: string | null;
+}
 
-      const sugerencia = datos.sugerencia;
-      const [reporte] = await tx.$queryRaw<
-        { id: number; nivelConfianza: number; estadoVerificacion: string }[]
-      >`
-      INSERT INTO reporte (
-        incidente_id, usuario_id, categoria_id, severidad_declarada, descripcion, ubicacion, origen,
-        registrado_en, sincronizado_en,
-        categoria_sugerida_id, severidad_sugerida, sugerencia_aceptada, registro_ia_id,
-        nivel_confianza, estado_verificacion
-      ) VALUES (
-        ${incidenteId}, ${datos.usuarioId}, ${datos.categoriaId}, ${datos.severidad}::severidad,
-        ${datos.descripcion}, ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
-        ${datos.origen}::origen_reporte, ${datos.registradoEn}, ${datos.sincronizadoEn},
-        ${sugerencia?.categoriaSugeridaId ?? null}, ${sugerencia?.severidadSugerida ?? null}::severidad,
-        ${sugerencia?.sugerenciaAceptada ?? null}, ${sugerencia?.registroIaId ?? null},
-        ${datos.verificacion.nivel}, ${datos.verificacion.estado}::estado_verificacion
-      )
-      RETURNING id, nivel_confianza AS "nivelConfianza", estado_verificacion::text AS "estadoVerificacion"`;
+export function guardarFoto(tx: Prisma.TransactionClient, reporteId: number, foto: FotoDelReporte) {
+  return tx.fotografia.create({ data: { reporteId, ...foto } });
+}
 
-      await tx.fotografia.create({ data: { reporteId: reporte!.id, ...datos.foto } });
-      // Cada señal con su explicación: así el operador ve por qué el reporte quedó como quedó.
-      await tx.senalVerificacion.createMany({
-        data: datos.verificacion.senales.map((senal) => ({ reporteId: reporte!.id, ...senal })),
-      });
+/** Cada señal de la verificación con su explicación: así el operador ve por qué el reporte quedó como quedó. */
+export function guardarSenales(tx: Prisma.TransactionClient, reporteId: number, senales: Senal[]) {
+  return tx.senalVerificacion.createMany({ data: senales.map((senal) => ({ reporteId, ...senal })) });
+}
 
-      // Con el reporte ya guardado: la cantidad y la severidad consolidada lo incluyen.
-      const severidad = severidadConsolidada(await agrupacion.severidadesDeclaradas(tx, incidenteId));
-      await tx.incidente.update({
-        where: { id: incidenteId },
-        data: { cantidadReportes: { increment: 1 }, severidad, actualizadoEn: datos.sincronizadoEn },
-      });
-      await avisarCambioIncidente(tx, incidenteId);
-
-      return {
-        id: reporte!.id,
-        incidenteId,
-        nivelConfianza: reporte!.nivelConfianza,
-        estadoVerificacion: reporte!.estadoVerificacion,
-      };
-      // Los valores por defecto de Prisma (2 s para conseguir conexión, 5 s en total) se quedan cortos si
-      // varios reportes de la misma categoría esperan el bloqueo de la agrupación.
+/** Suma el reporte al contador del incidente y deja la severidad consolidada. */
+export function sumarReporte(
+  tx: Prisma.TransactionClient,
+  incidenteId: number,
+  datos: { severidad: Severidad; actualizadoEn: Date },
+) {
+  return tx.incidente.update({
+    where: { id: incidenteId },
+    data: {
+      cantidadReportes: { increment: 1 },
+      severidad: datos.severidad,
+      actualizadoEn: datos.actualizadoEn,
     },
-    { maxWait: 10_000, timeout: 20_000 },
-  );
+  });
 }
 
 /** Quién pide la foto. Null en lo que no corresponde (sin sesión, o un vecino no tiene organismo). */

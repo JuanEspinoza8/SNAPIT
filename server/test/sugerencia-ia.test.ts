@@ -6,9 +6,16 @@ import { app } from '../src/app.js';
 import { almacenFotos } from '../src/compartido/almacenFotos.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
+import * as catalogo from '../src/modulos/catalogo/repositorio.js';
 import { crearServicioIa, servicioIa } from '../src/modulos/ia/servicio.js';
 import { crearUsuario, tokenDe } from './apoyo.js';
 import { jpegConExif, png1x1 } from './imagenes.js';
+
+// Envuelve la función real para poder simular, en un test puntual, que no hay categorías activas.
+vi.mock('../src/modulos/catalogo/repositorio.js', async (original) => {
+  const real = await original<typeof import('../src/modulos/catalogo/repositorio.js')>();
+  return { ...real, listarCategoriasActivas: vi.fn(real.listarCategoriasActivas) };
+});
 
 // La API de Claude simulada: ningún test sale a la red ni gasta.
 const fetchSimulado = vi.fn<typeof fetch>();
@@ -152,15 +159,47 @@ describe('POST /api/ia/clasificar-foto', () => {
     expect(registros.at(-1)?.error).toContain('No es una de las categorías de la lista');
   });
 
-  it('con la IA colgada responde 503 dentro del timeout', async () => {
+  it('una severidad inventada por el modelo también es un fallo', async () => {
+    vi.spyOn(servicioIa, 'consultar').mockImplementation(servicioSimulado().consultar);
+    fetchSimulado.mockResolvedValue(responder({ categoriaId: categoria.id, severidad: 'TERRIBLE' }));
+
+    const res = await clasificar();
+
+    expect(res.status).toBe(503);
+    expect((await registrosDe(vecino.id)).at(-1)).toMatchObject({ exito: false });
+  });
+
+  it('sin categorías activas responde 503 sin consultar a la IA', async () => {
+    vi.mocked(catalogo.listarCategoriasActivas).mockResolvedValueOnce([]);
+    const consultar = vi.spyOn(servicioIa, 'consultar');
+
+    const res = await clasificar();
+
+    expect(res.status).toBe(503);
+    expect(res.body.error.codigo).toBe('IA_NO_DISPONIBLE');
+    expect(consultar).not.toHaveBeenCalled();
+  });
+
+  it('una foto a la que le faltan los últimos bytes se clasifica igual, como la acepta el reporte', async () => {
+    vi.spyOn(servicioIa, 'consultar').mockImplementation(servicioSimulado().consultar);
+    fetchSimulado.mockResolvedValueOnce(responder({ categoriaId: categoria.id, severidad: 'LEVE' }));
+    const foto = jpegConExif();
+
+    const res = await clasificar(foto.subarray(0, foto.length - 2));
+
+    expect(res.status).toBe(200);
+  });
+
+  it('con la IA colgada responde 503 dentro del timeout, sin esperar dos veces el plazo', async () => {
     fetchSimulado.mockImplementation(nuncaResponde);
-    vi.spyOn(servicioIa, 'consultar').mockImplementation(servicioSimulado(300).consultar);
+    vi.spyOn(servicioIa, 'consultar').mockImplementation(servicioSimulado(1_000).consultar);
     const inicio = Date.now();
 
     const res = await clasificar();
 
     expect(res.status).toBe(503);
-    expect(Date.now() - inicio).toBeLessThan(5_000);
+    // Con el reintento fuera del plazo tardaría más de dos plazos (decisión del 16/10).
+    expect(Date.now() - inicio).toBeLessThan(1_900);
   });
 
   it('sin clave de la API (como en los tests) responde 503', async () => {
@@ -292,15 +331,54 @@ describe('POST /api/reportes con la sugerencia de la IA', () => {
     expect(res.status).toBe(201);
   });
 
-  describe('una sugerencia que no vale → 400', () => {
-    it('falta alguno de los tres datos', async () => {
-      const res = await reportar({ categoriaId: categoria.id, severidadDeclarada: 'LEVE', registroIaId: 1 });
+  it('un campo de la sugerencia que llega vacío cuenta como que no vino', async () => {
+    const res = await reportar({
+      categoriaId: categoria.id,
+      severidadDeclarada: 'LEVE',
+      categoriaSugeridaId: '',
+      severidadSugerida: '',
+      registroIaId: '',
+    });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error.detalles.map((d: { campo: string }) => d.campo).sort()).toEqual([
-        'categoriaSugeridaId',
-        'severidadSugerida',
-      ]);
+    expect(res.status).toBe(201);
+    expect(await guardado(res.body.id)).toMatchObject({ registroIaId: null, sugerenciaAceptada: null });
+  });
+
+  it('un dato de la sugerencia con un formato inválido sigue siendo un 400', async () => {
+    const res = await reportar({
+      categoriaId: categoria.id,
+      severidadDeclarada: 'LEVE',
+      categoriaSugeridaId: categoria.id,
+      severidadSugerida: 'MUCHA',
+      registroIaId: 'abc',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles.map((d: { campo: string }) => d.campo).sort()).toEqual([
+      'registroIaId',
+      'severidadSugerida',
+    ]);
+  });
+
+  describe('una sugerencia que no vale se descarta y el reporte se guarda igual (F06)', () => {
+    const sinSugerencia = {
+      categoriaSugeridaId: null,
+      severidadSugerida: null,
+      sugerenciaAceptada: null,
+      registroIaId: null,
+    };
+
+    it('falta alguno de los tres datos', async () => {
+      const registro = await sugerencia(vecino.id, categoria.id, 'LEVE');
+
+      const res = await reportar({
+        categoriaId: categoria.id,
+        severidadDeclarada: 'LEVE',
+        registroIaId: registro.id,
+      });
+
+      expect(res.status).toBe(201);
+      expect(await guardado(res.body.id)).toEqual(sinSugerencia);
     });
 
     it('es de otro vecino', async () => {
@@ -315,11 +393,32 @@ describe('POST /api/reportes con la sugerencia de la IA', () => {
         registroIaId: registro.id,
       });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error.detalles[0]).toEqual({
-        campo: 'registroIaId',
-        mensaje: 'No es una sugerencia de la IA pedida por vos',
+      expect(res.status).toBe(201);
+      expect(await guardado(res.body.id)).toEqual(sinSugerencia);
+    });
+
+    it('es una consulta a la IA de otro tipo', async () => {
+      const informe = await prisma.registroIa.create({
+        data: {
+          usuarioId: vecino.id,
+          tipo: 'INFORME',
+          proveedor: 'ANTHROPIC',
+          modelo: 'claude-haiku-5-5',
+          exito: true,
+          salida: { categoriaId: categoria.id, severidad: 'LEVE' },
+        },
       });
+
+      const res = await reportar({
+        categoriaId: categoria.id,
+        severidadDeclarada: 'LEVE',
+        categoriaSugeridaId: categoria.id,
+        severidadSugerida: 'LEVE',
+        registroIaId: informe.id,
+      });
+
+      expect(res.status).toBe(201);
+      expect(await guardado(res.body.id)).toEqual(sinSugerencia);
     });
 
     it('no coincide con lo que respondió la IA', async () => {
@@ -333,11 +432,11 @@ describe('POST /api/reportes con la sugerencia de la IA', () => {
         registroIaId: registro.id,
       });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error.detalles[0].mensaje).toBe('No coincide con lo que sugirió la IA');
+      expect(res.status).toBe(201);
+      expect(await guardado(res.body.id)).toEqual(sinSugerencia);
     });
 
-    it('ya se usó en otro reporte', async () => {
+    it('ya se usó en otro reporte, por ejemplo al reintentar un envío', async () => {
       const registro = await sugerencia(vecino.id, categoria.id, 'LEVE');
       const campos = {
         categoriaId: categoria.id,
@@ -351,8 +450,9 @@ describe('POST /api/reportes con la sugerencia de la IA', () => {
       const segundo = await reportar(campos);
 
       expect(primero.status).toBe(201);
-      expect(segundo.status).toBe(400);
-      expect(segundo.body.error.detalles[0].mensaje).toBe('Esa sugerencia ya se usó en otro reporte');
+      expect((await guardado(primero.body.id)).registroIaId).toBe(registro.id);
+      expect(segundo.status).toBe(201);
+      expect(await guardado(segundo.body.id)).toEqual(sinSugerencia);
     });
 
     it('es un intento fallido de la IA', async () => {
@@ -375,7 +475,8 @@ describe('POST /api/reportes con la sugerencia de la IA', () => {
         registroIaId: fallido.id,
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(201);
+      expect(await guardado(res.body.id)).toEqual(sinSugerencia);
     });
   });
 });

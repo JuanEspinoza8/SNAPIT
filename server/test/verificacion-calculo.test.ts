@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { contarUnos } from '../src/compartido/hashPerceptual.js';
+import { hashComparable } from '../src/modulos/verificacion/servicio.js';
 import {
   calcularConfianza,
   type DatosConfianza,
@@ -61,10 +63,8 @@ describe('calcularConfianza: cada señal', () => {
   });
 
   it('distancia justo en el límite cuenta como que coincide; un metro más, no', () => {
-    const enElLimite = calcularConfianza(
-      datos({ exif: { latitud: alNorte(99.999), longitud: -68.0591, tomadaEn: registradoEn } }),
-      p,
-    );
+    // Exactamente en el límite, sin redondeos: el EXIF en el mismo punto (0 m) con un máximo de 0 m.
+    const enElLimite = calcularConfianza(datos(), { ...p, distanciaExifMaxM: 0 });
     const pasado = calcularConfianza(
       datos({ exif: { latitud: alNorte(101), longitud: -68.0591, tomadaEn: registradoEn } }),
       p,
@@ -202,6 +202,19 @@ describe('calcularConfianza: el nivel y el estado', () => {
     const resultado = calcularConfianza(datos({ tomadaConCamaraApp: true }), p);
 
     expect(resultado.senales.every((s) => s.detalle.length > 0)).toBe(true);
+  });
+});
+
+describe('hashComparable', () => {
+  const conUnos = (unos: number) => '1'.repeat(unos) + '0'.repeat(64 - unos);
+
+  it('un hash con hamming_duplicado_max unos o menos no sirve para decir que dos fotos son la misma', () => {
+    // 64 ceros es el hash de cualquier foto lisa; con 6 unos queda a 6 bits de esa foto.
+    expect(contarUnos(conUnos(0))).toBe(0);
+    expect(hashComparable(conUnos(0), 6)).toBe(false);
+    expect(hashComparable(conUnos(6), 6)).toBe(false);
+    expect(hashComparable(conUnos(7), 6)).toBe(true);
+    expect(hashComparable(null, 6)).toBe(false);
   });
 });
 

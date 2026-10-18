@@ -1,21 +1,30 @@
 import { Prisma, type Severidad } from '@prisma/client';
-import { distanciaHammingSql } from '../../compartido/hashPerceptual.js';
-import { type DefinicionParametros, leerParametrosNumericos } from '../../compartido/parametros.js';
+import { contarUnos, distanciaHammingSql } from '../../compartido/hashPerceptual.js';
+import {
+  bitsDelHash,
+  type DefinicionParametros,
+  leerParametrosNumericos,
+  noNegativo,
+  positivo,
+} from '../../compartido/parametros.js';
+import { REPORTES_DEL_INCIDENTE } from '../incidentes/repositorio.js';
 import type { Candidato, ParametrosAgrupacion } from './calculo.js';
 
-// Los mismos valores que carga la semilla: si falta un parámetro, se agrupa igual con estos.
+// Los mismos valores que carga la semilla: si falta un parámetro, se agrupa igual con estos. El radio y la
+// ventana dividen en el puntaje, así que tienen que ser positivos; un peso en 0 apaga ese término.
 const PARAMETROS: DefinicionParametros<keyof ParametrosAgrupacion> = {
-  radioM: { clave: 'agrupacion.radio_m', valor: 30 },
-  ventanaDias: { clave: 'agrupacion.ventana_dias', valor: 30 },
-  pesoDistancia: { clave: 'agrupacion.peso_distancia', valor: 0.5 },
-  pesoTiempo: { clave: 'agrupacion.peso_tiempo', valor: 0.2 },
-  pesoFoto: { clave: 'agrupacion.peso_foto', valor: 0.3 },
-  umbral: { clave: 'agrupacion.umbral', valor: 0.5 },
+  radioM: { clave: 'agrupacion.radio_m', valor: 30, valido: positivo },
+  ventanaDias: { clave: 'agrupacion.ventana_dias', valor: 30, valido: positivo },
+  pesoDistancia: { clave: 'agrupacion.peso_distancia', valor: 0.5, valido: noNegativo },
+  pesoTiempo: { clave: 'agrupacion.peso_tiempo', valor: 0.2, valido: noNegativo },
+  pesoFoto: { clave: 'agrupacion.peso_foto', valor: 0.3, valido: noNegativo },
+  umbral: { clave: 'agrupacion.umbral', valor: 0.5, valido: noNegativo },
+  unosMinimosHash: { clave: 'agrupacion.unos_minimos_hash', valor: 16, valido: bitsDelHash },
 };
 
-/** Los parámetros agrupacion.* de parametro_sistema. Todos tienen que ser positivos (radio, pesos, umbral). */
+/** Los parámetros agrupacion.* de parametro_sistema. */
 export function leerParametros(): Promise<ParametrosAgrupacion> {
-  return leerParametrosNumericos(PARAMETROS, (valor) => valor > 0);
+  return leerParametrosNumericos(PARAMETROS);
 }
 
 /**
@@ -30,15 +39,28 @@ export function bloquearCategoria(tx: Prisma.TransactionClient, categoriaId: num
 /**
  * Los incidentes de la categoría a menos del radio del punto, con la foto más parecida a la nueva.
  * Filtra lo que puede filtrar la base (cerrados, unidos, caducados); el resto lo decide calculo.ts.
+ * El último reporte y la foto más parecida salen de los reportes válidos del incidente y de los que se
+ * le unieron.
  */
 export function buscarCandidatos(
   tx: Prisma.TransactionClient,
-  datos: { categoriaId: number; lat: number; lon: number; hashPerceptual: string | null; radioM: number },
+  datos: {
+    categoriaId: number;
+    lat: number;
+    lon: number;
+    hashPerceptual: string | null;
+    radioM: number;
+    unosMinimosHash: number;
+  },
 ) {
   // ST_MakePoint recibe primero la longitud. Sobre geography, distancias y radio van en metros.
   const punto = Prisma.sql`ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography`;
-  // Sin hash de la foto nueva, la comparación da NULL y el candidato queda sin parecido (hamming null).
-  const hashNuevo = Prisma.sql`${datos.hashPerceptual}::bit(64)`;
+  // Una foto lisa u oscura no se compara: su hash se parece al de cualquier otra. Sin hash, la comparación
+  // da NULL y el candidato queda sin parecido (hamming null).
+  const comparable =
+    datos.hashPerceptual !== null && contarUnos(datos.hashPerceptual) >= datos.unosMinimosHash;
+  const hashNuevo = Prisma.sql`${comparable ? datos.hashPerceptual : null}::bit(64)`;
+  const delCandidato = REPORTES_DEL_INCIDENTE(Prisma.sql`i.id`);
   return tx.$queryRaw<Candidato[]>`
     SELECT i.id AS "incidenteId",
            i.categoria_id AS "categoriaId",
@@ -47,10 +69,12 @@ export function buscarCandidatos(
            i.caducado_en AS "caducadoEn",
            i.vigente_hasta AS "vigenteHasta",
            ST_Distance(i.ubicacion, ${punto}) AS "distanciaM",
-           (SELECT max(r.registrado_en) FROM reporte r WHERE r.incidente_id = i.id) AS "ultimoReporteEn",
+           (SELECT max(coalesce(r.sincronizado_en, r.registrado_en)) ${delCandidato}) AS "ultimoReporteEn",
            (SELECT min(${distanciaHammingSql(Prisma.sql`f.hash_perceptual`, hashNuevo)})::int
-              FROM fotografia f JOIN reporte r ON r.id = f.reporte_id
-             WHERE r.incidente_id = i.id AND f.hash_perceptual IS NOT NULL) AS hamming
+              FROM fotografia f
+              JOIN (SELECT r.id ${delCandidato}) validos ON validos.id = f.reporte_id
+             WHERE f.hash_perceptual IS NOT NULL
+               AND bit_count(f.hash_perceptual) >= ${datos.unosMinimosHash}) AS hamming
     FROM incidente i
     WHERE i.categoria_id = ${datos.categoriaId}
       AND i.estado NOT IN ('RESUELTO', 'DESESTIMADO')
@@ -59,11 +83,9 @@ export function buscarCandidatos(
       AND ST_DWithin(i.ubicacion, ${punto}, ${datos.radioM})`;
 }
 
-/** Las severidades que declararon los vecinos en el incidente, sin los reportes desestimados. */
+/** Las severidades que declararon los vecinos en el incidente y en los que se le unieron, sin desestimados. */
 export async function severidadesDeclaradas(tx: Prisma.TransactionClient, incidenteId: number) {
-  const filas = await tx.reporte.findMany({
-    where: { incidenteId, estadoVerificacion: { not: 'DESESTIMADO' } },
-    select: { severidadDeclarada: true },
-  });
-  return filas.map((fila) => fila.severidadDeclarada as Severidad);
+  const filas = await tx.$queryRaw<{ severidad: Severidad }[]>`
+    SELECT r.severidad_declarada::text AS severidad ${REPORTES_DEL_INCIDENTE(incidenteId)}`;
+  return filas.map((fila) => fila.severidad);
 }
