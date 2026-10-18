@@ -314,6 +314,9 @@ Va como **`multipart/form-data`**, no como JSON, porque lleva un archivo. Todos 
 | `descripcion` | no | Texto libre, hasta 1000 caracteres |
 | `registradoEn` | no | Cuándo lo cargó el vecino, en ISO 8601 con zona (`2026-10-06T14:30:00-03:00`). Para la app sin señal: el reporte se guarda en el celular y se manda después. Si falta, se usa el momento de llegada. No puede ser futura. |
 | `tomadaConCamaraApp` | no | `true` si la foto se sacó con la cámara de la app; `false` (por defecto) si se eligió de la galería |
+| `categoriaSugeridaId`, `severidadSugerida`, `registroIaId` | no | Lo que devolvió [`POST /api/ia/clasificar-foto`](#post-apiiaclasificar-foto), tal cual. Van los tres o ninguno. |
+
+Si se manda la sugerencia, el servidor la compara con lo que quedó registrado: tiene que ser una clasificación exitosa pedida por el mismo vecino, sin usar en otro reporte, y con la misma categoría y severidad. El reporte guarda `sugerencia_aceptada`, que es verdadero solo si `categoriaId` y `severidadDeclarada` quedaron iguales a lo sugerido.
 
 Responde **201**:
 
@@ -331,6 +334,7 @@ Responde **201**:
 | Status | Código | Cuándo |
 |---|---|---|
 | 400 | `DATOS_INVALIDOS` | Falta la foto o no es JPG/PNG, pesa de más, coordenadas fuera de rango, categoría inexistente o inactiva, o cualquier otro campo inválido. `detalles` los lista todos juntos. Si el formulario llegó cortado o trae demasiados campos, viene sin `detalles` y con el mensaje "No se pudo leer el formulario. Volvé a enviarlo." |
+| 400 | `DATOS_INVALIDOS` | La sugerencia no vale: falta uno de sus tres datos, es de otro vecino o de un intento fallido, ya se usó, o no coincide con lo que respondió la IA (`detalles` en `registroIaId`) |
 
 Ejemplo con `curl`:
 
@@ -340,6 +344,26 @@ curl -X POST http://localhost:3000/api/reportes \
   -F foto=@pozo.jpg -F categoriaId=1 -F severidadDeclarada=GRAVE \
   -F lat=-38.9516 -F lon=-68.0591 -F origen=SITIO_WEB
 ```
+
+### `POST /api/ia/clasificar-foto`
+Sugiere la categoría y la gravedad a partir de la foto (F06), para precargarlas en el formulario de reporte. Requiere sesión de `VECINO`. El vecino siempre tiene la última palabra: puede cambiar lo sugerido.
+
+Va como **`multipart/form-data`** con un solo campo, `foto` (JPG o PNG, mismas reglas que en `POST /api/reportes`). La foto **no se guarda**: solo se usa para la consulta.
+
+Responde **200**:
+
+```json
+{ "categoriaId": 3, "severidad": "GRAVE", "registroIaId": 41 }
+```
+
+Al enviar el reporte, se mandan los tres valores tal cual como `categoriaSugeridaId`, `severidadSugerida` y `registroIaId`.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta la foto o no es JPG/PNG |
+| 503 | `IA_NO_DISPONIBLE` | La IA no respondió a tiempo (`IA_TIMEOUT_MS`), falló, no hay clave configurada o devolvió algo inválido (por ejemplo, una categoría que no existe). El cliente sigue sin sugerencia: el vecino elige a mano y el reporte se envía igual. |
+
+Cada consulta, buena o mala, queda en `registro_ia` (modelo, duración, respuesta o motivo del fallo).
 
 ## Mapa público
 Rutas públicas: el mapa se ve sin iniciar sesión.

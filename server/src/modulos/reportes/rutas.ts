@@ -1,35 +1,10 @@
-import type { RequestHandler } from 'express';
 import { Router } from 'express';
-import multer from 'multer';
 import { autenticar, permitirRoles, sesionOpcional } from '../../compartido/autenticacion.js';
 import { ErrorApp } from '../../compartido/errores.js';
+import { recibirFoto } from '../../compartido/recibirFoto.js';
 import { validar } from '../../compartido/validar.js';
-import { env } from '../../config/env.js';
 import { esquemaIdFoto } from './esquemas.js';
 import * as servicio from './servicio.js';
-
-// La foto queda en memoria hasta validar todo: recién ahí se escribe en el almacén.
-const multipart = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: env.FOTO_MAX_MB * 1024 * 1024, files: 1, fields: 20 },
-}).single('foto');
-
-/** Los errores al leer el formulario son del cliente: se traducen al formato de la API. */
-const recibirFoto: RequestHandler = (req, res, next) => {
-  multipart(req, res, (error: unknown) => {
-    if (!error) return next();
-    const codigo = error instanceof multer.MulterError ? error.code : null;
-    if (codigo === 'LIMIT_FILE_SIZE' || codigo === 'LIMIT_UNEXPECTED_FILE') {
-      const mensaje =
-        codigo === 'LIMIT_FILE_SIZE'
-          ? `Tiene que pesar hasta ${env.FOTO_MAX_MB} MB`
-          : 'Se acepta una sola foto, en el campo "foto"';
-      return next(new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [{ campo: 'foto', mensaje }]));
-    }
-    // Demasiados campos o un envío cortado a la mitad (por ejemplo, se cayó la conexión del celular).
-    next(new ErrorApp(400, 'DATOS_INVALIDOS', 'No se pudo leer el formulario. Volvé a enviarlo.'));
-  });
-};
 
 export const rutasReportes = Router();
 
