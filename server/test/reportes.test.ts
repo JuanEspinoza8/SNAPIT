@@ -74,11 +74,12 @@ describe('POST /api/reportes', () => {
     const res = await enviar(token, categoria.id);
 
     expect(res.status).toBe(201);
+    // El nivel y el estado los calcula la verificación automática: verificacion.test.ts los prueba en detalle.
     expect(res.body).toEqual({
       id: expect.any(Number),
       incidenteId: expect.any(Number),
-      nivelConfianza: 0,
-      estadoVerificacion: 'PENDIENTE_REVISION',
+      nivelConfianza: expect.any(Number),
+      estadoVerificacion: expect.stringMatching(/^(VERIFICADO|PENDIENTE_REVISION)$/),
     });
 
     const reporte = await prisma.reporte.findUniqueOrThrow({

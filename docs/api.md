@@ -313,10 +313,12 @@ Va como **`multipart/form-data`**, no como JSON, porque lleva un archivo. Todos 
 | `origen` | sí | `APP_MOVIL` o `SITIO_WEB` |
 | `descripcion` | no | Texto libre, hasta 1000 caracteres |
 | `registradoEn` | no | Cuándo lo cargó el vecino, en ISO 8601 con zona (`2026-10-06T14:30:00-03:00`). Para la app sin señal: el reporte se guarda en el celular y se manda después. Si falta, se usa el momento de llegada. No puede ser futura. |
-| `tomadaConCamaraApp` | no | `true` si la foto se sacó con la cámara de la app; `false` (por defecto) si se eligió de la galería |
-| `categoriaSugeridaId`, `severidadSugerida`, `registroIaId` | no | Lo que devolvió [`POST /api/ia/clasificar-foto`](#post-apiiaclasificar-foto), tal cual. Van los tres o ninguno. |
+| `tomadaConCamaraApp` | no | `true` si la foto se sacó con la cámara de la app; `false` (por defecto) si se eligió de la galería. Con `origen` `SITIO_WEB` tiene que ser `false` |
+| `categoriaSugeridaId`, `severidadSugerida`, `registroIaId` | no | Lo que devolvió [`POST /api/ia/clasificar-foto`](#post-apiiaclasificar-foto), tal cual. Van los tres o ninguno; uno vacío cuenta como que no vino. |
 
 Si se manda la sugerencia, el servidor la compara con lo que quedó registrado: tiene que ser una clasificación exitosa pedida por el mismo vecino, sin usar en otro reporte, y con la misma categoría y severidad. El reporte guarda `sugerencia_aceptada`, que es verdadero solo si `categoriaId` y `severidadDeclarada` quedaron iguales a lo sugerido.
+
+Si la sugerencia no vale (falta uno de sus tres datos, es de otro vecino o de un intento fallido, ya se usó o no coincide con lo que respondió la IA), **se descarta y el reporte se guarda igual**, sin sugerencia, y responde 201 como siempre (F06: el reporte se envía igual). Pasa, por ejemplo, si el cliente reintenta un envío cuya respuesta se perdió: la sugerencia ya figura como usada. El cliente no tiene que hacer nada distinto. Solo un dato con formato inválido (un id que no es número, una severidad que no existe) responde 400.
 
 Responde **201**:
 
@@ -325,7 +327,8 @@ Responde **201**:
 ```
 
 - La foto se guarda **tal cual llegó**, sin recomprimir: se conserva el EXIF para la verificación (corte 50 %).
-- El reporte se suma al incidente de la misma categoría que más se le parece por cercanía, tiempo y foto, o abre uno nuevo en estado `REGISTRADO` si ninguno alcanza el umbral (ver "Agrupación de reportes en incidentes" en [`calculos.md`](calculos.md)). `incidenteId` puede ser el de un incidente que ya existía. La verificación automática llega con la #50; hasta entonces `nivelConfianza` es 0 y `estadoVerificacion` es `PENDIENTE_REVISION`.
+- El reporte se suma al incidente de la misma categoría que más se le parece por cercanía, tiempo y foto, o abre uno nuevo en estado `REGISTRADO` si ninguno alcanza el umbral (ver "Agrupación de reportes en incidentes" en [`calculos.md`](calculos.md)). `incidenteId` puede ser el de un incidente que ya existía.
+- `nivelConfianza` (0 a 100) y `estadoVerificacion` salen de la verificación automática: `VERIFICADO` desde el umbral, `PENDIENTE_REVISION` por debajo, nunca `DESESTIMADO` (ver "Verificación automática del reporte" en [`calculos.md`](calculos.md)). El cliente puede usarlos para el aviso de envío: "publicado" o "lo va a revisar un operador".
 - Si algo falla, no queda nada a medias: ni un reporte sin foto ni una foto suelta.
 - El incidente nace sin área (`area_id` vacío): es el área a la que se deriva, y eso lo hace el operador.
 - Si la categoría es temporal, el incidente vence a los días de la categoría contados desde que llega el reporte (no desde `registradoEn`).
@@ -334,7 +337,7 @@ Responde **201**:
 | Status | Código | Cuándo |
 |---|---|---|
 | 400 | `DATOS_INVALIDOS` | Falta la foto o no es JPG/PNG, pesa de más, coordenadas fuera de rango, categoría inexistente o inactiva, o cualquier otro campo inválido. `detalles` los lista todos juntos. Si el formulario llegó cortado o trae demasiados campos, viene sin `detalles` y con el mensaje "No se pudo leer el formulario. Volvé a enviarlo." |
-| 400 | `DATOS_INVALIDOS` | La sugerencia no vale: falta uno de sus tres datos, es de otro vecino o de un intento fallido, ya se usó, o no coincide con lo que respondió la IA (`detalles` en `registroIaId`) |
+| 400 | `DATOS_INVALIDOS` | `origen` es `SITIO_WEB` y `tomadaConCamaraApp` es `true` (`detalles` en `tomadaConCamaraApp`) |
 
 Ejemplo con `curl`:
 
@@ -348,7 +351,9 @@ curl -X POST http://localhost:3000/api/reportes \
 ### `POST /api/ia/clasificar-foto`
 Sugiere la categoría y la gravedad a partir de la foto (F06), para precargarlas en el formulario de reporte. Requiere sesión de `VECINO`. El vecino siempre tiene la última palabra: puede cambiar lo sugerido.
 
-Va como **`multipart/form-data`** con un solo campo, `foto` (JPG o PNG, mismas reglas que en `POST /api/reportes`). La foto **no se guarda**: solo se usa para la consulta.
+Va como **`multipart/form-data`** con un solo campo, `foto` (JPG o PNG, mismas reglas que en `POST /api/reportes`; una foto a la que le faltan los últimos bytes se clasifica con lo que llegó, igual que la acepta el reporte). La foto **no se guarda**: solo se usa para la consulta.
+
+La respuesta puede tardar hasta `IA_TIMEOUT_MS` (30 s por defecto). El cliente **no tiene que frenar el formulario** mientras espera: el vecino puede elegir la categoría a mano y enviar sin la sugerencia.
 
 Responde **200**:
 

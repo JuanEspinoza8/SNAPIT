@@ -8,9 +8,16 @@ export type AlCambiarIncidente = (tx: Prisma.TransactionClient, incidenteId: num
 
 const suscriptos: AlCambiarIncidente[] = [];
 
-/** El módulo de prioridad (#61) se suscribe acá para recalcular cuando cambia un incidente. */
+/**
+ * El módulo de prioridad (#61) se suscribe acá para recalcular cuando cambia un incidente. Devuelve la
+ * función que da de baja la suscripción (la usan los tests).
+ */
 export function alCambiarIncidente(funcion: AlCambiarIncidente) {
   suscriptos.push(funcion);
+  return () => {
+    const posicion = suscriptos.indexOf(funcion);
+    if (posicion !== -1) suscriptos.splice(posicion, 1);
+  };
 }
 
 /** Avisa a los suscriptos, en orden, dentro de la transacción del cambio. */

@@ -8,6 +8,13 @@ const numero = (mensaje: string) =>
     .min(1, { error: 'Es obligatorio' })
     .pipe(z.coerce.number({ error: mensaje }));
 
+// Un campo opcional que llega vacío (un formulario que lo manda igual) cuenta como que no vino.
+const opcional = <T extends z.ZodType>(esquema: T) =>
+  z.preprocess(
+    (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
+    esquema.optional(),
+  );
+
 export const esquemaReporte = z.object({
   // int32 porque las columnas id son int: un número más grande haría fallar la consulta con un 500.
   categoriaId: numero('Tiene que ser un número').pipe(
@@ -49,15 +56,19 @@ export const esquemaReporte = z.object({
     .default('false')
     .transform((texto) => texto === 'true'),
   // Lo que sugirió la IA (POST /api/ia/clasificar-foto), si el vecino la pidió. Van los tres o ninguno.
-  categoriaSugeridaId: numero('Tiene que ser un número')
-    .pipe(z.int32({ error: 'No es válida' }).positive({ error: 'No es válida' }))
-    .optional(),
-  severidadSugerida: z
-    .enum(['LEVE', 'MODERADA', 'GRAVE'], { error: 'Tiene que ser LEVE, MODERADA o GRAVE' })
-    .optional(),
-  registroIaId: numero('Tiene que ser un número')
-    .pipe(z.int32({ error: 'No es válido' }).positive({ error: 'No es válido' }))
-    .optional(),
+  categoriaSugeridaId: opcional(
+    numero('Tiene que ser un número').pipe(
+      z.int32({ error: 'No es válida' }).positive({ error: 'No es válida' }),
+    ),
+  ),
+  severidadSugerida: opcional(
+    z.enum(['LEVE', 'MODERADA', 'GRAVE'], { error: 'Tiene que ser LEVE, MODERADA o GRAVE' }),
+  ),
+  registroIaId: opcional(
+    numero('Tiene que ser un número').pipe(
+      z.int32({ error: 'No es válido' }).positive({ error: 'No es válido' }),
+    ),
+  ),
 });
 
 export type DatosReporte = z.output<typeof esquemaReporte>;

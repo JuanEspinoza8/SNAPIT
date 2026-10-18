@@ -16,10 +16,11 @@ const parametros: ParametrosAgrupacion = {
   pesoTiempo: 0.2,
   pesoFoto: 0.3,
   umbral: 0.5,
+  unosMinimosHash: 16,
 };
 
 const ahora = new Date('2026-10-18T12:00:00Z');
-const reporte = { categoriaId: 1, registradoEn: ahora };
+const reporte = { categoriaId: 1 };
 const diasAntes = (dias: number) => new Date(ahora.getTime() - dias * 24 * 60 * 60 * 1000);
 
 /** Un candidato que puntúa 1: mismo lugar, mismo momento, misma foto. */
@@ -68,10 +69,17 @@ describe('puntajeAgrupacion', () => {
     ).toBeNull();
   });
 
-  it('un reporte cargado sin señal, anterior al último del incidente, cuenta como simultáneo', () => {
-    const tardio = { categoriaId: 1, registradoEn: diasAntes(2) };
+  it('el tiempo se mide en valor absoluto: un último reporte posterior a ahora no suma de más', () => {
+    const despues = new Date(ahora.getTime() + 15 * 24 * 60 * 60 * 1000);
 
-    expect(puntajeAgrupacion(tardio, candidato(), parametros, ahora)).toBeCloseTo(1);
+    // 0,5 + 0,2 × (1 − 15/30) + 0,3 = 0,9, igual que si fuera de hace 15 días
+    expect(
+      puntajeAgrupacion(reporte, candidato({ ultimoReporteEn: despues }), parametros, ahora),
+    ).toBeCloseTo(0.9);
+  });
+
+  it('un incidente sin reportes válidos (todos desestimados) no es candidato', () => {
+    expect(puntajeAgrupacion(reporte, candidato({ ultimoReporteEn: null }), parametros, ahora)).toBeNull();
   });
 
   it('otra categoría no es candidato', () => {
@@ -131,12 +139,33 @@ describe('elegirIncidente', () => {
     expect(elegido?.incidenteId).toBe(2);
   });
 
-  it('si ninguno alcanza el umbral, devuelve null y se crea un incidente nuevo', () => {
+  it('si ninguno supera el umbral, devuelve null y se crea un incidente nuevo', () => {
     // 15 m, hace 15 días, otra foto: 0,25 + 0,1 + 0 = 0,35
     const flojo = candidato({ distanciaM: 15, ultimoReporteEn: diasAntes(15), hamming: 40 });
 
     expect(elegirIncidente(reporte, [flojo], parametros, ahora)).toBeNull();
     expect(elegirIncidente(reporte, [], parametros, ahora)).toBeNull();
+  });
+
+  it('justo en el umbral no alcanza: hay que superarlo', () => {
+    // Mismo lugar, al borde de la ventana, sin foto: 0,5 + 0 + 0 = 0,5
+    const justo = candidato({ ultimoReporteEn: diasAntes(30), hamming: null });
+
+    expect(puntajeAgrupacion(reporte, justo, parametros, ahora)).toBe(0.5);
+    expect(elegirIncidente(reporte, [justo], parametros, ahora)).toBeNull();
+  });
+
+  it('ante un empate de puntaje, elige el más cercano', () => {
+    // Sin peso de la distancia, los dos puntúan igual (0,2 + 0,3) y decide quién está más cerca.
+    const sinDistancia = { ...parametros, pesoDistancia: 0, umbral: 0.4 };
+    const elegido = elegirIncidente(
+      reporte,
+      [candidato({ incidenteId: 1, distanciaM: 20 }), candidato({ incidenteId: 2, distanciaM: 5 })],
+      sinDistancia,
+      ahora,
+    );
+
+    expect(elegido).toEqual({ incidenteId: 2, puntaje: 0.5 });
   });
 
   it('ignora a los que no son candidatos aunque estén más cerca', () => {

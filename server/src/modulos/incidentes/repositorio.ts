@@ -92,14 +92,16 @@ export async function buscarVisible(id: number) {
 }
 
 /**
- * Reportes válidos del incidente y de los que se le unieron: de ahí salen los vecinos y las fotos.
- * Alcanza con un nivel: un incidente que tiene unidos no se puede unir a otro, así que no hay cadenas.
- * Los reportes desestimados no se muestran.
+ * Reportes válidos del incidente y de los que se le unieron: de ahí salen los vecinos y las fotos, y en la
+ * agrupación la severidad, el último reporte y la foto más parecida. Alcanza con un nivel: un incidente que
+ * tiene unidos no se puede unir a otro, así que no hay cadenas. Los reportes desestimados no cuentan.
+ * `id` puede ser un número o una columna de la consulta de afuera (por ejemplo, Prisma.sql`i.id`); los
+ * reportes quedan con el alias `r`.
  */
-const REPORTES_DEL_INCIDENTE = (id: number) => Prisma.sql`
+export const REPORTES_DEL_INCIDENTE = (id: number | Prisma.Sql) => Prisma.sql`
   FROM reporte r
-  JOIN incidente i ON i.id = r.incidente_id
-  WHERE (i.id = ${id} OR i.incidente_principal_id = ${id})
+  JOIN incidente del_incidente ON del_incidente.id = r.incidente_id
+  WHERE (del_incidente.id = ${id} OR del_incidente.incidente_principal_id = ${id})
     AND r.estado_verificacion <> 'DESESTIMADO'`;
 
 export async function contarVecinos(id: number) {

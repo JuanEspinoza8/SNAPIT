@@ -231,7 +231,14 @@ export const PARAMETROS: { clave: string; valor: string; tipo: 'entero' | 'decim
       valor: '0.5',
       tipo: 'decimal',
       descripcion:
-        'Puntaje mínimo para sumar el reporte a un incidente. Si ningún candidato lo alcanza, se crea uno nuevo',
+        'Puntaje que hay que superar para sumar el reporte a un incidente. Si ningún candidato lo supera, se crea uno nuevo',
+    },
+    {
+      clave: 'agrupacion.unos_minimos_hash',
+      valor: '16',
+      tipo: 'entero',
+      descripcion:
+        'Unos mínimos del hash perceptual para comparar la foto. Una foto lisa u oscura tiene menos y no suma parecido',
     },
 
     // Prioridad del incidente

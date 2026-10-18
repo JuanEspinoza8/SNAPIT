@@ -16,7 +16,7 @@ vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccio
 // Envuelve la función real para poder hacerla fallar en un test puntual.
 vi.mock('../src/modulos/reportes/repositorio.js', async (original) => {
   const real = await original<typeof import('../src/modulos/reportes/repositorio.js')>();
-  return { ...real, crearReporteConIncidente: vi.fn(real.crearReporteConIncidente) };
+  return { ...real, insertarReporte: vi.fn(real.insertarReporte) };
 });
 
 afterEach(() => {
@@ -69,7 +69,7 @@ describe('POST /api/reportes cuando algo falla', () => {
   it('si falla la base, se borra el archivo que ya se había guardado', async () => {
     const { categoria, usuario, token } = await preparar();
     const guardar = vi.spyOn(almacenFotos, 'guardar');
-    vi.mocked(repositorio.crearReporteConIncidente).mockRejectedValueOnce(new Error('base caída'));
+    vi.mocked(repositorio.insertarReporte).mockRejectedValueOnce(new Error('base caída'));
 
     const res = await enviar(token, categoria.id);
 
