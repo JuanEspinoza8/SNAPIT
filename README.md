@@ -8,7 +8,7 @@ Reportes ciudadanos sobre la vía pública con verificación, priorización de i
 | `server/` | API (Express + TypeScript + Prisma)                             |
 | `web/`    | Panel web (React + Tailwind)                                    |
 | `mobile/` | App (Flutter)                                                   |
-| `db/`     | `schema.sql` y `DICCIONARIO.md` de la entrega del 19/09, con los cambios acordados después (ver CONTRIBUTING.md) |
+| `db/`     | `schema.sql` y `DICCIONARIO.md` de la entrega del 19/09, con los cambios acordados después (ver CONTRIBUTING.md); en `datos/`, las respuestas de OpenStreetMap que cargan los scripts |
 | `docs/`   | Documentación del proyecto                                      |
 
 ## Levantar la base de datos
@@ -71,6 +71,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
 | `npm run semilla` | Carga o restaura el catálogo, los parámetros y los usuarios de prueba (estos, fuera de producción) |
+| `npm run importar:puntos` | Carga los puntos de interés de Neuquén desde OpenStreetMap (ver «Puntos de interés») |
 | `npm test` | Tests con Vitest contra la base `snapit_test` (se crea sola) |
 | `npm run lint` | ESLint |
 | `npm run format` | Formatea con Prettier |
@@ -106,6 +107,30 @@ Por ahora la IA es Claude, por la API de Anthropic: lo decidió el grupo en luga
 | `IA_TIMEOUT_MS` | Tiempo máximo de cada consulta, con el reintento incluido (30000 por defecto). |
 
 Cada consulta, salga bien o mal, queda en `registro_ia`. Los tests simulan la API: no hace falta clave y no se gasta.
+
+### Puntos de interés
+
+Estar cerca de una escuela, un centro de salud, una parada o un edificio público suma prioridad (F07). Esos lugares se cargan en `punto_interes` desde OpenStreetMap, con [Overpass](https://overpass-api.de/), dentro del límite del Municipio de Neuquén:
+
+```bash
+npm run importar:puntos                    # descarga de Overpass, guarda la respuesta y la carga
+npm run importar:puntos -- --sin-conexion  # carga la respuesta guardada, sin usar la red
+```
+
+| Tipo | Etiquetas de OSM |
+|---|---|
+| `ESCUELA` | `amenity=school`, `amenity=kindergarten` |
+| `CENTRO_SALUD` | `amenity=hospital`, `amenity=clinic`, `amenity=doctors` |
+| `PARADA_TRANSPORTE` | `highway=bus_stop` |
+| `EDIFICIO_PUBLICO` | `amenity=townhall`, `office=government` |
+
+- La respuesta queda en `db/datos/puntos-interes-neuquen.json` y se versiona: así cualquiera carga los mismos puntos sin conexión.
+- Se puede correr las veces que haga falta: un punto que ya está (mismo `osm_id`) se actualiza en vez de duplicarse. Los que desaparecieron de OSM no se borran; el script avisa cuántos son.
+- Al terminar muestra cuántos puntos de cada tipo cargó (nuevos y actualizados) y cuáles descartó y por qué. Los lugares sin nombre en OSM se guardan con el de su tipo («Escuela», «Parada de colectivo»…).
+- El servicio público de Overpass se satura seguido (responde 429, 502 o 504). Si falla, la respuesta guardada no se toca: probá en unos minutos o usá `--sin-conexion`.
+- Toma la base de `DATABASE_URL` y Overpass de `OVERPASS_URL`. No corre dentro del contenedor, porque la imagen no tiene `db/datos/`: para cargar otra base, correlo desde la PC con `DATABASE_URL` apuntando a ella.
+
+Los datos son © colaboradores de OpenStreetMap, con licencia [ODbL](https://opendatacommons.org/licenses/odbl/).
 
 ### Estructura
 
