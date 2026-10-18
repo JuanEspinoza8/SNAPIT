@@ -325,7 +325,8 @@ Responde **201**:
 ```
 
 - La foto se guarda **tal cual llegó**, sin recomprimir: se conserva el EXIF para la verificación (corte 50 %).
-- El reporte se suma al incidente de la misma categoría que más se le parece por cercanía, tiempo y foto, o abre uno nuevo en estado `REGISTRADO` si ninguno alcanza el umbral (ver "Agrupación de reportes en incidentes" en [`calculos.md`](calculos.md)). `incidenteId` puede ser el de un incidente que ya existía. La verificación automática llega con la #50; hasta entonces `nivelConfianza` es 0 y `estadoVerificacion` es `PENDIENTE_REVISION`.
+- El reporte se suma al incidente de la misma categoría que más se le parece por cercanía, tiempo y foto, o abre uno nuevo en estado `REGISTRADO` si ninguno alcanza el umbral (ver "Agrupación de reportes en incidentes" en [`calculos.md`](calculos.md)). `incidenteId` puede ser el de un incidente que ya existía.
+- `nivelConfianza` (0 a 100) y `estadoVerificacion` salen de la verificación automática: `VERIFICADO` desde el umbral, `PENDIENTE_REVISION` por debajo, nunca `DESESTIMADO` (ver "Verificación automática del reporte" en [`calculos.md`](calculos.md)). El cliente puede usarlos para el aviso de envío: "publicado" o "lo va a revisar un operador".
 - Si algo falla, no queda nada a medias: ni un reporte sin foto ni una foto suelta.
 - El incidente nace sin área (`area_id` vacío): es el área a la que se deriva, y eso lo hace el operador.
 - Si la categoría es temporal, el incidente vence a los días de la categoría contados desde que llega el reporte (no desde `registradoEn`).

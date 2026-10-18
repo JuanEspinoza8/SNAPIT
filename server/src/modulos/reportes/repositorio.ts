@@ -3,6 +3,7 @@ import { prisma } from '../../compartido/prisma.js';
 import { elegirIncidente, type ParametrosAgrupacion, severidadConsolidada } from '../agrupacion/calculo.js';
 import * as agrupacion from '../agrupacion/repositorio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
+import type { ResultadoConfianza } from '../verificacion/calculo.js';
 import { INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
 
 export function buscarCategoriaActiva(id: number) {
@@ -46,6 +47,8 @@ export interface NuevoReporte {
   categoriaId: number;
   severidad: Severidad;
   sugerencia: SugerenciaDelReporte | null;
+  /** El resultado de la verificación automática (#50). */
+  verificacion: ResultadoConfianza;
   descripcion: string | null;
   lat: number;
   lon: number;
@@ -75,29 +78,30 @@ export interface NuevoReporte {
  * o nada. La ubicación es una columna de PostGIS que Prisma no maneja, por eso los INSERT van en SQL.
  */
 export function crearReporteConIncidente(datos: NuevoReporte, parametros: ParametrosAgrupacion) {
-  return prisma.$transaction(async (tx) => {
-    await agrupacion.bloquearCategoria(tx, datos.categoriaId);
-    const candidatos = await agrupacion.buscarCandidatos(tx, {
-      categoriaId: datos.categoriaId,
-      lat: datos.lat,
-      lon: datos.lon,
-      hashPerceptual: datos.foto.hashPerceptual,
-      radioM: parametros.radioM,
-    });
-    const elegido = elegirIncidente(
-      { categoriaId: datos.categoriaId, registradoEn: datos.registradoEn },
-      candidatos,
-      parametros,
-      datos.sincronizadoEn,
-    );
+  return prisma.$transaction(
+    async (tx) => {
+      await agrupacion.bloquearCategoria(tx, datos.categoriaId);
+      const candidatos = await agrupacion.buscarCandidatos(tx, {
+        categoriaId: datos.categoriaId,
+        lat: datos.lat,
+        lon: datos.lon,
+        hashPerceptual: datos.foto.hashPerceptual,
+        radioM: parametros.radioM,
+      });
+      const elegido = elegirIncidente(
+        { categoriaId: datos.categoriaId, registradoEn: datos.registradoEn },
+        candidatos,
+        parametros,
+        datos.sincronizadoEn,
+      );
 
-    let incidenteId: number;
-    if (elegido) {
-      incidenteId = elegido.incidenteId;
-    } else {
-      // area_id queda vacío: es el área a la que se deriva, y eso lo hace el operador.
-      // cantidad_reportes arranca en 0: se suma abajo, igual que cuando se agrupa.
-      const [incidente] = await tx.$queryRaw<{ id: number }[]>`
+      let incidenteId: number;
+      if (elegido) {
+        incidenteId = elegido.incidenteId;
+      } else {
+        // area_id queda vacío: es el área a la que se deriva, y eso lo hace el operador.
+        // cantidad_reportes arranca en 0: se suma abajo, igual que cuando se agrupa.
+        const [incidente] = await tx.$queryRaw<{ id: number }[]>`
         INSERT INTO incidente (
           categoria_id, estado, severidad, ubicacion, tipo_vigencia, vigente_hasta,
           cantidad_reportes, primer_reporte_en
@@ -107,43 +111,53 @@ export function crearReporteConIncidente(datos: NuevoReporte, parametros: Parame
           ${datos.tipoVigencia}::tipo_vigencia, ${datos.vigenteHasta}, 0, ${datos.registradoEn}
         )
         RETURNING id`;
-      incidenteId = incidente!.id;
-    }
+        incidenteId = incidente!.id;
+      }
 
-    const sugerencia = datos.sugerencia;
-    const [reporte] = await tx.$queryRaw<
-      { id: number; nivelConfianza: number; estadoVerificacion: string }[]
-    >`
+      const sugerencia = datos.sugerencia;
+      const [reporte] = await tx.$queryRaw<
+        { id: number; nivelConfianza: number; estadoVerificacion: string }[]
+      >`
       INSERT INTO reporte (
         incidente_id, usuario_id, categoria_id, severidad_declarada, descripcion, ubicacion, origen,
         registrado_en, sincronizado_en,
-        categoria_sugerida_id, severidad_sugerida, sugerencia_aceptada, registro_ia_id
+        categoria_sugerida_id, severidad_sugerida, sugerencia_aceptada, registro_ia_id,
+        nivel_confianza, estado_verificacion
       ) VALUES (
         ${incidenteId}, ${datos.usuarioId}, ${datos.categoriaId}, ${datos.severidad}::severidad,
         ${datos.descripcion}, ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
         ${datos.origen}::origen_reporte, ${datos.registradoEn}, ${datos.sincronizadoEn},
         ${sugerencia?.categoriaSugeridaId ?? null}, ${sugerencia?.severidadSugerida ?? null}::severidad,
-        ${sugerencia?.sugerenciaAceptada ?? null}, ${sugerencia?.registroIaId ?? null}
+        ${sugerencia?.sugerenciaAceptada ?? null}, ${sugerencia?.registroIaId ?? null},
+        ${datos.verificacion.nivel}, ${datos.verificacion.estado}::estado_verificacion
       )
       RETURNING id, nivel_confianza AS "nivelConfianza", estado_verificacion::text AS "estadoVerificacion"`;
 
-    await tx.fotografia.create({ data: { reporteId: reporte!.id, ...datos.foto } });
+      await tx.fotografia.create({ data: { reporteId: reporte!.id, ...datos.foto } });
+      // Cada señal con su explicación: así el operador ve por qué el reporte quedó como quedó.
+      await tx.senalVerificacion.createMany({
+        data: datos.verificacion.senales.map((senal) => ({ reporteId: reporte!.id, ...senal })),
+      });
 
-    // Con el reporte ya guardado: la cantidad y la severidad consolidada lo incluyen.
-    const severidad = severidadConsolidada(await agrupacion.severidadesDeclaradas(tx, incidenteId));
-    await tx.incidente.update({
-      where: { id: incidenteId },
-      data: { cantidadReportes: { increment: 1 }, severidad, actualizadoEn: datos.sincronizadoEn },
-    });
-    await avisarCambioIncidente(tx, incidenteId);
+      // Con el reporte ya guardado: la cantidad y la severidad consolidada lo incluyen.
+      const severidad = severidadConsolidada(await agrupacion.severidadesDeclaradas(tx, incidenteId));
+      await tx.incidente.update({
+        where: { id: incidenteId },
+        data: { cantidadReportes: { increment: 1 }, severidad, actualizadoEn: datos.sincronizadoEn },
+      });
+      await avisarCambioIncidente(tx, incidenteId);
 
-    return {
-      id: reporte!.id,
-      incidenteId,
-      nivelConfianza: reporte!.nivelConfianza,
-      estadoVerificacion: reporte!.estadoVerificacion,
-    };
-  });
+      return {
+        id: reporte!.id,
+        incidenteId,
+        nivelConfianza: reporte!.nivelConfianza,
+        estadoVerificacion: reporte!.estadoVerificacion,
+      };
+      // Los valores por defecto de Prisma (2 s para conseguir conexión, 5 s en total) se quedan cortos si
+      // varios reportes de la misma categoría esperan el bloqueo de la agrupación.
+    },
+    { maxWait: 10_000, timeout: 20_000 },
+  );
 }
 
 /** Quién pide la foto. Null en lo que no corresponde (sin sesión, o un vecino no tiene organismo). */

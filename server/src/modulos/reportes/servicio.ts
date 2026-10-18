@@ -6,6 +6,7 @@ import { logger } from '../../config/logger.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { leerParametros as leerParametrosAgrupacion } from '../agrupacion/repositorio.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
+import { verificarReporte } from '../verificacion/servicio.js';
 import { type DatosReporte, esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 
@@ -101,6 +102,16 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
   }
 
   const parametrosAgrupacion = await leerParametrosAgrupacion();
+  // Antes de guardar: la foto todavía no está en la base, así que no se encuentra a sí misma como repetida.
+  const verificacion = await verificarReporte({
+    usuarioId,
+    lat: datos.lat,
+    lon: datos.lon,
+    registradoEn,
+    tomadaConCamaraApp: datos.tomadaConCamaraApp,
+    exif: imagen!.exif,
+    hashPerceptual: imagen!.hashPerceptual,
+  });
 
   // Primero el archivo y después la base. Si la base falla, se borra el archivo: nunca queda
   // un reporte sin foto ni una foto suelta.
@@ -113,6 +124,7 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
         categoriaId: categoria.id,
         severidad: datos.severidadDeclarada,
         sugerencia,
+        verificacion,
         descripcion: datos.descripcion,
         lat: datos.lat,
         lon: datos.lon,

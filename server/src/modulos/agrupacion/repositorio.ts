@@ -1,11 +1,10 @@
 import { Prisma, type Severidad } from '@prisma/client';
 import { distanciaHammingSql } from '../../compartido/hashPerceptual.js';
-import { prisma } from '../../compartido/prisma.js';
-import { logger } from '../../config/logger.js';
+import { type DefinicionParametros, leerParametrosNumericos } from '../../compartido/parametros.js';
 import type { Candidato, ParametrosAgrupacion } from './calculo.js';
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se agrupa igual con estos.
-const POR_DEFECTO: Record<keyof ParametrosAgrupacion, { clave: string; valor: number }> = {
+const PARAMETROS: DefinicionParametros<keyof ParametrosAgrupacion> = {
   radioM: { clave: 'agrupacion.radio_m', valor: 30 },
   ventanaDias: { clave: 'agrupacion.ventana_dias', valor: 30 },
   pesoDistancia: { clave: 'agrupacion.peso_distancia', valor: 0.5 },
@@ -14,20 +13,9 @@ const POR_DEFECTO: Record<keyof ParametrosAgrupacion, { clave: string; valor: nu
   umbral: { clave: 'agrupacion.umbral', valor: 0.5 },
 };
 
-/** Los parámetros agrupacion.* de parametro_sistema. Uno que falta o no es un número positivo usa su valor de partida. */
-export async function leerParametros(): Promise<ParametrosAgrupacion> {
-  const filas = await prisma.parametroSistema.findMany({
-    where: { clave: { in: Object.values(POR_DEFECTO).map((parametro) => parametro.clave) } },
-  });
-  const valores = new Map(filas.map((fila) => [fila.clave, Number(fila.valor)]));
-  const parametros = {} as ParametrosAgrupacion;
-  for (const [nombre, { clave, valor }] of Object.entries(POR_DEFECTO)) {
-    const leido = valores.get(clave);
-    const valido = leido !== undefined && Number.isFinite(leido) && leido > 0;
-    if (!valido) logger.warn('Falta o no es válido el parámetro %s: se usa %d', clave, valor);
-    parametros[nombre as keyof ParametrosAgrupacion] = valido ? leido : valor;
-  }
-  return parametros;
+/** Los parámetros agrupacion.* de parametro_sistema. Todos tienen que ser positivos (radio, pesos, umbral). */
+export function leerParametros(): Promise<ParametrosAgrupacion> {
+  return leerParametrosNumericos(PARAMETROS, (valor) => valor > 0);
 }
 
 /**

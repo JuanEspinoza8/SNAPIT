@@ -56,6 +56,35 @@ El nivel de confianza va de 0 a 100. Un reporte que no llega al umbral queda pen
 | `verificacion.dias_foto_antigua` | entero | 7 | Días entre la foto y el reporte a partir de los cuales la foto se considera antigua |
 | `verificacion.valor_fecha_antigua` | decimal | −20 | Resta si la foto es antigua |
 
+Se calcula al crear cada reporte (#50, `server/src/modulos/verificacion/calculo.ts`):
+
+```latex
+\text{nivel} = \min\left(100,\ \max\left(0,\ \text{confianza\_base} + \sum \text{señales}\right)\right)
+```
+
+El nivel se redondea a entero. Desde `umbral_verificado` el reporte queda `VERIFICADO`; por debajo, `PENDIENTE_REVISION`. Cada señal se guarda en `senal_verificacion` con su valor y una explicación, para que el operador vea por qué quedó así.
+
+| Señal | Cuándo | Valor |
+|---|---|---|
+| `EXIF_COINCIDE` | La foto trae ubicación y está a no más de `distancia_exif_max_m` del punto (justo en el límite cuenta) | +20 |
+| `EXIF_COINCIDE` (negativa) | La foto trae ubicación pero está más lejos | −30 |
+| `EXIF_AUSENTE` | Foto de galería sin ubicación. Una foto de la cámara de la app sin ubicación no resta: la app puede no grabarla | −10 |
+| `HASH_DUPLICADO` | La foto está a no más de `hamming_duplicado_max` bits de una foto de otro reporte, también del mismo vecino | −40 |
+| `ORIGEN_APP` | La foto se sacó con la cámara de la app (`tomadaConCamaraApp`) | +15 |
+| `REPUTACION` | Siempre: `valor_reputacion_max × (reputación − 50) / 50`. Reputación 0 → −20, 50 → 0, 100 → +20 | −20 a +20 |
+| `FECHA_ANTIGUA` | Entre la fecha EXIF de la foto y `registradoEn` pasaron más de `dias_foto_antigua` días | −20 |
+
+**Ejemplos** (vecino con la reputación inicial, 50):
+
+| Caso | Cuenta | Nivel | Estado |
+|---|---|---|---|
+| Foto con la cámara de la app, EXIF en el punto | 50 + 20 + 15 + 0 | 85 | Verificado |
+| Foto de galería sin EXIF | 50 − 10 + 0 | 40 | Pendiente de revisión |
+| Foto de galería sin EXIF, vecino con reputación 100 | 50 − 10 + 20 | 60 | Verificado |
+| La misma foto de otro reporte, sin EXIF | 50 − 10 − 40 + 0 | 0 | Pendiente de revisión |
+
+El sistema **nunca desestima** un reporte por sí solo, ni con nivel 0: desestimar es siempre una decisión de un operador (#51).
+
 ### Agrupación de reportes en incidentes
 
 El puntaje de agrupación combina la cercanía, el tiempo transcurrido y el parecido entre las fotos.

@@ -89,14 +89,19 @@ describe('semilla', { timeout: 60_000 }, () => {
       where: celda,
       data: { intransitable: false, factorPenalizacion: '9.00' },
     });
-    await prisma.parametroSistema.update({ where: { clave: 'agrupacion.radio_m' }, data: { valor: '999' } });
+    // Un parámetro que ningún cálculo usa todavía: los tests corren en paralelo sobre la misma base, y
+    // cambiar uno en uso (por ejemplo agrupacion.radio_m) hacía fallar al azar los tests de ese cálculo.
+    await prisma.parametroSistema.update({
+      where: { clave: 'ruteo.velocidad_m_por_min' },
+      data: { valor: '999' },
+    });
 
     await cargarSemilla(prisma, { usuariosPrueba: true });
 
     expect(await prisma.categoriaPerfil.findUnique({ where: celda })).toMatchObject({ intransitable: true });
     expect(
-      (await prisma.parametroSistema.findUnique({ where: { clave: 'agrupacion.radio_m' } }))?.valor,
-    ).toBe('30');
+      (await prisma.parametroSistema.findUnique({ where: { clave: 'ruteo.velocidad_m_por_min' } }))?.valor,
+    ).toBe('50');
   });
 
   it('sin usuarios de prueba carga el resto y no toca a esos usuarios', async () => {
