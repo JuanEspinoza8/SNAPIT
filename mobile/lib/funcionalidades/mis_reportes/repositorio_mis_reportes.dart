@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,6 +17,11 @@ final misReportesProvider = FutureProvider.autoDispose<List<ReporteMio>>(
   (ref) => ref.watch(repositorioMisReportesProvider).mios(),
 );
 
+/// El archivo de una foto, mientras alguna fila la muestre.
+final fotoMiaProvider = FutureProvider.autoDispose.family<Uint8List, int>(
+  (ref, id) => ref.watch(repositorioMisReportesProvider).foto(id),
+);
+
 class RepositorioMisReportes {
   RepositorioMisReportes(this._dio);
 
@@ -29,6 +36,22 @@ class RepositorioMisReportes {
         for (final reporte in respuesta.data!['reportes'] as List)
           ReporteMio.desdeJson(reporte as Map<String, dynamic>),
       ];
+    } catch (e) {
+      throw ErrorApi.desde(e);
+    }
+  }
+
+  /// Una foto de un reporte propio. Va con sesión: así el servidor también da
+  /// la de un reporte desestimado o la de un incidente que ya no está en el
+  /// mapa, que `Image.network` (sin token) no puede bajar. Todo error sale
+  /// como [ErrorApi].
+  Future<Uint8List> foto(int id) async {
+    try {
+      final respuesta = await _dio.get<List<int>>(
+        '/fotos/$id',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return Uint8List.fromList(respuesta.data!);
     } catch (e) {
       throw ErrorApi.desde(e);
     }

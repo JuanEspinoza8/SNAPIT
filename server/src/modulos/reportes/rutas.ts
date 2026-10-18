@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express';
 import { Router } from 'express';
 import multer from 'multer';
-import { autenticar, permitirRoles } from '../../compartido/autenticacion.js';
+import { autenticar, permitirRoles, sesionOpcional } from '../../compartido/autenticacion.js';
 import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import { env } from '../../config/env.js';
@@ -43,16 +43,22 @@ rutasReportes.get('/mios', autenticar, permitirRoles('VECINO'), async (req, res)
   res.json(await servicio.listarMisReportes(req.usuario!.id));
 });
 
-// Pública: el mapa muestra las fotos sin sesión. Solo las de incidentes que se ven en el mapa.
+// Pública: el mapa muestra las fotos sin sesión, solo las de incidentes que se ven en el mapa.
+// Con sesión, también las del dueño del reporte y las del organismo del operador.
 export const rutasFotos = Router();
 
-rutasFotos.get('/:id', async (req, res, next) => {
+rutasFotos.get('/:id', sesionOpcional, async (req, res, next) => {
   const { id } = validar(esquemaIdFoto, req.params);
-  const ubicacion = await servicio.buscarArchivoFoto(id);
+  const ubicacion = await servicio.buscarArchivoFoto(id, req.usuario ?? null);
+  // Una hora: si el incidente sale del mapa, la foto deja de servirse sin esperar un día de caché.
+  // Con sesión puede ser una foto privada: solo la guarda el navegador de quien la pidió, y Vary
+  // evita que ese navegador la reuse para un pedido sin sesión.
+  const cache = req.usuario ? 'private, max-age=3600' : 'public, max-age=3600';
   res.sendFile(
     ubicacion,
-    // Una hora: si el incidente sale del mapa, la foto deja de servirse sin esperar un día de caché.
-    { headers: { 'Cache-Control': 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff' } },
+    {
+      headers: { 'Cache-Control': cache, Vary: 'Authorization', 'X-Content-Type-Options': 'nosniff' },
+    },
     (error) => {
       if (!error) return;
       // La fila existe pero el archivo no (por ejemplo, se borró el volumen).

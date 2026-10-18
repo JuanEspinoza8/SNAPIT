@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
@@ -39,19 +39,48 @@ const ficha = {
   fotos: [],
 };
 
+// Fotos que bajó la miniatura, con el token que llevaba cada pedido.
+let fotosPedidas: { id: string; autorizacion: string | null }[] = [];
+
 const servidor = setupServer(
   http.get('*/api/reportes/mios', () => HttpResponse.json({ reportes: [] })),
   http.get('*/api/incidentes/2', () => HttpResponse.json(ficha)),
+  http.get('*/api/fotos/:id', ({ params, request }) => {
+    fotosPedidas.push({ id: String(params.id), autorizacion: request.headers.get('Authorization') });
+    return new HttpResponse('foto', { headers: { 'Content-Type': 'image/jpeg' } });
+  }),
 );
 
-beforeAll(() => servidor.listen());
-afterAll(() => servidor.close());
-afterEach(() => servidor.resetHandlers());
+// La miniatura muestra la foto desde una URL local, que jsdom no sabe crear.
+const crearUrl = vi.fn(() => 'blob:foto-local');
+const liberarUrl = vi.fn();
+const urlsOriginales = { crear: URL.createObjectURL, liberar: URL.revokeObjectURL };
+
+beforeAll(() => {
+  servidor.listen();
+  URL.createObjectURL = crearUrl;
+  URL.revokeObjectURL = liberarUrl;
+});
+afterAll(() => {
+  servidor.close();
+  URL.createObjectURL = urlsOriginales.crear;
+  URL.revokeObjectURL = urlsOriginales.liberar;
+});
+afterEach(() => {
+  servidor.resetHandlers();
+  fotosPedidas = [];
+  vi.clearAllMocks();
+});
 
 const conReportes = (...reportes: ReporteMio[]) =>
   servidor.use(http.get('*/api/reportes/mios', () => HttpResponse.json({ reportes })));
 
 describe('ver mis reportes', () => {
+  beforeEach(() => {
+    localStorage.setItem('snapit:tokenAcceso', 'acceso-del-vecino');
+    localStorage.setItem('snapit:tokenRenovacion', 'renovacion-del-vecino');
+  });
+
   it('muestra categoría, fecha, estado con texto y la foto de cada reporte', async () => {
     conReportes(
       reporte({
@@ -66,34 +95,71 @@ describe('ver mis reportes', () => {
     expect(await screen.findByText('Cordón sin rampa')).toBeInTheDocument();
     expect(screen.getByText('1 oct 2026')).toBeInTheDocument();
     expect(screen.getByText('En revisión')).toBeInTheDocument();
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('/api/fotos/7');
+    await waitFor(() => expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:foto-local'));
   });
 
-  it('el reporte desestimado se muestra como «Desestimado» y no abre ficha', async () => {
+  it('pide la foto con la sesión y libera la URL local al salir', async () => {
+    conReportes(reporte({ fotos: [{ id: 7, url: '/api/fotos/7' }] }));
+    const { container, unmount } = renderRuta('/mis-reportes', <PaginaMisReportes />);
+
+    await waitFor(() => expect(container.querySelector('img')).not.toBeNull());
+    expect(fotosPedidas).toEqual([{ id: '7', autorizacion: 'Bearer acceso-del-vecino' }]);
+
+    unmount();
+    expect(liberarUrl).toHaveBeenCalledWith('blob:foto-local');
+  });
+
+  it('el reporte desestimado se muestra como «Desestimado», con su foto, y no abre ficha', async () => {
     conReportes(
       reporte({
         categoria: { id: 2, nombre: 'Vereda rota' },
         estadoVerificacion: 'DESESTIMADO',
         incidente: { id: 5, estado: 'DESESTIMADO', enRevision: false },
+        fotos: [{ id: 8, url: '/api/fotos/8' }],
       }),
     );
-    renderRuta('/mis-reportes', <PaginaMisReportes />);
+    const { container } = renderRuta('/mis-reportes', <PaginaMisReportes />);
 
     expect(await screen.findByText('Desestimado')).toBeInTheDocument();
-    expect(screen.getByText('Foto no disponible')).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:foto-local'));
+    expect(screen.queryByText('Foto no disponible')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Vereda rota/ })).not.toBeInTheDocument();
+  });
+
+  it('un reporte sin fotos muestra el recuadro', async () => {
+    conReportes(reporte({ fotos: [] }));
+    renderRuta('/mis-reportes', <PaginaMisReportes />);
+
+    expect(await screen.findByText('Foto no disponible')).toBeInTheDocument();
+    expect(fotosPedidas).toEqual([]);
   });
 
   it('si la foto no se puede bajar (404), queda el recuadro y no un error', async () => {
     conReportes(reporte({ fotos: [{ id: 7, url: '/api/fotos/7' }] }));
+    servidor.use(
+      http.get('*/api/fotos/7', () =>
+        HttpResponse.json(
+          { error: { codigo: 'FOTO_NO_ENCONTRADA', mensaje: 'La foto no existe' } },
+          { status: 404 },
+        ),
+      ),
+    );
     const { container } = renderRuta('/mis-reportes', <PaginaMisReportes />);
 
-    await screen.findByText('Cordón sin rampa');
+    expect(await screen.findByText('Foto no disponible')).toBeInTheDocument();
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('si la foto llega pero no se puede mostrar, queda el recuadro', async () => {
+    conReportes(reporte({ fotos: [{ id: 7, url: '/api/fotos/7' }] }));
+    const { container } = renderRuta('/mis-reportes', <PaginaMisReportes />);
+
+    await waitFor(() => expect(container.querySelector('img')).not.toBeNull());
     fireEvent.error(container.querySelector('img')!);
 
     expect(screen.getByText('Foto no disponible')).toBeInTheDocument();
     expect(container.querySelector('img')).toBeNull();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('si no hay reportes, lo dice y ofrece reportar', async () => {

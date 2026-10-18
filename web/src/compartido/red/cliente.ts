@@ -6,6 +6,8 @@ export interface OpcionesPeticion {
   cuerpo?: unknown;
   /** Petición pública: no lleva token y no dispara la renovación. */
   sinSesion?: boolean;
+  /** La respuesta es un archivo (por ejemplo, una foto): se devuelve como Blob y no como JSON. */
+  comoArchivo?: boolean;
   señal?: AbortSignal;
 }
 
@@ -47,8 +49,10 @@ export function crearClienteApi(config: {
     });
   }
 
-  async function interpretar<T>(respuesta: Response): Promise<T> {
+  async function interpretar<T>(respuesta: Response, comoArchivo = false): Promise<T> {
     if (respuesta.status === 204) return undefined as T;
+    // Los errores llegan siempre en JSON, también cuando se pidió un archivo.
+    if (comoArchivo && respuesta.ok) return (await respuesta.blob()) as T;
     let cuerpo: unknown;
     try {
       cuerpo = await respuesta.json();
@@ -121,7 +125,7 @@ export function crearClienteApi(config: {
       // Solo renueva si la respuesta fue 401 y la petición llevaba token.
       // Un 403 es "no tenés permiso": la sesión es válida.
       if (respuesta.status !== 401 || tokenUsado === null) {
-        return interpretar<T>(respuesta);
+        return interpretar<T>(respuesta, opciones.comoArchivo);
       }
 
       let tokenNuevo: string;
@@ -131,7 +135,7 @@ export function crearClienteApi(config: {
         return interpretar<T>(respuesta); // la renovación falló: se devuelve el 401 original
       }
 
-      return interpretar<T>(await enviar(ruta, opciones, tokenNuevo));
+      return interpretar<T>(await enviar(ruta, opciones, tokenNuevo), opciones.comoArchivo);
     },
   };
 }

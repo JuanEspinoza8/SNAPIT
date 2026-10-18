@@ -13,15 +13,29 @@ export const CLAVE = 'clave-de-prueba-1';
 export const correoNuevo = () => `prueba-${randomUUID()}@snapit.test`;
 
 export async function crearUsuario(
-  opciones: { rol?: RolUsuario; confirmado?: boolean; dadoDeBaja?: boolean } = {},
+  opciones: {
+    rol?: RolUsuario;
+    confirmado?: boolean;
+    dadoDeBaja?: boolean;
+    organismoId?: number | null;
+    areaId?: number | null;
+  } = {},
 ) {
-  const { rol = 'VECINO', confirmado = true, dadoDeBaja = false } = opciones;
+  const {
+    rol = 'VECINO',
+    confirmado = true,
+    dadoDeBaja = false,
+    organismoId = null,
+    areaId = null,
+  } = opciones;
   return prisma.usuario.create({
     data: {
       email: correoNuevo(),
       nombre: 'Persona de prueba',
       passwordHash: await bcrypt.hash(CLAVE, 4),
       rol,
+      organismoId,
+      areaId,
       emailVerificadoEn: confirmado ? new Date() : null,
       eliminadoEn: dadoDeBaja ? new Date() : null,
     },

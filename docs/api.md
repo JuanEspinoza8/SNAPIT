@@ -296,7 +296,7 @@ Responde **200**, del más nuevo al más viejo (por `registradoEn`):
 - `estadoVerificacion`: qué pasó con **este reporte** (`VERIFICADO`, `PENDIENTE_REVISION` o `DESESTIMADO`).
 - `incidente`: qué pasa con **el problema** (`REGISTRADO`, `VERIFICADO`, `DERIVADO`, `EN_EJECUCION`, `RESUELTO` o `DESESTIMADO`). Si un operador unió el incidente a otro, viene el **principal**, que es el que sigue avanzando: su `id` puede no coincidir con el `incidenteId` que devolvió el `POST`.
 - `incidente` es `null` si el reporte quedó sin incidente.
-- `fotos`: todas las del reporte. Las de un reporte desestimado o de un incidente que ya no está en el mapa todavía no se pueden bajar (`GET /api/fotos/:id` responde 404); se resuelve cuando la web y la app muestren las fotos propias (#16, #18).
+- `fotos`: todas las del reporte. Se bajan de `GET /api/fotos/:id` **con la sesión** (`Authorization: Bearer ...`): así también se ven las de un reporte desestimado o las de un incidente que ya no está en el mapa, que sin sesión dan 404.
 - Un vecino sin reportes recibe `{ "reportes": [] }`.
 
 ### `POST /api/reportes`
@@ -410,9 +410,22 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
 Desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`. Un id que no es un entero positivo (o no entra en la base): **400** `DATOS_INVALIDOS`.
 
 ### `GET /api/fotos/:id`
-Pública. Devuelve el archivo de la foto con su `Content-Type` (`image/jpeg` o `image/png`), idéntico al que se subió (con su EXIF). Se puede usar directo en un `<img src="/api/fotos/7">`.
+Pública, con sesión opcional. Devuelve el archivo de la foto con su `Content-Type` (`image/jpeg` o `image/png`), idéntico al que se subió (con su EXIF).
 
-Solo sirve las fotos que se ven en el mapa: las de un reporte **no desestimado** cuyo incidente (o su principal, si se unió a otro) aparece en `GET /api/incidentes`. Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA`. Las fotos de los cierres todavía no se sirven (llegan con el cierre, corte 75 %). Se guardan una hora en caché (`Cache-Control: public, max-age=3600`).
+Quién ve cada foto:
+
+| Quién pide | Qué fotos ve |
+|---|---|
+| Cualquiera, sin sesión | Las que se ven en el mapa: las de un reporte **no desestimado** cuyo incidente (o su principal, si se unió a otro) aparece en `GET /api/incidentes`. |
+| El dueño del reporte | Además, todas las de sus reportes, aunque estén desestimados o el incidente ya no esté en el mapa. |
+| `OPERADOR` o `ADMINISTRADOR` | Además, todas las de los incidentes de su organismo, en cualquier estado. El organismo es el del área a la que se derivó el incidente o, si todavía no se derivó, el del área de su categoría. Si se unió a otro, manda el principal. Un administrador sin organismo ve solo las del mapa. |
+
+Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA`. Las fotos de los cierres todavía no se sirven (llegan con el cierre, corte 75 %).
+
+- **Sin sesión** se puede usar directo en un `<img src="/api/fotos/7">` o en `Image.network`. Así la muestran el mapa y la ficha pública.
+- **Con sesión**, el token va en el encabezado `Authorization: Bearer ...`, como en cualquier ruta protegida. Un `<img>` o `Image.network` no lo mandan: la web baja el archivo con su cliente y lo muestra desde una URL local (`FotoConSesion`), y la app lo baja con dio. Es lo que hace «mis reportes» y lo que va a usar la ficha de gestión del operador.
+- Si el token venció o no es válido, responde **401** (`TOKEN_VENCIDO` o `TOKEN_INVALIDO`) aunque la foto sea del mapa: el cliente renueva la sesión y la vuelve a pedir.
+- Caché de una hora: `Cache-Control: public, max-age=3600` sin sesión y `private, max-age=3600` con sesión (solo la guarda el navegador de quien la pidió). Todas llevan `Vary: Authorization`.
 
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
