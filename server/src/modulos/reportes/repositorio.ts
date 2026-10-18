@@ -13,10 +13,36 @@ export async function leerParametroEntero(clave: string) {
   return parametro && Number.isInteger(valor) ? valor : null;
 }
 
+/** La consulta a la IA que dio una sugerencia, y si ya la usó otro reporte. */
+export async function buscarSugerencia(registroIaId: number) {
+  const registro = await prisma.registroIa.findUnique({
+    where: { id: registroIaId },
+    select: {
+      usuarioId: true,
+      tipo: true,
+      exito: true,
+      salida: true,
+      _count: { select: { reportes: true } },
+    },
+  });
+  if (!registro) return null;
+  const { _count, ...resto } = registro;
+  return { ...resto, usada: _count.reportes > 0 };
+}
+
+/** Lo que sugirió la IA para este reporte y si el vecino lo dejó así. */
+export interface SugerenciaDelReporte {
+  categoriaSugeridaId: number;
+  severidadSugerida: Severidad;
+  registroIaId: number;
+  sugerenciaAceptada: boolean;
+}
+
 export interface NuevoReporte {
   usuarioId: number;
   categoriaId: number;
   severidad: Severidad;
+  sugerencia: SugerenciaDelReporte | null;
   descripcion: string | null;
   lat: number;
   lon: number;
@@ -60,16 +86,20 @@ export function crearReporteConIncidente(datos: NuevoReporte) {
       )
       RETURNING id`;
 
+    const sugerencia = datos.sugerencia;
     const [reporte] = await tx.$queryRaw<
       { id: number; nivelConfianza: number; estadoVerificacion: string }[]
     >`
       INSERT INTO reporte (
         incidente_id, usuario_id, categoria_id, severidad_declarada, descripcion, ubicacion, origen,
-        registrado_en, sincronizado_en
+        registrado_en, sincronizado_en,
+        categoria_sugerida_id, severidad_sugerida, sugerencia_aceptada, registro_ia_id
       ) VALUES (
         ${incidente!.id}, ${datos.usuarioId}, ${datos.categoriaId}, ${datos.severidad}::severidad,
         ${datos.descripcion}, ST_SetSRID(ST_MakePoint(${datos.lon}, ${datos.lat}), 4326)::geography,
-        ${datos.origen}::origen_reporte, ${datos.registradoEn}, ${datos.sincronizadoEn}
+        ${datos.origen}::origen_reporte, ${datos.registradoEn}, ${datos.sincronizadoEn},
+        ${sugerencia?.categoriaSugeridaId ?? null}, ${sugerencia?.severidadSugerida ?? null}::severidad,
+        ${sugerencia?.sugerenciaAceptada ?? null}, ${sugerencia?.registroIaId ?? null}
       )
       RETURNING id, nivel_confianza AS "nivelConfianza", estado_verificacion::text AS "estadoVerificacion"`;
 

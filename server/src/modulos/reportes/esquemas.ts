@@ -48,6 +48,16 @@ export const esquemaReporte = z.object({
     .enum(['true', 'false'], { error: 'Tiene que ser true o false' })
     .default('false')
     .transform((texto) => texto === 'true'),
+  // Lo que sugirió la IA (POST /api/ia/clasificar-foto), si el vecino la pidió. Van los tres o ninguno.
+  categoriaSugeridaId: numero('Tiene que ser un número')
+    .pipe(z.int32({ error: 'No es válida' }).positive({ error: 'No es válida' }))
+    .optional(),
+  severidadSugerida: z
+    .enum(['LEVE', 'MODERADA', 'GRAVE'], { error: 'Tiene que ser LEVE, MODERADA o GRAVE' })
+    .optional(),
+  registroIaId: numero('Tiene que ser un número')
+    .pipe(z.int32({ error: 'No es válido' }).positive({ error: 'No es válido' }))
+    .optional(),
 });
 
 export type DatosReporte = z.output<typeof esquemaReporte>;

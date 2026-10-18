@@ -5,7 +5,7 @@ import { validar } from '../../compartido/validar.js';
 import { logger } from '../../config/logger.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
-import { esquemaReporte } from './esquemas.js';
+import { type DatosReporte, esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -17,6 +17,53 @@ const datosInvalidos = (campo: string, mensaje: string) =>
 
 // Por si falta el parámetro (la semilla lo carga): antes que rechazar el reporte, se usa este valor.
 const DIAS_VIGENCIA_SI_FALTA = 30;
+
+/**
+ * Comprueba la sugerencia de la IA que manda el cliente contra lo que quedó en registro_ia: tiene que ser
+ * una clasificación exitosa del mismo vecino, sin usar en otro reporte, y con la misma categoría y
+ * severidad. Así nadie puede inventar sugerencias ni inflar cuántas se aceptan.
+ */
+async function validarSugerencia(
+  usuarioId: number,
+  datos: DatosReporte,
+): Promise<repositorio.SugerenciaDelReporte | null> {
+  const { categoriaSugeridaId, severidadSugerida, registroIaId } = datos;
+  const campos = { categoriaSugeridaId, severidadSugerida, registroIaId };
+  const faltan = Object.entries(campos).filter(([, valor]) => valor === undefined);
+  if (faltan.length === 3) return null;
+  if (faltan.length > 0) {
+    throw new ErrorApp(
+      400,
+      'DATOS_INVALIDOS',
+      'Hay datos inválidos',
+      faltan.map(([campo]) => ({ campo, mensaje: 'Va junto con los otros datos de la sugerencia' })),
+    );
+  }
+
+  const registro = await repositorio.buscarSugerencia(registroIaId!);
+  if (
+    !registro ||
+    registro.usuarioId !== usuarioId ||
+    registro.tipo !== 'CLASIFICACION_IMAGEN' ||
+    !registro.exito
+  ) {
+    throw datosInvalidos('registroIaId', 'No es una sugerencia de la IA pedida por vos');
+  }
+  if (registro.usada) throw datosInvalidos('registroIaId', 'Esa sugerencia ya se usó en otro reporte');
+  const salida = registro.salida as { categoriaId?: unknown; severidad?: unknown } | null;
+  if (salida?.categoriaId !== categoriaSugeridaId || salida?.severidad !== severidadSugerida) {
+    throw datosInvalidos('registroIaId', 'No coincide con lo que sugirió la IA');
+  }
+
+  return {
+    categoriaSugeridaId: categoriaSugeridaId!,
+    severidadSugerida: severidadSugerida!,
+    registroIaId: registroIaId!,
+    // Aceptada solo si el vecino dejó las dos cosas como las sugirió la IA.
+    sugerenciaAceptada:
+      datos.categoriaId === categoriaSugeridaId && datos.severidadDeclarada === severidadSugerida,
+  };
+}
 
 async function diasVigenciaPorDefecto() {
   const dias = await repositorio.leerParametroEntero('vigencia.dias_default');
@@ -42,6 +89,7 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
 
   const categoria = await repositorio.buscarCategoriaActiva(datos.categoriaId);
   if (!categoria) throw datosInvalidos('categoriaId', 'No existe o no está activa');
+  const sugerencia = await validarSugerencia(usuarioId, datos);
 
   // Un incidente temporal (por ejemplo, una obra) vence solo: la base exige la fecha. Se cuenta desde
   // que llega y no desde registradoEn: un celular con la hora atrasada lo haría nacer vencido.
@@ -60,6 +108,7 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
       usuarioId,
       categoriaId: categoria.id,
       severidad: datos.severidadDeclarada,
+      sugerencia,
       descripcion: datos.descripcion,
       lat: datos.lat,
       lon: datos.lon,
