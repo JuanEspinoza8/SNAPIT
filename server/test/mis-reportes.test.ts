@@ -27,14 +27,16 @@ async function vecino() {
 afterAll(() => borrarReportesDe(vecinos));
 
 /** Carga un reporte por la API, como lo haría la app. */
-async function reportar(token: string, categoriaId: number, registradoEn: string) {
+// Reportes en el mismo punto y de la misma categoría se agrupan solos (#53): para tener incidentes
+// distintos, cada reporte va en un lugar distinto.
+async function reportar(token: string, categoriaId: number, registradoEn: string, lat = '-38.95') {
   const res = await request(app)
     .post('/api/reportes')
     .set('Authorization', `Bearer ${token}`)
     .field('categoriaId', String(categoriaId))
     .field('severidadDeclarada', 'MODERADA')
     .field('descripcion', `Reporte del ${registradoEn}`)
-    .field('lat', '-38.95')
+    .field('lat', lat)
     .field('lon', '-68.06')
     .field('origen', 'APP_MOVIL')
     .field('registradoEn', registradoEn)
@@ -86,7 +88,8 @@ describe('GET /api/reportes/mios', () => {
     const { token } = await vecino();
     const otro = await vecino();
     const mio = await reportar(token, categoria.id, '2026-10-02T10:00:00-03:00');
-    const delPrincipal = await reportar(otro.token, categoria.id, '2026-10-01T10:00:00-03:00');
+    // A un kilómetro: la agrupación automática no los junta, el operador los une a mano.
+    const delPrincipal = await reportar(otro.token, categoria.id, '2026-10-01T10:00:00-03:00', '-38.96');
     // Un operador unió mi incidente al del otro vecino, que ya está en ejecución.
     await prisma.incidente.update({
       where: { id: delPrincipal.incidenteId },
