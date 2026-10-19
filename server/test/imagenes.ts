@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
@@ -56,6 +57,23 @@ export function escenaNocturna(x: number, y: number) {
     }
   }
   return sharp(pixeles, { raw: { width: ancho, height: alto, channels: 1 } })
+    .jpeg()
+    .toBuffer();
+}
+
+/**
+ * La foto de prueba tapada con un mosaico al azar, conservando su EXIF: otra imagen para el hash perceptual.
+ * Otros tests suben las mismas fotos de prueba a la base compartida; con una foto única, la verificación no
+ * la encuentra repetida (salvo que el test la suba dos veces a propósito).
+ */
+export async function fotoUnica(base: Buffer) {
+  const mosaico = await sharp(randomBytes(16 * 12), { raw: { width: 16, height: 12, channels: 1 } })
+    .resize(640, 480, { kernel: 'nearest' })
+    .png()
+    .toBuffer();
+  return sharp(base)
+    .composite([{ input: mosaico }])
+    .withMetadata()
     .jpeg()
     .toBuffer();
 }

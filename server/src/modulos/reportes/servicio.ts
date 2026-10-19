@@ -9,6 +9,7 @@ import type { UsuarioSesion } from '../auth/tokens.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import type { Senal } from '../verificacion/calculo.js';
+import { aplicarResultado } from '../verificacion/resultado.js';
 import { verificarReporte } from '../verificacion/servicio.js';
 import { type DatosReporte, esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
@@ -221,6 +222,16 @@ function guardarReporte(alta: {
     // Con el reporte ya guardado: la cantidad y la severidad consolidada lo incluyen.
     const severidad = severidadConsolidada(await agrupacion.severidadesDeclaradas(tx, incidenteId));
     await repositorio.sumarReporte(tx, incidenteId, { severidad, actualizadoEn: reporte.sincronizadoEn });
+    // Verificado al llegar: cuenta para la reputación del vecino y puede verificar el incidente. Uno pendiente
+    // espera la revisión del operador (verificacion/revision.ts).
+    if (guardado.estadoVerificacion === 'VERIFICADO') {
+      await aplicarResultado(tx, {
+        reporteId: guardado.id,
+        decision: 'VERIFICADO',
+        operadorId: null,
+        comentario: null,
+      });
+    }
     await avisarCambioIncidente(tx, incidenteId);
 
     return {

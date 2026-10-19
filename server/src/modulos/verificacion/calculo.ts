@@ -137,3 +137,12 @@ export function calcularConfianza(datos: DatosConfianza, p: ParametrosVerificaci
   const nivel = Math.round(Math.min(100, Math.max(0, suma)));
   return { nivel, senales, estado: nivel >= p.umbralVerificado ? 'VERIFICADO' : 'PENDIENTE_REVISION' };
 }
+
+/**
+ * Reputación del vecino según su historial (F04): 100 × (confirmados + 1) / (confirmados + desestimados + 2),
+ * con dos decimales como la columna. Sin historial da 50; cada reporte confirmado la acerca a 100 y cada
+ * desestimado a 0, y el +1 y el +2 evitan que un solo reporte la lleve a un extremo.
+ */
+export function calcularReputacion(confirmados: number, desestimados: number) {
+  return Math.round((10_000 * (confirmados + 1)) / (confirmados + desestimados + 2)) / 100;
+}

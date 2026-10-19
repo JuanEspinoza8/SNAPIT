@@ -92,6 +92,36 @@ El sistema **nunca desestima** un reporte por sí solo, ni con nivel 0: desestim
 - `tomadaConCamaraApp` lo declara la app. El servidor rechaza la combinación imposible (sitio web con cámara de la app), pero no puede comprobar que una petición que dice venir de la app la haya usado de verdad.
 - La búsqueda de la foto repetida se hace antes de abrir la transacción del reporte. Dos envíos simultáneos de la misma foto no se ven entre sí y ninguno resta. Es la misma carrera que aceptaba el plan para la agrupación.
 
+### Resultado de la verificación y reputación del vecino
+
+Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo mismo, lo haya decidido el sistema al recibirlo o un operador al revisarlo (#51, `server/src/modulos/verificacion/resultado.ts`). Todo va en la misma transacción que el cambio del reporte:
+
+1. **Historial del vecino.** Un verificado suma a `reportes_confirmados` y un desestimado a `reportes_desestimados`. Con los contadores nuevos se recalcula la reputación:
+
+   ```math
+   	ext{reputación} = 100 	imes rac{	ext{confirmados} + 1}{	ext{confirmados} + 	ext{desestimados} + 2}
+   ```
+
+   Se guarda con dos decimales. Sin historial da **50**, la reputación inicial. Cada confirmado la acerca a 100 y cada desestimado a 0; el +1 y el +2 hacen que un solo reporte no la lleve a un extremo. La usa la señal `REPUTACION` de los reportes siguientes del vecino.
+
+   | Confirmados | Desestimados | Reputación |
+   |---|---|---|
+   | 0 | 0 | 50 |
+   | 1 | 0 | 66,67 |
+   | 0 | 1 | 33,33 |
+   | 3 | 1 | 66,67 |
+   | 9 | 0 | 90,91 |
+
+2. **Estado del incidente** (el principal, si se unió a otro). Solo cambia uno `REGISTRADO`:
+   - pasa a `VERIFICADO` con su primer reporte verificado;
+   - pasa a `DESESTIMADO` cuando no le queda ningún reporte sin desestimar, contando los de los incidentes unidos.
+
+   Desestimar un reporte de un incidente que tiene otros reportes válidos no cambia su estado, pero sí recalcula su **severidad consolidada**, porque los desestimados no cuentan (ver la agrupación).
+3. **Bitácora.** Un cambio de estado queda como `CAMBIO_ESTADO`, con el estado anterior y el nuevo. Una revisión del operador queda siempre, aunque el incidente no cambie: entonces como `COMENTARIO`. El texto dice qué reporte, quién lo decidió (el operador o "automáticamente", con su nivel de confianza) y el comentario del operador.
+4. **Prioridad.** Se avisa al módulo de prioridad (#61) para que recalcule el incidente.
+
+Un reporte **pendiente** no cuenta para la reputación hasta que un operador lo revisa (`POST /api/reportes/:id/revision`). Un reporte ya verificado o desestimado no se vuelve a revisar.
+
 ### Agrupación de reportes en incidentes
 
 El puntaje de agrupación combina la cercanía, el tiempo transcurrido y el parecido entre las fotos.
