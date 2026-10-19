@@ -4,6 +4,7 @@ import { ErrorApp } from '../../compartido/errores.js';
 import { recibirFoto } from '../../compartido/recibirFoto.js';
 import { validar } from '../../compartido/validar.js';
 import { separarReporte } from '../incidentes/separacion.js';
+import { listarPendientes, revisarReporte } from '../verificacion/revision.js';
 import { esquemaIdFoto } from './esquemas.js';
 import * as servicio from './servicio.js';
 
@@ -18,6 +19,20 @@ rutasReportes.post('/', autenticar, permitirRoles('VECINO'), recibirFoto, async 
 rutasReportes.get('/mios', autenticar, permitirRoles('VECINO'), async (req, res) => {
   res.json(await servicio.listarMisReportes(req.usuario!.id));
 });
+
+// Revisión de los reportes de baja confianza (F04): solo los de los incidentes del organismo de quien la pide.
+rutasReportes.get('/pendientes', autenticar, permitirRoles('OPERADOR', 'ADMINISTRADOR'), async (req, res) => {
+  res.json(await listarPendientes(req.usuario!));
+});
+
+rutasReportes.post(
+  '/:id/revision',
+  autenticar,
+  permitirRoles('OPERADOR', 'ADMINISTRADOR'),
+  async (req, res) => {
+    res.json(await revisarReporte(req.usuario!, req.params, req.body));
+  },
+);
 
 // Un operador saca un reporte agrupado por error a un incidente nuevo (F05): solo en su organismo.
 rutasReportes.post(

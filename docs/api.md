@@ -348,6 +348,75 @@ curl -X POST http://localhost:3000/api/reportes \
   -F lat=-38.9516 -F lon=-68.0591 -F origen=SITIO_WEB
 ```
 
+### `GET /api/reportes/pendientes`
+Los reportes de baja confianza que esperan la revisión de un operador (F04). Requiere sesión de `OPERADOR` o `ADMINISTRADOR` (otro rol: 403 `SIN_PERMISO`). Solo trae los de los incidentes de **su organismo**: el del área a la que se derivó el incidente o, si todavía no se derivó, el del área de su categoría.
+
+Responde **200**, del más viejo al más nuevo (por `registradoEn`):
+
+```json
+{
+  "reportes": [
+    {
+      "id": 12,
+      "registradoEn": "2026-10-16T14:20:00.000Z",
+      "categoria": { "id": 3, "nombre": "Cordón sin rampa" },
+      "severidadDeclarada": "MODERADA",
+      "descripcion": "Rampa rota",
+      "direccion": "General Villegas 195, Villa Farrel",
+      "lat": -38.9531,
+      "lon": -68.0478,
+      "origen": "SITIO_WEB",
+      "nivelConfianza": 40,
+      "senales": [
+        { "tipo": "EXIF_AUSENTE", "valor": -10, "detalle": "La foto se eligió de la galería y no trae la ubicación donde se sacó" },
+        { "tipo": "REPUTACION", "valor": 0, "detalle": "Reputación del vecino: 50 de 100" }
+      ],
+      "fotos": [{ "id": 12, "url": "/api/fotos/12" }],
+      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1 },
+      "vecino": { "reputacion": 50, "reportesConfirmados": 0, "reportesDesestimados": 0 }
+    }
+  ]
+}
+```
+
+- `senales`: por qué quedó con ese nivel, en el orden en que se calcularon (ver `docs/calculos.md`).
+- `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el incidente no esté en el mapa.
+- `vecino`: su historial, no quién es.
+- `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
+- Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.
+
+### `POST /api/reportes/:id/revision`
+El operador verifica o desestima un reporte pendiente. Requiere sesión de `OPERADOR` o `ADMINISTRADOR` del organismo del reporte.
+
+```json
+{ "decision": "DESESTIMADO", "comentario": "La foto es de otro lugar" }
+```
+
+| Campo | Obligatorio | Valor |
+|---|---|---|
+| `decision` | sí | `VERIFICADO` o `DESESTIMADO` |
+| `comentario` | no | Texto libre, hasta 1000 caracteres. Queda en la bitácora del incidente |
+
+Responde **200** con el resultado:
+
+```json
+{
+  "id": 12,
+  "estadoVerificacion": "DESESTIMADO",
+  "incidente": { "id": 9, "estado": "DESESTIMADO" },
+  "vecino": { "reputacion": 33.33 }
+}
+```
+
+Actualiza la reputación del vecino, el estado del incidente y su bitácora, todo junto (ver "Resultado de la verificación y reputación del vecino" en `docs/calculos.md`). `incidente` es el principal si se unió a otro, y `null` si el reporte quedó sin incidente.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | Falta la decisión, no es una de las dos, o el comentario es muy largo |
+| 403 `SIN_PERMISO` | El reporte es de un incidente de otro organismo |
+| 404 `REPORTE_NO_ENCONTRADO` | El reporte no existe |
+| 409 `REPORTE_YA_REVISADO` | Ya no está pendiente: lo revisó otro operador o el sistema lo verificó al recibirlo |
+
 ### `POST /api/ia/clasificar-foto`
 Sugiere la categoría y la gravedad a partir de la foto (F06), para precargarlas en el formulario de reporte. Requiere sesión de `VECINO`. El vecino siempre tiene la última palabra: puede cambiar lo sugerido.
 
