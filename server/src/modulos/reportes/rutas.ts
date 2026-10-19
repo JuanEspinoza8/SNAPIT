@@ -3,6 +3,7 @@ import { autenticar, permitirRoles, sesionOpcional } from '../../compartido/aute
 import { ErrorApp } from '../../compartido/errores.js';
 import { recibirFoto } from '../../compartido/recibirFoto.js';
 import { validar } from '../../compartido/validar.js';
+import { separarReporte } from '../incidentes/separacion.js';
 import { esquemaIdFoto } from './esquemas.js';
 import * as servicio from './servicio.js';
 
@@ -17,6 +18,16 @@ rutasReportes.post('/', autenticar, permitirRoles('VECINO'), recibirFoto, async 
 rutasReportes.get('/mios', autenticar, permitirRoles('VECINO'), async (req, res) => {
   res.json(await servicio.listarMisReportes(req.usuario!.id));
 });
+
+// Un operador saca un reporte agrupado por error a un incidente nuevo (F05): solo en su organismo.
+rutasReportes.post(
+  '/:id/separacion',
+  autenticar,
+  permitirRoles('OPERADOR', 'ADMINISTRADOR'),
+  async (req, res) => {
+    res.json(await separarReporte(req.usuario!, req.params, req.body));
+  },
+);
 
 // Pública: el mapa muestra las fotos sin sesión, solo las de incidentes que se ven en el mapa.
 // Con sesión, también las del dueño del reporte y las del organismo del operador.
