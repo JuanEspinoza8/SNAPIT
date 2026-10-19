@@ -1,13 +1,12 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { Categoria, Usuario } from '@prisma/client';
-import sharp from 'sharp';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { crearUsuario } from './apoyo.js';
-import { EXIF_DE_PRUEBA, escenaNocturna, jpegConExif, jpegLiso, jpegSinExif } from './imagenes.js';
+import { EXIF_DE_PRUEBA, escenaNocturna, fotoUnica, jpegConExif, jpegLiso, jpegSinExif } from './imagenes.js';
 
 let categoria: Categoria;
 
@@ -18,23 +17,6 @@ beforeEach(async () => {
     data: { nombre: `Categoría ${randomUUID()}`, areaId: area.id },
   });
 });
-
-/**
- * La foto de prueba tapada con un mosaico al azar, conservando su EXIF: otra imagen para el hash perceptual.
- * Otros tests suben las mismas fotos de prueba a la base compartida; con una foto única, la verificación no
- * la encuentra repetida (salvo que el test la suba dos veces a propósito).
- */
-async function fotoUnica(base: Buffer) {
-  const mosaico = await sharp(randomBytes(16 * 12), { raw: { width: 16, height: 12, channels: 1 } })
-    .resize(640, 480, { kernel: 'nearest' })
-    .png()
-    .toBuffer();
-  return sharp(base)
-    .composite([{ input: mosaico }])
-    .withMetadata()
-    .jpeg()
-    .toBuffer();
-}
 
 async function reportar(
   vecino: Usuario,
