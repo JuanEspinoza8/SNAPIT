@@ -439,6 +439,39 @@ Al enviar el reporte, se mandan los tres valores tal cual como `categoriaSugerid
 
 Cada consulta, buena o mala, queda en `registro_ia` (modelo, duración, respuesta o motivo del fallo).
 
+### `POST /api/reportes/:id/separacion`
+Un operador saca un reporte que el sistema agrupó por error y lo deja solo en un incidente nuevo (F05). Requiere sesión de `OPERADOR` o `ADMINISTRADOR` del organismo del incidente.
+
+```json
+{ "comentario": "Es otro pozo, en la vereda de enfrente" }
+```
+
+`comentario` es opcional (hasta 1000 caracteres) y queda en la bitácora de los dos incidentes.
+
+Responde **200**:
+
+```json
+{
+  "reporteId": 15,
+  "incidenteNuevo": { "id": 23, "estado": "REGISTRADO", "cantidadReportes": 1, "severidad": "LEVE" },
+  "incidenteOriginal": { "id": 9, "estado": "VERIFICADO", "cantidadReportes": 2, "severidad": "GRAVE" }
+}
+```
+
+- **Incidente nuevo:** toma la categoría, el punto, la dirección y la severidad del reporte, y la vigencia del original. Queda `VERIFICADO` si el reporte estaba verificado y `REGISTRADO` si está pendiente, sin área asignada (hay que derivarlo de nuevo).
+- **Incidente original:** conserva su estado. Pierde un reporte y se recalculan su severidad consolidada y su primer reporte.
+- Los dos quedan con un movimiento `SEPARACION` que apunta al otro, y se recalcula su prioridad.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | El comentario es muy largo |
+| 403 `SIN_PERMISO` | El incidente es de otro organismo |
+| 404 `REPORTE_NO_ENCONTRADO` | El reporte no existe |
+| 409 `UNICO_REPORTE` | Es el único reporte no desestimado del incidente, contando los de sus unidos: no hay de qué separarlo |
+| 409 `REPORTE_DESESTIMADO` | El reporte está desestimado |
+| 409 `INCIDENTE_UNIDO` | Su incidente está unido a otro: primero hay que deshacer la unión (`DELETE /api/incidentes/:id/union`) |
+| 409 `REPORTE_SIN_INCIDENTE` | El reporte no está en ningún incidente |
+
 ## Mapa público
 Rutas públicas: el mapa se ve sin iniciar sesión.
 
