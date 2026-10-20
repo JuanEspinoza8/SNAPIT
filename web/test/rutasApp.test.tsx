@@ -83,7 +83,7 @@ describe('rutas de la aplicación', () => {
   it('un operador que abre la administración vuelve a su bandeja', async () => {
     abrir('/administracion', 'OPERADOR');
 
-    expect(await screen.findByRole('heading', { name: 'Bandeja' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Bandeja de revisión' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Alta de operadores' })).not.toBeInTheDocument();
   });
 

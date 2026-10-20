@@ -8,7 +8,6 @@ import { PaginaRegistro } from '../../funcionalidades/cuenta/paginaRegistro.js';
 import { PaginaConfirmarCorreo } from '../../funcionalidades/cuenta/paginaConfirmarCorreo.js';
 import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuperarClave.js';
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
-import { SeccionEnConstruccion } from '../../funcionalidades/comun/SeccionEnConstruccion.js';
 import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
 import { PaginaMisReportes } from '../../funcionalidades/misReportes/paginaMisReportes.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
@@ -22,6 +21,13 @@ const PaginaMapa = lazy(() =>
 const PaginaReportar = lazy(() =>
   import('../../funcionalidades/reportar/paginaReportar.js').then((modulo) => ({
     default: modulo.PaginaReportar,
+  })),
+);
+
+// La bandeja trae Leaflet (el mapa chico): se baja recién cuando un operador abre /bandeja.
+const PaginaBandeja = lazy(() =>
+  import('../../funcionalidades/bandeja/paginaBandeja.js').then((modulo) => ({
+    default: modulo.PaginaBandeja,
   })),
 );
 
@@ -104,7 +110,9 @@ export const rutas: RouteObject[] = [
         path: 'bandeja',
         element: (
           <RutaProtegida rol="OPERADOR">
-            <SeccionEnConstruccion titulo="Bandeja" />
+            <Suspense fallback={<Cargando />}>
+              <PaginaBandeja />
+            </Suspense>
           </RutaProtegida>
         ),
       },
