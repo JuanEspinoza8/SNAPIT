@@ -439,6 +439,39 @@ Al enviar el reporte, se mandan los tres valores tal cual como `categoriaSugerid
 
 Cada consulta, buena o mala, queda en `registro_ia` (modelo, duración, respuesta o motivo del fallo).
 
+### `POST /api/reportes/:id/separacion`
+Un operador saca un reporte que el sistema agrupó por error y lo deja solo en un incidente nuevo (F05). Requiere sesión de `OPERADOR` o `ADMINISTRADOR` del organismo del incidente.
+
+```json
+{ "comentario": "Es otro pozo, en la vereda de enfrente" }
+```
+
+`comentario` es opcional (hasta 1000 caracteres) y queda en la bitácora de los dos incidentes.
+
+Responde **200**:
+
+```json
+{
+  "reporteId": 15,
+  "incidenteNuevo": { "id": 23, "estado": "REGISTRADO", "cantidadReportes": 1, "severidad": "LEVE" },
+  "incidenteOriginal": { "id": 9, "estado": "VERIFICADO", "cantidadReportes": 2, "severidad": "GRAVE" }
+}
+```
+
+- **Incidente nuevo:** toma la categoría, el punto, la dirección y la severidad del reporte, y la vigencia del original. Queda `VERIFICADO` si el reporte estaba verificado y `REGISTRADO` si está pendiente, sin área asignada (hay que derivarlo de nuevo).
+- **Incidente original:** conserva su estado. Pierde un reporte y se recalculan su severidad consolidada y su primer reporte.
+- Los dos quedan con un movimiento `SEPARACION` que apunta al otro, y se recalcula su prioridad.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | El comentario es muy largo |
+| 403 `SIN_PERMISO` | El incidente es de otro organismo |
+| 404 `REPORTE_NO_ENCONTRADO` | El reporte no existe |
+| 409 `UNICO_REPORTE` | Es el único reporte no desestimado del incidente, contando los de sus unidos: no hay de qué separarlo |
+| 409 `REPORTE_DESESTIMADO` | El reporte está desestimado |
+| 409 `INCIDENTE_UNIDO` | Su incidente está unido a otro: primero hay que deshacer la unión (`DELETE /api/incidentes/:id/union`) |
+| 409 `REPORTE_SIN_INCIDENTE` | El reporte no está en ningún incidente |
+
 ## Mapa público
 Rutas públicas: el mapa se ve sin iniciar sesión.
 
@@ -506,6 +539,54 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   - `null` mientras todavía no se completó (unos segundos después de reportar, o más si Nominatim no respondía).
 
 Desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`. Un id que no es un entero positivo (o no entra en la base): **400** `DATOS_INVALIDOS`.
+
+### `POST /api/incidentes/:id/union`
+Un operador marca que el incidente `:id` es el mismo problema que otro, el **principal** (F05). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, y los dos incidentes tienen que ser de su organismo.
+
+```json
+{ "principalId": 9, "comentario": "Es el mismo pozo" }
+```
+
+`comentario` es opcional (hasta 1000 caracteres) y queda en la bitácora de los dos.
+
+Unir **no borra ni mueve nada**:
+- El duplicado apunta al principal y conserva su estado, sus contadores y sus reportes. Deja de verse en el mapa, y su ficha (`GET /api/incidentes/:id`) muestra la del principal.
+- El principal suma la cantidad de reportes del duplicado, y se recalculan su severidad consolidada y su primer reporte con los reportes de los dos. Su estado no cambia.
+- Los dos quedan con un movimiento `FUSION` que apunta al otro, y se recalcula su prioridad.
+
+Responde **200**:
+
+```json
+{ "id": 14, "principal": { "id": 9, "estado": "VERIFICADO", "cantidadReportes": 3, "severidad": "GRAVE" } }
+```
+
+Hay un solo nivel de unión: no se forman cadenas.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | Falta `principalId` o no es un id válido |
+| 403 `SIN_PERMISO` | Alguno de los dos es de otro organismo |
+| 404 `INCIDENTE_NO_ENCONTRADO` | Alguno de los dos no existe |
+| 409 `MISMO_INCIDENTE` | `principalId` es el mismo incidente |
+| 409 `YA_UNIDO` | El incidente ya está unido a otro |
+| 409 `PRINCIPAL_UNIDO` | El principal está unido a otro: hay que unir con ese |
+| 409 `TIENE_UNIDOS` | El incidente tiene otros unidos, así que no puede unirse a otro |
+| 409 `INCIDENTE_CERRADO` | Alguno de los dos está resuelto, desestimado o caducado |
+
+### `DELETE /api/incidentes/:id/union`
+Deshace la unión del incidente `:id` con su principal: deja los dos exactamente como estaban antes de unirlos. Mismos permisos que unir. Los dos quedan con un movimiento `SEPARACION` que apunta al otro, y se recalcula su prioridad.
+
+Responde **200** con el principal ya sin el duplicado:
+
+```json
+{ "id": 14, "principal": { "id": 9, "estado": "VERIFICADO", "cantidadReportes": 1, "severidad": "LEVE" } }
+```
+
+| Error | Cuándo |
+|---|---|
+| 403 `SIN_PERMISO` | Alguno de los dos es de otro organismo |
+| 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+| 409 `NO_UNIDO` | El incidente no está unido a otro |
 
 ### `GET /api/fotos/:id`
 Pública, con sesión opcional. Devuelve el archivo de la foto con su `Content-Type` (`image/jpeg` o `image/png`), idéntico al que se subió (con su EXIF).
