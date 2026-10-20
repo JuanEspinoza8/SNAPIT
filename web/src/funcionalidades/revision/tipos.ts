@@ -8,7 +8,7 @@ export type DecisionRevision = 'VERIFICADO' | 'DESESTIMADO';
 export interface SenalVerificacion {
   tipo: string; // EXIF_AUSENTE, HASH_DUPLICADO, REPUTACION, etc.
   valor: number; // cuánto sumó o restó (+20, -40, 0...)
-  detalle: string; // la explicación en texto claro
+  detalle: string | null; // la explicación en texto claro (puede faltar)
 }
 
 // Un reporte de la lista de pendientes, tal cual lo devuelve el servidor.

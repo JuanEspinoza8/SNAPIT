@@ -8,6 +8,7 @@ import { PaginaRegistro } from '../../funcionalidades/cuenta/paginaRegistro.js';
 import { PaginaConfirmarCorreo } from '../../funcionalidades/cuenta/paginaConfirmarCorreo.js';
 import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuperarClave.js';
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
+import { SeccionEnConstruccion } from '../../funcionalidades/comun/SeccionEnConstruccion.js';
 import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
 import { PaginaMisReportes } from '../../funcionalidades/misReportes/paginaMisReportes.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
@@ -24,10 +25,10 @@ const PaginaReportar = lazy(() =>
   })),
 );
 
-// La bandeja trae Leaflet (el mapa chico): se baja recién cuando un operador abre /bandeja.
-const PaginaBandeja = lazy(() =>
-  import('../../funcionalidades/bandeja/paginaBandeja.js').then((modulo) => ({
-    default: modulo.PaginaBandeja,
+// La revisión trae Leaflet (el mapa chico): se baja recién cuando un operador abre /revision.
+const PaginaRevision = lazy(() =>
+  import('../../funcionalidades/revision/paginaRevision.js').then((modulo) => ({
+    default: modulo.PaginaRevision,
   })),
 );
 
@@ -110,8 +111,17 @@ export const rutas: RouteObject[] = [
         path: 'bandeja',
         element: (
           <RutaProtegida rol="OPERADOR">
+            <SeccionEnConstruccion titulo="Bandeja" />
+          </RutaProtegida>
+        ),
+      },
+      // Revisión de los reportes de baja confianza (#52). La bandeja de incidentes por prioridad es la #67.
+      {
+        path: 'revision',
+        element: (
+          <RutaProtegida rol="OPERADOR">
             <Suspense fallback={<Cargando />}>
-              <PaginaBandeja />
+              <PaginaRevision />
             </Suspense>
           </RutaProtegida>
         ),

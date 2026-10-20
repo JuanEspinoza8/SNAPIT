@@ -3,12 +3,12 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { TarjetaPendiente } from './TarjetaPendiente.js';
-import { useBandeja } from './useBandeja.js';
+import { useRevision } from './useRevision.js';
 import type { DecisionRevision } from './tipos.js';
 
-/** La bandeja del operador (F04): los reportes de baja confianza de su organismo. */
-export function PaginaBandeja() {
-  const { pendientes, revisar } = useBandeja();
+/** La revisión del operador (F04): los reportes de baja confianza de su organismo. */
+export function PaginaRevision() {
+  const { pendientes, revisar } = useRevision();
   const [abierta, setAbierta] = useState<number | null>(null);
 
   const decidir = (id: number) => (decision: DecisionRevision, comentario: string) => {
@@ -25,7 +25,7 @@ export function PaginaBandeja() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-texto">Bandeja de revisión</h1>
+      <h1 className="text-2xl font-semibold text-texto">Revisión de reportes</h1>
       <p className="text-sm text-texto-secundario">
         Reportes de baja confianza de tu organismo, del más viejo al más nuevo. Revisá la foto, el nivel y las
         señales antes de decidir.
@@ -41,8 +41,6 @@ export function PaginaBandeja() {
         />
       )}
 
-      {revisar.isError && <AvisoError error={aErrorApi(revisar.error)} />}
-
       {pendientes.data && pendientes.data.length === 0 && <SinPendientes />}
 
       {pendientes.data && pendientes.data.length > 0 && (
@@ -52,8 +50,14 @@ export function PaginaBandeja() {
               key={reporte.id}
               reporte={reporte}
               abierta={abierta === reporte.id}
-              alAbrir={() => setAbierta(abierta === reporte.id ? null : reporte.id)}
+              alAbrir={() => {
+                revisar.reset();
+                setAbierta(abierta === reporte.id ? null : reporte.id);
+              }}
               enRevision={revisar.isPending && revisar.variables?.id === reporte.id}
+              error={
+                revisar.isError && revisar.variables?.id === reporte.id ? aErrorApi(revisar.error) : null
+              }
               alRevisar={decidir(reporte.id)}
             />
           ))}

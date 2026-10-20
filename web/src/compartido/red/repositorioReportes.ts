@@ -5,7 +5,7 @@ import type {
   DecisionRevision,
   ReportePendiente,
   ResultadoRevision,
-} from '../../funcionalidades/bandeja/tipos.js';
+} from '../../funcionalidades/revision/tipos.js';
 
 export interface RepositorioReportes {
   enviar(datos: DatosReporte): Promise<ReporteEnviado>;

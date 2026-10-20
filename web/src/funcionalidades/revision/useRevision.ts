@@ -5,7 +5,7 @@ import { aErrorApi } from '../../compartido/red/error.js';
 import { crearRepositorioReportes } from '../../compartido/red/repositorioReportes.js';
 import type { DecisionRevision } from './tipos.js';
 
-export function useBandeja() {
+export function useRevision() {
   const cliente = useCliente();
   const consulta = useQueryClient();
   const repositorio = useMemo(() => crearRepositorioReportes(cliente), [cliente]);

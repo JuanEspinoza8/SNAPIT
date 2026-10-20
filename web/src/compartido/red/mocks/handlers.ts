@@ -3,7 +3,7 @@ import type { Usuario } from '../../sesion/usuario.js';
 import type { DatosAltaUsuario, Organismo } from '../../../funcionalidades/administracion/tipos.js';
 import type { FichaIncidente, PuntoMapa } from '../../../funcionalidades/mapa/tipos.js';
 import type { ReporteMio } from '../../../funcionalidades/misReportes/tipos.js';
-import type { ReportePendiente, ResultadoRevision } from '../../../funcionalidades/bandeja/tipos.js';
+import type { ReportePendiente, ResultadoRevision } from '../../../funcionalidades/revision/tipos.js';
 import { apiUrl } from '../../../config/entorno.js';
 
 const usuarioVecino: Usuario = {
