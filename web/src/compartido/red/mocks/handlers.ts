@@ -3,6 +3,7 @@ import type { Usuario } from '../../sesion/usuario.js';
 import type { DatosAltaUsuario, Organismo } from '../../../funcionalidades/administracion/tipos.js';
 import type { FichaIncidente, PuntoMapa } from '../../../funcionalidades/mapa/tipos.js';
 import type { ReporteMio } from '../../../funcionalidades/misReportes/tipos.js';
+import type { ReportePendiente, ResultadoRevision } from '../../../funcionalidades/revision/tipos.js';
 import { apiUrl } from '../../../config/entorno.js';
 
 const usuarioVecino: Usuario = {
@@ -128,6 +129,58 @@ let reportesMios: ReporteMio[] = [
   },
 ];
 let proximoReporteId = 103;
+
+// Reportes de baja confianza que devuelve GET /reportes/pendientes (F04),
+// del más viejo al más nuevo, como los ordena el servidor.
+let reportesPendientes: ReportePendiente[] = [
+  {
+    id: 12,
+    registradoEn: '2026-10-16T14:20:00.000Z',
+    categoria: { id: 3, nombre: 'Cordón sin rampa' },
+    severidadDeclarada: 'MODERADA',
+    descripcion: 'Rampa rota en el acceso de la escuela.',
+    direccion: 'General Villegas 195, Villa Farrel',
+    lat: -38.9531,
+    lon: -68.0478,
+    origen: 'SITIO_WEB',
+    nivelConfianza: 40,
+    senales: [
+      {
+        tipo: 'EXIF_AUSENTE',
+        valor: -10,
+        detalle: 'La foto se eligió de la galería y no trae la ubicación donde se sacó',
+      },
+      { tipo: 'REPUTACION', valor: 0, detalle: 'Reputación del vecino: 50 de 100' },
+    ],
+    fotos: [{ id: 1, url: '/api/fotos/1' }],
+    incidente: { id: 9, estado: 'REGISTRADO', cantidadReportes: 1 },
+    vecino: { reputacion: 50, reportesConfirmados: 0, reportesDesestimados: 0 },
+  },
+  {
+    id: 15,
+    registradoEn: '2026-10-17T09:10:00.000Z',
+    categoria: { id: 1, nombre: 'Pozo en la calzada' },
+    severidadDeclarada: 'GRAVE',
+    descripcion: null,
+    direccion: null,
+    lat: -38.956,
+    lon: -68.055,
+    origen: 'APP_MOVIL',
+    nivelConfianza: 0,
+    senales: [
+      { tipo: 'HASH_DUPLICADO', valor: -40, detalle: 'La misma foto ya se usó en otro reporte' },
+      {
+        tipo: 'EXIF_AUSENTE',
+        valor: -10,
+        detalle: 'La foto se eligió de la galería y no trae la ubicación donde se sacó',
+      },
+      { tipo: 'REPUTACION', valor: -20, detalle: 'Reputación del vecino: 0 de 100' },
+    ],
+    fotos: [{ id: 2, url: '/api/fotos/2' }],
+    incidente: null,
+    vecino: { reputacion: 0, reportesConfirmados: 0, reportesDesestimados: 3 },
+  },
+];
 
 const FOTO_SIMULADA =
   '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="#D9DEE5"/></svg>';
@@ -309,5 +362,40 @@ export const handlers = [
       { id, incidenteId: id, nivelConfianza: 0, estadoVerificacion: 'PENDIENTE_REVISION' },
       { status: 201 },
     );
+  }),
+
+  http.get(`${apiUrl}/reportes/pendientes`, () => HttpResponse.json({ reportes: reportesPendientes })),
+
+  http.post(`${apiUrl}/reportes/:id/revision`, async ({ params, request }) => {
+    const cuerpo = (await request.json()) as { decision?: string };
+    const id = Number(params.id);
+    const reporte = reportesPendientes.find((item) => item.id === id);
+    if (!reporte) {
+      return HttpResponse.json(
+        { error: { codigo: 'REPORTE_NO_ENCONTRADO', mensaje: 'El reporte no existe' } },
+        { status: 404 },
+      );
+    }
+    if (cuerpo.decision !== 'VERIFICADO' && cuerpo.decision !== 'DESESTIMADO') {
+      return HttpResponse.json(
+        {
+          error: {
+            codigo: 'DATOS_INVALIDOS',
+            mensaje: 'Hay datos inválidos',
+            detalles: [{ campo: 'decision', mensaje: 'Debe ser VERIFICADO o DESESTIMADO' }],
+          },
+        },
+        { status: 400 },
+      );
+    }
+    // Al decidir, el reporte sale de la lista: así la pantalla lo muestra al refrescar.
+    reportesPendientes = reportesPendientes.filter((item) => item.id !== id);
+    const estadoIncidente = cuerpo.decision === 'VERIFICADO' ? 'VERIFICADO' : 'DESESTIMADO';
+    return HttpResponse.json({
+      id,
+      estadoVerificacion: cuerpo.decision,
+      incidente: reporte.incidente ? { id: reporte.incidente.id, estado: estadoIncidente } : null,
+      vecino: { reputacion: cuerpo.decision === 'VERIFICADO' ? 66.67 : 33.33 },
+    } satisfies ResultadoRevision);
   }),
 ];

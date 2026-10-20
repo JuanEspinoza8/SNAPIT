@@ -67,7 +67,7 @@ const detalleDe = (res: request.Response, campo: string) =>
   res.body.error.detalles.find((d: { campo: string }) => d.campo === campo)?.mensaje;
 
 describe('POST /api/reportes', () => {
-  it('crea el reporte, su foto y un incidente REGISTRADO propio', async () => {
+  it('crea el reporte, su foto y un incidente propio', async () => {
     const categoria = await crearCategoria();
     const { usuario, token } = await vecino();
 
@@ -108,7 +108,9 @@ describe('POST /api/reportes', () => {
     expect(reporte.fotografias[0]!.exifLongitud?.toNumber()).toBe(EXIF_DE_PRUEBA.longitud);
     expect(reporte.fotografias[0]!.hashPerceptual).toMatch(/^[01]{64}$/);
     expect(reporte.incidente).toMatchObject({
-      estado: 'REGISTRADO',
+      // Un reporte verificado al llegar verifica su incidente (#51); uno pendiente lo deja registrado. Cuál de
+      // los dos depende de si otro test ya subió la misma foto (HASH_DUPLICADO).
+      estado: res.body.estadoVerificacion === 'VERIFICADO' ? 'VERIFICADO' : 'REGISTRADO',
       categoriaId: categoria.id,
       // Recién lo deriva el operador.
       areaId: null,
