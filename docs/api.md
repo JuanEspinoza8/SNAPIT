@@ -467,8 +467,9 @@ Responde **200**:
 | 400 `DATOS_INVALIDOS` | El comentario es muy largo |
 | 403 `SIN_PERMISO` | El incidente es de otro organismo |
 | 404 `REPORTE_NO_ENCONTRADO` | El reporte no existe |
-| 409 `UNICO_REPORTE` | Es el único reporte no desestimado del incidente: no hay de qué separarlo |
+| 409 `UNICO_REPORTE` | Es el único reporte no desestimado del incidente, contando los de sus unidos: no hay de qué separarlo |
 | 409 `REPORTE_DESESTIMADO` | El reporte está desestimado |
+| 409 `INCIDENTE_UNIDO` | Su incidente está unido a otro: primero hay que deshacer la unión (`DELETE /api/incidentes/:id/union`) |
 | 409 `REPORTE_SIN_INCIDENTE` | El reporte no está en ningún incidente |
 
 ## Mapa público

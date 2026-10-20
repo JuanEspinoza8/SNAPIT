@@ -7,6 +7,7 @@ import { severidadConsolidada } from '../agrupacion/calculo.js';
 import * as agrupacion from '../agrupacion/repositorio.js';
 import { insertarIncidente, transaccion } from '../reportes/repositorio.js';
 import { avisarCambioIncidente } from './eventos.js';
+import { REPORTES_DEL_INCIDENTE } from './repositorio.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -27,6 +28,8 @@ const esquemaSeparacion = z.object({
 
 interface ReporteASeparar {
   incidenteId: number | null;
+  /** Si su incidente se unió a otro (#54), el principal. */
+  principalId: number | null;
   categoriaId: number;
   estado: EstadoVerificacion;
   severidad: Severidad;
@@ -41,7 +44,8 @@ interface ReporteASeparar {
 /** El reporte, bloqueado hasta que termine la transacción. Undefined si no existe. */
 async function bloquearReporte(tx: Tx, id: number) {
   const [fila] = await tx.$queryRaw<ReporteASeparar[]>`
-    SELECT r.incidente_id AS "incidenteId", r.categoria_id AS "categoriaId",
+    SELECT r.incidente_id AS "incidenteId", i.incidente_principal_id AS "principalId",
+           r.categoria_id AS "categoriaId",
            r.estado_verificacion::text AS estado, r.severidad_declarada::text AS severidad,
            ST_Y(r.ubicacion::geometry) AS lat, ST_X(r.ubicacion::geometry) AS lon,
            r.direccion, r.registrado_en AS "registradoEn", a.organismo_id AS "organismoId"
@@ -61,18 +65,22 @@ async function bloquearIncidente(tx: Tx, id: number) {
   return fila!;
 }
 
-/** Cuántos reportes no desestimados tiene el incidente, sin contar el que se va a separar. */
+/**
+ * Cuántos reportes no desestimados tiene el incidente, sin contar el que se va a separar. Cuenta también los
+ * de los incidentes unidos a él (#54), igual que la severidad consolidada.
+ */
 async function contarOtrosValidos(tx: Tx, incidenteId: number, reporteId: number) {
   const [fila] = await tx.$queryRaw<{ cantidad: number }[]>`
-    SELECT count(*)::int AS cantidad FROM reporte
-    WHERE incidente_id = ${incidenteId} AND id <> ${reporteId} AND estado_verificacion <> 'DESESTIMADO'`;
+    SELECT count(*)::int AS cantidad ${REPORTES_DEL_INCIDENTE(incidenteId)} AND r.id <> ${reporteId}`;
   return fila!.cantidad;
 }
 
-/** El primer reporte que le queda al incidente, para su primer_reporte_en. */
+/** El primer reporte que le queda al incidente, contando los de sus unidos, para su primer_reporte_en. */
 async function primerReporteEn(tx: Tx, incidenteId: number) {
   const [fila] = await tx.$queryRaw<{ primero: Date }[]>`
-    SELECT min(registrado_en) AS primero FROM reporte WHERE incidente_id = ${incidenteId}`;
+    SELECT min(r.registrado_en) AS primero
+    FROM reporte r JOIN incidente i ON i.id = r.incidente_id
+    WHERE i.id = ${incidenteId} OR i.incidente_principal_id = ${incidenteId}`;
   return fila!.primero;
 }
 
@@ -97,6 +105,15 @@ export async function separarReporte(sesion: UsuarioSesion, parametros: unknown,
     }
     if (reporte.incidenteId === null) {
       throw new ErrorApp(409, 'REPORTE_SIN_INCIDENTE', 'El reporte no está en ningún incidente');
+    }
+    // Su incidente está unido a otro y el principal cuenta sus reportes: separarlo dejaría mal los contadores
+    // del principal. Primero se deshace la unión (DELETE /api/incidentes/:id/union).
+    if (reporte.principalId !== null) {
+      throw new ErrorApp(
+        409,
+        'INCIDENTE_UNIDO',
+        `El incidente está unido al #${reporte.principalId}: primero hay que deshacer la unión`,
+      );
     }
     if (reporte.estado === 'DESESTIMADO') {
       throw new ErrorApp(409, 'REPORTE_DESESTIMADO', 'Un reporte desestimado no se separa');

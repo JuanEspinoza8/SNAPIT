@@ -50,7 +50,7 @@ beforeEach(async () => {
  * Un reporte en el punto del test. La foto es lisa: no trae EXIF (queda pendiente) y su hash no cuenta como
  * foto repetida. Todos los del mismo test caen en el mismo incidente: misma categoría, mismo punto (#53).
  */
-async function reportar(severidad: Severidad, registradoEn: string) {
+async function reportar(severidad: Severidad, registradoEn: string, cuadra = 0) {
   const vecino = await crearUsuario({ rol: 'VECINO' });
   vecinos.push(vecino.id);
   const res = await request(app)
@@ -58,7 +58,8 @@ async function reportar(severidad: Severidad, registradoEn: string) {
     .set('Authorization', `Bearer ${crearTokenAcceso(vecino)}`)
     .field('categoriaId', String(categoria.id))
     .field('severidadDeclarada', severidad)
-    .field('lat', String(lat))
+    // Otra cuadra (unos 110 m por cada una) ya no se agrupa: es otro incidente.
+    .field('lat', String(lat - cuadra * 0.001))
     .field('lon', '-68.06')
     .field('origen', 'SITIO_WEB')
     .field('registradoEn', registradoEn)
@@ -183,7 +184,46 @@ describe('POST /api/reportes/:id/separacion', () => {
     expect(ids).toEqual(expect.arrayContaining([primero.incidenteId, res.body.incidenteNuevo.id]));
   });
 
+  it('en un principal con unidos, cuenta también los reportes de los unidos (#54)', async () => {
+    const primero = await reportar('MODERADA', '2026-10-10T10:00:00Z');
+    await reportar('MODERADA', '2026-10-12T10:00:00Z');
+    const delUnido = await reportar('MODERADA', '2026-10-11T10:00:00Z', 1);
+    expect(delUnido.incidenteId).not.toBe(primero.incidenteId);
+    await prisma.incidente.update({
+      where: { id: delUnido.incidenteId },
+      data: { incidentePrincipalId: primero.incidenteId },
+    });
+
+    const res = await separar(primero.id);
+
+    expect(res.status).toBe(200);
+    // El primer reporte que le queda es el del unido, no el otro propio.
+    expect(await incidente(primero.incidenteId)).toMatchObject({
+      primerReporteEn: new Date('2026-10-11T10:00:00Z'),
+    });
+  });
+
   describe('no separa', () => {
+    it('un reporte de un incidente unido a otro: primero hay que deshacer la unión', async () => {
+      const principal = await reportar('MODERADA', '2026-10-10T10:00:00Z');
+      const delUnido = await reportar('MODERADA', '2026-10-11T10:00:00Z', 1);
+      await reportar('MODERADA', '2026-10-12T10:00:00Z', 1);
+      await prisma.incidente.update({
+        where: { id: delUnido.incidenteId },
+        data: { incidentePrincipalId: principal.incidenteId },
+      });
+
+      const res = await separar(delUnido.id);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toEqual({
+        codigo: 'INCIDENTE_UNIDO',
+        mensaje: `El incidente está unido al #${principal.incidenteId}: primero hay que deshacer la unión`,
+      });
+      const reporte = await prisma.reporte.findUniqueOrThrow({ where: { id: delUnido.id } });
+      expect(reporte.incidenteId).toBe(delUnido.incidenteId);
+    });
+
     it('el único reporte de un incidente', async () => {
       const unico = await reportar('MODERADA', '2026-10-10T10:00:00Z');
 
