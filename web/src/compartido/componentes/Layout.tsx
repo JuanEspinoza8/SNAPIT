@@ -11,7 +11,9 @@ function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
   if (esVecino(usuario)) {
     return [MAPA, { ruta: '/reportar', texto: 'Reportar' }, { ruta: '/mis-reportes', texto: 'Mis reportes' }];
   }
-  if (esOperador(usuario)) return [MAPA, { ruta: '/bandeja', texto: 'Bandeja' }];
+  if (esOperador(usuario)) {
+    return [MAPA, { ruta: '/bandeja', texto: 'Bandeja' }, { ruta: '/revision', texto: 'Revisión' }];
+  }
   if (esAdministrador(usuario)) return [MAPA, { ruta: '/administracion', texto: 'Administración' }];
   return [MAPA];
 }

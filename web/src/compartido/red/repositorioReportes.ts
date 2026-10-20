@@ -1,11 +1,20 @@
 import type { ClienteApi } from './cliente.js';
 import type { DatosReporte, ReporteEnviado } from '../../funcionalidades/reportar/tipos.js';
 import type { ReporteMio } from '../../funcionalidades/misReportes/tipos.js';
+import type {
+  DecisionRevision,
+  ReportePendiente,
+  ResultadoRevision,
+} from '../../funcionalidades/revision/tipos.js';
 
 export interface RepositorioReportes {
   enviar(datos: DatosReporte): Promise<ReporteEnviado>;
   /** Los reportes del vecino de la sesión, del más nuevo al más viejo. */
   mios(): Promise<ReporteMio[]>;
+  /** Los reportes de baja confianza a revisar, del más viejo al más nuevo. */
+  pendientes(): Promise<ReportePendiente[]>;
+  /** Verifica o desestima un reporte pendiente, con comentario opcional. */
+  revisar(id: number, decision: DecisionRevision, comentario: string): Promise<ResultadoRevision>;
 }
 
 export function crearRepositorioReportes(cliente: ClienteApi): RepositorioReportes {
@@ -26,6 +35,16 @@ export function crearRepositorioReportes(cliente: ClienteApi): RepositorioReport
       // Va con sesión (sin sinSesion): el servidor saca el vecino del token.
       const { reportes } = await cliente.pedir<{ reportes: ReporteMio[] }>('/reportes/mios');
       return reportes;
+    },
+    async pendientes() {
+      const { reportes } = await cliente.pedir<{ reportes: ReportePendiente[] }>('/reportes/pendientes');
+      return reportes;
+    },
+    revisar(id, decision, comentario) {
+      // Un comentario vacío no se manda: para el servidor es opcional.
+      const texto = comentario.trim();
+      const cuerpo = texto ? { decision, comentario: texto } : { decision };
+      return cliente.pedir<ResultadoRevision>(`/reportes/${id}/revision`, { metodo: 'POST', cuerpo });
     },
   };
 }
