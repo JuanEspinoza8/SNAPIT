@@ -346,6 +346,14 @@ export const PARAMETROS: { clave: string; valor: string; tipo: 'entero' | 'decim
       tipo: 'decimal',
       descripcion: 'Velocidad al caminar, en metros por minuto, para estimar el tiempo del recorrido',
     },
+    // Demostración de la cola de verificación con IA
+    {
+      clave: 'demo.revision_manual',
+      valor: '0',
+      tipo: 'entero',
+      descripcion:
+        'Con 1, todo reporte nuevo queda pendiente de revisión aunque la verificación automática lo aprobaría, para procesar la cola a mano o con la IA. Con 0, funciona como en producción',
+    },
   ];
 
 /** Clave común de los usuarios de prueba. Solo existe en este archivo y solo se carga fuera de producción. */

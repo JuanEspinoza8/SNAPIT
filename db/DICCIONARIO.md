@@ -2,7 +2,7 @@
 
 Modelo relacional entregado el 19/09/2026. Grupo Full Stack F.C.
 
-**28 tablas · 215 columnas · 46 claves foraneas · 17 tipos enumerados**
+**29 tablas · 226 columnas · 50 claves foraneas · 18 tipos enumerados**
 
 Claves: `PK` primaria · `FK` foranea · `U` valor unico · `PK,FK` parte de una clave primaria compuesta que ademas es foranea.
 
@@ -431,6 +431,24 @@ Informe de estado y prioridades generado automáticamente, guardado para poder r
 | `metricas` | `jsonb` |  | si | Números que lo respaldan. |
 | `creado_en` | `timestamptz` |  | no | Fecha de generación. |
 
+### `evento_verificacion_ia`
+
+Cada paso que dio la IA con cada reporte al procesar la cola de verificación: el log que ve el operador.
+
+| Atributo | Tipo | Clave | Nulo | Descripcion |
+|---|---|---|---|---|
+| `id` | `serial` | PK | no | Identificador interno. |
+| `proceso_id` | `uuid` |  | no | Procesamiento de la cola al que pertenece: todos los pasos de una misma corrida comparten el valor. |
+| `organismo_id` | `int` | FK | no | Organismo cuya cola se procesó. |
+| `usuario_id` | `int` | FK | si | Operador que inició el procesamiento. |
+| `reporte_id` | `int` | FK | no | Reporte procesado. |
+| `estado` | `estado_evento_ia` |  | no | Paso: en proceso, clasificado, publicado, derivado a revisión manual o error. |
+| `registro_ia_id` | `int` | FK | si | Llamada al modelo que clasificó el reporte. |
+| `detalle` | `text` |  | si | Explicación legible del paso. |
+| `tokens_entrada` | `int` |  | si | Tokens de entrada que usó la clasificación, para calcular su costo. |
+| `tokens_salida` | `int` |  | si | Tokens de salida que usó la clasificación, para calcular su costo. |
+| `creado_en` | `timestamptz` |  | no | Fecha del paso. |
+
 ## Tipos enumerados
 
 | Tipo | Valores |
@@ -452,6 +470,7 @@ Informe de estado y prioridades generado automáticamente, guardado para poder r
 | `tipo_ia` | CLASIFICACION_IMAGEN · COMPARACION_CIERRE · INFORME · CONSULTA_NATURAL |
 | `proveedor_ia` | OLLAMA · GEMINI · ANTHROPIC |
 | `plataforma` | ANDROID · WEB |
+| `estado_evento_ia` | EN_PROCESO · CLASIFICADO · PUBLICADO · REVISION_MANUAL · ERROR |
 
 ## Notas de modelado
 

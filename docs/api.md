@@ -373,7 +373,8 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
       ],
       "fotos": [{ "id": 12, "url": "/api/fotos/12" }],
       "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1 },
-      "vecino": { "reputacion": 50, "reportesConfirmados": 0, "reportesDesestimados": 0 }
+      "vecino": { "reputacion": 50, "reportesConfirmados": 0, "reportesDesestimados": 0 },
+      "propuestaIa": null
     }
   ]
 }
@@ -382,8 +383,25 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `senales`: por qué quedó con ese nivel, en el orden en que se calcularon (ver `docs/calculos.md`).
 - `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el incidente no esté en el mapa.
 - `vecino`: su historial, no quién es.
+- `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última clasificación: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
 - Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.
+
+### `GET /api/reportes`
+Todos los reportes de los incidentes del organismo de quien lo pide, en cualquier estado, del más nuevo al más viejo. Requiere sesión de `OPERADOR` o `ADMINISTRADOR` (otro rol: 403 `SIN_PERMISO`).
+
+| Parámetro | Valor |
+|---|---|
+| `estado` | Opcional: `PENDIENTE_REVISION`, `VERIFICADO` o `DESESTIMADO` |
+| `categoriaId` | Opcional: solo los de esa categoría |
+| `limite` | Opcional: cuántos como máximo, de 1 a 500 (200 por defecto) |
+
+Responde **200** con `{ "reportes": [...] }`: cada reporte tiene los mismos datos que en `GET /api/reportes/pendientes`, más:
+
+- `estadoVerificacion`: `PENDIENTE_REVISION`, `VERIFICADO` (publicado) o `DESESTIMADO`.
+- `publicadoPorIaEn`: cuándo lo publicó la IA al procesar la cola, o `null` si no fue ella (lo verificó el sistema al recibirlo o un operador al revisarlo: eso todavía no se distingue).
+
+Un filtro inválido responde 400 `DATOS_INVALIDOS`.
 
 ### `POST /api/reportes/:id/revision`
 El operador verifica o desestima un reporte pendiente. Requiere sesión de `OPERADOR` o `ADMINISTRADOR` del organismo del reporte.
@@ -438,6 +456,67 @@ Al enviar el reporte, se mandan los tres valores tal cual como `categoriaSugerid
 | 503 | `IA_NO_DISPONIBLE` | La IA no respondió a tiempo (`IA_TIMEOUT_MS`), falló, no hay clave configurada o devolvió algo inválido (por ejemplo, una categoría que no existe). El cliente sigue sin sugerencia: el vecino elige a mano y el reporte se envía igual. |
 
 Cada consulta, buena o mala, queda en `registro_ia` (modelo, duración, respuesta o motivo del fallo).
+
+### Cola de verificación con IA
+
+El operador procesa con la IA los reportes pendientes de su organismo y sigue el avance en un log (ver "Cola de verificación con IA" en `docs/calculos.md`). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, de un usuario con organismo.
+
+#### `POST /api/ia/procesar-cola`
+Empieza a procesar los pendientes del organismo, del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
+
+```json
+{ "procesoId": "5b1c0e4e-8f7a-4c1e-9d3b-2a6f0c9e7d11", "total": 6 }
+```
+
+| Error | Cuándo |
+|---|---|
+| 409 `PROCESO_EN_CURSO` | Ya hay un procesamiento en curso en el organismo (uno a la vez) |
+| 409 `COLA_VACIA` | No hay reportes pendientes |
+
+#### `GET /api/ia/procesos/:id`
+El log del procesamiento y su resumen. Mientras `enCurso` es `true`, conviene consultarlo cada 1 o 2 segundos.
+
+```json
+{
+  "id": "5b1c0e4e-8f7a-4c1e-9d3b-2a6f0c9e7d11",
+  "enCurso": false,
+  "iniciadoEn": "2026-10-20T15:02:11.204Z",
+  "eventos": [
+    {
+      "id": 41,
+      "creadoEn": "2026-10-20T15:02:14.733Z",
+      "estado": "CLASIFICADO",
+      "detalle": "La IA propone Pozo en la calzada, GRAVE; el vecino eligió Pozo en la calzada, GRAVE. Se ve un pozo profundo en la calzada.",
+      "reporte": {
+        "id": 16,
+        "categoria": { "id": 1, "nombre": "Pozo en la calzada" },
+        "severidadDeclarada": "GRAVE",
+        "foto": { "id": 16, "url": "/api/fotos/16" },
+        "incidenteId": 13
+      },
+      "propuesta": { "registroIaId": 7, "categoriaId": 1, "severidad": "GRAVE", "explicacion": "Se ve un pozo profundo en la calzada." }
+    }
+  ],
+  "resumen": { "total": 6, "procesados": 6, "publicados": 3, "derivados": 2, "errores": 1, "tiempoMedioMs": 3100, "costoUsd": 0.0013 }
+}
+```
+
+- `estado` de cada evento: `EN_PROCESO`, `CLASIFICADO`, `PUBLICADO`, `REVISION_MANUAL` o `ERROR`. Cada reporte termina en uno de los tres últimos.
+- `propuesta` viene solo en los `CLASIFICADO`: es lo que respondió la IA, para "ver la propuesta". `reporte.incidenteId` es el incidente (el principal, si se unió a otro), para "ver el reporte".
+- `resumen.costoUsd` es `null` si el modelo de `IA_MODELO` no tiene precio cargado.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | El id no es un UUID |
+| 403 `SIN_PERMISO` | El procesamiento es de otro organismo |
+| 404 `PROCESO_NO_ENCONTRADO` | No existe |
+
+#### `GET /api/ia/procesos`
+Los últimos 10 procesamientos del organismo, del más nuevo al más viejo. Sirve para que el panel retome el que está en curso.
+
+```json
+{ "procesos": [{ "id": "5b1c0e4e-…", "iniciadoEn": "2026-10-20T15:02:11.204Z", "reportes": 6, "publicados": 3, "derivados": 2, "errores": 1, "enCurso": false }] }
+```
 
 ## Mapa público
 Rutas públicas: el mapa se ve sin iniciar sesión.

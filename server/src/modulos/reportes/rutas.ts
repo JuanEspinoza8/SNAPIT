@@ -3,7 +3,7 @@ import { autenticar, permitirRoles, sesionOpcional } from '../../compartido/aute
 import { ErrorApp } from '../../compartido/errores.js';
 import { recibirFoto } from '../../compartido/recibirFoto.js';
 import { validar } from '../../compartido/validar.js';
-import { listarPendientes, revisarReporte } from '../verificacion/revision.js';
+import { listarPendientes, listarReportes, revisarReporte } from '../verificacion/revision.js';
 import { esquemaIdFoto } from './esquemas.js';
 import * as servicio from './servicio.js';
 
@@ -17,6 +17,11 @@ rutasReportes.post('/', autenticar, permitirRoles('VECINO'), recibirFoto, async 
 // Solo vecinos: devuelve solo los reportes de quien la pide.
 rutasReportes.get('/mios', autenticar, permitirRoles('VECINO'), async (req, res) => {
   res.json(await servicio.listarMisReportes(req.usuario!.id));
+});
+
+// Todos los reportes del organismo de quien la pide, en cualquier estado, del más nuevo al más viejo.
+rutasReportes.get('/', autenticar, permitirRoles('OPERADOR', 'ADMINISTRADOR'), async (req, res) => {
+  res.json(await listarReportes(req.usuario!, req.query));
 });
 
 // Revisión de los reportes de baja confianza (F04): solo los de los incidentes del organismo de quien la pide.

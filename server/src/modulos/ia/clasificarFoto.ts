@@ -54,16 +54,30 @@ async function prepararFoto(contenido: Buffer) {
 }
 
 /**
- * Le pide a la IA la categoría y la severidad de la foto (F06). La foto no se guarda: solo se usa para la
- * consulta. Si la IA no responde o responde algo inválido (por ejemplo, un id que no está en la lista),
- * lanza IaNoDisponible (503): el vecino elige a mano.
+ * Lo que se le agrega a las instrucciones cuando se pide la explicación (cola de verificación, ia/cola.ts): el
+ * operador la lee en el log para entender la propuesta.
  */
-export async function clasificarFoto(usuarioId: number, archivo: Buffer | undefined): Promise<Sugerencia> {
-  if (!archivo) {
-    throw new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [
-      { campo: 'foto', mensaje: 'Es obligatoria' },
-    ]);
-  }
+const PEDIR_EXPLICACION = `
+
+- explicacion: en una o dos oraciones, qué ves en la foto que justifica la categoría y la severidad.`;
+
+export interface Clasificacion extends Sugerencia {
+  /** Por qué propuso eso. Null si no se pidió. */
+  explicacion: string | null;
+  /** Tokens que usó la consulta (servicioIa). */
+  uso: { entrada: number; salida: number };
+}
+
+/**
+ * Le pide a la IA la categoría y la severidad de una foto (JPG o PNG). Con `conExplicacion`, también por qué.
+ * La foto no se guarda: solo se usa para la consulta. Si la IA no responde o responde algo inválido (por
+ * ejemplo, un id que no está en la lista), lanza IaNoDisponible (503).
+ */
+export async function clasificarImagen(
+  usuarioId: number,
+  archivo: Buffer,
+  { conExplicacion = false }: { conExplicacion?: boolean } = {},
+): Promise<Clasificacion> {
   const foto = await prepararFoto(archivo);
   if (!foto) {
     throw new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [
@@ -76,13 +90,14 @@ export async function clasificarFoto(usuarioId: number, archivo: Buffer | undefi
   const ids = categorias.map((categoria) => categoria.id);
 
   // Un id que no está en la lista hace fallar la validación: el intento queda en registro_ia como fallido.
-  const esquema = z.object({
+  const base = z.object({
     categoriaId: z
       .number()
       .int()
       .refine((id) => ids.includes(id), { error: 'No es una de las categorías de la lista' }),
     severidad: z.enum(SEVERIDADES),
   });
+  const esquema = conExplicacion ? base.extend({ explicacion: z.string().min(1).max(600) }) : base;
 
   const lista = categorias
     .map(
@@ -91,16 +106,36 @@ export async function clasificarFoto(usuarioId: number, archivo: Buffer | undefi
     )
     .join('\n');
 
-  const { resultado, registroIaId } = await servicioIa.consultar({
+  const { resultado, registroIaId, uso } = await servicioIa.consultar({
     tipo: 'CLASIFICACION_IMAGEN',
     usuarioId,
-    instrucciones: INSTRUCCIONES,
+    instrucciones: conExplicacion ? INSTRUCCIONES + PEDIR_EXPLICACION : INSTRUCCIONES,
     texto: `Categorías (id: nombre. descripción):\n${lista}`,
     imagenes: [{ contenido: foto, tipo: 'image/jpeg' }],
-    esquema,
+    esquema: esquema as z.ZodType<z.infer<typeof base> & { explicacion?: string }>,
     // Elegir entre unas pocas opciones no necesita pensar mucho: más rápido y más barato.
     esfuerzo: 'low',
   });
 
-  return { ...resultado, registroIaId };
+  return {
+    categoriaId: resultado.categoriaId,
+    severidad: resultado.severidad,
+    registroIaId,
+    explicacion: resultado.explicacion ?? null,
+    uso,
+  };
+}
+
+/**
+ * La sugerencia para el vecino que está cargando un reporte (F06): categoría y severidad de la foto que
+ * acaba de sacar. Si la IA no está disponible responde 503 y el vecino elige a mano.
+ */
+export async function clasificarFoto(usuarioId: number, archivo: Buffer | undefined): Promise<Sugerencia> {
+  if (!archivo) {
+    throw new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [
+      { campo: 'foto', mensaje: 'Es obligatoria' },
+    ]);
+  }
+  const { categoriaId, severidad, registroIaId } = await clasificarImagen(usuarioId, archivo);
+  return { categoriaId, severidad, registroIaId };
 }
