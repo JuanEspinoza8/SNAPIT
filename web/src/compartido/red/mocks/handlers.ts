@@ -155,6 +155,7 @@ let reportesPendientes: ReportePendiente[] = [
     fotos: [{ id: 1, url: '/api/fotos/1' }],
     incidente: { id: 9, estado: 'REGISTRADO', cantidadReportes: 1 },
     vecino: { reputacion: 50, reportesConfirmados: 0, reportesDesestimados: 0 },
+    propuestaIa: null,
   },
   {
     id: 15,
@@ -179,6 +180,7 @@ let reportesPendientes: ReportePendiente[] = [
     fotos: [{ id: 2, url: '/api/fotos/2' }],
     incidente: null,
     vecino: { reputacion: 0, reportesConfirmados: 0, reportesDesestimados: 3 },
+    propuestaIa: null,
   },
 ];
 
@@ -398,4 +400,13 @@ export const handlers = [
       vecino: { reputacion: cuerpo.decision === 'VERIFICADO' ? 66.67 : 33.33 },
     } satisfies ResultadoRevision);
   }),
+
+  // La cola con IA no se simula: sin servidor no hay IA. Así la pantalla se ve igual, sin procesamientos.
+  http.get(`${apiUrl}/ia/procesos`, () => HttpResponse.json({ procesos: [] })),
+  http.post(`${apiUrl}/ia/procesar-cola`, () =>
+    HttpResponse.json(
+      { error: { codigo: 'IA_NO_DISPONIBLE', mensaje: 'La IA no está disponible en este momento' } },
+      { status: 503 },
+    ),
+  ),
 ];
