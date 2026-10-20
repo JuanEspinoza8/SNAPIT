@@ -25,6 +25,13 @@ const PaginaReportar = lazy(() =>
   })),
 );
 
+// La revisión trae Leaflet (el mapa chico): se baja recién cuando un operador abre /revision.
+const PaginaRevision = lazy(() =>
+  import('../../funcionalidades/revision/paginaRevision.js').then((modulo) => ({
+    default: modulo.PaginaRevision,
+  })),
+);
+
 // Se exportan aparte del router para poder probarlas con un router en memoria.
 export const rutas: RouteObject[] = [
   {
@@ -105,6 +112,17 @@ export const rutas: RouteObject[] = [
         element: (
           <RutaProtegida rol="OPERADOR">
             <SeccionEnConstruccion titulo="Bandeja" />
+          </RutaProtegida>
+        ),
+      },
+      // Revisión de los reportes de baja confianza (#52). La bandeja de incidentes por prioridad es la #67.
+      {
+        path: 'revision',
+        element: (
+          <RutaProtegida rol="OPERADOR">
+            <Suspense fallback={<Cargando />}>
+              <PaginaRevision />
+            </Suspense>
           </RutaProtegida>
         ),
       },
