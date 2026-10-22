@@ -223,7 +223,7 @@ Cada factor guarda un texto que se entiende sin conocer la fórmula. Los número
 | Contexto urbano | La escuela (1,0) gana a la parada (0,6), aunque está más lejos: 15 × 1,0 | 15 |
 | **Puntaje** | | **94,49** |
 
-**Ajuste manual** (lo fija un operador, #62). Si el incidente tiene `prioridad_manual`, el desglose suma `AJUSTE_MANUAL` = `prioridad_manual − puntaje calculado`, con el motivo y quién lo fijó. `puntaje_prioridad` sigue guardando el calculado, y la bandeja ordena por `coalesce(prioridad_manual, puntaje_prioridad)`. Así, al quitar el ajuste, se vuelve al calculado sin recalcular nada.
+**Ajuste manual** (lo fija un operador, #62). Si el incidente tiene `prioridad_manual`, el desglose suma `AJUSTE_MANUAL` = `prioridad_manual − puntaje calculado`, con el motivo y quién lo fijó. `puntaje_prioridad` sigue guardando el calculado, y la bandeja ordena por `coalesce(prioridad_manual, puntaje_prioridad)` (`PRIORIDAD_EFECTIVA` en `prioridad/repositorio.ts`). Así, al quitar el ajuste, se vuelve al calculado sin tocar el puntaje. El valor va de 0 a 9999,99, el motivo es obligatorio y solo se ajustan incidentes en la bandeja (`VERIFICADO`, `DERIVADO` o `EN_EJECUCION`). Fijarlo y quitarlo dejan un movimiento `AJUSTE_PRIORIDAD` y recalculan el desglose.
 
 **Máximo:** `puntaje_prioridad` y `factor_prioridad.valor` son `numeric(6,2)`, así que cada factor y el puntaje se recortan a 9999,99. Con los valores de partida el máximo es 40 × peso de la categoría + 60: 120 para un pozo, y 4059,6 con el peso más alto que admite `categoria.peso_severidad_base` (99,99). Solo se llega al tope con pesos fuera de escala, y entonces la suma del desglose puede pasar el puntaje.
 
