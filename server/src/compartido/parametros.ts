@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { logger } from '../config/logger.js';
 import { prisma } from './prisma.js';
 
@@ -22,12 +23,16 @@ export type DefinicionParametros<T extends string> = Record<
 /**
  * Lee de parametro_sistema los valores numéricos de un cálculo. Si uno falta o no cumple su regla, se usa su
  * valor de partida y se avisa en el log: antes que frenar un reporte, se calcula con lo conocido.
+ *
+ * Dentro de una transacción hay que pasarle `tx`: con el cliente global pediría otra conexión mientras la
+ * transacción retiene la suya.
  */
 export async function leerParametrosNumericos<T extends string>(
   definicion: DefinicionParametros<T>,
+  cliente: Prisma.TransactionClient = prisma,
 ): Promise<Record<T, number>> {
   const entradas = Object.entries(definicion) as [T, DefinicionParametros<T>[T]][];
-  const filas = await prisma.parametroSistema.findMany({
+  const filas = await cliente.parametroSistema.findMany({
     where: { clave: { in: entradas.map(([, parametro]) => parametro.clave) } },
   });
   const leidos = new Map(filas.map((fila) => [fila.clave, Number(fila.valor)]));
