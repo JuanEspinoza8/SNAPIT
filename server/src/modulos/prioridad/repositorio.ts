@@ -5,6 +5,7 @@ import {
   noNegativo,
   positivo,
 } from '../../compartido/parametros.js';
+import { prisma } from '../../compartido/prisma.js';
 import type { ParametrosPrioridad, PuntoCercano, ResultadoPrioridad } from './calculo.js';
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se calcula igual con estos. Los topes
@@ -89,6 +90,24 @@ export async function guardarPrioridad(
 }
 
 /**
+ * Los incidentes que actualiza el recálculo diario: los abiertos que no están unidos a otro, caducados ni
+ * vencidos. Los demás no están en la bandeja; un unido se recalcula solo si se deshace la unión.
+ */
+export async function listarAbiertos() {
+  const incidentes = await prisma.incidente.findMany({
+    where: {
+      estado: { notIn: ['RESUELTO', 'DESESTIMADO'] },
+      incidentePrincipalId: null,
+      caducadoEn: null,
+      OR: [{ vigenteHasta: null }, { vigenteHasta: { gt: new Date() } }],
+    },
+    select: { id: true },
+    orderBy: { id: 'asc' },
+  });
+  return incidentes.map((incidente) => incidente.id);
+}
+
+/**
  * La prioridad con la que se ordena: la que fijó un operador o, si no hay, la calculada. Va con el alias
  * `i`. La usa la bandeja (#64).
  */
@@ -105,7 +124,7 @@ export interface IncidenteParaAjustar {
 
 /**
  * El incidente bloqueado hasta que termine la transacción. Un reporte que se suma a la vez espera, y su
- * recálculo ya ve el ajuste nuevo.
+ * recálculo ya ve el ajuste nuevo. Lo usan el ajuste manual y el recálculo diario.
  */
 export async function bloquearIncidente(tx: Prisma.TransactionClient, id: number) {
   const [fila] = await tx.$queryRaw<IncidenteParaAjustar[]>`

@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { prisma } from './compartido/prisma.js';
 import { iniciarDireccionesPendientes } from './tareas/direccionesPendientes.js';
+import { iniciarPrioridadDiaria } from './tareas/prioridadDiaria.js';
 
 // En Express 5 el callback también recibe el error si no se pudo abrir el puerto (por ejemplo, ocupado).
 const servidor = app.listen(env.PORT, (error) => {
@@ -15,6 +16,7 @@ const servidor = app.listen(env.PORT, (error) => {
 
 // Las tareas van acá y no en app.ts: los tests usan la app sin que corran.
 iniciarDireccionesPendientes();
+iniciarPrioridadDiaria();
 
 // Al cerrar (Ctrl+C o docker stop) se terminan las peticiones en curso y se cierra la base.
 function apagar(senal: string) {
