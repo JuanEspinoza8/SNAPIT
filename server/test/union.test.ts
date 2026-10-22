@@ -48,13 +48,15 @@ beforeEach(async () => {
 
 /**
  * Un reporte en la cuadra `cuadra` de la zona del test (cada una a unos 110 m de la anterior: lejos del radio
- * de agrupación). Los reportes de la misma cuadra caen en el mismo incidente.
+ * de agrupación). Los reportes de la misma cuadra caen en el mismo incidente. Desde la web la foto lisa queda
+ * pendiente; con la cámara de la app (`desdeLaApp`) se verifica sola (50 + 15).
  */
 async function reportar(
   cuadra: number,
   severidad: Severidad,
   registradoEn: string,
   enCategoria: Categoria = categoria,
+  desdeLaApp = false,
 ) {
   const vecino = await crearUsuario({ rol: 'VECINO' });
   vecinos.push(vecino.id);
@@ -65,7 +67,8 @@ async function reportar(
     .field('severidadDeclarada', severidad)
     .field('lat', String(lat - cuadra * 0.001))
     .field('lon', '-68.06')
-    .field('origen', 'SITIO_WEB')
+    .field('origen', desdeLaApp ? 'APP_MOVIL' : 'SITIO_WEB')
+    .field('tomadaConCamaraApp', String(desdeLaApp))
     .field('registradoEn', registradoEn)
     .attach('foto', await jpegLiso(128), 'foto.jpg');
   expect(res.status).toBe(201);
@@ -77,6 +80,15 @@ const unir = (id: number, cuerpo: object, conToken = token) =>
 
 const deshacer = (id: number, conToken = token) =>
   request(app).delete(`/api/incidentes/${id}/union`).set('Authorization', `Bearer ${conToken}`);
+
+/** El operador revisa un reporte pendiente (#51). */
+async function revisar(reporteId: number, decision: 'VERIFICADO' | 'DESESTIMADO') {
+  const res = await request(app)
+    .post(`/api/reportes/${reporteId}/revision`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ decision });
+  expect(res.status).toBe(200);
+}
 
 /** Lo que tiene que quedar igual después de unir y deshacer. */
 const foto = (id: number) =>
@@ -196,6 +208,25 @@ describe('POST /api/incidentes/:id/union', () => {
   });
 
   describe('no une', () => {
+    it('un duplicado más avanzado que el principal: hay que unir al revés', async () => {
+      const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z');
+      const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z', categoria, true);
+      expect((await foto(duplicado.incidenteId)).estado).toBe('VERIFICADO');
+
+      const res = await unir(duplicado.incidenteId, { principalId: principal.incidenteId });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toEqual({
+        codigo: 'DUPLICADO_MAS_AVANZADO',
+        mensaje:
+          `El #${duplicado.incidenteId} está más avanzado (VERIFICADO) que el #${principal.incidenteId} ` +
+          `(REGISTRADO): uní el #${principal.incidenteId} al #${duplicado.incidenteId}`,
+      });
+      expect((await foto(duplicado.incidenteId)).incidentePrincipalId).toBeNull();
+      const alReves = await unir(principal.incidenteId, { principalId: duplicado.incidenteId });
+      expect(alReves.status).toBe(200);
+    });
+
     it('un incidente consigo mismo', async () => {
       const { principalId } = await dosIncidentes();
 
@@ -333,6 +364,49 @@ describe('DELETE /api/incidentes/:id/union', () => {
         usuarioId: operador.id,
       }),
     ]);
+  });
+
+  it('si mientras estaban unidos se desestimó el único reporte del duplicado, al deshacer queda DESESTIMADO', async () => {
+    const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z');
+    const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z');
+    await unir(duplicado.incidenteId, { principalId: principal.incidenteId });
+    // Se revisa sobre el principal, que sigue vivo con su propio reporte. El desestimado se resta de los dos.
+    await revisar(duplicado.id, 'DESESTIMADO');
+    expect(await foto(principal.incidenteId)).toMatchObject({ estado: 'REGISTRADO', cantidadReportes: 1 });
+    expect((await foto(duplicado.incidenteId)).cantidadReportes).toBe(0);
+
+    const res = await deshacer(duplicado.incidenteId);
+
+    expect(res.status).toBe(200);
+    expect(res.body.principal).toMatchObject({ estado: 'REGISTRADO', cantidadReportes: 1 });
+    expect((await foto(duplicado.incidenteId)).estado).toBe('DESESTIMADO');
+    const cambio = await prisma.movimientoIncidente.findFirst({
+      where: { incidenteId: duplicado.incidenteId, tipo: 'CAMBIO_ESTADO' },
+    });
+    expect(cambio).toMatchObject({
+      estadoAnterior: 'REGISTRADO',
+      estadoNuevo: 'DESESTIMADO',
+      usuarioId: null,
+    });
+    const mapa = await request(app).get('/api/incidentes').query({ categoriaId: categoria.id });
+    expect(mapa.body.incidentes.map((i: { id: number }) => i.id)).not.toContain(duplicado.incidenteId);
+  });
+
+  it('si mientras estaban unidos se verificó un reporte del duplicado, al deshacer cada uno queda con el suyo', async () => {
+    const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z');
+    const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z');
+    await unir(duplicado.incidenteId, { principalId: principal.incidenteId });
+    await revisar(duplicado.id, 'VERIFICADO');
+    // Unidos, el reporte verificado del duplicado verifica al principal.
+    expect((await foto(principal.incidenteId)).estado).toBe('VERIFICADO');
+
+    const res = await deshacer(duplicado.incidenteId);
+
+    expect(res.status).toBe(200);
+    // El principal solo tiene su reporte pendiente; el verificado era del duplicado.
+    expect(res.body.principal.estado).toBe('REGISTRADO');
+    expect((await foto(principal.incidenteId)).estado).toBe('REGISTRADO');
+    expect((await foto(duplicado.incidenteId)).estado).toBe('VERIFICADO');
   });
 
   it('un incidente que no está unido da 409', async () => {

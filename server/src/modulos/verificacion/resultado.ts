@@ -1,6 +1,6 @@
 import type { EstadoIncidente, Prisma } from '@prisma/client';
-import { severidadConsolidada } from '../agrupacion/calculo.js';
-import { severidadesDeclaradas } from '../agrupacion/repositorio.js';
+import { estadoSegunReportes, severidadConsolidada } from '../agrupacion/calculo.js';
+import { contarReportes, severidadesDeclaradas } from '../agrupacion/repositorio.js';
 import * as repositorio from './repositorio.js';
 
 export interface ResultadoVerificacion {
@@ -22,8 +22,10 @@ export interface EfectoDelResultado {
  * recibirlo o un operador al revisarlo. Va dentro de la transacción de quien lo llama, y con el estado del
  * reporte ya guardado:
  * - Suma el reporte al historial del vecino y recalcula su reputación.
- * - El incidente pasa de REGISTRADO a VERIFICADO con su primer reporte verificado, y a DESESTIMADO si ya no le
- *   queda ningún reporte sin desestimar. Si sigue vivo después de un desestimado, se recalcula su severidad.
+ * - Un desestimado se resta de `cantidad_reportes` de su incidente y del principal, si se unió a otro.
+ * - El incidente toma el estado que dicen sus reportes (estadoSegunReportes): pasa de REGISTRADO a VERIFICADO
+ *   con su primer reporte verificado, y a DESESTIMADO si ya no le queda ningún reporte sin desestimar. Si sigue
+ *   vivo después de un desestimado, se recalcula su severidad.
  * - Deja el movimiento en la bitácora del incidente.
  *
  * No avisa al módulo de prioridad: lo hace quien llama, una vez que terminó con el incidente.
@@ -33,16 +35,17 @@ export async function aplicarResultado(
   resultado: ResultadoVerificacion,
 ): Promise<EfectoDelResultado> {
   const reporte = await repositorio.leerReporte(tx, resultado.reporteId);
+  // Primero los incidentes y después el vecino, en el mismo orden que el alta: si no, un alta y una revisión
+  // del mismo vecino en el mismo incidente se pueden trabar entre sí.
+  const incidentes = [reporte.propioId, reporte.incidenteId].filter((id) => id !== null);
+  if (incidentes.length > 0) await repositorio.bloquearIncidentes(tx, incidentes);
   const reputacion = await repositorio.sumarAlHistorial(tx, reporte.usuarioId, resultado.decision);
   if (reporte.incidenteId === null) return { reputacion, incidente: null };
 
   const id = reporte.incidenteId;
   const anterior = await repositorio.bloquearIncidente(tx, id);
-  let nuevo = anterior;
-  if (anterior === 'REGISTRADO') {
-    if (resultado.decision === 'VERIFICADO') nuevo = 'VERIFICADO';
-    else if ((await repositorio.contarReportesValidos(tx, id)) === 0) nuevo = 'DESESTIMADO';
-  }
+  if (resultado.decision === 'DESESTIMADO') await repositorio.restarReporte(tx, incidentes);
+  const nuevo = estadoSegunReportes(anterior, await contarReportes(tx, id));
 
   // Un desestimado deja de contar para la severidad consolidada (#53). Si no quedó ninguno, se conserva.
   const declaradas = resultado.decision === 'DESESTIMADO' ? await severidadesDeclaradas(tx, id) : [];

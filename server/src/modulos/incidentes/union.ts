@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
-import { severidadConsolidada } from '../agrupacion/calculo.js';
-import { severidadesDeclaradas } from '../agrupacion/repositorio.js';
+import { estaMasAvanzado, severidadConsolidada } from '../agrupacion/calculo.js';
+import { bloquearCategoria, recalcularEstado, severidadesDeclaradas } from '../agrupacion/repositorio.js';
 import { transaccion } from '../reportes/repositorio.js';
 import { esquemaId } from './esquemas.js';
 import { avisarCambioIncidente } from './eventos.js';
@@ -55,6 +55,19 @@ async function bloquear(tx: Tx, ids: number[]) {
   return new Map(filas.map((fila) => [fila.id, fila]));
 }
 
+/**
+ * El mismo bloqueo por categoría que el alta y la separación, para las categorías de los dos incidentes y en
+ * orden: mientras se une o se desune, ningún reporte nuevo se suma a ellos ni se separa uno de ellos.
+ */
+async function bloquearCategorias(tx: Tx, ids: number[]) {
+  const incidentes = await tx.incidente.findMany({
+    where: { id: { in: ids } },
+    select: { categoriaId: true },
+  });
+  const categorias = [...new Set(incidentes.map((incidente) => incidente.categoriaId))].sort((a, b) => a - b);
+  for (const categoriaId of categorias) await bloquearCategoria(tx, categoriaId);
+}
+
 const noEncontrado = () => new ErrorApp(404, 'INCIDENTE_NO_ENCONTRADO', 'El incidente no existe');
 const conflicto = (codigo: string, mensaje: string) => new ErrorApp(409, codigo, mensaje);
 const activo = (i: IncidenteBloqueado) =>
@@ -100,6 +113,7 @@ export async function unirIncidentes(sesion: UsuarioSesion, parametros: unknown,
   }
 
   return transaccion(async (tx) => {
+    await bloquearCategorias(tx, [id, principalId]);
     const bloqueados = await bloquear(tx, [id, principalId]);
     const duplicado = bloqueados.get(id);
     const principal = bloqueados.get(principalId);
@@ -119,6 +133,14 @@ export async function unirIncidentes(sesion: UsuarioSesion, parametros: unknown,
       throw conflicto(
         'INCIDENTE_CERRADO',
         'Solo se unen incidentes activos (no resueltos, desestimados ni caducados)',
+      );
+    }
+    // El principal no cambia de estado: si el duplicado iba más adelante, el problema saldría de la bandeja.
+    if (estaMasAvanzado(duplicado.estado, principal.estado)) {
+      throw conflicto(
+        'DUPLICADO_MAS_AVANZADO',
+        `El #${id} está más avanzado (${duplicado.estado}) que el #${principalId} (${principal.estado}): ` +
+          `uní el #${principalId} al #${id}`,
       );
     }
 
@@ -154,7 +176,11 @@ export async function unirIncidentes(sesion: UsuarioSesion, parametros: unknown,
   });
 }
 
-/** Deshace la unión: el duplicado vuelve a ser un incidente aparte y el principal queda como estaba. */
+/**
+ * Deshace la unión: el duplicado vuelve a ser un incidente aparte y el principal deja de contar sus reportes.
+ * Mientras estuvieron unidos, los reportes del duplicado se revisaron sobre el principal: al separarlos, cada
+ * uno toma el estado que dicen sus propios reportes (estadoSegunReportes), con un CAMBIO_ESTADO del sistema.
+ */
 export async function deshacerUnion(sesion: UsuarioSesion, parametros: unknown) {
   const { id } = validar(esquemaId, parametros);
 
@@ -164,6 +190,7 @@ export async function deshacerUnion(sesion: UsuarioSesion, parametros: unknown) 
     if (!previo) throw noEncontrado();
     const principalId = previo.incidentePrincipalId;
     if (principalId === null) throw conflicto('NO_UNIDO', 'El incidente no está unido a otro');
+    await bloquearCategorias(tx, [id, principalId]);
     const bloqueados = await bloquear(tx, [id, principalId]);
     const duplicado = bloqueados.get(id)!;
     const principal = bloqueados.get(principalId)!;
@@ -199,9 +226,13 @@ export async function deshacerUnion(sesion: UsuarioSesion, parametros: unknown) 
         },
       ],
     });
+    const motivo = (otro: number) =>
+      `Estado según sus propios reportes, al deshacer la unión con el #${otro}`;
+    const estado = await recalcularEstado(tx, principalId, motivo(id));
+    await recalcularEstado(tx, id, motivo(principalId));
     await avisarCambioIncidente(tx, principalId);
     await avisarCambioIncidente(tx, id);
 
-    return { id, principal: actualizado };
+    return { id, principal: { ...actualizado, estado } };
   });
 }

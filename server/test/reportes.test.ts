@@ -6,7 +6,7 @@ import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { borrarReportesDe, crearUsuario, tokenDe } from './apoyo.js';
-import { EXIF_DE_PRUEBA, jpegConExif, jpegSinExif, png1x1 } from './imagenes.js';
+import { EXIF_DE_PRUEBA, fotoUnica, jpegConExif, jpegSinExif, png1x1 } from './imagenes.js';
 
 // La dirección se prueba en direcciones.test.ts: acá no se consulta Nominatim.
 vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
@@ -70,16 +70,18 @@ describe('POST /api/reportes', () => {
   it('crea el reporte, su foto y un incidente propio', async () => {
     const categoria = await crearCategoria();
     const { usuario, token } = await vecino();
+    // Una foto que ningún otro test subió: con la cámara de la app y el EXIF en el punto, se verifica sola.
+    const foto = await fotoUnica(jpegConExif());
 
-    const res = await enviar(token, categoria.id);
+    const res = await enviar(token, categoria.id, { foto });
 
     expect(res.status).toBe(201);
-    // El nivel y el estado los calcula la verificación automática: verificacion.test.ts los prueba en detalle.
+    // El nivel lo calcula la verificación automática: verificacion.test.ts lo prueba en detalle.
     expect(res.body).toEqual({
       id: expect.any(Number),
       incidenteId: expect.any(Number),
       nivelConfianza: expect.any(Number),
-      estadoVerificacion: expect.stringMatching(/^(VERIFICADO|PENDIENTE_REVISION)$/),
+      estadoVerificacion: 'VERIFICADO',
     });
 
     const reporte = await prisma.reporte.findUniqueOrThrow({
@@ -98,7 +100,7 @@ describe('POST /api/reportes', () => {
     expect(reporte.fotografias[0]).toMatchObject({
       ancho: 640,
       alto: 480,
-      tamanoBytes: jpegConExif().length,
+      tamanoBytes: foto.length,
       tomadaConCamaraApp: true,
       exifTomadaEn: EXIF_DE_PRUEBA.tomadaEn,
       exifMarca: EXIF_DE_PRUEBA.marca,
@@ -108,9 +110,8 @@ describe('POST /api/reportes', () => {
     expect(reporte.fotografias[0]!.exifLongitud?.toNumber()).toBe(EXIF_DE_PRUEBA.longitud);
     expect(reporte.fotografias[0]!.hashPerceptual).toMatch(/^[01]{64}$/);
     expect(reporte.incidente).toMatchObject({
-      // Un reporte verificado al llegar verifica su incidente (#51); uno pendiente lo deja registrado. Cuál de
-      // los dos depende de si otro test ya subió la misma foto (HASH_DUPLICADO).
-      estado: res.body.estadoVerificacion === 'VERIFICADO' ? 'VERIFICADO' : 'REGISTRADO',
+      // Un reporte verificado al llegar verifica su incidente (#51).
+      estado: 'VERIFICADO',
       categoriaId: categoria.id,
       // Recién lo deriva el operador.
       areaId: null,

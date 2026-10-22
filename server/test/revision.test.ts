@@ -248,13 +248,14 @@ describe('POST /api/reportes/:id/revision', () => {
     expect(pendiente.incidenteId).toBe(verificado.incidenteId);
     const antes = await prisma.incidente.findUniqueOrThrow({ where: { id: verificado.incidenteId } });
     // Empate entre MODERADA y GRAVE: la consolidada es la más alta.
-    expect(antes).toMatchObject({ estado: 'VERIFICADO', severidad: 'GRAVE' });
+    expect(antes).toMatchObject({ estado: 'VERIFICADO', severidad: 'GRAVE', cantidadReportes: 2 });
 
     const res = await revisar(pendiente.id, { decision: 'DESESTIMADO', comentario: 'No es acá' });
 
     expect(res.status).toBe(200);
     const despues = await prisma.incidente.findUniqueOrThrow({ where: { id: verificado.incidenteId } });
-    expect(despues).toMatchObject({ estado: 'VERIFICADO', severidad: 'MODERADA' });
+    // El desestimado deja de contar en la cantidad de reportes, que ve el mapa.
+    expect(despues).toMatchObject({ estado: 'VERIFICADO', severidad: 'MODERADA', cantidadReportes: 1 });
     expect((await movimientos(verificado.incidenteId)).at(-1)).toMatchObject({
       tipo: 'COMENTARIO',
       usuarioId: operador.id,

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   type Candidato,
   elegirIncidente,
+  estaMasAvanzado,
+  estadoSegunReportes,
   type ParametrosAgrupacion,
   puntajeAgrupacion,
   severidadConsolidada,
@@ -189,5 +191,44 @@ describe('severidadConsolidada', () => {
   it('ante un empate, la más alta', () => {
     expect(severidadConsolidada(['LEVE', 'GRAVE'])).toBe('GRAVE');
     expect(severidadConsolidada(['MODERADA', 'LEVE', 'LEVE', 'MODERADA'])).toBe('MODERADA');
+  });
+});
+
+describe('estadoSegunReportes', () => {
+  it('con un reporte verificado, el incidente queda VERIFICADO', () => {
+    expect(estadoSegunReportes('REGISTRADO', { validos: 3, verificados: 1 })).toBe('VERIFICADO');
+    expect(estadoSegunReportes('VERIFICADO', { validos: 1, verificados: 1 })).toBe('VERIFICADO');
+  });
+
+  it('sin verificados pero con pendientes, vuelve o se queda en REGISTRADO', () => {
+    expect(estadoSegunReportes('REGISTRADO', { validos: 2, verificados: 0 })).toBe('REGISTRADO');
+    // Se le separó o se le desunió el único reporte verificado.
+    expect(estadoSegunReportes('VERIFICADO', { validos: 1, verificados: 0 })).toBe('REGISTRADO');
+  });
+
+  it('sin ningún reporte válido queda DESESTIMADO, venga de REGISTRADO o de VERIFICADO', () => {
+    expect(estadoSegunReportes('REGISTRADO', { validos: 0, verificados: 0 })).toBe('DESESTIMADO');
+    expect(estadoSegunReportes('VERIFICADO', { validos: 0, verificados: 0 })).toBe('DESESTIMADO');
+  });
+
+  it.each(['DERIVADO', 'EN_EJECUCION', 'RESUELTO', 'DESESTIMADO'] as const)(
+    'un incidente %s no cambia: lo maneja el operador o ya terminó',
+    (estado) => {
+      expect(estadoSegunReportes(estado, { validos: 0, verificados: 0 })).toBe(estado);
+      expect(estadoSegunReportes(estado, { validos: 2, verificados: 1 })).toBe(estado);
+    },
+  );
+});
+
+describe('estaMasAvanzado', () => {
+  it('sigue el orden de la gestión: REGISTRADO, VERIFICADO, DERIVADO, EN_EJECUCION', () => {
+    expect(estaMasAvanzado('VERIFICADO', 'REGISTRADO')).toBe(true);
+    expect(estaMasAvanzado('DERIVADO', 'VERIFICADO')).toBe(true);
+    expect(estaMasAvanzado('EN_EJECUCION', 'DERIVADO')).toBe(true);
+    expect(estaMasAvanzado('REGISTRADO', 'EN_EJECUCION')).toBe(false);
+  });
+
+  it('el mismo estado no está más avanzado', () => {
+    expect(estaMasAvanzado('VERIFICADO', 'VERIFICADO')).toBe(false);
   });
 });

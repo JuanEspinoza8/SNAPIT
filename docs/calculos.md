@@ -99,7 +99,7 @@ Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo m
 1. **Historial del vecino.** Un verificado suma a `reportes_confirmados` y un desestimado a `reportes_desestimados`. Con los contadores nuevos se recalcula la reputación:
 
    ```math
-   	ext{reputación} = 100 	imes rac{	ext{confirmados} + 1}{	ext{confirmados} + 	ext{desestimados} + 2}
+   \text{reputación} = 100 \times \frac{\text{confirmados} + 1}{\text{confirmados} + \text{desestimados} + 2}
    ```
 
    Se guarda con dos decimales. Sin historial da **50**, la reputación inicial. Cada confirmado la acerca a 100 y cada desestimado a 0; el +1 y el +2 hacen que un solo reporte no la lleve a un extremo. La usa la señal `REPUTACION` de los reportes siguientes del vecino.
@@ -112,11 +112,13 @@ Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo m
    | 3 | 1 | 66,67 |
    | 9 | 0 | 90,91 |
 
-2. **Estado del incidente** (el principal, si se unió a otro). Solo cambia uno `REGISTRADO`:
-   - pasa a `VERIFICADO` con su primer reporte verificado;
-   - pasa a `DESESTIMADO` cuando no le queda ningún reporte sin desestimar, contando los de los incidentes unidos.
+2. **Estado del incidente** (el principal, si se unió a otro). Sale de sus reportes, contando los de los incidentes unidos, con la regla de "Estado del incidente según sus reportes" (más abajo):
+   - pasa de `REGISTRADO` a `VERIFICADO` con su primer reporte verificado;
+   - pasa a `DESESTIMADO` cuando no le queda ningún reporte sin desestimar.
 
    Desestimar un reporte de un incidente que tiene otros reportes válidos no cambia su estado, pero sí recalcula su **severidad consolidada**, porque los desestimados no cuentan (ver la agrupación).
+
+   **Cantidad de reportes.** `cantidad_reportes` cuenta solo los reportes no desestimados, propios y de los unidos (decisión del 21/10). Un desestimado se resta del incidente del reporte y, si se unió a otro, también del principal.
 3. **Bitácora.** Un cambio de estado queda como `CAMBIO_ESTADO`, con el estado anterior y el nuevo. Una revisión del operador queda siempre, aunque el incidente no cambie: entonces como `COMENTARIO`. El texto dice qué reporte, quién lo decidió (el operador o "automáticamente", con su nivel de confianza) y el comentario del operador.
 4. **Prioridad.** Se avisa al módulo de prioridad (#61) para que recalcule el incidente.
 
@@ -162,7 +164,30 @@ El reporte se suma al candidato de mayor puntaje si **supera** `umbral` (justo e
 | Mismo lugar, hace 25 días, otra foto | 0,5 + 0,03 + 0 = 0,53 | Se agrupa |
 | A 30 m o más | — | No es candidato |
 
-Dos reportes de la misma categoría que llegan a la vez se procesan de a uno (un bloqueo por categoría en la base): así el segundo ve el incidente que abrió el primero. Si algo falla en la transacción, incluido el recálculo de la prioridad, no queda nada: ni el reporte ni el cambio del incidente.
+Dos reportes de la misma categoría que llegan a la vez se procesan de a uno (un bloqueo por categoría en la base): así el segundo ve el incidente que abrió el primero. Si algo falla en la transacción, incluido el recálculo de la prioridad, no queda nada: ni el reporte ni el cambio del incidente. Unir, deshacer una unión y separar un reporte toman el mismo bloqueo.
+
+### Estado del incidente según sus reportes
+
+Una sola regla decide el estado de un incidente `REGISTRADO` o `VERIFICADO` a partir de sus reportes válidos (no desestimados, propios y de los unidos), en `estadoSegunReportes` (`agrupacion/calculo.ts`, decisión del 21/10):
+
+| Reportes válidos | Verificados | Estado |
+|---|---|---|
+| Ninguno | — | `DESESTIMADO` |
+| Alguno | Ninguno | `REGISTRADO` («En revisión» en el mapa) |
+| Alguno | Alguno | `VERIFICADO` |
+
+Desde `DERIVADO` el estado no cambia por los reportes: el organismo ya lo está trabajando. `RESUELTO` y `DESESTIMADO` son finales.
+
+Se aplica:
+- **Al verificar o desestimar un reporte** (arriba).
+- **Al deshacer una unión**, a los dos incidentes. Mientras estuvieron unidos, los reportes del duplicado se revisaron sobre el principal; al separarlos, cada uno toma el estado de sus propios reportes. Por ejemplo, si se desestimó el único reporte del duplicado, vuelve como `DESESTIMADO`; si el principal estaba `VERIFICADO` solo por un reporte del duplicado, vuelve a `REGISTRADO`.
+- **Al separar un reporte**, al original y al nuevo. El nuevo nace `REGISTRADO` y pasa a `VERIFICADO` si el reporte estaba verificado; el original vuelve a `REGISTRADO` si se le fue el único verificado.
+
+Cada cambio queda en la bitácora como `CAMBIO_ESTADO` del sistema (sin usuario).
+
+**Unir.** No se une un duplicado más avanzado que el principal (`REGISTRADO` < `VERIFICADO` < `DERIVADO` < `EN_EJECUCION`): el principal no cambia de estado al unir, así que el problema saldría de la bandeja. Hay que unir al revés.
+
+**Separar.** No se separa el único reporte propio no desestimado de un incidente (los de los unidos no cuentan: al deshacer la unión se van). El nuevo toma la vigencia de su categoría desde que llegó el reporte. Si el original estaba en el punto del reporte separado (el que lo creó), pasa al punto y la dirección del reporte válido propio que llegó primero.
 
 ### Prioridad del incidente
 

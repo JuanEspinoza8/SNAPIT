@@ -136,3 +136,37 @@ export function severidadConsolidada(declaradas: Severidad[]): Severidad {
   }
   return elegida;
 }
+
+/** Los reportes que cuentan para el estado de un incidente: los no desestimados y, de esos, los verificados. */
+export interface ReportesDelIncidente {
+  validos: number;
+  verificados: number;
+}
+
+/**
+ * El estado que le corresponde a un incidente por sus reportes (§6 del plan, decisión del 21/10):
+ * - Con algún reporte verificado, VERIFICADO.
+ * - Sin verificados pero con alguno pendiente, REGISTRADO («En revisión» en el mapa).
+ * - Sin ningún reporte válido, DESESTIMADO.
+ *
+ * Solo decide sobre REGISTRADO y VERIFICADO. Desde DERIVADO el organismo ya lo está trabajando y el estado
+ * lo cambia el operador; RESUELTO y DESESTIMADO son finales.
+ */
+export function estadoSegunReportes(
+  estado: EstadoIncidente,
+  reportes: ReportesDelIncidente,
+): EstadoIncidente {
+  if (estado !== 'REGISTRADO' && estado !== 'VERIFICADO') return estado;
+  if (reportes.validos === 0) return 'DESESTIMADO';
+  return reportes.verificados > 0 ? 'VERIFICADO' : 'REGISTRADO';
+}
+
+const ORDEN_GESTION: EstadoIncidente[] = ['REGISTRADO', 'VERIFICADO', 'DERIVADO', 'EN_EJECUCION'];
+
+/**
+ * Si un incidente activo está más avanzado en su gestión que otro. Al unir, el duplicado no puede estar más
+ * avanzado que el principal: saldría de la bandeja y el principal seguiría atrás (decisión del 21/10).
+ */
+export function estaMasAvanzado(estado: EstadoIncidente, que: EstadoIncidente) {
+  return ORDEN_GESTION.indexOf(estado) > ORDEN_GESTION.indexOf(que);
+}
