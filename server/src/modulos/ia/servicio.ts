@@ -48,6 +48,8 @@ export interface ConsultaIa<T> {
 export interface RespuestaIa<T> {
   resultado: T;
   registroIaId: number;
+  /** Tokens que usó la consulta, según la API: con el precio del modelo dan su costo. */
+  uso: { entrada: number; salida: number };
 }
 
 export interface OpcionesIa {
@@ -91,9 +93,10 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
 
     let resultado: T;
     let salida: Prisma.InputJsonValue | null;
+    let uso: RespuestaIa<T>['uso'];
     try {
       if (!cliente) throw new RespuestaInvalida('Falta ANTHROPIC_API_KEY en el .env');
-      ({ resultado, salida, modelo: intento.modelo } = await pedir(cliente, consulta));
+      ({ resultado, salida, uso, modelo: intento.modelo } = await pedir(cliente, consulta));
     } catch (error) {
       const motivo = motivoDelFallo(error, timeoutMs);
       logger.warn({ err: error, tipo: consulta.tipo }, 'La IA no respondió: %s', motivo);
@@ -117,7 +120,7 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
       exito: true,
       error: null,
     });
-    return { resultado, registroIaId };
+    return { resultado, registroIaId, uso };
   }
 
   async function pedir<T>(cliente: Anthropic, consulta: ConsultaIa<T>) {
@@ -185,7 +188,12 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
     }
 
     logger.debug({ tipo: consulta.tipo, uso: respuesta.usage }, 'Consulta a la IA');
-    return { resultado: validado.data, salida: json as Prisma.InputJsonValue, modelo: respuesta.model };
+    return {
+      resultado: validado.data,
+      salida: json as Prisma.InputJsonValue,
+      uso: { entrada: respuesta.usage.input_tokens, salida: respuesta.usage.output_tokens },
+      modelo: respuesta.model,
+    };
   }
 
   return { consultar };

@@ -124,6 +124,21 @@ Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo m
 
 Un reporte **pendiente** no cuenta para la reputación hasta que un operador lo revisa (`POST /api/reportes/:id/revision`). Un reporte ya verificado o desestimado no se vuelve a revisar.
 
+### Cola de verificación con IA
+
+El operador puede procesar los reportes pendientes de su organismo con la IA (`POST /api/ia/procesar-cola`, `server/src/modulos/ia/cola.ts`), de a uno por vez:
+
+1. La IA mira la foto y propone categoría y gravedad, con una explicación breve (la misma clasificación que la sugerencia al vecino, F06).
+2. **Si coincide exactamente** con lo que eligió el vecino (la misma categoría y la misma gravedad), el reporte se publica: queda `VERIFICADO` con el mismo resultado que una aprobación manual (reputación, incidente, bitácora y prioridad), y en la bitácora figura que lo publicó la IA.
+3. **Si no coincide**, queda pendiente para revisión manual, con la propuesta guardada.
+4. **Si la IA falla** o un operador lo revisó mientras tanto, queda como está: la IA nunca pisa una decisión de una persona.
+
+Cada paso queda en `evento_verificacion_ia`, con los tokens que usó la clasificación. Con el precio del modelo (`server/src/modulos/ia/costos.ts`) da el costo de cada procesamiento.
+
+| Parámetro | Tipo | Valor | Para qué |
+|---|---|---|---|
+| `demo.revision_manual` | entero | 0 | Modo demostración. Con 1, todo reporte nuevo queda pendiente de revisión aunque la verificación automática lo aprobaría (el nivel y las señales se guardan igual), para mostrar la cola resuelta a mano o con la IA. Con 0, funciona como en producción |
+
 ### Agrupación de reportes en incidentes
 
 El puntaje de agrupación combina la cercanía, el tiempo transcurrido y el parecido entre las fotos.
