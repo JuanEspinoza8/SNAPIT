@@ -72,6 +72,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 | `npm run dev` | Servidor con recarga automática |
 | `npm run semilla` | Carga o restaura el catálogo, los parámetros y los usuarios de prueba (estos, fuera de producción) |
 | `npm run importar:puntos` | Carga los puntos de interés de Neuquén desde OpenStreetMap (ver «Puntos de interés») |
+| `npm run tarea:prioridad` | Corre ya el recálculo diario de prioridad, que el servidor hace solo a las 03:00 y al arrancar |
 | `npm test` | Tests con Vitest contra la base `snapit_test` (se crea sola) |
 | `npm run lint` | ESLint |
 | `npm run format` | Formatea con Prettier |
@@ -84,6 +85,12 @@ La semilla también se corre dentro del contenedor. Como corre con `NODE_ENV=pro
 ```bash
 docker compose exec server node dist/semilla/index.js
 docker compose exec -e NODE_ENV=development server node dist/semilla/index.js
+```
+
+El recálculo diario de prioridad también:
+
+```bash
+docker compose exec server node dist/tareas/recalcularPrioridad.js
 ```
 
 ### Correos en desarrollo

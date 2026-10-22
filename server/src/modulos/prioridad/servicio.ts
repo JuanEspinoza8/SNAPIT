@@ -1,4 +1,6 @@
 import type { EstadoIncidente, Prisma } from '@prisma/client';
+import { logger } from '../../config/logger.js';
+import { transaccion } from '../reportes/repositorio.js';
 import { calcularPrioridad } from './calculo.js';
 import * as repositorio from './repositorio.js';
 
@@ -46,4 +48,51 @@ export async function recalcularPrioridad(tx: Prisma.TransactionClient, incident
     new Date(),
   );
   await repositorio.guardarPrioridad(tx, incidenteId, resultado);
+}
+
+export interface ResumenRecalculo {
+  total: number;
+  recalculados: number;
+  /** Los que se cerraron, se unieron a otro o caducaron entre que se armó la lista y les tocó el turno. */
+  salteados: number;
+  fallidos: number;
+  duracionMs: number;
+}
+
+/**
+ * Recalcula varios incidentes, cada uno en su propia transacción: si uno falla, se deja el error en el log
+ * y se sigue con los demás. Lo usa el recálculo diario (tareas/prioridadDiaria.ts).
+ */
+export async function recalcularIncidentes(ids: number[]): Promise<ResumenRecalculo> {
+  const inicio = performance.now();
+  let recalculados = 0;
+  let fallidos = 0;
+  for (const id of ids) {
+    try {
+      const recalculado = await transaccion(async (tx) => {
+        // Sin el bloqueo, un reporte que se suma a la vez también reemplaza el desglose, y las dos
+        // transacciones podrían dejar las filas de factor_prioridad duplicadas.
+        const incidente = await repositorio.bloquearIncidente(tx, id);
+        const sigueAbierto =
+          incidente &&
+          !incidente.unido &&
+          !incidente.caducado &&
+          !ESTADOS_CERRADOS.includes(incidente.estado);
+        if (!sigueAbierto) return false;
+        await recalcularPrioridad(tx, id);
+        return true;
+      });
+      if (recalculado) recalculados++;
+    } catch (error) {
+      fallidos++;
+      logger.error({ err: error, incidenteId: id }, `No se pudo recalcular la prioridad del incidente ${id}`);
+    }
+  }
+  return {
+    total: ids.length,
+    recalculados,
+    salteados: ids.length - recalculados - fallidos,
+    fallidos,
+    duracionMs: Math.round(performance.now() - inicio),
+  };
 }
