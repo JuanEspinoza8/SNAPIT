@@ -96,6 +96,7 @@ const servidor = setupServer(
         total: 2,
         procesados: 2,
         publicados: 1,
+        publicadosConSugerencia: 1,
         derivados: 1,
         errores: 0,
         tiempoMedioMs: 3000,
@@ -319,6 +320,11 @@ describe('revisión de reportes de baja confianza', () => {
     expect(within(derivada).getByText('Para revisión manual')).toBeInTheDocument();
     expect(within(derivada).getByText('≠ no coincide')).toBeInTheDocument();
     expect(within(derivada).getByRole('button', { name: /Revisar/ })).toBeInTheDocument();
+
+    // El resumen aclara en cuántos publicados la IA coincidió con su propia sugerencia.
+    await usuario.click(screen.getByRole('button', { name: /Procesamiento con IA/ }));
+    expect(await screen.findByText('1 con la sugerencia aceptada')).toBeInTheDocument();
+    await usuario.click(screen.getByRole('button', { name: /Pendientes de aprobación/ }));
 
     // Limpiar saca el publicado; el derivado sigue esperando a una persona.
     await usuario.click(screen.getByRole('button', { name: /Limpiar resueltos/ }));

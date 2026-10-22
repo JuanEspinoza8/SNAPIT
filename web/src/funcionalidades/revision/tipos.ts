@@ -109,6 +109,8 @@ export interface ProcesoCola {
     total: number;
     procesados: number;
     publicados: number;
+    /** De los publicados, en cuántos el vecino había aceptado la sugerencia de la IA al cargarlo. */
+    publicadosConSugerencia: number;
     derivados: number;
     errores: number;
     tiempoMedioMs: number | null;
