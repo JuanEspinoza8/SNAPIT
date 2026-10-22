@@ -74,6 +74,138 @@ void main() {
     });
   });
 
+  group('sugerencia', () {
+    const sugerencia = SugerenciaIa(
+      categoriaId: 3,
+      severidad: Severidad.grave,
+      registroIaId: 41,
+    );
+    const otraFoto = FotoReporte(ruta: '/tmp/b.jpg', tomadaConCamaraApp: true);
+
+    test('lee la respuesta de la API', () {
+      final leida = SugerenciaIa.desdeJson({
+        'categoriaId': 3,
+        'severidad': 'MODERADA',
+        'registroIaId': 41,
+      });
+
+      expect(leida.categoriaId, 3);
+      expect(leida.severidad, Severidad.moderada);
+      expect(leida.registroIaId, 41);
+    });
+
+    test(
+      'una gravedad desconocida es un error, no una gravedad cualquiera',
+      () {
+        expect(
+          () => SugerenciaIa.desdeJson({
+            'categoriaId': 3,
+            'severidad': 'MUY_GRAVE',
+            'registroIaId': 41,
+          }),
+          throwsFormatException,
+        );
+      },
+    );
+
+    test('completa los campos vacíos y los marca', () {
+      final conFoto = const BorradorReporte().conFotoNueva(otraFoto);
+
+      final sugerido = conFoto.conSugerencia(
+        sugerencia,
+        categoriaDisponible: true,
+      );
+
+      expect(conFoto.estadoSugerencia, EstadoSugerencia.buscando);
+      expect(sugerido.estadoSugerencia, EstadoSugerencia.lista);
+      expect(sugerido.categoriaId, 3);
+      expect(sugerido.severidad, Severidad.grave);
+      expect(sugerido.categoriaEsSugerida, isTrue);
+      expect(sugerido.severidadEsSugerida, isTrue);
+    });
+
+    test('no pisa lo que ya eligió el vecino', () {
+      final elegido = const BorradorReporte(
+        categoriaId: 1,
+      ).conFotoNueva(otraFoto);
+
+      final sugerido = elegido.conSugerencia(
+        sugerencia,
+        categoriaDisponible: true,
+      );
+
+      expect(sugerido.categoriaId, 1);
+      expect(sugerido.categoriaEsSugerida, isFalse);
+      expect(sugerido.severidad, Severidad.grave);
+      expect(sugerido.severidadEsSugerida, isTrue);
+    });
+
+    test('una categoría que el vecino no tiene en la lista no se completa', () {
+      final sugerido = const BorradorReporte()
+          .conFotoNueva(otraFoto)
+          .conSugerencia(sugerencia, categoriaDisponible: false);
+
+      expect(sugerido.categoriaId, isNull);
+      expect(sugerido.categoriaEsSugerida, isFalse);
+      expect(sugerido.severidad, Severidad.grave);
+      // Se guarda igual: el servidor registra que no se aceptó.
+      expect(sugerido.sugerencia, same(sugerencia));
+    });
+
+    test(
+      'otra foto descarta la sugerencia y lo que completó, no lo del vecino',
+      () {
+        final sugerido =
+            BorradorReporte(
+                  severidad: Severidad.leve,
+                  descripcion: 'Pozo',
+                  punto: completo.punto,
+                  registradoEn: completo.registradoEn,
+                )
+                .conFotoNueva(otraFoto)
+                .conSugerencia(sugerencia, categoriaDisponible: true);
+        // La categoría la completó la sugerencia; la gravedad la eligió el vecino.
+        expect(sugerido.categoriaEsSugerida, isTrue);
+        expect(sugerido.severidadEsSugerida, isFalse);
+
+        final cambiada = sugerido.conFotoNueva(completo.foto!);
+
+        expect(cambiada.sugerencia, isNull);
+        expect(cambiada.estadoSugerencia, EstadoSugerencia.buscando);
+        expect(cambiada.categoriaId, isNull);
+        expect(cambiada.categoriaEsSugerida, isFalse);
+        expect(cambiada.severidad, Severidad.leve);
+        expect(cambiada.foto, same(completo.foto));
+        expect(cambiada.descripcion, 'Pozo');
+        expect(cambiada.punto, completo.punto);
+        expect(cambiada.registradoEn, completo.registradoEn);
+      },
+    );
+
+    test('se manda con los tres campos aunque no coincida con lo elegido', () {
+      final sugerido = completo
+          .conFotoNueva(completo.foto!)
+          .conSugerencia(sugerencia, categoriaDisponible: true)
+          .copyWith(severidad: Severidad.leve);
+
+      expect(sugerido.campos(), {
+        ...completo.campos(),
+        'severidadDeclarada': 'LEVE',
+        'categoriaSugeridaId': '3',
+        'severidadSugerida': 'GRAVE',
+        'registroIaId': '41',
+      });
+    });
+
+    test('sin sugerencia no va ninguno de los tres', () {
+      final sinSugerencia = completo
+          .conFotoNueva(completo.foto!)
+          .copyWith(estadoSugerencia: EstadoSugerencia.noDisponible);
+
+      expect(sinSugerencia.campos(), completo.campos());
+    });
+  });
+
   test('copyWith conserva lo que no se cambia', () {
     final cambiado = completo.copyWith(categoriaId: 5);
 

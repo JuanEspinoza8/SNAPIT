@@ -9,8 +9,48 @@ enum Severidad {
 
   const Severidad(this.valorApi, this.etiqueta);
 
+  /// Lanza [FormatException] si la API manda un valor que la app no conoce.
+  factory Severidad.desdeApi(String valor) => values.firstWhere(
+    (severidad) => severidad.valorApi == valor,
+    orElse: () => throw FormatException('Gravedad desconocida: $valor'),
+  );
+
   final String valorApi;
   final String etiqueta;
+}
+
+/// Lo que respondió `POST /ia/clasificar-foto` para la foto del borrador.
+@immutable
+class SugerenciaIa {
+  const SugerenciaIa({
+    required this.categoriaId,
+    required this.severidad,
+    required this.registroIaId,
+  });
+
+  factory SugerenciaIa.desdeJson(Map<String, dynamic> json) => SugerenciaIa(
+    categoriaId: json['categoriaId'] as int,
+    severidad: Severidad.desdeApi(json['severidad'] as String),
+    registroIaId: json['registroIaId'] as int,
+  );
+
+  final int categoriaId;
+  final Severidad severidad;
+
+  /// La consulta que quedó en `registro_ia`: el servidor la usa para
+  /// comprobar la sugerencia y guardar si el vecino la aceptó.
+  final int registroIaId;
+}
+
+/// En qué está la sugerencia de la foto actual.
+enum EstadoSugerencia {
+  /// No hay foto, o se envió el reporte sin esperarla.
+  ninguna,
+  buscando,
+  lista,
+
+  /// Falló o no respondió: el vecino elige a mano.
+  noDisponible,
 }
 
 @immutable
@@ -57,6 +97,10 @@ class BorradorReporte {
     this.punto,
     this.puntoMovido = false,
     this.registradoEn,
+    this.sugerencia,
+    this.estadoSugerencia = EstadoSugerencia.ninguna,
+    this.categoriaEsSugerida = false,
+    this.severidadEsSugerida = false,
   });
 
   final FotoReporte? foto;
@@ -74,6 +118,15 @@ class BorradorReporte {
   /// cambia en los reintentos.
   final DateTime? registradoEn;
 
+  /// La sugerencia de la foto actual. Se envía aunque el vecino la cambie:
+  /// así el servidor guarda si la aceptó.
+  final SugerenciaIa? sugerencia;
+  final EstadoSugerencia estadoSugerencia;
+
+  /// True si el valor lo completó la sugerencia y el vecino no lo cambió.
+  final bool categoriaEsSugerida;
+  final bool severidadEsSugerida;
+
   BorradorReporte copyWith({
     FotoReporte? foto,
     int? categoriaId,
@@ -82,6 +135,9 @@ class BorradorReporte {
     LatLng? punto,
     bool? puntoMovido,
     DateTime? registradoEn,
+    EstadoSugerencia? estadoSugerencia,
+    bool? categoriaEsSugerida,
+    bool? severidadEsSugerida,
   }) {
     return BorradorReporte(
       foto: foto ?? this.foto,
@@ -91,6 +147,48 @@ class BorradorReporte {
       punto: punto ?? this.punto,
       puntoMovido: puntoMovido ?? this.puntoMovido,
       registradoEn: registradoEn ?? this.registradoEn,
+      sugerencia: sugerencia,
+      estadoSugerencia: estadoSugerencia ?? this.estadoSugerencia,
+      categoriaEsSugerida: categoriaEsSugerida ?? this.categoriaEsSugerida,
+      severidadEsSugerida: severidadEsSugerida ?? this.severidadEsSugerida,
+    );
+  }
+
+  /// Con otra foto se espera otra sugerencia. La anterior era de la foto
+  /// vieja: se descarta, y con ella lo que había completado y el vecino no
+  /// cambió. Lo que eligió el vecino se queda.
+  BorradorReporte conFotoNueva(FotoReporte foto) => BorradorReporte(
+    foto: foto,
+    categoriaId: categoriaEsSugerida ? null : categoriaId,
+    severidad: severidadEsSugerida ? null : severidad,
+    descripcion: descripcion,
+    punto: punto,
+    puntoMovido: puntoMovido,
+    registradoEn: registradoEn,
+    estadoSugerencia: EstadoSugerencia.buscando,
+  );
+
+  /// Completa con la sugerencia solo los campos vacíos: el vecino tiene la
+  /// última palabra. La categoría, además, solo si está en la lista que ve
+  /// el vecino ([categoriaDisponible]); si no, quedaría elegida sin verse.
+  BorradorReporte conSugerencia(
+    SugerenciaIa sugerencia, {
+    required bool categoriaDisponible,
+  }) {
+    final completarCategoria = categoriaId == null && categoriaDisponible;
+    final completarSeveridad = severidad == null;
+    return BorradorReporte(
+      foto: foto,
+      categoriaId: completarCategoria ? sugerencia.categoriaId : categoriaId,
+      severidad: completarSeveridad ? sugerencia.severidad : severidad,
+      descripcion: descripcion,
+      punto: punto,
+      puntoMovido: puntoMovido,
+      registradoEn: registradoEn,
+      sugerencia: sugerencia,
+      estadoSugerencia: EstadoSugerencia.lista,
+      categoriaEsSugerida: completarCategoria,
+      severidadEsSugerida: completarSeveridad,
     );
   }
 
@@ -119,6 +217,12 @@ class BorradorReporte {
       if (registradoEn case final fecha?)
         'registradoEn': fecha.toUtc().toIso8601String(),
       'tomadaConCamaraApp': '${foto!.tomadaConCamaraApp}',
+      // Los tres o ninguno, como pide la API.
+      if (sugerencia case final sugerencia?) ...{
+        'categoriaSugeridaId': '${sugerencia.categoriaId}',
+        'severidadSugerida': sugerencia.severidad.valorApi,
+        'registroIaId': '${sugerencia.registroIaId}',
+      },
     };
   }
 }
