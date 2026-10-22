@@ -113,6 +113,8 @@ export interface FilaPendiente {
   incidenteId: number | null;
   incidenteEstado: EstadoIncidente | null;
   cantidadReportes: number | null;
+  /** El incidente propio del reporte: distinto de incidenteId si se unió a otro (F05), que es el principal. */
+  propioId: number | null;
   reputacion: string;
   reportesConfirmados: number;
   reportesDesestimados: number;
@@ -175,6 +177,7 @@ export function listarDelOrganismo(organismoId: number, filtros: FiltrosReportes
             FROM senal_verificacion s WHERE s.reporte_id = r.id) AS senales,
            (SELECT coalesce(array_agg(f.id ORDER BY f.id), '{}') FROM fotografia f WHERE f.reporte_id = r.id) AS fotos,
            i.id AS "incidenteId", i.estado::text AS "incidenteEstado", i.cantidad_reportes AS "cantidadReportes",
+           propio.id AS "propioId",
            u.reputacion::text AS reputacion, u.reportes_confirmados AS "reportesConfirmados",
            u.reportes_desestimados AS "reportesDesestimados",
            (SELECT json_build_object(

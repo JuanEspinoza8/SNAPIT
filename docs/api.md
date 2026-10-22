@@ -372,7 +372,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
         { "tipo": "REPUTACION", "valor": 0, "detalle": "Reputación del vecino: 50 de 100" }
       ],
       "fotos": [{ "id": 12, "url": "/api/fotos/12" }],
-      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1 },
+      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1, "propioId": 9 },
       "vecino": { "reputacion": 50, "reportesConfirmados": 0, "reportesDesestimados": 0 },
       "propuestaIa": null
     }
@@ -383,6 +383,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `senales`: por qué quedó con ese nivel, en el orden en que se calcularon (ver `docs/calculos.md`).
 - `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el incidente no esté en el mapa.
 - `vecino`: su historial, no quién es.
+- `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`).
 - `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última clasificación: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
 - Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.
