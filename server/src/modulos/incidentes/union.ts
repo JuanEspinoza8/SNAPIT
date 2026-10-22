@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
-import { severidadConsolidada } from '../agrupacion/calculo.js';
-import { bloquearCategoria, severidadesDeclaradas } from '../agrupacion/repositorio.js';
+import { estaMasAvanzado, severidadConsolidada } from '../agrupacion/calculo.js';
+import { bloquearCategoria, recalcularEstado, severidadesDeclaradas } from '../agrupacion/repositorio.js';
 import { transaccion } from '../reportes/repositorio.js';
 import { esquemaId } from './esquemas.js';
 import { avisarCambioIncidente } from './eventos.js';
@@ -135,6 +135,14 @@ export async function unirIncidentes(sesion: UsuarioSesion, parametros: unknown,
         'Solo se unen incidentes activos (no resueltos, desestimados ni caducados)',
       );
     }
+    // El principal no cambia de estado: si el duplicado iba más adelante, el problema saldría de la bandeja.
+    if (estaMasAvanzado(duplicado.estado, principal.estado)) {
+      throw conflicto(
+        'DUPLICADO_MAS_AVANZADO',
+        `El #${id} está más avanzado (${duplicado.estado}) que el #${principalId} (${principal.estado}): ` +
+          `uní el #${principalId} al #${id}`,
+      );
+    }
 
     await tx.incidente.update({
       where: { id },
@@ -168,7 +176,11 @@ export async function unirIncidentes(sesion: UsuarioSesion, parametros: unknown,
   });
 }
 
-/** Deshace la unión: el duplicado vuelve a ser un incidente aparte y el principal queda como estaba. */
+/**
+ * Deshace la unión: el duplicado vuelve a ser un incidente aparte y el principal deja de contar sus reportes.
+ * Mientras estuvieron unidos, los reportes del duplicado se revisaron sobre el principal: al separarlos, cada
+ * uno toma el estado que dicen sus propios reportes (estadoSegunReportes), con un CAMBIO_ESTADO del sistema.
+ */
 export async function deshacerUnion(sesion: UsuarioSesion, parametros: unknown) {
   const { id } = validar(esquemaId, parametros);
 
@@ -214,9 +226,13 @@ export async function deshacerUnion(sesion: UsuarioSesion, parametros: unknown) 
         },
       ],
     });
+    const motivo = (otro: number) =>
+      `Estado según sus propios reportes, al deshacer la unión con el #${otro}`;
+    const estado = await recalcularEstado(tx, principalId, motivo(id));
+    await recalcularEstado(tx, id, motivo(principalId));
     await avisarCambioIncidente(tx, principalId);
     await avisarCambioIncidente(tx, id);
 
-    return { id, principal: actualizado };
+    return { id, principal: { ...actualizado, estado } };
   });
 }

@@ -458,8 +458,9 @@ Responde **200**:
 }
 ```
 
-- **Incidente nuevo:** toma la categoría, el punto, la dirección y la severidad del reporte, y la vigencia del original. Queda `VERIFICADO` si el reporte estaba verificado y `REGISTRADO` si está pendiente, sin área asignada (hay que derivarlo de nuevo).
-- **Incidente original:** conserva su estado. Pierde un reporte y se recalculan su severidad consolidada y su primer reporte.
+- **Incidente nuevo:** toma la categoría, el punto, la dirección y la severidad del reporte, y la vigencia de su categoría contada desde que llegó el reporte (un temporal viejo puede nacer vencido). Queda sin área asignada (hay que derivarlo de nuevo).
+- **Incidente original:** pierde un reporte y se recalculan su severidad consolidada y su primer reporte. Si estaba en el punto del reporte separado, pasa al punto y la dirección del reporte que llegó primero de los que le quedan.
+- **Estado de los dos:** el que dicen sus reportes (ver "Estado del incidente según sus reportes" en `docs/calculos.md`). El nuevo queda `VERIFICADO` si el reporte estaba verificado y `REGISTRADO` si está pendiente; el original vuelve a `REGISTRADO` si se le fue el único verificado. Cada cambio deja un `CAMBIO_ESTADO` sin usuario.
 - Los dos quedan con un movimiento `SEPARACION` que apunta al otro, y se recalcula su prioridad.
 
 | Error | Cuándo |
@@ -551,7 +552,8 @@ Un operador marca que el incidente `:id` es el mismo problema que otro, el **pri
 
 Unir **no borra ni mueve nada**:
 - El duplicado apunta al principal y conserva su estado, sus contadores y sus reportes. Deja de verse en el mapa, y su ficha (`GET /api/incidentes/:id`) muestra la del principal.
-- El principal suma la cantidad de reportes del duplicado, y se recalculan su severidad consolidada y su primer reporte con los reportes de los dos. Su estado no cambia.
+- El principal suma la cantidad de reportes del duplicado, y se recalculan su severidad consolidada y su primer reporte con los reportes de los dos. Su estado no cambia: por eso el duplicado no puede estar más avanzado que el principal (`REGISTRADO` < `VERIFICADO` < `DERIVADO` < `EN_EJECUCION`). Si lo está, hay que unir al revés.
+- Se pueden unir incidentes de categorías distintas: el principal conserva la suya.
 - Los dos quedan con un movimiento `FUSION` que apunta al otro, y se recalcula su prioridad.
 
 Responde **200**:
@@ -572,9 +574,12 @@ Hay un solo nivel de unión: no se forman cadenas.
 | 409 `PRINCIPAL_UNIDO` | El principal está unido a otro: hay que unir con ese |
 | 409 `TIENE_UNIDOS` | El incidente tiene otros unidos, así que no puede unirse a otro |
 | 409 `INCIDENTE_CERRADO` | Alguno de los dos está resuelto, desestimado o caducado |
+| 409 `DUPLICADO_MAS_AVANZADO` | El duplicado está más avanzado en su gestión que el principal: hay que unir al revés |
 
 ### `DELETE /api/incidentes/:id/union`
-Deshace la unión del incidente `:id` con su principal: deja los dos exactamente como estaban antes de unirlos. Mismos permisos que unir. Los dos quedan con un movimiento `SEPARACION` que apunta al otro, y se recalcula su prioridad.
+Deshace la unión del incidente `:id` con su principal: el principal deja de contar los reportes del duplicado. Mismos permisos que unir. Los dos quedan con un movimiento `SEPARACION` que apunta al otro, y se recalcula su prioridad.
+
+Si mientras estuvieron unidos no se revisó ningún reporte, los dos quedan exactamente como estaban antes de unirlos. Si se revisó alguno, cada uno toma el estado que dicen sus propios reportes (ver "Estado del incidente según sus reportes" en `docs/calculos.md`), con un `CAMBIO_ESTADO` sin usuario: por ejemplo, un duplicado cuyo único reporte se desestimó vuelve `DESESTIMADO`.
 
 Responde **200** con el principal ya sin el duplicado:
 

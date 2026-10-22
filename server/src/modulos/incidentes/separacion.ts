@@ -1,11 +1,13 @@
-import type { EstadoIncidente, EstadoVerificacion, Prisma, Severidad } from '@prisma/client';
+import type { EstadoVerificacion, Prisma, Severidad } from '@prisma/client';
 import { z } from 'zod';
 import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { severidadConsolidada } from '../agrupacion/calculo.js';
 import * as agrupacion from '../agrupacion/repositorio.js';
+import { recalcularEstado } from '../agrupacion/repositorio.js';
 import { insertarIncidente, transaccion } from '../reportes/repositorio.js';
+import { vigenciaDeCategoria } from '../reportes/servicio.js';
 import { esquemaId } from './esquemas.js';
 import { avisarCambioIncidente } from './eventos.js';
 
@@ -33,6 +35,8 @@ interface ReporteASeparar {
   lon: number;
   direccion: string | null;
   registradoEn: Date;
+  /** Cuándo llegó al servidor: desde ahí se cuenta la vigencia del incidente nuevo. */
+  llegadaEn: Date;
   /** El del área a la que se derivó su incidente o, si todavía no se derivó, el del área de su categoría. */
   organismoId: number;
 }
@@ -44,7 +48,8 @@ async function bloquearReporte(tx: Tx, id: number) {
            r.categoria_id AS "categoriaId", i.categoria_id AS "categoriaIncidenteId",
            r.estado_verificacion::text AS estado, r.severidad_declarada::text AS severidad,
            ST_Y(r.ubicacion::geometry) AS lat, ST_X(r.ubicacion::geometry) AS lon,
-           r.direccion, r.registrado_en AS "registradoEn", a.organismo_id AS "organismoId"
+           r.direccion, r.registrado_en AS "registradoEn",
+           coalesce(r.sincronizado_en, r.registrado_en) AS "llegadaEn", a.organismo_id AS "organismoId"
     FROM reporte r
     LEFT JOIN incidente i ON i.id = r.incidente_id
     JOIN categoria c ON c.id = coalesce(i.categoria_id, r.categoria_id)
@@ -55,12 +60,8 @@ async function bloquearReporte(tx: Tx, id: number) {
 }
 
 async function bloquearIncidente(tx: Tx, id: number) {
-  const [fila] = await tx.$queryRaw<
-    { tipoVigencia: 'PERMANENTE' | 'TEMPORAL'; vigenteHasta: Date | null; principalId: number | null }[]
-  >`
-    SELECT tipo_vigencia::text AS "tipoVigencia", vigente_hasta AS "vigenteHasta",
-           incidente_principal_id AS "principalId"
-    FROM incidente WHERE id = ${id} FOR UPDATE`;
+  const [fila] = await tx.$queryRaw<{ principalId: number | null }[]>`
+    SELECT incidente_principal_id AS "principalId" FROM incidente WHERE id = ${id} FOR UPDATE`;
   return fila!;
 }
 
@@ -86,13 +87,34 @@ async function primerReporteEn(tx: Tx, incidenteId: number) {
 }
 
 /**
+ * Si el incidente está en el punto del reporte que se fue (el que lo creó), pasa al punto y la dirección del
+ * reporte válido propio que llegó primero. Si no, se queda donde está: lo ubicó otro reporte.
+ */
+async function reubicarSiHaceFalta(tx: Tx, incidenteId: number, reporteSeparadoId: number) {
+  await tx.$executeRaw`
+    UPDATE incidente i
+    SET ubicacion = otro.ubicacion, direccion = otro.direccion
+    FROM (SELECT r.ubicacion, r.direccion
+          FROM reporte r
+          WHERE r.incidente_id = ${incidenteId} AND r.estado_verificacion <> 'DESESTIMADO'
+          ORDER BY r.id
+          LIMIT 1) otro
+    WHERE i.id = ${incidenteId}
+      AND ST_Equals(i.ubicacion::geometry,
+                    (SELECT s.ubicacion::geometry FROM reporte s WHERE s.id = ${reporteSeparadoId}))`;
+}
+
+/**
  * Saca un reporte que el sistema agrupó por error y lo deja solo en un incidente nuevo (F05). Lo hace un
  * operador u administrador del organismo del incidente. Todo en una transacción:
- * - El incidente nuevo toma la categoría, el punto, la dirección y la severidad del reporte, y la vigencia del
- *   original. Queda VERIFICADO si el reporte estaba verificado, o REGISTRADO si está pendiente, y sin área: el
- *   operador lo deriva de nuevo.
- * - El original conserva su estado; se le resta el reporte y se recalculan su severidad y su primer reporte.
- * - Los dos quedan con un movimiento SEPARACION que apunta al otro, y se avisa a la prioridad de los dos.
+ * - El incidente nuevo toma la categoría, el punto, la dirección y la severidad del reporte, y la vigencia de su
+ *   categoría desde que llegó el reporte (§7.6). Queda sin área: el operador lo deriva de nuevo.
+ * - Al original se le resta el reporte y se recalculan su severidad y su primer reporte. Si estaba en el punto
+ *   del reporte separado, pasa al del reporte que llegó primero de los que le quedan.
+ * - Los dos quedan con un movimiento SEPARACION que apunta al otro. Después, cada uno toma el estado que dicen
+ *   sus reportes (estadoSegunReportes), con un CAMBIO_ESTADO del sistema: el nuevo nace REGISTRADO y pasa a
+ *   VERIFICADO si el reporte lo estaba; el original vuelve a REGISTRADO si se le fue el único verificado.
+ * - Se avisa a la prioridad de los dos.
  */
 export async function separarReporte(sesion: UsuarioSesion, parametros: unknown, cuerpo: unknown) {
   const { id } = validar(esquemaId, parametros);
@@ -137,26 +159,25 @@ export async function separarReporte(sesion: UsuarioSesion, parametros: unknown,
       throw new ErrorApp(409, 'UNICO_REPORTE', 'Es el único reporte del incidente: no hay de qué separarlo');
     }
 
-    const estadoNuevo: EstadoIncidente = reporte.estado === 'VERIFICADO' ? 'VERIFICADO' : 'REGISTRADO';
+    const categoria = await tx.categoria.findUniqueOrThrow({ where: { id: reporte.categoriaId } });
     const nuevoId = await insertarIncidente(tx, {
       categoriaId: reporte.categoriaId,
       severidad: reporte.severidad,
       lat: reporte.lat,
       lon: reporte.lon,
-      tipoVigencia: original.tipoVigencia,
-      vigenteHasta: original.vigenteHasta,
+      ...(await vigenciaDeCategoria(categoria, reporte.llegadaEn)),
       primerReporteEn: reporte.registradoEn,
     });
     const ahora = new Date();
     await tx.incidente.update({
       where: { id: nuevoId },
-      data: { estado: estadoNuevo, direccion: reporte.direccion, cantidadReportes: 1, actualizadoEn: ahora },
+      data: { direccion: reporte.direccion, cantidadReportes: 1, actualizadoEn: ahora },
     });
     await tx.reporte.update({ where: { id }, data: { incidenteId: nuevoId } });
 
     // Ya sin el reporte separado: la severidad consolidada (#53) y el primer reporte son los de los que quedan.
     const severidad = severidadConsolidada(await agrupacion.severidadesDeclaradas(tx, originalId));
-    const quedan = await tx.incidente.update({
+    await tx.incidente.update({
       where: { id: originalId },
       data: {
         cantidadReportes: { decrement: 1 },
@@ -164,8 +185,8 @@ export async function separarReporte(sesion: UsuarioSesion, parametros: unknown,
         primerReporteEn: await primerReporteEn(tx, originalId),
         actualizadoEn: ahora,
       },
-      select: { cantidadReportes: true, severidad: true, estado: true },
     });
+    await reubicarSiHaceFalta(tx, originalId, id);
 
     const nota = comentario ? `: ${comentario}` : '';
     await tx.movimientoIncidente.createMany({
@@ -186,9 +207,16 @@ export async function separarReporte(sesion: UsuarioSesion, parametros: unknown,
         },
       ],
     });
+    const motivo = `Estado según sus reportes, después de separar el reporte #${id}`;
+    const estadoNuevo = await recalcularEstado(tx, nuevoId, motivo);
+    await recalcularEstado(tx, originalId, motivo);
     await avisarCambioIncidente(tx, originalId);
     await avisarCambioIncidente(tx, nuevoId);
 
+    const quedan = await tx.incidente.findUniqueOrThrow({
+      where: { id: originalId },
+      select: { cantidadReportes: true, severidad: true, estado: true },
+    });
     return {
       reporteId: id,
       incidenteNuevo: { id: nuevoId, estado: estadoNuevo, cantidadReportes: 1, severidad: reporte.severidad },

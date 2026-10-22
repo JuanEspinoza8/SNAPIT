@@ -14,7 +14,6 @@ import {
   noNegativo,
 } from '../../compartido/parametros.js';
 import { prisma } from '../../compartido/prisma.js';
-import { REPORTES_DEL_INCIDENTE } from '../incidentes/repositorio.js';
 import { calcularReputacion, type ParametrosVerificacion } from './calculo.js';
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se verifica igual con estos. Los valores de
@@ -179,13 +178,6 @@ export async function bloquearIncidente(tx: Tx, id: number) {
   const [fila] = await tx.$queryRaw<{ estado: EstadoIncidente }[]>`
     SELECT estado::text AS estado FROM incidente WHERE id = ${id} FOR UPDATE`;
   return fila!.estado;
-}
-
-/** Cuántos reportes no desestimados le quedan al incidente, contando los de los incidentes unidos. */
-export async function contarReportesValidos(tx: Tx, incidenteId: number) {
-  const [fila] = await tx.$queryRaw<{ cantidad: number }[]>`
-    SELECT count(*)::int AS cantidad ${REPORTES_DEL_INCIDENTE(incidenteId)}`;
-  return fila!.cantidad;
 }
 
 export function actualizarIncidente(

@@ -1,3 +1,4 @@
+import type { Categoria } from '@prisma/client';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { analizarFoto } from '../../compartido/analisisFoto.js';
 import { ErrorApp } from '../../compartido/errores.js';
@@ -83,6 +84,21 @@ async function diasVigenciaPorDefecto() {
   return DIAS_VIGENCIA_SI_FALTA;
 }
 
+/**
+ * La vigencia con que nace un incidente de la categoría (§7.6): un temporal (por ejemplo, una obra) vence solo
+ * a los días de su categoría, contados desde `desde`. La usan el alta y la separación de un reporte.
+ */
+export async function vigenciaDeCategoria(
+  categoria: Pick<Categoria, 'tipoVigenciaDefault' | 'diasCaducidadDefault'>,
+  desde: Date,
+): Promise<Pick<repositorio.NuevoIncidente, 'tipoVigencia' | 'vigenteHasta'>> {
+  if (categoria.tipoVigenciaDefault !== 'TEMPORAL') {
+    return { tipoVigencia: categoria.tipoVigenciaDefault, vigenteHasta: null };
+  }
+  const dias = categoria.diasCaducidadDefault ?? (await diasVigenciaPorDefecto());
+  return { tipoVigencia: 'TEMPORAL', vigenteHasta: new Date(desde.getTime() + dias * DIA_MS) };
+}
+
 export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: Buffer | undefined) {
   const imagen = archivo ? await analizarFoto(archivo) : null;
   const problemaFoto = !archivo
@@ -109,13 +125,8 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
   if (!categoria) throw datosInvalidos('categoriaId', 'No existe o no está activa');
   const sugerencia = await validarSugerencia(usuarioId, datos);
 
-  // Un incidente temporal (por ejemplo, una obra) vence solo: la base exige la fecha. Se cuenta desde
-  // que llega y no desde registradoEn: un celular con la hora atrasada lo haría nacer vencido.
-  let vigenteHasta: Date | null = null;
-  if (categoria.tipoVigenciaDefault === 'TEMPORAL') {
-    const dias = categoria.diasCaducidadDefault ?? (await diasVigenciaPorDefecto());
-    vigenteHasta = new Date(ahora.getTime() + dias * DIA_MS);
-  }
+  // Se cuenta desde que llega y no desde registradoEn: un celular con la hora atrasada lo haría nacer vencido.
+  const vigencia = await vigenciaDeCategoria(categoria, ahora);
 
   const parametrosAgrupacion = await agrupacion.leerParametros();
   // Antes de guardar: la foto todavía no está en la base, así que no se encuentra a sí misma como repetida.
@@ -148,7 +159,7 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
         registradoEn,
         sincronizadoEn: ahora,
       },
-      vigencia: { tipoVigencia: categoria.tipoVigenciaDefault, vigenteHasta },
+      vigencia,
       foto: {
         rutaArchivo,
         ancho: imagen!.ancho,

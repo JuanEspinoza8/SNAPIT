@@ -47,21 +47,30 @@ beforeEach(async () => {
 });
 
 /**
- * Un reporte en el punto del test. La foto es lisa: no trae EXIF (queda pendiente) y su hash no cuenta como
- * foto repetida. Todos los del mismo test caen en el mismo incidente: misma categoría, mismo punto (#53).
+ * Un reporte en el punto del test. La foto es lisa: su hash no cuenta como foto repetida. Desde la web, sin
+ * EXIF, queda pendiente; con la cámara de la app (`desdeLaApp`) se verifica sola (50 + 15). Todos los del
+ * mismo test caen en el mismo incidente: misma categoría, mismo punto (#53).
  */
-async function reportar(severidad: Severidad, registradoEn: string, cuadra = 0) {
+async function reportar(
+  severidad: Severidad,
+  registradoEn: string,
+  cuadra = 0,
+  opciones: { desdeLaApp?: boolean; corrimiento?: number; enCategoria?: Categoria } = {},
+) {
+  const { desdeLaApp = false, corrimiento = 0, enCategoria = categoria } = opciones;
   const vecino = await crearUsuario({ rol: 'VECINO' });
   vecinos.push(vecino.id);
   const res = await request(app)
     .post('/api/reportes')
     .set('Authorization', `Bearer ${crearTokenAcceso(vecino)}`)
-    .field('categoriaId', String(categoria.id))
+    .field('categoriaId', String(enCategoria.id))
     .field('severidadDeclarada', severidad)
-    // Otra cuadra (unos 110 m por cada una) ya no se agrupa: es otro incidente.
-    .field('lat', String(lat - cuadra * 0.001))
+    // Otra cuadra (unos 110 m por cada una) ya no se agrupa: es otro incidente. El corrimiento, en grados,
+    // mueve el punto dentro de la misma cuadra.
+    .field('lat', String(lat - cuadra * 0.001 - corrimiento))
     .field('lon', '-68.06')
-    .field('origen', 'SITIO_WEB')
+    .field('origen', desdeLaApp ? 'APP_MOVIL' : 'SITIO_WEB')
+    .field('tomadaConCamaraApp', String(desdeLaApp))
     .field('registradoEn', registradoEn)
     .attach('foto', await jpegLiso(128), 'foto.jpg');
   expect(res.status).toBe(201);
@@ -72,6 +81,24 @@ const separar = (id: number, cuerpo: object = {}, conToken = token) =>
   request(app).post(`/api/reportes/${id}/separacion`).set('Authorization', `Bearer ${conToken}`).send(cuerpo);
 
 const incidente = (id: number) => prisma.incidente.findUniqueOrThrow({ where: { id } });
+
+async function puntoDe(incidenteId: number) {
+  const [punto] = await prisma.$queryRaw<{ lat: number; lon: number }[]>`
+    SELECT ST_Y(ubicacion::geometry) AS lat, ST_X(ubicacion::geometry) AS lon FROM incidente WHERE id = ${incidenteId}`;
+  return punto!;
+}
+
+// PostGIS puede devolver la coordenada con un error en el último decimal: alcanza con que coincidan al milímetro.
+const cerca = (latEsperada: number) => ({
+  lat: expect.closeTo(latEsperada, 8),
+  lon: expect.closeTo(-68.06, 8),
+});
+
+const cambiosDeEstado = (incidenteId: number) =>
+  prisma.movimientoIncidente.findMany({
+    where: { incidenteId, tipo: 'CAMBIO_ESTADO' },
+    orderBy: { id: 'asc' },
+  });
 
 /** Une con la API (#54), para que el principal sume los contadores del duplicado como en la realidad. */
 async function unir(duplicadoId: number, principalId: number) {
@@ -168,18 +195,90 @@ describe('POST /api/reportes/:id/separacion', () => {
     expect(recalcular).toHaveBeenCalledWith(expect.anything(), res.body.incidenteNuevo.id);
   });
 
-  it('un reporte verificado se lleva un incidente verificado; el original conserva su estado', async () => {
-    const primero = await reportar('MODERADA', '2026-10-10T10:00:00Z');
+  it('el único reporte verificado se lleva el estado: el nuevo pasa a VERIFICADO y el original vuelve a REGISTRADO', async () => {
+    const verificado = await reportar('MODERADA', '2026-10-10T10:00:00Z', 0, { desdeLaApp: true });
     await reportar('MODERADA', '2026-10-11T10:00:00Z');
-    await prisma.reporte.update({ where: { id: primero.id }, data: { estadoVerificacion: 'VERIFICADO' } });
-    await prisma.incidente.update({ where: { id: primero.incidenteId }, data: { estado: 'VERIFICADO' } });
+    expect(await incidente(verificado.incidenteId)).toMatchObject({
+      estado: 'VERIFICADO',
+      cantidadReportes: 2,
+    });
+
+    const res = await separar(verificado.id);
+
+    expect(res.status).toBe(200);
+    const nuevoId = res.body.incidenteNuevo.id;
+    expect(res.body.incidenteNuevo.estado).toBe('VERIFICADO');
+    expect(res.body.incidenteOriginal.estado).toBe('REGISTRADO');
+    // Los dos cambios quedan en la bitácora como cambios del sistema, después de la SEPARACION.
+    expect(await cambiosDeEstado(nuevoId)).toEqual([
+      expect.objectContaining({ estadoAnterior: 'REGISTRADO', estadoNuevo: 'VERIFICADO', usuarioId: null }),
+    ]);
+    expect((await cambiosDeEstado(verificado.incidenteId)).at(-1)).toMatchObject({
+      estadoAnterior: 'VERIFICADO',
+      estadoNuevo: 'REGISTRADO',
+      usuarioId: null,
+    });
+  });
+
+  it('si al original le queda otro reporte verificado, sigue VERIFICADO', async () => {
+    const primero = await reportar('MODERADA', '2026-10-10T10:00:00Z', 0, { desdeLaApp: true });
+    await reportar('MODERADA', '2026-10-11T10:00:00Z', 0, { desdeLaApp: true });
 
     const res = await separar(primero.id);
 
     expect(res.status).toBe(200);
+    expect(res.body.incidenteOriginal.estado).toBe('VERIFICADO');
     expect(res.body.incidenteNuevo.estado).toBe('VERIFICADO');
-    expect((await incidente(res.body.incidenteNuevo.id)).estado).toBe('VERIFICADO');
-    expect((await incidente(primero.incidenteId)).estado).toBe('VERIFICADO');
+  });
+
+  it('si se separa el reporte que ubicó al incidente, el original pasa al punto del siguiente', async () => {
+    const primero = await reportar('MODERADA', '2026-10-10T10:00:00Z');
+    // A unos 5 m: se agrupa con el primero, pero en otro punto.
+    const segundo = await reportar('MODERADA', '2026-10-11T10:00:00Z', 0, { corrimiento: 0.00005 });
+    expect(segundo.incidenteId).toBe(primero.incidenteId);
+    await prisma.reporte.update({ where: { id: segundo.id }, data: { direccion: 'Belgrano 200, Centro' } });
+
+    const res = await separar(primero.id);
+
+    expect(res.status).toBe(200);
+    expect(await puntoDe(primero.incidenteId)).toEqual(cerca(lat - 0.00005));
+    expect((await incidente(primero.incidenteId)).direccion).toBe('Belgrano 200, Centro');
+    expect(await puntoDe(res.body.incidenteNuevo.id)).toEqual(cerca(lat));
+  });
+
+  it('si se separa otro reporte, el original se queda donde está', async () => {
+    const primero = await reportar('MODERADA', '2026-10-10T10:00:00Z');
+    const segundo = await reportar('MODERADA', '2026-10-11T10:00:00Z', 0, { corrimiento: 0.00005 });
+
+    await separar(segundo.id);
+
+    expect(await puntoDe(primero.incidenteId)).toEqual(cerca(lat));
+  });
+
+  it('el incidente nuevo toma la vigencia de su categoría, contada desde que llegó el reporte', async () => {
+    const temporal = await prisma.categoria.create({
+      data: {
+        nombre: `Obra ${randomUUID()}`,
+        areaId: categoria.areaId,
+        tipoVigenciaDefault: 'TEMPORAL',
+        diasCaducidadDefault: 10,
+      },
+    });
+    const primero = await reportar('MODERADA', '2026-10-10T10:00:00Z', 0, { enCategoria: temporal });
+    await reportar('MODERADA', '2026-10-11T10:00:00Z', 0, { enCategoria: temporal });
+    // El original se renovó (F12): el nuevo no se queda con esa renovación.
+    await prisma.incidente.update({
+      where: { id: primero.incidenteId },
+      data: { vigenteHasta: new Date('2027-01-01T00:00:00Z') },
+    });
+
+    const res = await separar(primero.id);
+
+    const { sincronizadoEn } = await prisma.reporte.findUniqueOrThrow({ where: { id: primero.id } });
+    expect(await incidente(res.body.incidenteNuevo.id)).toMatchObject({
+      tipoVigencia: 'TEMPORAL',
+      vigenteHasta: new Date(sincronizadoEn!.getTime() + 10 * 24 * 60 * 60 * 1000),
+    });
   });
 
   it('el incidente nuevo aparece en el mapa público', async () => {
