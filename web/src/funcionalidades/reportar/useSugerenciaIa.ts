@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCliente } from '../../compartido/red/clienteContexto.js';
 import { crearRepositorioIa } from '../../compartido/red/repositorioIa.js';
 import type { SugerenciaIa } from './tipos.js';
@@ -19,16 +19,24 @@ export function useSugerenciaIa() {
   const [estado, setEstado] = useState<EstadoSugerencia>({ tipo: 'sinFoto' });
   // Si el vecino cambia de foto mientras la IA analiza la anterior, esa respuesta se descarta.
   const ultima = useRef(0);
+  // El pedido en curso se corta si cambia la foto, si el vecino envía o si sale de la pantalla.
+  const enCurso = useRef<AbortController | null>(null);
+
+  useEffect(() => () => enCurso.current?.abort(), []);
 
   async function pedir(foto: File | null): Promise<SugerenciaIa | null> {
     const pedido = ++ultima.current;
+    enCurso.current?.abort();
+    enCurso.current = null;
     if (!foto) {
       setEstado({ tipo: 'sinFoto' });
       return null;
     }
+    const controlador = new AbortController();
+    enCurso.current = controlador;
     setEstado({ tipo: 'analizando' });
     try {
-      const sugerencia = await ia.clasificarFoto(foto);
+      const sugerencia = await ia.clasificarFoto(foto, controlador.signal);
       if (pedido !== ultima.current) return null;
       setEstado({ tipo: 'lista', sugerencia });
       return sugerencia;
