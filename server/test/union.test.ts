@@ -370,14 +370,15 @@ describe('DELETE /api/incidentes/:id/union', () => {
     const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z');
     const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z');
     await unir(duplicado.incidenteId, { principalId: principal.incidenteId });
-    // Se revisa sobre el principal, que sigue vivo con su propio reporte.
+    // Se revisa sobre el principal, que sigue vivo con su propio reporte. El desestimado se resta de los dos.
     await revisar(duplicado.id, 'DESESTIMADO');
-    expect((await foto(principal.incidenteId)).estado).toBe('REGISTRADO');
+    expect(await foto(principal.incidenteId)).toMatchObject({ estado: 'REGISTRADO', cantidadReportes: 1 });
+    expect((await foto(duplicado.incidenteId)).cantidadReportes).toBe(0);
 
     const res = await deshacer(duplicado.incidenteId);
 
     expect(res.status).toBe(200);
-    expect(res.body.principal.estado).toBe('REGISTRADO');
+    expect(res.body.principal).toMatchObject({ estado: 'REGISTRADO', cantidadReportes: 1 });
     expect((await foto(duplicado.incidenteId)).estado).toBe('DESESTIMADO');
     const cambio = await prisma.movimientoIncidente.findFirst({
       where: { incidenteId: duplicado.incidenteId, tipo: 'CAMBIO_ESTADO' },

@@ -141,12 +141,16 @@ export function cambiarEstadoReporte(tx: Tx, id: number, estado: EstadoVerificac
   return tx.reporte.update({ where: { id }, data: { estadoVerificacion: estado } });
 }
 
-/** Del reporte, lo que hace falta para aplicar su resultado: su vecino, su confianza y el incidente que manda. */
+/**
+ * Del reporte, lo que hace falta para aplicar su resultado: su vecino, su confianza, el incidente que manda y
+ * el suyo (distinto si se unió a otro).
+ */
 export async function leerReporte(tx: Tx, id: number) {
   const [fila] = await tx.$queryRaw<
-    { usuarioId: number; nivelConfianza: number; incidenteId: number | null }[]
+    { usuarioId: number; nivelConfianza: number; incidenteId: number | null; propioId: number | null }[]
   >`
-    SELECT r.usuario_id AS "usuarioId", r.nivel_confianza AS "nivelConfianza", i.id AS "incidenteId"
+    SELECT r.usuario_id AS "usuarioId", r.nivel_confianza AS "nivelConfianza", i.id AS "incidenteId",
+           propio.id AS "propioId"
     FROM reporte r
     LEFT JOIN incidente propio ON propio.id = r.incidente_id
     LEFT JOIN incidente i ON i.id = coalesce(propio.incidente_principal_id, propio.id)
@@ -171,6 +175,26 @@ export async function sumarAlHistorial(tx: Tx, usuarioId: number, decision: 'VER
     data: { reportesConfirmados: confirmados, reportesDesestimados: desestimados, reputacion },
   });
   return reputacion;
+}
+
+/**
+ * Bloquea los incidentes hasta que termine la transacción, en orden de id como la unión: una revisión y una
+ * unión de los mismos incidentes no se trancan entre sí.
+ */
+export async function bloquearIncidentes(tx: Tx, ids: number[]) {
+  await tx.$queryRaw`
+    SELECT id FROM incidente WHERE id IN (${Prisma.join([...new Set(ids)])}) ORDER BY id FOR UPDATE`;
+}
+
+/**
+ * Un reporte desestimado deja de contar en `cantidad_reportes` (decisión del 21/10): se le resta a su
+ * incidente y, si se unió a otro, también al principal, que sumaba los reportes del duplicado.
+ */
+export function restarReporte(tx: Tx, ids: number[]) {
+  return tx.incidente.updateMany({
+    where: { id: { in: [...new Set(ids)] } },
+    data: { cantidadReportes: { decrement: 1 } },
+  });
 }
 
 /** El estado del incidente, bloqueado hasta que termine la transacción. */

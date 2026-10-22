@@ -117,6 +117,8 @@ Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo m
    - pasa a `DESESTIMADO` cuando no le queda ningún reporte sin desestimar.
 
    Desestimar un reporte de un incidente que tiene otros reportes válidos no cambia su estado, pero sí recalcula su **severidad consolidada**, porque los desestimados no cuentan (ver la agrupación).
+
+   **Cantidad de reportes.** `cantidad_reportes` cuenta solo los reportes no desestimados, propios y de los unidos (decisión del 21/10). Un desestimado se resta del incidente del reporte y, si se unió a otro, también del principal.
 3. **Bitácora.** Un cambio de estado queda como `CAMBIO_ESTADO`, con el estado anterior y el nuevo. Una revisión del operador queda siempre, aunque el incidente no cambie: entonces como `COMENTARIO`. El texto dice qué reporte, quién lo decidió (el operador o "automáticamente", con su nivel de confianza) y el comentario del operador.
 4. **Prioridad.** Se avisa al módulo de prioridad (#61) para que recalcule el incidente.
 

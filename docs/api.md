@@ -408,7 +408,7 @@ Responde **200** con el resultado:
 }
 ```
 
-Actualiza la reputación del vecino, el estado del incidente y su bitácora, todo junto (ver "Resultado de la verificación y reputación del vecino" en `docs/calculos.md`). `incidente` es el principal si se unió a otro, y `null` si el reporte quedó sin incidente.
+Actualiza la reputación del vecino, el estado del incidente, su cantidad de reportes (un desestimado deja de contar) y su bitácora, todo junto (ver "Resultado de la verificación y reputación del vecino" en `docs/calculos.md`). `incidente` es el principal si se unió a otro, y `null` si el reporte quedó sin incidente.
 
 | Error | Cuándo |
 |---|---|
