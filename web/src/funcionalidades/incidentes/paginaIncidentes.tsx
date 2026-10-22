@@ -7,6 +7,8 @@ import { useCliente } from '../../compartido/red/clienteContexto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { crearRepositorioIncidentes } from '../../compartido/red/repositorioIncidentes.js';
 import { crearRepositorioReportes } from '../../compartido/red/repositorioReportes.js';
+import { ESTADOS } from '../mapa/estados.js';
+import type { EstadoVisible } from '../mapa/tipos.js';
 import { Modal } from '../revision/Modal.js';
 import { severidadEnTexto, type ReporteDelOrganismo } from '../revision/tipos.js';
 
@@ -232,16 +234,20 @@ export function PaginaIncidentes() {
       {accion?.tipo === 'unir' && (
         <Modal
           titulo={`Unir el incidente #${accion.incidente.id}`}
-          ancho="max-w-lg"
+          ancho="max-w-3xl"
           alCerrar={() => setAccion(null)}
         >
           <FormularioUnir
             incidente={accion.incidente}
             candidatos={principales.filter((i) => i.id !== accion.incidente.id && ABIERTOS.has(i.estado))}
+            tieneUnidos={(id) => unidosA(id).length > 0}
+            reportesDe={(incidente) =>
+              incidente.reportes.length + unidosA(incidente.id).reduce((n, u) => n + u.reportes.length, 0)
+            }
             enviando={unir.isPending}
             error={unir.isError ? unir.error : null}
-            alEnviar={(principalId, comentario) =>
-              unir.mutate({ id: accion.incidente.id, principalId, comentario })
+            alEnviar={(duplicadoId, principalId, comentario) =>
+              unir.mutate({ id: duplicadoId, principalId, comentario })
             }
           />
         </Modal>
@@ -342,12 +348,33 @@ function FormularioComentario(props: {
   );
 }
 
+// El principal no cambia de estado al unir: nunca puede quedar detrás del duplicado (D3, decisión del 21/10).
+const AVANCE: Record<string, number> = { REGISTRADO: 0, VERIFICADO: 1, DERIVADO: 2, EN_EJECUCION: 3 };
+
+const estadoEnTexto = (estado: string) =>
+  ESTADOS[estado as EstadoVisible]?.etiqueta ?? estado.toLowerCase().replace('_', ' ');
+
+/**
+ * Por qué `incidente` no puede quedar como principal si se une con `otro`, o null si puede. Un duplicado no
+ * puede ir más adelante que el principal ni tener otros unidos (las mismas reglas que el servidor).
+ */
+function impedimentoComoPrincipal(incidente: Incidente, otro: Incidente, otroTieneUnidos: boolean) {
+  if (otroTieneUnidos)
+    return `El #${otro.id} tiene otros incidentes unidos: tiene que quedar como principal.`;
+  if (AVANCE[otro.estado]! > AVANCE[incidente.estado]!) {
+    return `El #${otro.id} está más avanzado (${estadoEnTexto(otro.estado)}): tiene que quedar como principal.`;
+  }
+  return null;
+}
+
 function FormularioUnir(props: {
   incidente: Incidente;
   candidatos: Incidente[];
+  tieneUnidos: (id: number) => boolean;
+  reportesDe: (incidente: Incidente) => number;
   enviando: boolean;
   error: unknown;
-  alEnviar: (principalId: number, comentario: string) => void;
+  alEnviar: (duplicadoId: number, principalId: number, comentario: string) => void;
 }) {
   // Los más cercanos primero: lo normal es unir dos incidentes del mismo lugar.
   const candidatos = useMemo(
@@ -357,49 +384,156 @@ function FormularioUnir(props: {
         .sort((a, b) => a.distancia - b.distancia),
     [props.candidatos, props.incidente],
   );
-  const [principalId, setPrincipalId] = useState<number | null>(candidatos[0]?.candidato.id ?? null);
+  const [otroId, setOtroId] = useState<number | null>(candidatos[0]?.candidato.id ?? null);
+  // Null mientras el operador no elija: se propone el más avanzado.
+  const [elegido, setElegido] = useState<number | null>(null);
   const [comentario, setComentario] = useState('');
 
+  const este = props.incidente;
+  const otro = candidatos.find(({ candidato }) => candidato.id === otroId)?.candidato ?? null;
+  // Este incidente no tiene unidos: si los tuviera, no se ofrece unirlo a otro.
+  const impedimentos = otro
+    ? new Map([
+        [este.id, impedimentoComoPrincipal(este, otro, props.tieneUnidos(otro.id))],
+        [otro.id, impedimentoComoPrincipal(otro, este, false)],
+      ])
+    : new Map<number, string | null>();
+  const posibles = [este, otro].filter((i): i is Incidente => i !== null && !impedimentos.get(i.id));
+  // Si empatan, queda como principal el otro: es lo que dice el botón «Unir a otro…».
+  const sugerido = [...posibles].sort(
+    (a, b) => AVANCE[b.estado]! - AVANCE[a.estado]! || (a === otro ? -1 : 1),
+  )[0];
+  const principal = posibles.find((i) => i.id === elegido) ?? sugerido ?? null;
+  const duplicado = principal && otro ? (principal.id === este.id ? otro : este) : null;
+
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-texto-secundario">
-        Elegí el incidente principal: es el mismo problema. El #{props.incidente.id} deja de verse en el mapa
-        y sus reportes cuentan en el principal. Se puede deshacer.
-      </p>
+    <div className="space-y-4">
       {candidatos.length === 0 ? (
         <p className="text-sm text-texto-secundario">No hay otros incidentes abiertos para unir.</p>
       ) : (
-        <ul className="max-h-64 space-y-1 overflow-y-auto">
-          {candidatos.map(({ candidato, distancia }) => (
-            <li key={candidato.id}>
-              <label className="flex cursor-pointer items-center gap-2 rounded-md p-2 text-sm hover:bg-superficie-alterna">
-                <input
-                  type="radio"
-                  name="principal"
-                  checked={principalId === candidato.id}
-                  onChange={() => setPrincipalId(candidato.id)}
-                />
-                <span>
-                  <strong>#{candidato.id}</strong> · {candidato.categoria} · a {distanciaEnTexto(distancia)}
-                  <span className="block text-xs text-texto-secundario">
-                    {candidato.direccion ?? 'Sin dirección'}
+        <fieldset className="space-y-1">
+          <legend className="text-sm font-semibold text-texto">Con cuál es el mismo problema</legend>
+          <ul className="max-h-48 space-y-1 overflow-y-auto">
+            {candidatos.map(({ candidato, distancia }) => (
+              <li key={candidato.id}>
+                <label className="flex cursor-pointer items-center gap-2 rounded-md p-2 text-sm hover:bg-superficie-alterna">
+                  <input
+                    type="radio"
+                    name="otro"
+                    checked={otroId === candidato.id}
+                    onChange={() => {
+                      setOtroId(candidato.id);
+                      setElegido(null);
+                    }}
+                  />
+                  <span>
+                    <strong>#{candidato.id}</strong> · {candidato.categoria} ·{' '}
+                    {estadoEnTexto(candidato.estado)} · a {distanciaEnTexto(distancia)}
+                    <span className="block text-xs text-texto-secundario">
+                      {candidato.direccion ?? 'Sin dirección'}
+                    </span>
                   </span>
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </fieldset>
       )}
+
+      {otro && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-semibold text-texto">Cuál queda como principal</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[este, otro].map((incidente) => (
+              <FichaUnion
+                key={incidente.id}
+                incidente={incidente}
+                reportes={props.reportesDe(incidente)}
+                esPrincipal={principal?.id === incidente.id}
+                impedimento={impedimentos.get(incidente.id) ?? null}
+                alElegir={() => setElegido(incidente.id)}
+              />
+            ))}
+          </div>
+          {principal && duplicado ? (
+            <p className="text-sm text-texto-secundario">
+              El #{duplicado.id} deja de verse en el mapa y sus reportes cuentan en el #{principal.id}. Se
+              puede deshacer.
+            </p>
+          ) : (
+            <p className="text-sm text-peligro">
+              Estos dos no se pueden unir: el #{este.id} está más avanzado y el #{otro.id} tiene otros unidos.
+            </p>
+          )}
+        </fieldset>
+      )}
+
       <CampoComentario valor={comentario} alCambiar={setComentario} />
       {props.error != null && <AvisoError error={aErrorApi(props.error)} />}
       <button
         type="button"
-        disabled={props.enviando || principalId === null}
-        onClick={() => principalId !== null && props.alEnviar(principalId, comentario)}
+        disabled={props.enviando || !principal || !duplicado}
+        onClick={() => principal && duplicado && props.alEnviar(duplicado.id, principal.id, comentario)}
         className="w-full rounded-md bg-primario px-4 py-2 text-sm font-semibold text-sobre-primario hover:opacity-90 disabled:opacity-50"
       >
-        {props.enviando ? 'Uniendo…' : `Unir al #${principalId ?? '—'}`}
+        {props.enviando
+          ? 'Uniendo…'
+          : principal && duplicado
+            ? `Unir el #${duplicado.id} al #${principal.id}`
+            : 'Unir'}
       </button>
+    </div>
+  );
+}
+
+/** Uno de los dos incidentes, para compararlos lado a lado antes de unir. */
+function FichaUnion(props: {
+  incidente: Incidente;
+  reportes: number;
+  esPrincipal: boolean;
+  impedimento: string | null;
+  alElegir: () => void;
+}) {
+  const { incidente } = props;
+  const foto = incidente.reportes.find((reporte) => reporte.fotos.length > 0)?.fotos[0];
+  return (
+    <div
+      className={`space-y-2 rounded-md border p-3 ${props.esPrincipal ? 'border-primario' : 'border-borde'}`}
+    >
+      {foto ? (
+        <FotoConSesion
+          fotoId={foto.id}
+          className="h-32 w-full rounded object-cover"
+          siFalla={<div className="h-32 w-full rounded bg-borde" />}
+        />
+      ) : (
+        <div className="flex h-32 w-full items-center justify-center rounded bg-superficie-alterna text-sm text-texto-secundario">
+          Sin foto
+        </div>
+      )}
+      <div className="text-sm">
+        <p className="font-semibold text-texto">
+          #{incidente.id} · {incidente.categoria}
+        </p>
+        <p className="text-texto-secundario">
+          {estadoEnTexto(incidente.estado)} · {props.reportes} reporte(s)
+        </p>
+        <p className="text-texto-secundario">{incidente.direccion ?? 'Sin dirección todavía'}</p>
+      </div>
+      <label
+        className={`flex items-center gap-2 text-sm ${props.impedimento ? 'text-texto-secundario' : 'cursor-pointer text-texto'}`}
+      >
+        <input
+          type="radio"
+          name="principal"
+          aria-label={`El #${incidente.id} queda como principal`}
+          checked={props.esPrincipal}
+          disabled={props.impedimento !== null}
+          onChange={props.alElegir}
+        />
+        Queda como principal
+      </label>
+      {props.impedimento && <p className="text-xs text-texto-secundario">{props.impedimento}</p>}
     </div>
   );
 }

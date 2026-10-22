@@ -10,7 +10,7 @@ import { renderRuta } from './apoyo.js';
 function reporte(
   id: number,
   incidente: { id: number; propioId?: number },
-  datos: { lat?: number; categoria?: string; registradoEn?: string } = {},
+  datos: { lat?: number; categoria?: string; registradoEn?: string; estado?: string } = {},
 ): ReporteDelOrganismo {
   return {
     id,
@@ -27,7 +27,7 @@ function reporte(
     fotos: [],
     incidente: {
       id: incidente.id,
-      estado: 'VERIFICADO',
+      estado: datos.estado ?? 'VERIFICADO',
       cantidadReportes: 1,
       propioId: incidente.propioId ?? incidente.id,
     },
@@ -130,14 +130,63 @@ describe('corregir la agrupación de incidentes (F05)', () => {
 
     await usuario.click(within(incidente).getByRole('button', { name: 'Unir a otro…' }));
 
-    const opciones = screen.getAllByRole('radio');
-    expect(opciones[0]).toBeChecked();
+    expect(screen.getByRole('radio', { name: /^#40 ·/ })).toBeChecked();
     expect(screen.getByText(/a 300 m/)).toBeInTheDocument();
-    await usuario.click(screen.getByRole('button', { name: 'Unir al #40' }));
+    // Con el mismo estado, queda como principal el otro: es lo que dice «Unir a otro…».
+    expect(screen.getByRole('radio', { name: 'El #40 queda como principal' })).toBeChecked();
+    await usuario.click(screen.getByRole('button', { name: 'Unir el #30 al #40' }));
 
     expect(await screen.findByText(/El incidente #30 quedó unido al #40/)).toBeInTheDocument();
     expect(pedidos).toEqual([
       { metodo: 'POST', ruta: '/api/incidentes/30/union', cuerpo: { principalId: 40 } },
+    ]);
+  });
+
+  it('antes de unir muestra los dos lado a lado y deja elegir cuál queda como principal', async () => {
+    const usuario = userEvent.setup();
+    renderRuta('/incidentes', <PaginaIncidentes />);
+
+    await usuario.click(within(await tarjeta(30)).getByRole('button', { name: 'Unir a otro…' }));
+
+    const dialogo = screen.getByRole('dialog');
+    expect(within(dialogo).getByText('#30 · Pozo en la calzada')).toBeInTheDocument();
+    expect(within(dialogo).getByText('#40 · Pozo en la calzada')).toBeInTheDocument();
+    expect(within(dialogo).getAllByText('Verificado · 1 reporte(s)')).toHaveLength(2);
+    await usuario.click(screen.getByRole('radio', { name: 'El #30 queda como principal' }));
+    await usuario.click(screen.getByRole('button', { name: 'Unir el #40 al #30' }));
+
+    expect(await screen.findByText(/El incidente #40 quedó unido/)).toBeInTheDocument();
+    expect(pedidos).toEqual([
+      { metodo: 'POST', ruta: '/api/incidentes/40/union', cuerpo: { principalId: 30 } },
+    ]);
+  });
+
+  it('propone como principal al más avanzado y no deja unirlo como duplicado (D3)', async () => {
+    servidor.use(
+      http.get('*/api/reportes', () =>
+        HttpResponse.json({
+          reportes: [
+            reporte(4, { id: 30 }, { lat: -38.9, estado: 'DERIVADO' }),
+            reporte(5, { id: 40 }, { lat: -38.9027 }),
+          ],
+        }),
+      ),
+    );
+    const usuario = userEvent.setup();
+    renderRuta('/incidentes', <PaginaIncidentes />);
+
+    await usuario.click(within(await tarjeta(30)).getByRole('button', { name: 'Unir a otro…' }));
+
+    expect(screen.getByRole('radio', { name: 'El #30 queda como principal' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'El #40 queda como principal' })).toBeDisabled();
+    expect(
+      screen.getByText('El #30 está más avanzado (Derivado al área): tiene que quedar como principal.'),
+    ).toBeInTheDocument();
+    await usuario.click(screen.getByRole('button', { name: 'Unir el #40 al #30' }));
+
+    await screen.findByText(/El incidente #40 quedó unido/);
+    expect(pedidos).toEqual([
+      { metodo: 'POST', ruta: '/api/incidentes/40/union', cuerpo: { principalId: 30 } },
     ]);
   });
 
@@ -165,7 +214,7 @@ describe('corregir la agrupación de incidentes (F05)', () => {
     renderRuta('/incidentes', <PaginaIncidentes />);
 
     await usuario.click(within(await tarjeta(30)).getByRole('button', { name: 'Unir a otro…' }));
-    await usuario.click(screen.getByRole('button', { name: 'Unir al #40' }));
+    await usuario.click(screen.getByRole('button', { name: 'Unir el #30 al #40' }));
 
     expect(await screen.findByText('Alguno de los dos está cerrado')).toBeInTheDocument();
   });
