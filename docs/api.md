@@ -611,6 +611,61 @@ Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA
 - Si el token venció o no es válido, responde **401** (`TOKEN_VENCIDO` o `TOKEN_INVALIDO`) aunque la foto sea del mapa: el cliente renueva la sesión y la vuelve a pedir.
 - Caché de una hora: `Cache-Control: public, max-age=3600` sin sesión y `private, max-age=3600` con sesión (solo la guarda el navegador de quien la pidió). Todas llevan `Vary: Authorization`.
 
+## Prioridad
+
+### `PUT /api/incidentes/:id/prioridad-manual`
+Un operador fija a mano la prioridad del incidente, con un motivo (F07). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, y el incidente tiene que ser de su organismo (el del área a la que se derivó o, si todavía no se derivó, el del área de su categoría).
+
+```json
+{ "valor": 80, "motivo": "Obra programada para la semana que viene" }
+```
+
+- `valor`: número entre 0 y 9999,99. Se guarda con dos decimales.
+- `motivo`: obligatorio, hasta 1000 caracteres.
+
+La prioridad calculada no se pisa: `puntajePrioridad` sigue siendo la del sistema, el desglose suma un factor `AJUSTE_MANUAL` con la diferencia y la bandeja ordena por la manual. Si ya había un ajuste, lo reemplaza. Queda un movimiento `AJUSTE_PRIORIDAD` en la bitácora, con el autor, el valor, la calculada y el motivo.
+
+Responde **200** con la prioridad y su desglose:
+
+```json
+{
+  "id": 7,
+  "puntajePrioridad": 46.25,
+  "prioridadManual": 80,
+  "motivoPrioridadManual": "Obra programada para la semana que viene",
+  "ajustadaPor": { "id": 3, "nombre": "Juan Pérez" },
+  "factores": [
+    { "factor": "SEVERIDAD", "valor": 40, "detalle": "Gravedad moderada en Pozo en la calzada, una categoría que pesa ×1,5: +40" },
+    { "factor": "EVIDENCIAS", "valor": 6.25, "detalle": "Lo reportaron 1 vez: +6,3" },
+    { "factor": "ANTIGUEDAD", "valor": 0, "detalle": "Lleva menos de un día sin resolverse: +0" },
+    { "factor": "CONTEXTO_URBANO", "valor": 0, "detalle": "Sin escuelas, centros de salud, paradas ni edificios públicos a menos de 150 m: +0" },
+    { "factor": "AJUSTE_MANUAL", "valor": 33.75, "detalle": "Ajuste manual de Juan Pérez (Obra programada para la semana que viene): +33,8" }
+  ]
+}
+```
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | Falta el motivo o el valor, o el valor no es un número entre 0 y 9999,99 |
+| 403 `SIN_PERMISO` | El incidente es de otro organismo |
+| 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+| 409 `INCIDENTE_UNIDO` | El incidente está unido a otro: se ajusta el principal |
+| 409 `INCIDENTE_CERRADO` | El incidente está resuelto, desestimado o caducado |
+| 409 `INCIDENTE_NO_VERIFICADO` | El incidente sigue `REGISTRADO`: solo se ajustan los `VERIFICADO`, `DERIVADO` o `EN_EJECUCION` |
+
+### `DELETE /api/incidentes/:id/prioridad-manual`
+Quita el ajuste: el incidente vuelve a ordenarse por la prioridad calculada y el desglose pierde el factor `AJUSTE_MANUAL`. Mismos permisos que fijarla. Se puede quitar aunque el incidente haya vuelto a `REGISTRADO`. Queda un movimiento `AJUSTE_PRIORIDAD` en la bitácora.
+
+Responde **200** con la misma forma que el `PUT`, con `prioridadManual`, `motivoPrioridadManual` y `ajustadaPor` en `null`.
+
+| Error | Cuándo |
+|---|---|
+| 403 `SIN_PERMISO` | El incidente es de otro organismo |
+| 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+| 409 `INCIDENTE_UNIDO` | El incidente está unido a otro |
+| 409 `INCIDENTE_CERRADO` | El incidente está resuelto, desestimado o caducado |
+| 409 `SIN_PRIORIDAD_MANUAL` | El incidente no tiene una prioridad fijada a mano |
+
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
 
