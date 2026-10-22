@@ -26,6 +26,7 @@ import { IaNoDisponible } from './servicio.js';
 interface ProcesoEnCurso {
   id: string;
   total: number;
+  iniciadoEn: Date;
   /** Se cumple cuando termina el procesamiento. Nunca falla: cada error queda como un evento. */
   terminado: Promise<void>;
 }
@@ -55,7 +56,7 @@ export async function iniciarProceso(sesion: UsuarioSesion) {
   }
   // Se reserva el lugar antes de cualquier await: dos pedidos a la vez no arrancan dos procesamientos.
   const id = randomUUID();
-  const proceso: ProcesoEnCurso = { id, total: 0, terminado: Promise.resolve() };
+  const proceso: ProcesoEnCurso = { id, total: 0, iniciadoEn: new Date(), terminado: Promise.resolve() };
   enCurso.set(organismoId, proceso);
 
   let pendientes: Pendiente[];
@@ -210,12 +211,18 @@ export async function verProceso(sesion: UsuarioSesion, parametros: unknown) {
   const organismoId = organismoDe(sesion);
   const { id } = validar(esquemaProceso, parametros);
   const filas = await repositorio.eventosDelProceso(id);
-  if (filas.length === 0) throw new ErrorApp(404, 'PROCESO_NO_ENCONTRADO', 'El procesamiento no existe');
-  if (filas[0]!.organismoId !== organismoId) {
+  // Recién arrancado todavía no guardó ningún paso: existe igual, porque está en memoria. Si no, la web, que
+  // pide el log apenas recibe el 202, vería un 404.
+  const enMemoria = [...enCurso.entries()].find(([, proceso]) => proceso.id === id);
+  const organismoDelProceso = filas[0]?.organismoId ?? enMemoria?.[0];
+  if (organismoDelProceso === undefined) {
+    throw new ErrorApp(404, 'PROCESO_NO_ENCONTRADO', 'El procesamiento no existe');
+  }
+  if (organismoDelProceso !== organismoId) {
     throw new ErrorApp(403, 'SIN_PERMISO', 'El procesamiento es de otro organismo');
   }
 
-  const actual = [...enCurso.values()].find((proceso) => proceso.id === id);
+  const actual = enMemoria?.[1];
   // El último paso de cada reporte dice en qué terminó.
   const finales = new Map<number, string>();
   for (const fila of filas) if (FINALES.has(fila.estado)) finales.set(fila.reporteId, fila.estado);
@@ -231,7 +238,7 @@ export async function verProceso(sesion: UsuarioSesion, parametros: unknown) {
   return {
     id,
     enCurso: actual !== undefined,
-    iniciadoEn: filas[0]!.creadoEn,
+    iniciadoEn: filas[0]?.creadoEn ?? actual!.iniciadoEn,
     eventos: filas.map((fila) => ({
       id: fila.id,
       creadoEn: fila.creadoEn,
