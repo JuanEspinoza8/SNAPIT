@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:snapit/funcionalidades/mapa/ubicacion.dart';
+import 'package:snapit/funcionalidades/reportar/borrador_reporte.dart';
 import 'package:snapit/funcionalidades/reportar/pantalla_elegir_punto.dart';
 import 'package:snapit/funcionalidades/reportar/selector_foto.dart';
 
@@ -25,6 +27,8 @@ const categoriasJson = {
 /// El servidor de una sesión de vecino. Los reportes que recibe aparecen en
 /// `GET /incidentes` y en `GET /reportes/mios`, como en el servidor real.
 /// [reportes] decide qué contesta `POST /reportes`; por defecto, 201.
+/// [sugerencia] decide qué contesta `POST /ia/clasificar-foto`; por defecto,
+/// 503, como un servidor sin clave de la IA.
 class ServidorDeReportes {
   ServidorDeReportes() {
     servidor = ServidorFalso(_responder);
@@ -33,6 +37,7 @@ class ServidorDeReportes {
   late final ServidorFalso servidor;
   Future<ResponseBody> Function(RequestOptions pedido)? reportes;
   Future<ResponseBody> Function(RequestOptions pedido)? categorias;
+  Future<ResponseBody> Function(RequestOptions pedido)? sugerencia;
   final incidentes = <Map<String, Object?>>[];
   final mios = <Map<String, Object?>>[];
 
@@ -51,6 +56,9 @@ class ServidorDeReportes {
         return json(200, {'incidentes': incidentes});
       case '/reportes/mios':
         return json(200, {'reportes': mios});
+      case '/ia/clasificar-foto':
+        return sugerencia?.call(pedido) ??
+            errorApi(503, 'IA_NO_DISPONIBLE', 'La IA no está disponible');
       case '/reportes':
         if (reportes case final responder?) return responder(pedido);
         final campos = Map.fromEntries((pedido.data as FormData).fields);
@@ -91,6 +99,16 @@ class ServidorDeReportes {
 
 Map<String, String> campos(FormData formulario) =>
     Map.fromEntries(formulario.fields);
+
+Future<ResponseBody> sugiere(
+  int categoriaId,
+  String severidad, {
+  int registroIaId = 41,
+}) => json(200, {
+  'categoriaId': categoriaId,
+  'severidad': severidad,
+  'registroIaId': registroIaId,
+});
 
 void main() {
   late Directory carpeta;
@@ -161,6 +179,16 @@ void main() {
 
   Future<void> enviar(WidgetTester tester) =>
       tocar(tester, find.text('Enviar reporte'));
+
+  /// Como [tocar], pero sin esperar a que todo quede quieto: mientras se busca
+  /// la sugerencia, la rueda de carga no para.
+  Future<void> tocarMientrasBusca(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder);
+    await tester.pump();
+    await tester.tap(finder);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+  }
 
   group('ubicación', () {
     testWidgets('sin permiso explica qué hacer y no deja enviar', (
@@ -429,6 +457,227 @@ void main() {
       await tocar(tester, find.text('Galería'));
       expect(find.text('Tiene que ser una imagen JPG o PNG'), findsNothing);
       expect(find.text('No existe o no está activa'), findsOneWidget);
+    });
+  });
+
+  group('sugerencia de la IA', () {
+    final buscando = find.textContaining('Buscando una sugerencia');
+    final noDisponible = find.text(
+      'No se pudo sugerir la categoría y la gravedad. Elegilas vos.',
+    );
+    final marcas = find.text('Sugerido');
+    Finder enCategoria(String texto) =>
+        find.descendant(of: campoCategoria, matching: find.text(texto));
+    Set<Severidad> gravedad(WidgetTester tester) => tester
+        .widget<SegmentedButton<Severidad>>(
+          find.byType(SegmentedButton<Severidad>),
+        )
+        .selected;
+
+    testWidgets('completa categoría y gravedad como «Sugerido» y las envía '
+        'con su registro', (tester) async {
+      final servidor = ServidorDeReportes()
+        ..sugerencia = (_) => sugiere(3, 'MODERADA');
+      await abrirReportar(tester, servidor);
+
+      await tocar(tester, find.text('Sacar foto'));
+
+      expect(servidor.servidor.cantidad('/ia/clasificar-foto'), 1);
+      expect(enCategoria('Cordón sin rampa'), findsOneWidget);
+      expect(enCategoria('Sugerido'), findsOneWidget);
+      expect(gravedad(tester), {Severidad.moderada});
+      expect(marcas, findsNWidgets(2));
+      expect(
+        find.textContaining('Lo marcado como «Sugerido» sale de la foto'),
+        findsOneWidget,
+      );
+
+      await enviar(tester);
+
+      final enviado = campos(servidor.enviados.single);
+      expect(enviado['categoriaId'], '3');
+      expect(enviado['severidadDeclarada'], 'MODERADA');
+      expect(enviado['categoriaSugeridaId'], '3');
+      expect(enviado['severidadSugerida'], 'MODERADA');
+      expect(enviado['registroIaId'], '41');
+    });
+
+    testWidgets('cambiar lo sugerido le quita la marca, y la sugerencia se '
+        'envía igual', (tester) async {
+      final servidor = ServidorDeReportes()
+        ..sugerencia = (_) => sugiere(3, 'MODERADA');
+      await abrirReportar(tester, servidor);
+      await tocar(tester, find.text('Sacar foto'));
+
+      await tocar(tester, campoCategoria);
+      await tester.tap(find.text('Bache').last);
+      await tester.pumpAndSettle();
+
+      expect(enCategoria('Sugerido'), findsNothing);
+      // La gravedad sigue como la sugirió.
+      expect(marcas, findsOneWidget);
+      await enviar(tester);
+      final enviado = campos(servidor.enviados.single);
+      expect(enviado['categoriaId'], '1');
+      expect(enviado['severidadDeclarada'], 'MODERADA');
+      expect(enviado['categoriaSugeridaId'], '3');
+      expect(enviado['severidadSugerida'], 'MODERADA');
+    });
+
+    final sinIa = <(String, Future<ResponseBody> Function(RequestOptions))>[
+      (
+        'la IA no está disponible (503)',
+        (_) => errorApi(503, 'IA_NO_DISPONIBLE', 'La IA no está disponible'),
+      ),
+      ('no hay conexión', sinConexion),
+      (
+        'el servidor rechaza la foto (400)',
+        (_) => errorApi(400, 'DATOS_INVALIDOS', 'Hay datos inválidos'),
+      ),
+    ];
+    for (final (caso, responder) in sinIa) {
+      testWidgets('si $caso, lo dice y el reporte se envía a mano', (
+        tester,
+      ) async {
+        final servidor = ServidorDeReportes()..sugerencia = responder;
+        await abrirReportar(tester, servidor);
+
+        await completar(tester);
+
+        expect(noDisponible, findsOneWidget);
+        expect(marcas, findsNothing);
+        await enviar(tester);
+        expect(find.text('Reporte enviado'), findsOneWidget);
+        final enviado = campos(servidor.enviados.single);
+        expect(enviado['categoriaId'], '1');
+        expect(enviado['severidadDeclarada'], 'GRAVE');
+        for (final campo in [
+          'categoriaSugeridaId',
+          'severidadSugerida',
+          'registroIaId',
+        ]) {
+          expect(enviado.containsKey(campo), isFalse, reason: campo);
+        }
+      });
+    }
+
+    testWidgets('sin esperar la sugerencia se puede enviar, y si llega tarde '
+        'no cambia nada', (tester) async {
+      final respuesta = Completer<ResponseBody>();
+      final servidor = ServidorDeReportes()
+        ..sugerencia = (_) => respuesta.future;
+      await abrirReportar(tester, servidor);
+
+      await tocarMientrasBusca(tester, find.text('Sacar foto'));
+      expect(buscando, findsOneWidget);
+      await tocarMientrasBusca(tester, campoCategoria);
+      await tocarMientrasBusca(tester, find.text('Bache').last);
+      await tocarMientrasBusca(tester, find.text('Grave'));
+      await tocarMientrasBusca(tester, find.text('Enviar reporte'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Reporte enviado'), findsOneWidget);
+      final enviado = campos(servidor.enviados.single);
+      expect(enviado['categoriaId'], '1');
+      expect(enviado.containsKey('registroIaId'), isFalse);
+
+      // La respuesta llega cuando el reporte ya salió.
+      respuesta.complete(sugiere(3, 'MODERADA'));
+      await tester.pumpAndSettle();
+      await tocar(tester, find.text('Reportar otro problema'));
+
+      expect(buscando, findsNothing);
+      expect(marcas, findsNothing);
+      expect(enCategoria('Cordón sin rampa'), findsNothing);
+      expect(gravedad(tester), isEmpty);
+    });
+
+    testWidgets('no pisa lo que el vecino eligió mientras esperaba', (
+      tester,
+    ) async {
+      final respuesta = Completer<ResponseBody>();
+      final servidor = ServidorDeReportes()
+        ..sugerencia = (_) => respuesta.future;
+      await abrirReportar(tester, servidor);
+      await tocarMientrasBusca(tester, find.text('Sacar foto'));
+      await tocarMientrasBusca(tester, campoCategoria);
+      await tocarMientrasBusca(tester, find.text('Bache').last);
+
+      respuesta.complete(sugiere(3, 'GRAVE'));
+      await tester.pumpAndSettle();
+
+      expect(enCategoria('Bache'), findsOneWidget);
+      expect(enCategoria('Sugerido'), findsNothing);
+      expect(gravedad(tester), {Severidad.grave});
+      expect(marcas, findsOneWidget);
+      await enviar(tester);
+      final enviado = campos(servidor.enviados.single);
+      expect(enviado['categoriaId'], '1');
+      expect(enviado['categoriaSugeridaId'], '3');
+    });
+
+    testWidgets('otra foto pide otra sugerencia y deja lo que eligió el '
+        'vecino', (tester) async {
+      var pedidos = 0;
+      final servidor = ServidorDeReportes()
+        ..sugerencia = (_) => ++pedidos == 1
+            ? sugiere(3, 'MODERADA')
+            : sugiere(1, 'GRAVE', registroIaId: 42);
+      await abrirReportar(tester, servidor);
+      await tocar(tester, find.text('Sacar foto'));
+      // El vecino corrige la gravedad; la categoría queda como la sugirió.
+      await tocar(tester, find.text('Leve'));
+
+      await tocar(tester, find.text('Galería'));
+
+      expect(servidor.servidor.cantidad('/ia/clasificar-foto'), 2);
+      expect(enCategoria('Bache'), findsOneWidget);
+      expect(enCategoria('Sugerido'), findsOneWidget);
+      expect(gravedad(tester), {Severidad.leve});
+      expect(marcas, findsOneWidget);
+      await enviar(tester);
+      final enviado = campos(servidor.enviados.single);
+      expect(enviado['categoriaId'], '1');
+      expect(enviado['severidadDeclarada'], 'LEVE');
+      expect(enviado['categoriaSugeridaId'], '1');
+      expect(enviado['severidadSugerida'], 'GRAVE');
+      expect(enviado['registroIaId'], '42');
+    });
+
+    testWidgets('si cambia la foto mientras busca, vale la sugerencia de la '
+        'última', (tester) async {
+      final primera = Completer<ResponseBody>();
+      var pedidos = 0;
+      final servidor = ServidorDeReportes()
+        ..sugerencia = (_) =>
+            ++pedidos == 1 ? primera.future : sugiere(1, 'LEVE');
+      await abrirReportar(tester, servidor);
+      await tocarMientrasBusca(tester, find.text('Sacar foto'));
+
+      await tocarMientrasBusca(tester, find.text('Galería'));
+      primera.complete(sugiere(3, 'GRAVE'));
+      await tester.pumpAndSettle();
+
+      expect(enCategoria('Bache'), findsOneWidget);
+      expect(gravedad(tester), {Severidad.leve});
+      expect(marcas, findsNWidgets(2));
+      expect(noDisponible, findsNothing);
+    });
+
+    testWidgets('una categoría que no está en la lista no se completa', (
+      tester,
+    ) async {
+      final servidor = ServidorDeReportes()
+        ..sugerencia = (_) => sugiere(99, 'GRAVE');
+      await abrirReportar(tester, servidor);
+
+      await tocar(tester, find.text('Sacar foto'));
+      await enviar(tester);
+
+      expect(enCategoria('Elegí una'), findsOneWidget);
+      expect(find.text('Elegí una categoría'), findsOneWidget);
+      expect(gravedad(tester), {Severidad.grave});
+      expect(servidor.enviados, isEmpty);
     });
   });
 

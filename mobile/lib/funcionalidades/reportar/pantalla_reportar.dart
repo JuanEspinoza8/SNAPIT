@@ -219,9 +219,11 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
               alElegir: _elegirFoto,
             ),
             _ErrorCampo(_errorFoto ?? errorDe(CampoReporte.foto)),
+            _AvisoSugerencia(borrador),
             const SizedBox(height: Espacio.xl),
             _CampoCategoria(
               elegida: borrador.categoriaId,
+              sugerida: borrador.categoriaEsSugerida,
               error: errorDe(CampoReporte.categoria),
               alElegir: (id) {
                 _reporte.ponerCategoria(id);
@@ -255,7 +257,13 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
                 setState(() => _erroresServidor.remove(CampoReporte.severidad));
               },
             ),
-            _ErrorCampo(errorDe(CampoReporte.severidad)),
+            if (errorDe(CampoReporte.severidad) case final error?)
+              _ErrorCampo(error)
+            else if (borrador.severidadEsSugerida)
+              const Padding(
+                padding: EdgeInsets.only(top: Espacio.sm),
+                child: _MarcaSugerido(),
+              ),
             const SizedBox(height: Espacio.xl),
             TextField(
               controller: _descripcion,
@@ -448,14 +456,104 @@ class _SeccionFoto extends StatelessWidget {
   }
 }
 
+/// Qué pasa con la sugerencia de la foto, debajo de la foto.
+class _AvisoSugerencia extends StatelessWidget {
+  const _AvisoSugerencia(this.borrador);
+
+  final BorradorReporte borrador;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final (Widget, String)? aviso = switch (borrador.estadoSugerencia) {
+      EstadoSugerencia.buscando => (
+        const SizedBox.square(
+          dimension: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        'Buscando una sugerencia de categoría y gravedad. Mientras tanto '
+            'podés completar el resto.',
+      ),
+      EstadoSugerencia.noDisponible => (
+        Icon(
+          Icons.info_outline,
+          size: 20,
+          color: tema.colorScheme.onSurfaceVariant,
+        ),
+        'No se pudo sugerir la categoría y la gravedad. Elegilas vos.',
+      ),
+      EstadoSugerencia.lista
+          when borrador.categoriaEsSugerida || borrador.severidadEsSugerida =>
+        (
+          Icon(
+            Icons.lightbulb_outline,
+            size: 20,
+            color: tema.colorScheme.primary,
+          ),
+          'Lo marcado como «Sugerido» sale de la foto. Si no coincide con el '
+              'problema, cambialo.',
+        ),
+      _ => null,
+    };
+    if (aviso == null) return const SizedBox.shrink();
+    final (icono, texto) = aviso;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: Espacio.md),
+      child: Semantics(
+        liveRegion: true,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            icono,
+            const SizedBox(width: Espacio.md),
+            Expanded(
+              child: Text(
+                texto,
+                style: tema.textTheme.bodySmall?.copyWith(
+                  color: tema.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Un campo que completó la sugerencia: ícono y texto, no solo color.
+class _MarcaSugerido extends StatelessWidget {
+  const _MarcaSugerido();
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final color = tema.colorScheme.primary;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.lightbulb_outline, size: Espacio.lg, color: color),
+        const SizedBox(width: Espacio.xs),
+        Text(
+          'Sugerido',
+          style: tema.textTheme.bodySmall?.copyWith(color: color),
+        ),
+      ],
+    );
+  }
+}
+
 class _CampoCategoria extends ConsumerWidget {
   const _CampoCategoria({
     required this.elegida,
+    required this.sugerida,
     required this.error,
     required this.alElegir,
   });
 
   final int? elegida;
+  final bool sugerida;
   final String? error;
   final ValueChanged<int> alElegir;
 
@@ -496,7 +594,11 @@ class _CampoCategoria extends ConsumerWidget {
       key: ValueKey(valor),
       initialValue: valor,
       isExpanded: true,
-      decoration: InputDecoration(labelText: etiqueta, errorText: error),
+      decoration: InputDecoration(
+        labelText: etiqueta,
+        errorText: error,
+        helper: sugerida && valor != null ? const _MarcaSugerido() : null,
+      ),
       hint: const Text('Elegí una'),
       items: [
         for (final categoria in lista)
