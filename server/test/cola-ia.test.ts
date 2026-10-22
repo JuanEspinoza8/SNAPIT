@@ -8,7 +8,7 @@ import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { clasificarImagen, type Clasificacion } from '../src/modulos/ia/clasificarFoto.js';
 import { esperarProceso } from '../src/modulos/ia/cola.js';
 import { IaNoDisponible } from '../src/modulos/ia/servicio.js';
-import { modoDemostracion } from '../src/modulos/verificacion/repositorio.js';
+import { leerParametros, modoDemostracion } from '../src/modulos/verificacion/repositorio.js';
 import { borrarReportesDe, crearUsuario } from './apoyo.js';
 import { EXIF_DE_PRUEBA, fotoUnica, jpegConExif, jpegLiso } from './imagenes.js';
 
@@ -63,8 +63,12 @@ beforeEach(async () => {
   lat = -38.9 - Math.random() * 0.05;
 });
 
-/** Un reporte pendiente (foto de galería sin EXIF), en su propia cuadra para que no se agrupe. */
-async function reportar(severidad: Severidad, cuadra: number) {
+/**
+ * Un reporte pendiente (foto de galería sin EXIF), en su propia cuadra para que no se agrupe. Salvo que se
+ * pida lo contrario, queda con confianza 85: es lo que manda a la cola el modo demostración, un reporte que la
+ * verificación aprobaba. Con `aprobado: false` queda con la confianza baja que le dio la verificación.
+ */
+async function reportar(severidad: Severidad, cuadra: number, { aprobado = true } = {}) {
   const vecino = await crearUsuario({ rol: 'VECINO' });
   vecinos.push(vecino.id);
   const res = await request(app)
@@ -79,6 +83,7 @@ async function reportar(severidad: Severidad, cuadra: number) {
     .attach('foto', await jpegLiso(100 + cuadra), 'foto.jpg');
   expect(res.status).toBe(201);
   expect(res.body.estadoVerificacion).toBe('PENDIENTE_REVISION');
+  if (aprobado) await prisma.reporte.update({ where: { id: res.body.id }, data: { nivelConfianza: 85 } });
   return { ...(res.body as { id: number; incidenteId: number }), vecino };
 }
 
@@ -153,7 +158,7 @@ describe('POST /api/ia/procesar-cola', () => {
     expect(movimiento).toMatchObject({
       tipo: 'CAMBIO_ESTADO',
       usuarioId: operador.id,
-      comentario: `Reporte #${reporte.id} verificado por la IA al procesar la cola de verificación: coincide con la categoría y la gravedad que eligió el vecino`,
+      comentario: `Reporte #${reporte.id} verificado por la IA al procesar la cola de verificación: coincide con la categoría y la gravedad que eligió el vecino, y la verificación le había dado 85 de confianza`,
     });
     // En el listado general figura que lo publicó la IA, y cuándo.
     const listado = await request(app).get('/api/reportes').set('Authorization', `Bearer ${token}`);
@@ -192,6 +197,46 @@ describe('POST /api/ia/procesar-cola', () => {
     });
   });
 
+  it('si coincide pero la verificación no lo aprobaba, no lo publica: lo decide un operador', async () => {
+    const reporte = await reportar('GRAVE', 1, { aprobado: false });
+    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+
+    const log = await procesarYEsperar();
+
+    expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
+    const { nivelConfianza } = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
+    const { umbralVerificado } = await leerParametros();
+    expect(nivelConfianza).toBeLessThan(umbralVerificado);
+    expect(log.eventos.at(-1).detalle).toBe(
+      `Coincide con lo que eligió el vecino, pero la verificación le dio ${nivelConfianza} de confianza y ` +
+        `hacen falta ${umbralVerificado} (La foto se eligió de la galería y no trae la ubicación donde se ` +
+        'sacó): queda para revisión manual',
+    );
+    const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
+    expect(guardado.estadoVerificacion).toBe('PENDIENTE_REVISION');
+    // El operador igual ve la propuesta de la IA al revisarlo.
+    const cola = await request(app).get('/api/reportes/pendientes').set('Authorization', `Bearer ${token}`);
+    expect(cola.body.reportes.find((r: { id: number }) => r.id === reporte.id).propuestaIa).toMatchObject({
+      categoriaId: categoria.id,
+      severidad: 'GRAVE',
+    });
+  });
+
+  it('si el vecino había aceptado la sugerencia de la IA, el log lo aclara y el resumen lo cuenta', async () => {
+    const reporte = await reportar('GRAVE', 1);
+    await prisma.reporte.update({ where: { id: reporte.id }, data: { sugerenciaAceptada: true } });
+    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+
+    const log = await procesarYEsperar();
+
+    expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'PUBLICADO']);
+    const clasificado = log.eventos.find((e: { estado: string }) => e.estado === 'CLASIFICADO');
+    expect(clasificado.detalle).toContain(
+      `el vecino eligió ${categoria.nombre}, GRAVE (había aceptado la sugerencia de la IA).`,
+    );
+    expect(log.resumen).toMatchObject({ publicados: 1, publicadosConSugerencia: 1 });
+  });
+
   it('si la IA falla, el reporte queda en la cola manual y sigue con los demás', async () => {
     const falla = await reportar('GRAVE', 1);
     const sigue = await reportar('GRAVE', 2);
@@ -221,7 +266,12 @@ describe('POST /api/ia/procesar-cola', () => {
 
     const log = await procesarYEsperar();
 
-    expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'ERROR']);
+    // No es un error de la IA: lo resolvió una persona.
+    expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
+    expect(log.eventos.at(-1).detalle).toBe(
+      'Un operador lo revisó mientras la IA lo procesaba: queda su decisión',
+    );
+    expect(log.resumen.errores).toBe(0);
     const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
     expect(guardado.estadoVerificacion).toBe('DESESTIMADO');
   });
@@ -244,6 +294,7 @@ describe('POST /api/ia/procesar-cola', () => {
       total: 3,
       procesados: 3,
       publicados: 1,
+      publicadosConSugerencia: 0,
       derivados: 1,
       errores: 1,
       tiempoMedioMs: 3000,

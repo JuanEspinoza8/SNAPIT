@@ -19,7 +19,8 @@ import { IaNoDisponible } from './servicio.js';
 /*
  * Cola de verificación con IA. El operador procesa los reportes pendientes de su organismo con la IA, que
  * clasifica cada foto y publica sola los reportes en los que coincide exactamente con lo que eligió el vecino
- * (categoría y gravedad). Los que no coinciden quedan para revisión manual (#51), con la propuesta guardada.
+ * (categoría y gravedad) y que la verificación automática ya aprobaba: los que el modo demostración mandó a la
+ * cola. Los demás quedan para revisión manual (#51), con la propuesta guardada.
  * Cada paso queda en evento_verificacion_ia: es el log que ve el operador.
  */
 
@@ -95,9 +96,10 @@ async function procesar(contexto: Contexto, pendientes: Pendiente[]) {
   const nombres = new Map((await listarCategoriasActivas()).map((c) => [c.id, c.nombre]));
   const nombre = (id: number | undefined) =>
     id === undefined ? '?' : (nombres.get(id) ?? `categoría ${id}`);
+  const { umbralVerificado } = await verificacion.leerParametros();
   for (const reporte of pendientes) {
     try {
-      await procesarReporte(contexto, reporte, nombre);
+      await procesarReporte(contexto, reporte, nombre, umbralVerificado);
     } catch (error) {
       // Lo inesperado (por ejemplo, la base caída) tampoco corta el resto de la cola.
       logger.error({ err: error, reporteId: reporte.id }, 'Falló el procesamiento con IA de un reporte');
@@ -125,7 +127,12 @@ const evento = (
     ...extra,
   });
 
-async function procesarReporte(contexto: Contexto, reporte: Pendiente, nombre: (id?: number) => string) {
+async function procesarReporte(
+  contexto: Contexto,
+  reporte: Pendiente,
+  nombre: (id?: number) => string,
+  umbral: number,
+) {
   await evento(contexto, reporte.id, 'EN_PROCESO', 'Clasificando la foto');
   if (!reporte.rutaArchivo) {
     await evento(contexto, reporte.id, 'ERROR', 'El reporte no tiene foto: queda en la cola manual');
@@ -147,11 +154,13 @@ async function procesarReporte(contexto: Contexto, reporte: Pendiente, nombre: (
 
   const propone = `${nombre(clasificacion.categoriaId)}, ${clasificacion.severidad}`;
   const eligio = `${nombre(reporte.categoriaId)}, ${reporte.severidad}`;
+  // Si el vecino aceptó la sugerencia al cargarlo, la IA se compara con su propia propuesta: el log lo dice.
+  const sugerida = reporte.sugerenciaAceptada ? ' (había aceptado la sugerencia de la IA)' : '';
   await evento(
     contexto,
     reporte.id,
     'CLASIFICADO',
-    `La IA propone ${propone}; el vecino eligió ${eligio}.` +
+    `La IA propone ${propone}; el vecino eligió ${eligio}${sugerida}.` +
       (clasificacion.explicacion ? ` ${clasificacion.explicacion}` : ''),
     {
       registroIaId: clasificacion.registroIaId,
@@ -172,14 +181,29 @@ async function procesarReporte(contexto: Contexto, reporte: Pendiente, nombre: (
     return;
   }
 
-  const publicado = await publicar(contexto, reporte.id);
+  // La IA no reemplaza la verificación (F04): un reporte de baja confianza (foto repetida, lejos del punto,
+  // vieja...) lo decide siempre un operador, aunque la foto muestre lo que eligió el vecino.
+  if (reporte.nivelConfianza < umbral) {
+    const enContra = reporte.senalesEnContra.length > 0 ? ` (${reporte.senalesEnContra.join('; ')})` : '';
+    await evento(
+      contexto,
+      reporte.id,
+      'REVISION_MANUAL',
+      `Coincide con lo que eligió el vecino, pero la verificación le dio ${reporte.nivelConfianza} de ` +
+        `confianza y hacen falta ${umbral}${enContra}: queda para revisión manual`,
+    );
+    return;
+  }
+
+  const publicado = await publicar(contexto, reporte.id, reporte.nivelConfianza);
+  // Si un operador lo revisó mientras tanto, no es un error de la IA: lo resolvió una persona.
   await evento(
     contexto,
     reporte.id,
-    publicado ? 'PUBLICADO' : 'ERROR',
+    publicado ? 'PUBLICADO' : 'REVISION_MANUAL',
     publicado
-      ? 'Coincide con lo que eligió el vecino: publicado'
-      : 'Un operador lo revisó mientras la IA lo procesaba: se deja su decisión',
+      ? 'Coincide con lo que eligió el vecino y la verificación lo aprobaba: publicado'
+      : 'Un operador lo revisó mientras la IA lo procesaba: queda su decisión',
   );
 }
 
@@ -187,7 +211,7 @@ async function procesarReporte(contexto: Contexto, reporte: Pendiente, nombre: (
  * Publica el reporte igual que una aprobación manual (#51), pero con la IA como autora en la bitácora.
  * Devuelve false si mientras tanto dejó de estar pendiente (lo revisó un operador).
  */
-function publicar(contexto: Contexto, reporteId: number) {
+function publicar(contexto: Contexto, reporteId: number, nivelConfianza: number) {
   return prisma.$transaction(async (tx) => {
     const reporte = await verificacion.bloquearReporte(tx, reporteId);
     if (!reporte || reporte.estado !== 'PENDIENTE_REVISION') return false;
@@ -196,7 +220,7 @@ function publicar(contexto: Contexto, reporteId: number) {
       reporteId,
       decision: 'VERIFICADO',
       operadorId: contexto.usuarioId,
-      comentario: 'coincide con la categoría y la gravedad que eligió el vecino',
+      comentario: `coincide con la categoría y la gravedad que eligió el vecino, y la verificación le había dado ${nivelConfianza} de confianza`,
       porIa: true,
     });
     if (efecto.incidente) await avisarCambioIncidente(tx, efecto.incidente.id);
@@ -234,6 +258,9 @@ export async function verProceso(sesion: UsuarioSesion, parametros: unknown) {
   );
   const duraciones = clasificados.flatMap((fila) => (fila.duracionMs === null ? [] : [fila.duracionMs]));
   const contar = (estado: string) => [...finales.values()].filter((final) => final === estado).length;
+  const conSugerencia = new Set(
+    filas.filter((fila) => fila.sugerenciaAceptada).map((fila) => fila.reporteId),
+  );
 
   return {
     id,
@@ -266,6 +293,10 @@ export async function verProceso(sesion: UsuarioSesion, parametros: unknown) {
       total: actual?.total ?? new Set(filas.map((fila) => fila.reporteId)).size,
       procesados: finales.size,
       publicados: contar('PUBLICADO'),
+      // De los publicados, en cuántos el vecino había aceptado la sugerencia de la IA al cargarlo.
+      publicadosConSugerencia: [...finales].filter(
+        ([reporteId, final]) => final === 'PUBLICADO' && conSugerencia.has(reporteId),
+      ).length,
       derivados: contar('REVISION_MANUAL'),
       errores: contar('ERROR'),
       tiempoMedioMs:

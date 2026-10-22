@@ -9,9 +9,14 @@ const PRECIOS_USD_POR_MILLON: Record<string, { entrada: number; salida: number }
   'claude-opus-5-5': { entrada: 4, salida: 20 },
 };
 
-/** Lo que costó una consulta, en dólares. Null si no se conoce el precio del modelo. */
+/**
+ * Lo que costó una consulta, en dólares. Null si no se conoce el precio del modelo. `modelo` es el que
+ * devolvió la API, que puede traer la fecha de la versión al final (claude-haiku-5-5-AAAAMMDD).
+ */
 export function costoUsd(modelo: string, tokens: { entrada: number; salida: number }) {
-  const precio = PRECIOS_USD_POR_MILLON[modelo];
+  const precio =
+    PRECIOS_USD_POR_MILLON[modelo] ??
+    Object.entries(PRECIOS_USD_POR_MILLON).find(([clave]) => modelo.startsWith(`${clave}-`))?.[1];
   if (!precio) return null;
   return (tokens.entrada * precio.entrada + tokens.salida * precio.salida) / 1_000_000;
 }

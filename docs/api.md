@@ -531,11 +531,13 @@ El log del procesamiento y su resumen. Mientras `enCurso` es `true`, conviene co
       "propuesta": { "registroIaId": 7, "categoriaId": 1, "severidad": "GRAVE", "explicacion": "Se ve un pozo profundo en la calzada." }
     }
   ],
-  "resumen": { "total": 6, "procesados": 6, "publicados": 3, "derivados": 2, "errores": 1, "tiempoMedioMs": 3100, "costoUsd": 0.0013 }
+  "resumen": { "total": 6, "procesados": 6, "publicados": 3, "publicadosConSugerencia": 1, "derivados": 2, "errores": 1, "tiempoMedioMs": 3100, "costoUsd": 0.0013 }
 }
 ```
 
 - `estado` de cada evento: `EN_PROCESO`, `CLASIFICADO`, `PUBLICADO`, `REVISION_MANUAL` o `ERROR`. Cada reporte termina en uno de los tres últimos.
+- `REVISION_MANUAL` dice en `detalle` por qué: no coincide con el vecino, la verificación no lo aprobaba (con su nivel y las señales en contra) o un operador lo revisó mientras la IA lo procesaba. `ERROR` es solo cuando la IA o la foto fallaron.
+- `resumen.publicadosConSugerencia`: de los publicados, en cuántos el vecino había aceptado la sugerencia de la IA al cargarlo (ahí la IA coincide consigo misma).
 - `propuesta` viene solo en los `CLASIFICADO`: es lo que respondió la IA, para "ver la propuesta". `reporte.incidenteId` es el incidente (el principal, si se unió a otro), para "ver el reporte".
 - `resumen.costoUsd` es `null` si el modelo de `IA_MODELO` no tiene precio cargado.
 
