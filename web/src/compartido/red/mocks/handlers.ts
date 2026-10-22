@@ -403,6 +403,12 @@ export const handlers = [
 
   // La cola con IA no se simula: sin servidor no hay IA. Así la pantalla se ve igual, sin procesamientos.
   http.get(`${apiUrl}/ia/procesos`, () => HttpResponse.json({ procesos: [] })),
+  http.post(`${apiUrl}/ia/clasificar-foto`, () =>
+    HttpResponse.json(
+      { error: { codigo: 'IA_NO_DISPONIBLE', mensaje: 'La IA no está disponible en este momento' } },
+      { status: 503 },
+    ),
+  ),
   http.post(`${apiUrl}/ia/procesar-cola`, () =>
     HttpResponse.json(
       { error: { codigo: 'IA_NO_DISPONIBLE', mensaje: 'La IA no está disponible en este momento' } },

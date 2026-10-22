@@ -7,6 +7,15 @@ export interface DatosReporte {
   descripcion: string;
   lat: number;
   lon: number;
+  /** Lo que propuso la IA para esta foto, tal cual: el servidor registra si el vecino lo aceptó. */
+  sugerencia?: SugerenciaIa | null;
+}
+
+/** Respuesta de POST /api/ia/clasificar-foto. */
+export interface SugerenciaIa {
+  categoriaId: number;
+  severidad: Severidad;
+  registroIaId: number;
 }
 
 export interface ReporteEnviado {

@@ -32,6 +32,11 @@ export function crearRepositorioReportes(cliente: ClienteApi): RepositorioReport
       formulario.append('origen', 'SITIO_WEB');
       const descripcion = datos.descripcion.trim();
       if (descripcion) formulario.append('descripcion', descripcion);
+      if (datos.sugerencia) {
+        formulario.append('categoriaSugeridaId', String(datos.sugerencia.categoriaId));
+        formulario.append('severidadSugerida', datos.sugerencia.severidad);
+        formulario.append('registroIaId', String(datos.sugerencia.registroIaId));
+      }
       return cliente.pedir<ReporteEnviado>('/reportes', { metodo: 'POST', cuerpo: formulario });
     },
     async mios() {
