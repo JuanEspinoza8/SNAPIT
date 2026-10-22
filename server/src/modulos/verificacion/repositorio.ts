@@ -112,6 +112,8 @@ export interface FilaPendiente {
   incidenteId: number | null;
   incidenteEstado: EstadoIncidente | null;
   cantidadReportes: number | null;
+  /** El incidente propio del reporte: distinto de incidenteId si se unió a otro (F05), que es el principal. */
+  propioId: number | null;
   reputacion: string;
   reportesConfirmados: number;
   reportesDesestimados: number;
@@ -135,13 +137,28 @@ export interface FiltrosReportes {
   limite: number;
 }
 
-/** Lo que la IA necesita de cada pendiente del organismo: qué eligió el vecino y su foto. Del más viejo al más nuevo. */
+/**
+ * Lo que la IA necesita de cada pendiente del organismo: qué eligió el vecino, su foto, el nivel de confianza
+ * con las señales en contra y si aceptó la sugerencia de la IA al cargarlo. Del más viejo al más nuevo.
+ */
 export function pendientesParaIa(organismoId: number) {
   return prisma.$queryRaw<
-    { id: number; categoriaId: number; severidad: Severidad; rutaArchivo: string | null }[]
+    {
+      id: number;
+      categoriaId: number;
+      severidad: Severidad;
+      rutaArchivo: string | null;
+      nivelConfianza: number;
+      senalesEnContra: string[];
+      sugerenciaAceptada: boolean;
+    }[]
   >`
     SELECT r.id, r.categoria_id AS "categoriaId", r.severidad_declarada::text AS severidad,
-           (SELECT f.ruta_archivo FROM fotografia f WHERE f.reporte_id = r.id ORDER BY f.id LIMIT 1) AS "rutaArchivo"
+           (SELECT f.ruta_archivo FROM fotografia f WHERE f.reporte_id = r.id ORDER BY f.id LIMIT 1) AS "rutaArchivo",
+           r.nivel_confianza AS "nivelConfianza",
+           (SELECT coalesce(array_agg(s.detalle ORDER BY s.id), '{}') FROM senal_verificacion s
+            WHERE s.reporte_id = r.id AND s.valor < 0 AND s.detalle IS NOT NULL) AS "senalesEnContra",
+           coalesce(r.sugerencia_aceptada, false) AS "sugerenciaAceptada"
     ${DEL_ORGANISMO}
     WHERE r.estado_verificacion = 'PENDIENTE_REVISION'
       AND a.organismo_id = ${organismoId}
@@ -174,6 +191,7 @@ export function listarDelOrganismo(organismoId: number, filtros: FiltrosReportes
             FROM senal_verificacion s WHERE s.reporte_id = r.id) AS senales,
            (SELECT coalesce(array_agg(f.id ORDER BY f.id), '{}') FROM fotografia f WHERE f.reporte_id = r.id) AS fotos,
            i.id AS "incidenteId", i.estado::text AS "incidenteEstado", i.cantidad_reportes AS "cantidadReportes",
+           propio.id AS "propioId",
            u.reputacion::text AS reputacion, u.reportes_confirmados AS "reportesConfirmados",
            u.reportes_desestimados AS "reportesDesestimados",
            (SELECT json_build_object(

@@ -63,6 +63,8 @@ export interface FilaEvento {
   severidadDeclarada: string;
   incidenteId: number | null;
   fotoId: number | null;
+  /** Si el vecino aceptó la sugerencia de la IA al cargar el reporte. */
+  sugerenciaAceptada: boolean;
 }
 
 /** Los pasos del procesamiento, en orden, con lo que el panel muestra de cada reporte. */
@@ -75,7 +77,8 @@ export function eventosDelProceso(procesoId: string) {
            r.categoria_id AS "categoriaId", c.nombre AS "categoriaNombre",
            r.severidad_declarada::text AS "severidadDeclarada",
            coalesce(i.incidente_principal_id, i.id) AS "incidenteId",
-           (SELECT f.id FROM fotografia f WHERE f.reporte_id = r.id ORDER BY f.id LIMIT 1) AS "fotoId"
+           (SELECT f.id FROM fotografia f WHERE f.reporte_id = r.id ORDER BY f.id LIMIT 1) AS "fotoId",
+           coalesce(r.sugerencia_aceptada, false) AS "sugerenciaAceptada"
     FROM evento_verificacion_ia e
     JOIN reporte r ON r.id = e.reporte_id
     JOIN categoria c ON c.id = r.categoria_id

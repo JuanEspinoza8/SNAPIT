@@ -12,7 +12,12 @@ function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
     return [MAPA, { ruta: '/reportar', texto: 'Reportar' }, { ruta: '/mis-reportes', texto: 'Mis reportes' }];
   }
   if (esOperador(usuario)) {
-    return [MAPA, { ruta: '/bandeja', texto: 'Bandeja' }, { ruta: '/revision', texto: 'Revisión' }];
+    return [
+      MAPA,
+      { ruta: '/bandeja', texto: 'Bandeja' },
+      { ruta: '/revision', texto: 'Revisión' },
+      { ruta: '/incidentes', texto: 'Incidentes' },
+    ];
   }
   if (esAdministrador(usuario)) return [MAPA, { ruta: '/administracion', texto: 'Administración' }];
   return [MAPA];

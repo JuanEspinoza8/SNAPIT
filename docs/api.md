@@ -372,7 +372,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
         { "tipo": "REPUTACION", "valor": 0, "detalle": "Reputación del vecino: 50 de 100" }
       ],
       "fotos": [{ "id": 12, "url": "/api/fotos/12" }],
-      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1 },
+      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1, "propioId": 9 },
       "vecino": { "reputacion": 50, "reportesConfirmados": 0, "reportesDesestimados": 0 },
       "propuestaIa": null
     }
@@ -383,6 +383,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `senales`: por qué quedó con ese nivel, en el orden en que se calcularon (ver `docs/calculos.md`).
 - `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el incidente no esté en el mapa.
 - `vecino`: su historial, no quién es.
+- `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`).
 - `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última clasificación: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
 - Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.
@@ -531,11 +532,13 @@ El log del procesamiento y su resumen. Mientras `enCurso` es `true`, conviene co
       "propuesta": { "registroIaId": 7, "categoriaId": 1, "severidad": "GRAVE", "explicacion": "Se ve un pozo profundo en la calzada." }
     }
   ],
-  "resumen": { "total": 6, "procesados": 6, "publicados": 3, "derivados": 2, "errores": 1, "tiempoMedioMs": 3100, "costoUsd": 0.0013 }
+  "resumen": { "total": 6, "procesados": 6, "publicados": 3, "publicadosConSugerencia": 1, "derivados": 2, "errores": 1, "tiempoMedioMs": 3100, "costoUsd": 0.0013 }
 }
 ```
 
 - `estado` de cada evento: `EN_PROCESO`, `CLASIFICADO`, `PUBLICADO`, `REVISION_MANUAL` o `ERROR`. Cada reporte termina en uno de los tres últimos.
+- `REVISION_MANUAL` dice en `detalle` por qué: no coincide con el vecino, la verificación no lo aprobaba (con su nivel y las señales en contra) o un operador lo revisó mientras la IA lo procesaba. `ERROR` es solo cuando la IA o la foto fallaron.
+- `resumen.publicadosConSugerencia`: de los publicados, en cuántos el vecino había aceptado la sugerencia de la IA al cargarlo (ahí la IA coincide consigo misma).
 - `propuesta` viene solo en los `CLASIFICADO`: es lo que respondió la IA, para "ver la propuesta". `reporte.incidenteId` es el incidente (el principal, si se unió a otro), para "ver el reporte".
 - `resumen.costoUsd` es `null` si el modelo de `IA_MODELO` no tiene precio cargado.
 

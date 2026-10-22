@@ -5,7 +5,7 @@ import type { ProcesoCola, ProcesoReciente } from '../../funcionalidades/revisio
 /** La cola de verificación con IA (docs/api.md, «Cola de verificación con IA»). */
 export interface RepositorioIa {
   /** Categoría y gravedad que propone la IA para la foto que está cargando el vecino (F06). */
-  clasificarFoto(foto: File): Promise<SugerenciaIa>;
+  clasificarFoto(foto: File, señal?: AbortSignal): Promise<SugerenciaIa>;
   /** Empieza a procesar con la IA los pendientes del organismo. Sigue en el servidor: responde enseguida. */
   procesarCola(): Promise<{ procesoId: string; total: number }>;
   /** El log de un procesamiento, con su resumen. */
@@ -16,10 +16,14 @@ export interface RepositorioIa {
 
 export function crearRepositorioIa(cliente: ClienteApi): RepositorioIa {
   return {
-    clasificarFoto(foto) {
+    clasificarFoto(foto, señal) {
       const formulario = new FormData();
       formulario.append('foto', foto);
-      return cliente.pedir<SugerenciaIa>('/ia/clasificar-foto', { metodo: 'POST', cuerpo: formulario });
+      return cliente.pedir<SugerenciaIa>('/ia/clasificar-foto', {
+        metodo: 'POST',
+        cuerpo: formulario,
+        señal,
+      });
     },
     procesarCola() {
       return cliente.pedir<{ procesoId: string; total: number }>('/ia/procesar-cola', { metodo: 'POST' });

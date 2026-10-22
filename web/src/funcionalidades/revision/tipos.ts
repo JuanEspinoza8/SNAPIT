@@ -27,7 +27,13 @@ export interface ReportePendiente {
   nivelConfianza: number; // de 0 a 100
   senales: SenalVerificacion[];
   fotos: { id: number; url: string }[];
-  incidente: { id: number; estado: string; cantidadReportes: number } | null;
+  incidente: {
+    id: number;
+    estado: string;
+    cantidadReportes: number;
+    /** El incidente propio del reporte. Si es distinto de `id`, se unió al incidente `id` (F05). */
+    propioId?: number | null;
+  } | null;
   vecino: { reputacion: number; reportesConfirmados: number; reportesDesestimados: number };
   /** Si la IA ya lo procesó y lo dejó para revisión: qué propuso y por qué. */
   propuestaIa: PropuestaIa | null;
@@ -103,6 +109,8 @@ export interface ProcesoCola {
     total: number;
     procesados: number;
     publicados: number;
+    /** De los publicados, en cuántos el vecino había aceptado la sugerencia de la IA al cargarlo. */
+    publicadosConSugerencia: number;
     derivados: number;
     errores: number;
     tiempoMedioMs: number | null;

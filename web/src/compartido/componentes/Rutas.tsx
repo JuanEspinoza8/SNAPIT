@@ -25,6 +25,11 @@ const PaginaReportar = lazy(() =>
   })),
 );
 
+const PaginaIncidentes = lazy(() =>
+  import('../../funcionalidades/incidentes/paginaIncidentes.js').then((modulo) => ({
+    default: modulo.PaginaIncidentes,
+  })),
+);
 // La revisión trae Leaflet (el mapa chico): se baja recién cuando un operador abre /revision.
 const PaginaRevision = lazy(() =>
   import('../../funcionalidades/revision/paginaRevision.js').then((modulo) => ({
@@ -122,6 +127,17 @@ export const rutas: RouteObject[] = [
           <RutaProtegida rol="OPERADOR">
             <Suspense fallback={<Cargando />}>
               <PaginaRevision />
+            </Suspense>
+          </RutaProtegida>
+        ),
+      },
+      // Corregir la agrupación: separar reportes y unir incidentes (#69).
+      {
+        path: 'incidentes',
+        element: (
+          <RutaProtegida rol="OPERADOR">
+            <Suspense fallback={<Cargando />}>
+              <PaginaIncidentes />
             </Suspense>
           </RutaProtegida>
         ),

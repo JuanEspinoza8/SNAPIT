@@ -237,9 +237,14 @@ function Clasificacion({ categoria, severidad }: { categoria: string | null; sev
 
 function Resumen({ proceso }: { proceso: ProcesoCola }) {
   const r = proceso.resumen;
-  const datos = [
+  // Si el vecino había aceptado la sugerencia, la IA coincidió consigo misma: se aclara cuántos fueron.
+  const datos: [string, string, string?][] = [
     ['Procesados', `${r.procesados} de ${r.total}`],
-    ['Publicados', String(r.publicados)],
+    [
+      'Publicados',
+      String(r.publicados),
+      r.publicadosConSugerencia > 0 ? `${r.publicadosConSugerencia} con la sugerencia aceptada` : undefined,
+    ],
     ['A revisión', String(r.derivados)],
     ['Errores', String(r.errores)],
     ['Tiempo medio', r.tiempoMedioMs === null ? '—' : `${(r.tiempoMedioMs / 1000).toFixed(1)} s`],
@@ -247,10 +252,11 @@ function Resumen({ proceso }: { proceso: ProcesoCola }) {
   ];
   return (
     <dl className="grid grid-cols-3 gap-2 rounded-md bg-superficie-alterna p-3 text-center sm:grid-cols-6">
-      {datos.map(([titulo, valor]) => (
+      {datos.map(([titulo, valor, nota]) => (
         <div key={titulo}>
           <dt className="text-xs text-texto-secundario">{titulo}</dt>
           <dd className="font-semibold text-texto">{valor}</dd>
+          {nota && <dd className="text-xs text-texto-secundario">{nota}</dd>}
         </div>
       ))}
     </dl>

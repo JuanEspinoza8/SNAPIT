@@ -148,6 +148,24 @@ describe('POST /api/incidentes/:id/union', () => {
     expect(reporte.incidenteId).toBe(duplicadoId);
   });
 
+  it('en el listado del organismo, los reportes del duplicado van en el principal con su incidente propio', async () => {
+    const { principalId, duplicadoId, reporteDuplicado } = await dosIncidentes();
+    await unir(duplicadoId, { principalId });
+
+    const listado = async () => {
+      const res = await request(app).get('/api/reportes').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      return (res.body.reportes as { id: number; incidente: object }[]).find(
+        (r) => r.id === reporteDuplicado,
+      )!;
+    };
+
+    // Así la web sabe qué incidente se unió a cuál y puede ofrecer deshacer la unión.
+    expect((await listado()).incidente).toMatchObject({ id: principalId, propioId: duplicadoId });
+    await deshacer(duplicadoId);
+    expect((await listado()).incidente).toMatchObject({ id: duplicadoId, propioId: duplicadoId });
+  });
+
   it('el duplicado sale del mapa y su ficha muestra la del principal, con todos los reportes', async () => {
     const { principalId, duplicadoId } = await dosIncidentes();
 

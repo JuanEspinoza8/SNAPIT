@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
@@ -66,6 +66,15 @@ export function PaginaReportar() {
   const [errores, setErrores] = useState<Errores>(ERRORES_VACIOS);
   const [aviso, setAviso] = useState(false);
 
+  // La respuesta de la IA llega después: para no pisar al vecino hay que ver lo que eligió en ese momento.
+  const eleccion = useRef({ categoriaId, severidad });
+  useEffect(() => {
+    eleccion.current = { categoriaId, severidad };
+  }, [categoriaId, severidad]);
+  // Los campos que completó la IA y el vecino no tocó: con otra foto se vacían (decisión del 22/10, igual que
+  // la app).
+  const completadoPorIa = useRef({ categoria: false, severidad: false });
+
   // La vista previa es una URL temporal: hay que liberarla al cambiar la foto.
   const vistaPrevia = useMemo(() => (foto ? URL.createObjectURL(foto) : null), [foto]);
   useEffect(() => {
@@ -85,8 +94,17 @@ export function PaginaReportar() {
     setPunto(null);
     setErrores(ERRORES_VACIOS);
     setAviso(false);
+    completadoPorIa.current = { categoria: false, severidad: false };
     ia.reiniciar();
     reportar.reset();
+  }
+
+  /** Descarta la sugerencia de la foto anterior y vacía lo que había completado ella. */
+  function olvidarSugerencia() {
+    if (completadoPorIa.current.categoria) setCategoriaId('');
+    if (completadoPorIa.current.severidad) setSeveridad('');
+    completadoPorIa.current = { categoria: false, severidad: false };
+    ia.reiniciar();
   }
 
   function alElegirFoto(evento: ChangeEvent<HTMLInputElement>) {
@@ -98,22 +116,31 @@ export function PaginaReportar() {
         : archivo.size > PESO_MAXIMO_MB * 1024 * 1024
           ? `Pesa demasiado: elegí una foto de hasta ${PESO_MAXIMO_MB} MB`
           : null;
+    olvidarSugerencia();
     if (problema) {
       evento.target.value = '';
       setFoto(null);
       marcar('foto', problema);
-      ia.reiniciar();
       return;
     }
     setFoto(archivo);
     marcar('foto', null);
-    // La IA completa la categoría y la gravedad; el vecino siempre puede cambiarlas antes de enviar.
+    // La IA completa solo lo que el vecino todavía no eligió: él siempre tiene la última palabra (F06).
     void ia.pedir(archivo).then((propuesta) => {
       if (!propuesta) return;
-      setCategoriaId(String(propuesta.categoriaId));
-      setSeveridad(propuesta.severidad);
-      marcar('categoria', null);
-      marcar('severidad', null);
+      const actual = eleccion.current;
+      // Una categoría que no está en la lista quedaría elegida sin verse.
+      const enLista = categorias.data?.some((categoria) => categoria.id === propuesta.categoriaId) ?? false;
+      if (!actual.categoriaId && enLista) {
+        setCategoriaId(String(propuesta.categoriaId));
+        completadoPorIa.current.categoria = true;
+        marcar('categoria', null);
+      }
+      if (!actual.severidad) {
+        setSeveridad(propuesta.severidad);
+        completadoPorIa.current.severidad = true;
+        marcar('severidad', null);
+      }
     });
   }
 
@@ -129,6 +156,8 @@ export function PaginaReportar() {
     setErrores(validados);
     setAviso(false);
     if (!foto || !categoriaId || !severidad || !punto) return;
+    // Si la IA todavía analiza, el pedido se corta y el reporte sale sin sugerencia: no se espera.
+    if (ia.estado.tipo === 'analizando') ia.reiniciar();
 
     reportar.mutate(
       {
@@ -219,6 +248,7 @@ export function PaginaReportar() {
             value={categoriaId}
             onChange={(evento) => {
               setCategoriaId(evento.target.value);
+              completadoPorIa.current.categoria = false;
               marcar('categoria', null);
             }}
             error={errores.categoria}
@@ -259,6 +289,7 @@ export function PaginaReportar() {
           value={severidad}
           onChange={(evento) => {
             setSeveridad(evento.target.value as Severidad | '');
+            completadoPorIa.current.severidad = false;
             marcar('severidad', null);
           }}
           error={errores.severidad}
@@ -341,7 +372,7 @@ function AvisoIa({ estado }: { estado: 'sinFoto' | 'analizando' | 'lista' | 'noD
   if (estado === 'sinFoto') return null;
   const textos = {
     analizando: 'Analizando la foto con IA…',
-    lista: 'La IA completó la categoría y la gravedad según la foto. Revisalas: podés cambiarlas.',
+    lista: 'La IA analizó la foto y completó lo que no habías elegido. Revisalo: podés cambiarlo.',
     noDisponible: 'La IA no está disponible en este momento: elegí la categoría y la gravedad a mano.',
   };
   return (
@@ -361,11 +392,11 @@ function AvisoIa({ estado }: { estado: 'sinFoto' | 'analizando' | 'lista' | 'noD
   );
 }
 
-/** Debajo de cada campo: si quedó lo que propuso la IA o si el vecino lo cambió. */
+/** Debajo de cada campo: si quedó lo que propuso la IA o si el vecino eligió otra cosa (antes o después). */
 function MarcaIa({ aceptada, propuesta }: { aceptada: boolean; propuesta: string }) {
   return aceptada ? (
-    <p className="text-xs font-semibold text-primario">✦ Sugerido por IA</p>
+    <p className="text-xs font-semibold text-primario">Sugerido por la IA</p>
   ) : (
-    <p className="text-xs text-texto-secundario">Lo cambiaste: la IA había sugerido «{propuesta}»</p>
+    <p className="text-xs text-texto-secundario">Elegiste otra: la IA sugería «{propuesta}»</p>
   );
 }

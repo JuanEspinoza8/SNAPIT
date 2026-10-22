@@ -58,7 +58,12 @@ function aRespuesta(fila: repositorio.FilaPendiente) {
     incidente:
       fila.incidenteId === null
         ? null
-        : { id: fila.incidenteId, estado: fila.incidenteEstado, cantidadReportes: fila.cantidadReportes },
+        : {
+            id: fila.incidenteId,
+            estado: fila.incidenteEstado,
+            cantidadReportes: fila.cantidadReportes,
+            propioId: fila.propioId,
+          },
     // El historial, no quién es: para decidir alcanza con saber cuánto acertó antes.
     vecino: {
       reputacion: Number(fila.reputacion),
