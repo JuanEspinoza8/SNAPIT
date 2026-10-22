@@ -666,6 +666,125 @@ Responde **200** con la misma forma que el `PUT`, con `prioridadManual`, `motivo
 | 409 `INCIDENTE_CERRADO` | El incidente está resuelto, desestimado o caducado |
 | 409 `SIN_PRIORIDAD_MANUAL` | El incidente no tiene una prioridad fijada a mano |
 
+## Bandeja y gestión del organismo
+Todo requiere sesión de `OPERADOR` o `ADMINISTRADOR` (otro rol: 403 `SIN_PERMISO`) y trabaja solo con los incidentes de **su organismo**: el del área a la que se derivó el incidente o, si todavía no se derivó, el del área de su categoría.
+
+### `GET /api/bandeja`
+Lo que el organismo tiene que atender (F08): los incidentes `VERIFICADO`, `DERIVADO` y `EN_EJECUCION` que se ven en el mapa (ni unidos a otro, ni caducados, ni temporales vencidos). Primero el de mayor prioridad (la manual, si la hay; si no, la calculada) y, ante un empate, el que tiene el primer reporte más viejo.
+
+| Parámetro | Ejemplo | Qué filtra |
+|---|---|---|
+| `areaId` | `2` | El área responsable. **Si no viene, la del operador.** `todas` trae todo el organismo. Tiene que ser un área del organismo (puede estar inactiva). Un administrador sin área ve todo el organismo |
+| `estado` | `DERIVADO` | `VERIFICADO`, `DERIVADO` o `EN_EJECUCION` |
+| `categoriaId` | `3` | Una categoría |
+
+Responde **200**:
+
+```json
+{
+  "incidentes": [
+    {
+      "id": 7,
+      "estado": "DERIVADO",
+      "categoria": { "id": 1, "nombre": "Pozo en la calzada" },
+      "area": { "id": 1, "nombre": "Bacheo" },
+      "direccion": "Lanín 120, Villa Ceferino",
+      "cantidadReportes": 3,
+      "primerReporteEn": "2026-10-12T14:20:00.000Z",
+      "puntajePrioridad": 94.49,
+      "prioridadManual": null,
+      "motivos": [
+        { "factor": "SEVERIDAD", "valor": 60, "detalle": "Gravedad grave en Pozo en la calzada, una categoría que pesa ×1,5: +60" },
+        { "factor": "EVIDENCIAS", "valor": 16.16, "detalle": "Lo reportaron 3 veces y lo confirmaron 2 vecinos: +16,2" },
+        { "factor": "ANTIGUEDAD", "valor": 3.33, "detalle": "Lleva 10 días sin resolverse: +3,3" },
+        { "factor": "CONTEXTO_URBANO", "valor": 15, "detalle": "A 80 m de Escuela N° 123 (escuela): +15" }
+      ]
+    }
+  ]
+}
+```
+
+- `area`: el área responsable. Mientras el incidente está `VERIFICADO` es la de su categoría; desde que se deriva, la elegida.
+- `motivos`: el desglose de la prioridad, en el orden en que se calculó (ver «Prioridad del incidente» en `docs/calculos.md`). Si hay prioridad manual, el último es `AJUSTE_MANUAL`.
+- `cantidadReportes`: reportes no desestimados, sumando los de los incidentes unidos.
+- Un administrador sin organismo recibe `{ "incidentes": [] }`.
+- Un filtro inválido o un área de otro organismo: **400** `DATOS_INVALIDOS` con `detalles`.
+
+### `GET /api/incidentes/:id/gestion`
+La ficha del incidente para el operador, en cualquier estado. Si el incidente está unido a otro, responde con **ese** incidente (no con el principal, a diferencia de la ficha pública) y `incidentePrincipalId` dice a cuál está unido.
+
+```json
+{
+  "id": 7,
+  "estado": "DERIVADO",
+  "categoria": { "id": 1, "nombre": "Pozo en la calzada" },
+  "area": { "id": 1, "nombre": "Bacheo" },
+  "severidad": "GRAVE",
+  "direccion": "Lanín 120, Villa Ceferino",
+  "lat": -38.9516,
+  "lon": -68.0591,
+  "tipoVigencia": "PERMANENTE",
+  "vigenteHasta": null,
+  "caducadoEn": null,
+  "primerReporteEn": "2026-10-12T14:20:00.000Z",
+  "resueltoEn": null,
+  "cantidadReportes": 2,
+  "incidentePrincipalId": null,
+  "unidos": [{ "id": 14, "estado": "VERIFICADO" }],
+  "prioridad": {
+    "puntajePrioridad": 94.49,
+    "prioridadManual": null,
+    "motivoPrioridadManual": null,
+    "ajustadaPor": null,
+    "factores": [{ "factor": "SEVERIDAD", "valor": 60, "detalle": "Gravedad grave en Pozo en la calzada, una categoría que pesa ×1,5: +60" }]
+  },
+  "reportes": [
+    {
+      "id": 12,
+      "incidenteId": 7,
+      "registradoEn": "2026-10-12T14:20:00.000Z",
+      "categoria": { "id": 1, "nombre": "Pozo en la calzada" },
+      "severidadDeclarada": "GRAVE",
+      "descripcion": "Pozo profundo",
+      "direccion": "Lanín 120, Villa Ceferino",
+      "lat": -38.9516,
+      "lon": -68.0591,
+      "origen": "APP_MOVIL",
+      "nivelConfianza": 65,
+      "estadoVerificacion": "VERIFICADO",
+      "senales": [{ "tipo": "ORIGEN_APP", "valor": 15, "detalle": "La foto se sacó con la cámara de la app en el momento" }],
+      "fotos": [{ "id": 12, "url": "/api/fotos/12" }]
+    }
+  ],
+  "bitacora": [
+    {
+      "id": 31,
+      "tipo": "DERIVACION",
+      "usuario": { "id": 3, "nombre": "Juan Pérez" },
+      "area": { "id": 1, "nombre": "Bacheo" },
+      "estadoAnterior": "VERIFICADO",
+      "estadoNuevo": "DERIVADO",
+      "comentario": "Derivado a Bacheo",
+      "incidenteRelacionadoId": null,
+      "creadoEn": "2026-10-13T09:00:00.000Z"
+    }
+  ],
+  "cierre": null
+}
+```
+
+- `unidos`: los incidentes que se le unieron.
+- `prioridad`: igual que la respuesta de `PUT /api/incidentes/:id/prioridad-manual`.
+- `reportes`: los del incidente y los de sus unidos (`incidenteId` dice de cuál es cada uno), **también los desestimados**, del más viejo al más nuevo. `categoria` es la que eligió el vecino, que puede no ser la del incidente.
+- `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el reporte esté desestimado o el incidente no esté en el mapa.
+- `bitacora`: todos los movimientos, en el orden en que pasaron. `usuario` es `null` si lo hizo el sistema; `area` es el área destino de una derivación.
+- `cierre`: `null` mientras no se cerró. Si hay, `{ id, resultadoComparacion, distanciaMetros, detalleComparacion, creadoEn, usuario, fotos }`; sus fotos se sirven desde la issue del cierre (corte 75 %).
+
+| Error | Cuándo |
+|---|---|
+| 403 `SIN_PERMISO` | El incidente es de otro organismo, o es un administrador sin organismo |
+| 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
 

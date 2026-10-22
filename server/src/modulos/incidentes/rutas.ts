@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { autenticar, permitirRoles } from '../../compartido/autenticacion.js';
 import { validar } from '../../compartido/validar.js';
+import { obtenerGestion } from '../bandeja/servicio.js';
 import { fijarPrioridadManual, quitarPrioridadManual } from '../prioridad/ajusteManual.js';
 import { esquemaFiltros, esquemaId } from './esquemas.js';
 import * as servicio from './servicio.js';
 import { deshacerUnion, unirIncidentes } from './union.js';
 
-// El mapa y la ficha son públicos: se ven sin iniciar sesión. Unir incidentes y ajustar la prioridad, no.
+// El mapa y la ficha son públicos: se ven sin iniciar sesión. La gestión del operador, no.
 export const rutasIncidentes = Router();
 
 rutasIncidentes.get('/', async (req, res) => {
@@ -53,5 +54,15 @@ rutasIncidentes.delete(
   permitirRoles('OPERADOR', 'ADMINISTRADOR'),
   async (req, res) => {
     res.json(await quitarPrioridadManual(req.usuario!, req.params));
+  },
+);
+
+// La ficha de gestión del operador (F08): reportes con sus señales, bitácora, prioridad y cierre.
+rutasIncidentes.get(
+  '/:id/gestion',
+  autenticar,
+  permitirRoles('OPERADOR', 'ADMINISTRADOR'),
+  async (req, res) => {
+    res.json(await obtenerGestion(req.usuario!, req.params));
   },
 );

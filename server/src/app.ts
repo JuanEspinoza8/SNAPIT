@@ -4,6 +4,7 @@ import { manejarErrores, rutaNoEncontrada } from './compartido/manejarErrores.js
 import { registrarPeticiones } from './compartido/registrarPeticiones.js';
 import { rutasAdmin } from './modulos/admin/rutas.js';
 import { rutasAuth } from './modulos/auth/rutas.js';
+import { rutasBandeja } from './modulos/bandeja/rutas.js';
 import { rutasCatalogo } from './modulos/catalogo/rutas.js';
 import { rutasIa } from './modulos/ia/rutas.js';
 import { alCambiarIncidente } from './modulos/incidentes/eventos.js';
@@ -30,6 +31,7 @@ app.use('/api', rutasCatalogo);
 app.use('/api/reportes', rutasReportes);
 app.use('/api/fotos', rutasFotos);
 app.use('/api/incidentes', rutasIncidentes);
+app.use('/api/bandeja', rutasBandeja);
 app.use('/api/ia', rutasIa);
 
 app.use(rutaNoEncontrada);
