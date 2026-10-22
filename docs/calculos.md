@@ -217,6 +217,10 @@ Cualquier otra combinación es inválida. En particular:
 
 Además de la transición, el operador no trabaja un incidente unido a otro (se trabaja el principal) ni uno caducado. Desestimar un incidente no cambia sus reportes ni la reputación de los vecinos: reporte e incidente son cosas distintas. Cada cambio deja un movimiento en la bitácora y avisa a la prioridad (`avisarCambioIncidente`).
 
+**Cambiar la categoría** (#66) no es un cambio de estado. Queda como un `COMENTARIO` («Categoría cambiada de X a Y»), porque no hay un tipo de movimiento propio, y recalcula la prioridad: el peso de la categoría entra en la severidad. Si el incidente todavía no se derivó, pasa al área de la categoría nueva. La categoría de cada reporte, la que eligió el vecino, no cambia. Desde el cambio, los reportes nuevos de la categoría nueva se pueden sumar al incidente y los de la vieja no.
+
+**Límite conocido:** la vigencia no cambia con la categoría. El incidente conserva la que tomó al nacer (si la categoría vieja era temporal, sigue venciendo en la misma fecha).
+
 ### Prioridad del incidente
 
 | Parámetro | Tipo | Valor | Para qué |
@@ -280,7 +284,7 @@ Cada factor guarda un texto que se entiende sin conocer la fórmula. Los número
 
 **Máximo:** `puntaje_prioridad` y `factor_prioridad.valor` son `numeric(6,2)`, así que cada factor y el puntaje se recortan a 9999,99. Con los valores de partida el máximo es 40 × peso de la categoría + 60: 120 para un pozo, y 4059,6 con el peso más alto que admite `categoria.peso_severidad_base` (99,99). Solo se llega al tope con pesos fuera de escala, y entonces la suma del desglose puede pasar el puntaje.
 
-**Cuándo se recalcula:** en la misma transacción que el cambio, cada vez que un reporte se suma al incidente, un reporte se verifica o se desestima, se une o se deshace una unión, se separa un reporte, y cuando el operador lo deriva o lo pasa a ejecución (`alCambiarIncidente` en `incidentes/eventos.ts`). Se guarda `puntaje_prioridad` y se **reemplazan** las filas de `factor_prioridad` del incidente: es el único borrado del sistema, porque son datos derivados y la tabla no tiene fecha (decisión del 01/10). Si el recálculo falla, no queda nada del cambio. Un incidente resuelto o desestimado no se recalcula: su desglose queda como estaba al cerrarse. El cambio de categoría que hace el operador (#66) también tiene que avisar con `avisarCambioIncidente`.
+**Cuándo se recalcula:** en la misma transacción que el cambio, cada vez que un reporte se suma al incidente, un reporte se verifica o se desestima, se une o se deshace una unión, se separa un reporte, y cuando el operador lo deriva, lo pasa a ejecución o le cambia la categoría (`alCambiarIncidente` en `incidentes/eventos.ts`). Se guarda `puntaje_prioridad` y se **reemplazan** las filas de `factor_prioridad` del incidente: es el único borrado del sistema, porque son datos derivados y la tabla no tiene fecha (decisión del 01/10). Si el recálculo falla, no queda nada del cambio. Un incidente resuelto o desestimado no se recalcula: su desglose queda como estaba al cerrarse.
 
 **Recálculo diario** (#63, `server/src/tareas/prioridadDiaria.ts`): la antigüedad crece con los días aunque nadie toque el incidente, así que todos los días a las 03:00 de Argentina se recalculan los incidentes abiertos. Son los que no están resueltos ni desestimados, ni unidos a otro, ni caducados o vencidos: los demás no están en la bandeja, y un unido se recalcula solo si se deshace la unión. También corre al arrancar el servidor, por si estaba apagado a esa hora.
 

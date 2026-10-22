@@ -3,6 +3,7 @@ import { autenticar, permitirRoles } from '../../compartido/autenticacion.js';
 import { validar } from '../../compartido/validar.js';
 import { obtenerGestion } from '../bandeja/servicio.js';
 import { fijarPrioridadManual, quitarPrioridadManual } from '../prioridad/ajusteManual.js';
+import { cambiarCategoria } from './categoria.js';
 import { esquemaFiltros, esquemaId } from './esquemas.js';
 import { cambiarEstado, comentarIncidente, derivarIncidente } from './gestion.js';
 import * as servicio from './servicio.js';
@@ -68,7 +69,7 @@ rutasIncidentes.get(
   },
 );
 
-// El operador deriva, registra el avance y comenta (F08): solo en su organismo.
+// El operador deriva, registra el avance, comenta y corrige la categoría (F06, F08): solo en su organismo.
 rutasIncidentes.post(
   '/:id/derivacion',
   autenticar,
@@ -93,5 +94,14 @@ rutasIncidentes.post(
   permitirRoles('OPERADOR', 'ADMINISTRADOR'),
   async (req, res) => {
     res.status(201).json(await comentarIncidente(req.usuario!, req.params, req.body));
+  },
+);
+
+rutasIncidentes.put(
+  '/:id/categoria',
+  autenticar,
+  permitirRoles('OPERADOR', 'ADMINISTRADOR'),
+  async (req, res) => {
+    res.json(await cambiarCategoria(req.usuario!, req.params, req.body));
   },
 );

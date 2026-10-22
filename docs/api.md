@@ -790,7 +790,7 @@ Cada acción deja un movimiento en la bitácora, que nunca se edita ni se borra,
 
 `comentario`, donde es opcional, es un texto de hasta 1000 caracteres y se agrega al texto del movimiento.
 
-Errores comunes a derivar y cambiar el estado:
+Errores comunes a derivar, cambiar el estado y cambiar la categoría:
 
 | Error | Cuándo |
 |---|---|
@@ -858,6 +858,36 @@ Deja un comentario en la bitácora (movimiento `COMENTARIO`) sin cambiar nada de
 | 400 `DATOS_INVALIDOS` | Falta el comentario o es muy largo |
 | 403 `SIN_PERMISO` | El incidente es de otro organismo |
 | 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+
+### `PUT /api/incidentes/:id/categoria`
+Corrige la categoría de un incidente abierto (F06), también si está en revisión. La categoría que eligió el vecino en cada reporte no cambia. Queda un movimiento `COMENTARIO` con el antes y el después («Categoría cambiada de Pozo en la calzada a Vereda rota»), y se recalcula la prioridad. Si el incidente todavía no se derivó, pasa al área de la categoría nueva. La vigencia no cambia.
+
+```json
+{ "categoriaId": 2, "comentario": "Es la vereda, no la calle" }
+```
+
+Responde **200**:
+
+```json
+{
+  "id": 7,
+  "categoria": { "id": 2, "nombre": "Vereda rota" },
+  "area": { "id": 2, "nombre": "Veredas" },
+  "prioridad": {
+    "puntajePrioridad": 59.58,
+    "prioridadManual": null,
+    "factores": [{ "factor": "SEVERIDAD", "valor": 53.33, "detalle": "Gravedad moderada en Vereda rota, una categoría que pesa ×2: +53,3" }]
+  },
+  "movimiento": { "id": 33, "tipo": "COMENTARIO", "comentario": "Categoría cambiada de Pozo en la calzada a Vereda rota: Es la vereda, no la calle", "...": "..." }
+}
+```
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | Falta `categoriaId`, la categoría no existe, no está activa o es de un área de otro organismo |
+| 409 `INCIDENTE_CERRADO` | El incidente está resuelto o desestimado |
+| 409 `MISMA_CATEGORIA` | Ya es de esa categoría |
+| 409 `CATEGORIA_CAMBIADA` | Otro operador la cambió en ese mismo momento: hay que volver a intentar |
 
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.

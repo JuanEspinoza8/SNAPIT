@@ -117,6 +117,7 @@ export interface IncidenteParaAjustar {
   estado: EstadoIncidente;
   caducado: boolean;
   unido: boolean;
+  categoriaId: number;
   /** El área a la que se derivó. Null mientras no se derivó. */
   areaId: number | null;
   /** El del área a la que se derivó o, si todavía no se derivó, el del área de su categoría. */
@@ -133,6 +134,7 @@ export async function bloquearIncidente(tx: Prisma.TransactionClient, id: number
     SELECT i.estado::text AS estado,
            (i.caducado_en IS NOT NULL OR (i.vigente_hasta IS NOT NULL AND i.vigente_hasta <= now())) AS caducado,
            i.incidente_principal_id IS NOT NULL AS unido,
+           i.categoria_id AS "categoriaId",
            i.area_id AS "areaId",
            a.organismo_id AS "organismoId",
            i.prioridad_manual::float8 AS "prioridadManual"
