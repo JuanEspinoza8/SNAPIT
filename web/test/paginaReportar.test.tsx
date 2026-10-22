@@ -36,6 +36,13 @@ const servidor = setupServer(
       { status: 201 },
     ),
   ),
+  // Sin IA: el vecino elige a mano, como hasta ahora.
+  http.post('*/api/ia/clasificar-foto', () =>
+    HttpResponse.json(
+      { error: { codigo: 'IA_NO_DISPONIBLE', mensaje: 'La IA no está disponible en este momento' } },
+      { status: 503 },
+    ),
+  ),
 );
 
 beforeAll(() => {
@@ -44,7 +51,8 @@ beforeAll(() => {
   // archivo (request.formData()) no termina nunca.
   const fetchOriginal = globalThis.fetch;
   vi.spyOn(globalThis, 'fetch').mockImplementation((entrada, init) => {
-    if (init?.body instanceof FormData) enviados.push(init.body);
+    // Solo los reportes: la foto que va a la IA (clasificar-foto) también sale como FormData.
+    if (init?.body instanceof FormData && String(entrada).endsWith('/reportes')) enviados.push(init.body);
     return fetchOriginal(entrada, init);
   });
 });
@@ -251,5 +259,79 @@ describe('cargar un reporte desde la web', () => {
     expect(await screen.findByText('El archivo pesa demasiado para enviarlo.')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Descripción (opcional)')).toHaveValue('Pozo grande');
+  });
+});
+
+describe('sugerencia de la IA al elegir la foto (F06)', () => {
+  const sugerencia = { categoriaId: 4, severidad: 'LEVE', registroIaId: 7 };
+
+  it('completa la categoría y la gravedad, y manda la sugerencia con el reporte', async () => {
+    servidor.use(
+      http.post('*/api/ia/clasificar-foto', () => HttpResponse.json(sugerencia)),
+      http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')),
+    );
+    const usuario = userEvent.setup();
+    renderRuta('/reportar', <PaginaReportar />);
+    await screen.findByRole('option', { name: 'Cordón sin rampa' });
+
+    await usuario.upload(
+      screen.getByLabelText('Foto'),
+      new File(['foto'], 'pozo.jpg', { type: 'image/jpeg' }),
+    );
+
+    expect(await screen.findByText(/La IA completó la categoría y la gravedad/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Categoría')).toHaveValue('4');
+    expect(screen.getByLabelText('Gravedad')).toHaveValue('LEVE');
+    expect(screen.getAllByText('✦ Sugerido por IA')).toHaveLength(2);
+
+    await usuario.click(screen.getByRole('button', { name: 'Marcar el punto' }));
+    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
+
+    expect(await screen.findByText('Reporte enviado')).toBeInTheDocument();
+    const formulario = enviados[0]!;
+    expect(formulario.get('categoriaId')).toBe('4');
+    expect(formulario.get('categoriaSugeridaId')).toBe('4');
+    expect(formulario.get('severidadSugerida')).toBe('LEVE');
+    expect(formulario.get('registroIaId')).toBe('7');
+  });
+
+  it('el vecino puede cambiarla: se ve qué había sugerido y la sugerencia viaja igual', async () => {
+    servidor.use(
+      http.post('*/api/ia/clasificar-foto', () => HttpResponse.json(sugerencia)),
+      http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')),
+    );
+    const usuario = userEvent.setup();
+    renderRuta('/reportar', <PaginaReportar />);
+    await screen.findByRole('option', { name: 'Cordón sin rampa' });
+    await usuario.upload(
+      screen.getByLabelText('Foto'),
+      new File(['foto'], 'pozo.jpg', { type: 'image/jpeg' }),
+    );
+    await screen.findByText(/La IA completó/);
+
+    await usuario.selectOptions(screen.getByLabelText('Categoría'), '3');
+
+    expect(screen.getByText('Lo cambiaste: la IA había sugerido «Luminaria apagada»')).toBeInTheDocument();
+    await usuario.click(screen.getByRole('button', { name: 'Marcar el punto' }));
+    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
+
+    await screen.findByText('Reporte enviado');
+    // El servidor compara las dos y guarda que no se aceptó.
+    expect(enviados[0]!.get('categoriaId')).toBe('3');
+    expect(enviados[0]!.get('categoriaSugeridaId')).toBe('4');
+  });
+
+  it('si la IA no está disponible, avisa y se elige a mano sin sugerencia', async () => {
+    servidor.use(http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')));
+    const usuario = userEvent.setup();
+    renderRuta('/reportar', <PaginaReportar />);
+
+    await completar(usuario);
+    expect(await screen.findByText(/La IA no está disponible en este momento/)).toBeInTheDocument();
+    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
+
+    await screen.findByText('Reporte enviado');
+    expect(enviados[0]!.get('categoriaId')).toBe('3');
+    expect(enviados[0]!.has('registroIaId')).toBe(false);
   });
 });

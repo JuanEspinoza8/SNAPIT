@@ -11,6 +11,7 @@ import type { EstadoNavegacionMapa } from '../mapa/tipos.js';
 import { MapaElegirPunto, type Punto } from './MapaElegirPunto.js';
 import type { Severidad } from './tipos.js';
 import { useReportar } from './useReportar.js';
+import { useSugerenciaIa } from './useSugerenciaIa.js';
 
 type Errores = {
   foto: string | null;
@@ -54,6 +55,8 @@ const SEVERIDADES: { valor: Severidad; etiqueta: string }[] = [
 export function PaginaReportar() {
   const categorias = useCategorias();
   const reportar = useReportar();
+  const ia = useSugerenciaIa();
+  const sugerencia = ia.estado.tipo === 'lista' ? ia.estado.sugerencia : null;
 
   const [foto, setFoto] = useState<File | null>(null);
   const [categoriaId, setCategoriaId] = useState('');
@@ -82,6 +85,7 @@ export function PaginaReportar() {
     setPunto(null);
     setErrores(ERRORES_VACIOS);
     setAviso(false);
+    ia.reiniciar();
     reportar.reset();
   }
 
@@ -98,10 +102,19 @@ export function PaginaReportar() {
       evento.target.value = '';
       setFoto(null);
       marcar('foto', problema);
+      ia.reiniciar();
       return;
     }
     setFoto(archivo);
     marcar('foto', null);
+    // La IA completa la categoría y la gravedad; el vecino siempre puede cambiarlas antes de enviar.
+    void ia.pedir(archivo).then((propuesta) => {
+      if (!propuesta) return;
+      setCategoriaId(String(propuesta.categoriaId));
+      setSeveridad(propuesta.severidad);
+      marcar('categoria', null);
+      marcar('severidad', null);
+    });
   }
 
   function enviar(evento: FormEvent) {
@@ -125,6 +138,7 @@ export function PaginaReportar() {
         descripcion,
         lat: punto.lat,
         lon: punto.lon,
+        sugerencia,
       },
       {
         // No se toca nada de lo cargado: solo se muestran los errores del servidor.
@@ -195,6 +209,7 @@ export function PaginaReportar() {
               className="mt-2 max-h-64 rounded-md border border-borde"
             />
           )}
+          <AvisoIa estado={ia.estado.tipo} />
         </div>
 
         <div className="space-y-1">
@@ -222,6 +237,15 @@ export function PaginaReportar() {
               </>
             )}
           </CampoSelecto>
+          {sugerencia && (
+            <MarcaIa
+              aceptada={categoriaId === String(sugerencia.categoriaId)}
+              propuesta={
+                categorias.data?.find((categoria) => categoria.id === sugerencia.categoriaId)?.nombre ??
+                `categoría ${sugerencia.categoriaId}`
+              }
+            />
+          )}
           {categorias.isSuccess && categorias.data.length === 0 && (
             <p className="text-sm text-texto-secundario">
               Todavía no hay categorías cargadas, así que no se puede reportar. Probá más tarde.
@@ -246,6 +270,12 @@ export function PaginaReportar() {
             </option>
           ))}
         </CampoSelecto>
+        {sugerencia && (
+          <MarcaIa
+            aceptada={severidad === sugerencia.severidad}
+            propuesta={SEVERIDADES.find((opcion) => opcion.valor === sugerencia.severidad)!.etiqueta}
+          />
+        )}
 
         <div className="space-y-1">
           <label htmlFor="descripcion" className="block text-sm font-semibold text-texto">
@@ -304,5 +334,38 @@ export function PaginaReportar() {
         </button>
       </form>
     </section>
+  );
+}
+
+function AvisoIa({ estado }: { estado: 'sinFoto' | 'analizando' | 'lista' | 'noDisponible' }) {
+  if (estado === 'sinFoto') return null;
+  const textos = {
+    analizando: 'Analizando la foto con IA…',
+    lista: 'La IA completó la categoría y la gravedad según la foto. Revisalas: podés cambiarlas.',
+    noDisponible: 'La IA no está disponible en este momento: elegí la categoría y la gravedad a mano.',
+  };
+  return (
+    <p
+      role="status"
+      className={`mt-2 rounded-md border px-3 py-2 text-sm ${
+        estado === 'noDisponible'
+          ? 'border-borde bg-superficie-alterna text-texto-secundario'
+          : 'border-primario bg-superficie-alterna text-primario'
+      }`}
+    >
+      {estado === 'analizando' && (
+        <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-primario border-t-transparent align-middle" />
+      )}
+      {textos[estado]}
+    </p>
+  );
+}
+
+/** Debajo de cada campo: si quedó lo que propuso la IA o si el vecino lo cambió. */
+function MarcaIa({ aceptada, propuesta }: { aceptada: boolean; propuesta: string }) {
+  return aceptada ? (
+    <p className="text-xs font-semibold text-primario">✦ Sugerido por IA</p>
+  ) : (
+    <p className="text-xs text-texto-secundario">Lo cambiaste: la IA había sugerido «{propuesta}»</p>
   );
 }
