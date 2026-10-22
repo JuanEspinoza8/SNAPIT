@@ -73,6 +73,15 @@ const separar = (id: number, cuerpo: object = {}, conToken = token) =>
 
 const incidente = (id: number) => prisma.incidente.findUniqueOrThrow({ where: { id } });
 
+/** Une con la API (#54), para que el principal sume los contadores del duplicado como en la realidad. */
+async function unir(duplicadoId: number, principalId: number) {
+  const res = await request(app)
+    .post(`/api/incidentes/${duplicadoId}/union`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ principalId });
+  expect(res.status).toBe(200);
+}
+
 describe('POST /api/reportes/:id/separacion', () => {
   it('saca el reporte a un incidente nuevo y deja bien los contadores y la severidad de los dos', async () => {
     const primero = await reportar('LEVE', '2026-10-10T10:00:00Z');
@@ -189,17 +198,15 @@ describe('POST /api/reportes/:id/separacion', () => {
     await reportar('MODERADA', '2026-10-12T10:00:00Z');
     const delUnido = await reportar('MODERADA', '2026-10-11T10:00:00Z', 1);
     expect(delUnido.incidenteId).not.toBe(primero.incidenteId);
-    await prisma.incidente.update({
-      where: { id: delUnido.incidenteId },
-      data: { incidentePrincipalId: primero.incidenteId },
-    });
+    await unir(delUnido.incidenteId, primero.incidenteId);
 
     const res = await separar(primero.id);
 
     expect(res.status).toBe(200);
-    // El primer reporte que le queda es el del unido, no el otro propio.
+    // El primer reporte que le queda es el del unido, no el otro propio. Le quedan el propio y el del unido.
     expect(await incidente(primero.incidenteId)).toMatchObject({
       primerReporteEn: new Date('2026-10-11T10:00:00Z'),
+      cantidadReportes: 2,
     });
   });
 
@@ -208,10 +215,7 @@ describe('POST /api/reportes/:id/separacion', () => {
       const principal = await reportar('MODERADA', '2026-10-10T10:00:00Z');
       const delUnido = await reportar('MODERADA', '2026-10-11T10:00:00Z', 1);
       await reportar('MODERADA', '2026-10-12T10:00:00Z', 1);
-      await prisma.incidente.update({
-        where: { id: delUnido.incidenteId },
-        data: { incidentePrincipalId: principal.incidenteId },
-      });
+      await unir(delUnido.incidenteId, principal.incidenteId);
 
       const res = await separar(delUnido.id);
 
@@ -232,6 +236,19 @@ describe('POST /api/reportes/:id/separacion', () => {
       expect(res.status).toBe(409);
       expect(res.body.error.codigo).toBe('UNICO_REPORTE');
       expect(await incidente(unico.incidenteId)).toMatchObject({ cantidadReportes: 1 });
+    });
+
+    it('el único reporte propio de un principal, aunque tenga unidos: al deshacer quedaría vacío', async () => {
+      const principal = await reportar('MODERADA', '2026-10-10T10:00:00Z');
+      const delUnido = await reportar('MODERADA', '2026-10-11T10:00:00Z', 1);
+      await reportar('MODERADA', '2026-10-12T10:00:00Z', 1);
+      await unir(delUnido.incidenteId, principal.incidenteId);
+
+      const res = await separar(principal.id);
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.codigo).toBe('UNICO_REPORTE');
+      expect(await incidente(principal.incidenteId)).toMatchObject({ cantidadReportes: 3 });
     });
 
     it('el único reporte válido, aunque el incidente tenga otros desestimados', async () => {

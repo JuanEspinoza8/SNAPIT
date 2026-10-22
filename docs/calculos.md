@@ -99,7 +99,7 @@ Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo m
 1. **Historial del vecino.** Un verificado suma a `reportes_confirmados` y un desestimado a `reportes_desestimados`. Con los contadores nuevos se recalcula la reputación:
 
    ```math
-   	ext{reputación} = 100 	imes rac{	ext{confirmados} + 1}{	ext{confirmados} + 	ext{desestimados} + 2}
+   \text{reputación} = 100 \times \frac{\text{confirmados} + 1}{\text{confirmados} + \text{desestimados} + 2}
    ```
 
    Se guarda con dos decimales. Sin historial da **50**, la reputación inicial. Cada confirmado la acerca a 100 y cada desestimado a 0; el +1 y el +2 hacen que un solo reporte no la lleve a un extremo. La usa la señal `REPUTACION` de los reportes siguientes del vecino.

@@ -6,16 +6,10 @@ import type { UsuarioSesion } from '../auth/tokens.js';
 import { severidadConsolidada } from '../agrupacion/calculo.js';
 import * as agrupacion from '../agrupacion/repositorio.js';
 import { insertarIncidente, transaccion } from '../reportes/repositorio.js';
+import { esquemaId } from './esquemas.js';
 import { avisarCambioIncidente } from './eventos.js';
-import { REPORTES_DEL_INCIDENTE } from './repositorio.js';
 
 type Tx = Prisma.TransactionClient;
-
-const esquemaId = z.object({
-  id: z.coerce
-    .number({ error: 'No es válido' })
-    .pipe(z.int32({ error: 'No es válido' }).positive({ error: 'No es válido' })),
-});
 
 const esquemaSeparacion = z.object({
   comentario: z
@@ -31,6 +25,8 @@ interface ReporteASeparar {
   /** Si su incidente se unió a otro (#54), el principal. */
   principalId: number | null;
   categoriaId: number;
+  /** La del incidente, que es la que bloquean el alta y la unión. Hoy coincide con la del reporte (#66). */
+  categoriaIncidenteId: number | null;
   estado: EstadoVerificacion;
   severidad: Severidad;
   lat: number;
@@ -45,7 +41,7 @@ interface ReporteASeparar {
 async function bloquearReporte(tx: Tx, id: number) {
   const [fila] = await tx.$queryRaw<ReporteASeparar[]>`
     SELECT r.incidente_id AS "incidenteId", i.incidente_principal_id AS "principalId",
-           r.categoria_id AS "categoriaId",
+           r.categoria_id AS "categoriaId", i.categoria_id AS "categoriaIncidenteId",
            r.estado_verificacion::text AS estado, r.severidad_declarada::text AS severidad,
            ST_Y(r.ubicacion::geometry) AS lat, ST_X(r.ubicacion::geometry) AS lon,
            r.direccion, r.registrado_en AS "registradoEn", a.organismo_id AS "organismoId"
@@ -59,19 +55,24 @@ async function bloquearReporte(tx: Tx, id: number) {
 }
 
 async function bloquearIncidente(tx: Tx, id: number) {
-  const [fila] = await tx.$queryRaw<{ tipoVigencia: 'PERMANENTE' | 'TEMPORAL'; vigenteHasta: Date | null }[]>`
-    SELECT tipo_vigencia::text AS "tipoVigencia", vigente_hasta AS "vigenteHasta"
+  const [fila] = await tx.$queryRaw<
+    { tipoVigencia: 'PERMANENTE' | 'TEMPORAL'; vigenteHasta: Date | null; principalId: number | null }[]
+  >`
+    SELECT tipo_vigencia::text AS "tipoVigencia", vigente_hasta AS "vigenteHasta",
+           incidente_principal_id AS "principalId"
     FROM incidente WHERE id = ${id} FOR UPDATE`;
   return fila!;
 }
 
 /**
- * Cuántos reportes no desestimados tiene el incidente, sin contar el que se va a separar. Cuenta también los
- * de los incidentes unidos a él (#54), igual que la severidad consolidada.
+ * Cuántos reportes propios no desestimados tiene el incidente, sin contar el que se va a separar. Los de los
+ * incidentes unidos a él no cuentan: al deshacer la unión se van, y el incidente quedaría vacío.
  */
 async function contarOtrosValidos(tx: Tx, incidenteId: number, reporteId: number) {
   const [fila] = await tx.$queryRaw<{ cantidad: number }[]>`
-    SELECT count(*)::int AS cantidad ${REPORTES_DEL_INCIDENTE(incidenteId)} AND r.id <> ${reporteId}`;
+    SELECT count(*)::int AS cantidad
+    FROM reporte r
+    WHERE r.incidente_id = ${incidenteId} AND r.id <> ${reporteId} AND r.estado_verificacion <> 'DESESTIMADO'`;
   return fila!.cantidad;
 }
 
@@ -119,10 +120,19 @@ export async function separarReporte(sesion: UsuarioSesion, parametros: unknown,
       throw new ErrorApp(409, 'REPORTE_DESESTIMADO', 'Un reporte desestimado no se separa');
     }
 
-    // El mismo bloqueo que el alta de un reporte: mientras tanto, ningún reporte nuevo se suma a estos incidentes.
-    await agrupacion.bloquearCategoria(tx, reporte.categoriaId);
+    // El mismo bloqueo que el alta de un reporte y la unión: mientras tanto, ningún reporte nuevo se suma a
+    // estos incidentes y nadie los une.
+    await agrupacion.bloquearCategoria(tx, reporte.categoriaIncidenteId ?? reporte.categoriaId);
     const originalId = reporte.incidenteId;
     const original = await bloquearIncidente(tx, originalId);
+    // Se pudo unir entre la primera lectura y el bloqueo.
+    if (original.principalId !== null) {
+      throw new ErrorApp(
+        409,
+        'INCIDENTE_UNIDO',
+        `El incidente está unido al #${original.principalId}: primero hay que deshacer la unión`,
+      );
+    }
     if ((await contarOtrosValidos(tx, originalId, id)) === 0) {
       throw new ErrorApp(409, 'UNICO_REPORTE', 'Es el único reporte del incidente: no hay de qué separarlo');
     }

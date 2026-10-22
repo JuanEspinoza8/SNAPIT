@@ -4,7 +4,7 @@ import { ErrorApp } from '../../compartido/errores.js';
 import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { severidadConsolidada } from '../agrupacion/calculo.js';
-import { severidadesDeclaradas } from '../agrupacion/repositorio.js';
+import { bloquearCategoria, severidadesDeclaradas } from '../agrupacion/repositorio.js';
 import { transaccion } from '../reportes/repositorio.js';
 import { esquemaId } from './esquemas.js';
 import { avisarCambioIncidente } from './eventos.js';
@@ -55,6 +55,19 @@ async function bloquear(tx: Tx, ids: number[]) {
   return new Map(filas.map((fila) => [fila.id, fila]));
 }
 
+/**
+ * El mismo bloqueo por categoría que el alta y la separación, para las categorías de los dos incidentes y en
+ * orden: mientras se une o se desune, ningún reporte nuevo se suma a ellos ni se separa uno de ellos.
+ */
+async function bloquearCategorias(tx: Tx, ids: number[]) {
+  const incidentes = await tx.incidente.findMany({
+    where: { id: { in: ids } },
+    select: { categoriaId: true },
+  });
+  const categorias = [...new Set(incidentes.map((incidente) => incidente.categoriaId))].sort((a, b) => a - b);
+  for (const categoriaId of categorias) await bloquearCategoria(tx, categoriaId);
+}
+
 const noEncontrado = () => new ErrorApp(404, 'INCIDENTE_NO_ENCONTRADO', 'El incidente no existe');
 const conflicto = (codigo: string, mensaje: string) => new ErrorApp(409, codigo, mensaje);
 const activo = (i: IncidenteBloqueado) =>
@@ -100,6 +113,7 @@ export async function unirIncidentes(sesion: UsuarioSesion, parametros: unknown,
   }
 
   return transaccion(async (tx) => {
+    await bloquearCategorias(tx, [id, principalId]);
     const bloqueados = await bloquear(tx, [id, principalId]);
     const duplicado = bloqueados.get(id);
     const principal = bloqueados.get(principalId);
@@ -164,6 +178,7 @@ export async function deshacerUnion(sesion: UsuarioSesion, parametros: unknown) 
     if (!previo) throw noEncontrado();
     const principalId = previo.incidentePrincipalId;
     if (principalId === null) throw conflicto('NO_UNIDO', 'El incidente no está unido a otro');
+    await bloquearCategorias(tx, [id, principalId]);
     const bloqueados = await bloquear(tx, [id, principalId]);
     const duplicado = bloqueados.get(id)!;
     const principal = bloqueados.get(principalId)!;

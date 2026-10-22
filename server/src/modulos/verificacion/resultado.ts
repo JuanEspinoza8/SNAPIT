@@ -33,11 +33,14 @@ export async function aplicarResultado(
   resultado: ResultadoVerificacion,
 ): Promise<EfectoDelResultado> {
   const reporte = await repositorio.leerReporte(tx, resultado.reporteId);
+  // Primero el incidente y después el vecino, en el mismo orden que el alta: si no, un alta y una revisión
+  // del mismo vecino en el mismo incidente se pueden trabar entre sí.
+  const anterior =
+    reporte.incidenteId === null ? null : await repositorio.bloquearIncidente(tx, reporte.incidenteId);
   const reputacion = await repositorio.sumarAlHistorial(tx, reporte.usuarioId, resultado.decision);
-  if (reporte.incidenteId === null) return { reputacion, incidente: null };
+  if (reporte.incidenteId === null || anterior === null) return { reputacion, incidente: null };
 
   const id = reporte.incidenteId;
-  const anterior = await repositorio.bloquearIncidente(tx, id);
   let nuevo = anterior;
   if (anterior === 'REGISTRADO') {
     if (resultado.decision === 'VERIFICADO') nuevo = 'VERIFICADO';
