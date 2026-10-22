@@ -34,6 +34,21 @@ const PARAMETROS: DefinicionParametros<keyof ParametrosVerificacion> = {
   valorFechaAntigua: { clave: 'verificacion.valor_fecha_antigua', valor: -20 },
 };
 
+/**
+ * Si está activo el modo demostración (demo.revision_manual = 1): todo reporte nuevo va a la cola de
+ * revisión, para procesarla a mano o con la IA (ia/cola.ts).
+ */
+export async function modoDemostracion() {
+  const { revisionManual } = await leerParametrosNumericos({
+    revisionManual: {
+      clave: 'demo.revision_manual',
+      valor: 0,
+      valido: (valor) => valor === 0 || valor === 1,
+    },
+  });
+  return revisionManual === 1;
+}
+
 /** Los parámetros verificacion.* de parametro_sistema. */
 export function leerParametros(): Promise<ParametrosVerificacion> {
   return leerParametrosNumericos(PARAMETROS);
@@ -101,10 +116,55 @@ export interface FilaPendiente {
   reputacion: string;
   reportesConfirmados: number;
   reportesDesestimados: number;
+  /** La última clasificación de la IA al procesar la cola (ia/cola.ts), o null si todavía no lo procesó. */
+  propuestaIa: {
+    categoriaId: number;
+    severidad: Severidad;
+    explicacion: string | null;
+    creadoEn: string;
+  } | null;
+  estadoVerificacion: EstadoVerificacion;
+  /** Cuándo lo publicó la IA al procesar la cola, o null si no fue ella. */
+  publicadoPorIaEn: Date | null;
+}
+
+export interface FiltrosReportes {
+  estado?: EstadoVerificacion;
+  categoriaId?: number;
+  /** Los pendientes se revisan del más viejo al más nuevo; el listado general muestra primero lo último. */
+  orden: 'viejos' | 'nuevos';
+  limite: number;
+}
+
+/** Lo que la IA necesita de cada pendiente del organismo: qué eligió el vecino y su foto. Del más viejo al más nuevo. */
+export function pendientesParaIa(organismoId: number) {
+  return prisma.$queryRaw<
+    { id: number; categoriaId: number; severidad: Severidad; rutaArchivo: string | null }[]
+  >`
+    SELECT r.id, r.categoria_id AS "categoriaId", r.severidad_declarada::text AS severidad,
+           (SELECT f.ruta_archivo FROM fotografia f WHERE f.reporte_id = r.id ORDER BY f.id LIMIT 1) AS "rutaArchivo"
+    ${DEL_ORGANISMO}
+    WHERE r.estado_verificacion = 'PENDIENTE_REVISION'
+      AND a.organismo_id = ${organismoId}
+    ORDER BY r.registrado_en, r.id`;
 }
 
 /** Los reportes pendientes de revisión de los incidentes del organismo, del más viejo al más nuevo. */
 export function listarPendientes(organismoId: number) {
+  return listarDelOrganismo(organismoId, { estado: 'PENDIENTE_REVISION', orden: 'viejos', limite: 1000 });
+}
+
+/** Los reportes de los incidentes del organismo, con todo lo que hace falta para revisarlos o consultarlos. */
+export function listarDelOrganismo(organismoId: number, filtros: FiltrosReportes) {
+  const condiciones = [Prisma.sql`a.organismo_id = ${organismoId}`];
+  if (filtros.estado) {
+    condiciones.push(Prisma.sql`r.estado_verificacion = ${filtros.estado}::estado_verificacion`);
+  }
+  if (filtros.categoriaId) condiciones.push(Prisma.sql`r.categoria_id = ${filtros.categoriaId}`);
+  const orden =
+    filtros.orden === 'viejos'
+      ? Prisma.sql`r.registrado_en, r.id`
+      : Prisma.sql`r.registrado_en DESC, r.id DESC`;
   return prisma.$queryRaw<FilaPendiente[]>`
     SELECT r.id, r.registrado_en AS "registradoEn", r.categoria_id AS "categoriaId",
            rc.nombre AS "categoriaNombre", r.severidad_declarada::text AS "severidadDeclarada",
@@ -116,13 +176,26 @@ export function listarPendientes(organismoId: number) {
            (SELECT coalesce(array_agg(f.id ORDER BY f.id), '{}') FROM fotografia f WHERE f.reporte_id = r.id) AS fotos,
            i.id AS "incidenteId", i.estado::text AS "incidenteEstado", i.cantidad_reportes AS "cantidadReportes",
            u.reputacion::text AS reputacion, u.reportes_confirmados AS "reportesConfirmados",
-           u.reportes_desestimados AS "reportesDesestimados"
+           u.reportes_desestimados AS "reportesDesestimados",
+           (SELECT json_build_object(
+                     'categoriaId', (ri.salida->>'categoriaId')::int,
+                     'severidad', ri.salida->>'severidad',
+                     'explicacion', ri.salida->>'explicacion',
+                     'creadoEn', e.creado_en)
+            FROM evento_verificacion_ia e
+            JOIN registro_ia ri ON ri.id = e.registro_ia_id
+            WHERE e.reporte_id = r.id AND e.estado = 'CLASIFICADO'
+            ORDER BY e.id DESC
+            LIMIT 1) AS "propuestaIa",
+           r.estado_verificacion::text AS "estadoVerificacion",
+           (SELECT min(e.creado_en) FROM evento_verificacion_ia e
+            WHERE e.reporte_id = r.id AND e.estado = 'PUBLICADO') AS "publicadoPorIaEn"
     ${DEL_ORGANISMO}
     JOIN categoria rc ON rc.id = r.categoria_id
     JOIN usuario u ON u.id = r.usuario_id
-    WHERE r.estado_verificacion = 'PENDIENTE_REVISION'
-      AND a.organismo_id = ${organismoId}
-    ORDER BY r.registrado_en, r.id`;
+    WHERE ${Prisma.join(condiciones, ' AND ')}
+    ORDER BY ${orden}
+    LIMIT ${filtros.limite}`;
 }
 
 /**
