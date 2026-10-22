@@ -189,6 +189,34 @@ Cada cambio queda en la bitácora como `CAMBIO_ESTADO` del sistema (sin usuario)
 
 **Separar.** No se separa el único reporte propio no desestimado de un incidente (los de los unidos no cuentan: al deshacer la unión se van). El nuevo toma la vigencia de su categoría desde que llegó el reporte. Si el original estaba en el punto del reporte separado (el que lo creó), pasa al punto y la dirección del reporte válido propio que llegó primero.
 
+### Transiciones de estado del incidente
+
+Qué cambios de estado se permiten y por qué vía, según el diagrama de estados del plan. Lo decide `transicionValida(desde, hacia, via)` (`server/src/modulos/incidentes/calculo.ts`, #65), una función pura que no mira la base. La vía es quién hace el cambio:
+
+- **operador:** una acción sobre el incidente (derivar, pasar a ejecución, desestimar).
+- **reportes:** la regla de estado según los reportes (arriba), al revisar un reporte, unir, deshacer una unión o separar.
+- **cierre:** el cierre con la foto del después (corte 75 %).
+
+| Desde | Hacia | Vía | Cuándo |
+|---|---|---|---|
+| `REGISTRADO` | `VERIFICADO` | reportes | Se verifica su primer reporte |
+| `VERIFICADO` | `REGISTRADO` | reportes | Se le separa o se le desune el único reporte verificado |
+| `REGISTRADO` o `VERIFICADO` | `DESESTIMADO` | reportes | Ya no le queda ningún reporte sin desestimar |
+| `REGISTRADO` o `VERIFICADO` | `DESESTIMADO` | operador | Lo desestima con un motivo |
+| `VERIFICADO` | `DERIVADO` | operador | Lo deriva a un área |
+| `DERIVADO` | `DERIVADO` | operador | Lo re-deriva a otra área |
+| `DERIVADO` | `EN_EJECUCION` | operador | Registra que empezó el trabajo |
+| `DERIVADO` o `EN_EJECUCION` | `DESESTIMADO` | operador | Lo desestima con un motivo |
+| `EN_EJECUCION` | `RESUELTO` | cierre | El cierre da `VALIDADO`, o se confirma uno `OBSERVADO` |
+
+Cualquier otra combinación es inválida. En particular:
+- `RESUELTO` y `DESESTIMADO` no salen de su estado.
+- A `RESUELTO` solo se llega por el cierre.
+- El operador no verifica ni vuelve a `REGISTRADO` un incidente a mano: eso sale de sus reportes.
+- Para pasar a `EN_EJECUCION` primero hay que derivar, y desde `EN_EJECUCION` ya no se deriva.
+
+Además de la transición, el operador no trabaja un incidente unido a otro (se trabaja el principal) ni uno caducado. Desestimar un incidente no cambia sus reportes ni la reputación de los vecinos: reporte e incidente son cosas distintas. Cada cambio deja un movimiento en la bitácora y avisa a la prioridad (`avisarCambioIncidente`).
+
 ### Prioridad del incidente
 
 | Parámetro | Tipo | Valor | Para qué |
@@ -252,7 +280,7 @@ Cada factor guarda un texto que se entiende sin conocer la fórmula. Los número
 
 **Máximo:** `puntaje_prioridad` y `factor_prioridad.valor` son `numeric(6,2)`, así que cada factor y el puntaje se recortan a 9999,99. Con los valores de partida el máximo es 40 × peso de la categoría + 60: 120 para un pozo, y 4059,6 con el peso más alto que admite `categoria.peso_severidad_base` (99,99). Solo se llega al tope con pesos fuera de escala, y entonces la suma del desglose puede pasar el puntaje.
 
-**Cuándo se recalcula:** en la misma transacción que el cambio, cada vez que un reporte se suma al incidente, un reporte se verifica o se desestima, se une o se deshace una unión y se separa un reporte (`alCambiarIncidente` en `incidentes/eventos.ts`). Se guarda `puntaje_prioridad` y se **reemplazan** las filas de `factor_prioridad` del incidente: es el único borrado del sistema, porque son datos derivados y la tabla no tiene fecha (decisión del 01/10). Si el recálculo falla, no queda nada del cambio. Un incidente resuelto o desestimado no se recalcula: su desglose queda como estaba al cerrarse. Los cambios de estado y de categoría que hace el operador (#65, #66) también tienen que avisar con `avisarCambioIncidente`.
+**Cuándo se recalcula:** en la misma transacción que el cambio, cada vez que un reporte se suma al incidente, un reporte se verifica o se desestima, se une o se deshace una unión, se separa un reporte, y cuando el operador lo deriva o lo pasa a ejecución (`alCambiarIncidente` en `incidentes/eventos.ts`). Se guarda `puntaje_prioridad` y se **reemplazan** las filas de `factor_prioridad` del incidente: es el único borrado del sistema, porque son datos derivados y la tabla no tiene fecha (decisión del 01/10). Si el recálculo falla, no queda nada del cambio. Un incidente resuelto o desestimado no se recalcula: su desglose queda como estaba al cerrarse. El cambio de categoría que hace el operador (#66) también tiene que avisar con `avisarCambioIncidente`.
 
 **Recálculo diario** (#63, `server/src/tareas/prioridadDiaria.ts`): la antigüedad crece con los días aunque nadie toque el incidente, así que todos los días a las 03:00 de Argentina se recalculan los incidentes abiertos. Son los que no están resueltos ni desestimados, ni unidos a otro, ni caducados o vencidos: los demás no están en la bandeja, y un unido se recalcula solo si se deshace la unión. También corre al arrancar el servidor, por si estaba apagado a esa hora.
 

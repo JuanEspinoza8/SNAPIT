@@ -785,6 +785,80 @@ La ficha del incidente para el operador, en cualquier estado. Si el incidente es
 | 403 `SIN_PERMISO` | El incidente es de otro organismo, o es un administrador sin organismo |
 | 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
 
+### Acciones del operador
+Cada acción deja un movimiento en la bitácora, que nunca se edita ni se borra, y lo devuelve en `movimiento` con la misma forma que en `bitacora`: así la ficha se actualiza sin volver a pedirla. Los estados que se pueden alcanzar están en «Transiciones de estado del incidente» (`docs/calculos.md`).
+
+`comentario`, donde es opcional, es un texto de hasta 1000 caracteres y se agrega al texto del movimiento.
+
+Errores comunes a derivar y cambiar el estado:
+
+| Error | Cuándo |
+|---|---|
+| 403 `SIN_PERMISO` | El incidente es de otro organismo |
+| 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+| 409 `INCIDENTE_UNIDO` | El incidente está unido a otro: se trabaja sobre el principal |
+| 409 `INCIDENTE_CADUCADO` | El incidente caducó (o es temporal y venció su vigencia) |
+
+### `POST /api/incidentes/:id/derivacion`
+Deriva el incidente a un área de su organismo: pasa de `VERIFICADO` o `DERIVADO` a `DERIVADO`, con un movimiento `DERIVACION` que guarda el área. Se recalcula la prioridad.
+
+```json
+{ "areaId": 2, "comentario": "Lo atiende la cuadrilla de veredas" }
+```
+
+Responde **200**:
+
+```json
+{
+  "id": 7,
+  "estado": "DERIVADO",
+  "area": { "id": 2, "nombre": "Veredas" },
+  "movimiento": { "id": 32, "tipo": "DERIVACION", "comentario": "Derivado de Bacheo a Veredas: Lo atiende la cuadrilla de veredas", "...": "..." }
+}
+```
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | Falta `areaId`, el área no existe, es de otro organismo o no está activa |
+| 409 `TRANSICION_INVALIDA` | El incidente no está `VERIFICADO` ni `DERIVADO` |
+| 409 `MISMA_AREA` | Ya está derivado a esa área |
+
+### `POST /api/incidentes/:id/estado`
+Registra el avance: pasa un incidente `DERIVADO` a `EN_EJECUCION`, o lo desestima. Deja un movimiento `CAMBIO_ESTADO` con el estado de antes y el nuevo, y se recalcula la prioridad (un desestimado conserva el desglose que tenía).
+
+```json
+{ "estado": "DESESTIMADO", "comentario": "Ya estaba arreglado" }
+```
+
+| Campo | Obligatorio | Valor |
+|---|---|---|
+| `estado` | sí | `EN_EJECUCION` o `DESESTIMADO`. Para derivar está la ruta de arriba; a `RESUELTO` se llega con el cierre |
+| `comentario` | para desestimar | El motivo. Para `EN_EJECUCION` es opcional |
+
+Responde **200** con `{ "id", "estado", "movimiento" }`.
+
+Un incidente desestimado sale del mapa: su ficha pública y sus fotos sin sesión dan 404. Sus reportes no cambian, ni la reputación de los vecinos.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | `estado` no es uno de los dos, o falta el motivo para desestimar |
+| 409 `TRANSICION_INVALIDA` | No se puede pasar a ese estado: por ejemplo, a `EN_EJECUCION` sin derivar antes, o desde `RESUELTO` o `DESESTIMADO` |
+
+### `POST /api/incidentes/:id/comentarios`
+Deja un comentario en la bitácora (movimiento `COMENTARIO`) sin cambiar nada del incidente. Se puede en cualquier estado, también si está cerrado o unido.
+
+```json
+{ "comentario": "La cuadrilla pasa el lunes" }
+```
+
+`comentario` es obligatorio, hasta 1000 caracteres. Responde **201** con `{ "id", "movimiento" }`.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | Falta el comentario o es muy largo |
+| 403 `SIN_PERMISO` | El incidente es de otro organismo |
+| 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
 

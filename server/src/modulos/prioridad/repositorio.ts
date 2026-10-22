@@ -117,6 +117,8 @@ export interface IncidenteParaAjustar {
   estado: EstadoIncidente;
   caducado: boolean;
   unido: boolean;
+  /** El área a la que se derivó. Null mientras no se derivó. */
+  areaId: number | null;
   /** El del área a la que se derivó o, si todavía no se derivó, el del área de su categoría. */
   organismoId: number;
   prioridadManual: number | null;
@@ -124,13 +126,14 @@ export interface IncidenteParaAjustar {
 
 /**
  * El incidente bloqueado hasta que termine la transacción. Un reporte que se suma a la vez espera, y su
- * recálculo ya ve el ajuste nuevo. Lo usan el ajuste manual y el recálculo diario.
+ * recálculo ya ve el ajuste nuevo. Lo usan el ajuste manual, el recálculo diario y la gestión del operador.
  */
 export async function bloquearIncidente(tx: Prisma.TransactionClient, id: number) {
   const [fila] = await tx.$queryRaw<IncidenteParaAjustar[]>`
     SELECT i.estado::text AS estado,
            (i.caducado_en IS NOT NULL OR (i.vigente_hasta IS NOT NULL AND i.vigente_hasta <= now())) AS caducado,
            i.incidente_principal_id IS NOT NULL AS unido,
+           i.area_id AS "areaId",
            a.organismo_id AS "organismoId",
            i.prioridad_manual::float8 AS "prioridadManual"
     FROM incidente i
