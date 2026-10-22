@@ -180,6 +180,57 @@ Dos reportes de la misma categoría que llegan a la vez se procesan de a uno (un
 | `prioridad.factor_parada` | decimal | 0,6 | Ídem, una parada de transporte |
 | `prioridad.factor_edificio_publico` | decimal | 0,5 | Ídem, un edificio público |
 
+Cada incidente tiene un **puntaje** que lo ordena en la bandeja y un **desglose** que explica de dónde sale, para justificar el orden ante el organismo (#61, `server/src/modulos/prioridad/calculo.ts`). El puntaje es la suma de cuatro factores:
+
+```math
+\text{puntaje} = \text{severidad} + \text{evidencias} + \text{antigüedad} + \text{contexto}
+```
+
+| Factor | Cuenta | De dónde sale cada dato |
+|---|---|---|
+| `SEVERIDAD` | `peso_severidad × nivel / 3 × peso de la categoría` | `nivel`: 1 si es leve, 2 si es moderada y 3 si es grave (la severidad consolidada del incidente). El peso de la categoría es `categoria.peso_severidad_base` |
+| `EVIDENCIAS` | `peso_evidencias × min(1, ln(1 + n) / ln(1 + tope_evidencias))` | `n` = reportes no desestimados (`cantidad_reportes`, con los de los incidentes unidos) + vecinos distintos que lo confirmaron (también en los unidos) |
+| `ANTIGUEDAD` | `peso_antiguedad × min(1, días / tope_antiguedad_dias)` | `días`: días completos desde `primer_reporte_en` |
+| `CONTEXTO_URBANO` | `peso_contexto × factor del punto` | El punto de interés a no más de `radio_contexto_m` con el mayor `factor_*` de su tipo; ante un empate, el más cercano. Sin ninguno, 0 |
+
+- **Evidencias con logaritmo:** los primeros vecinos dicen mucho y los siguientes cada vez menos. Con un reporte suma un cuarto del peso (ln 2 / ln 16), con cinco casi dos tercios, y desde `tope_evidencias` el peso entero.
+- **Días completos:** 10 días y medio cuentan como 10. Así el número del texto coincide con la cuenta, y el valor cambia una vez por día.
+- **Un solo punto de interés:** cuenta el más relevante, no la suma. Diez paradas juntas no valen más que una escuela. Para eso alcanza con buscar el más cercano de cada tipo (`ST_DWithin` sobre el índice GIST de `punto_interes`).
+
+Cada factor guarda un texto que se entiende sin conocer la fórmula. Los números van con un decimal; en `factor_prioridad.valor` quedan con dos:
+
+| Caso | Texto |
+|---|---|
+| Severidad | «Gravedad grave en Pozo en la calzada, una categoría que pesa ×1,5: +60» |
+| Evidencias | «Lo reportaron 3 veces y lo confirmaron 2 vecinos: +16,2» |
+| Evidencias en el tope | «Lo reportaron 12 veces y lo confirmaron 3 vecinos (con 15 o más ya suma el máximo): +25» |
+| Antigüedad | «Lleva 10 días sin resolverse: +3,3» |
+| Antigüedad del primer día | «Lleva menos de un día sin resolverse: +0» |
+| Antigüedad en el tope | «Lleva 75 días sin resolverse (con 60 o más ya suma el máximo): +20» |
+| Punto de interés | «A 80 m de Escuela N° 123 (escuela): +15» |
+| Parada con su código | «A 40 m de N-2935 (parada de colectivo): +9» |
+| Lugar sin nombre en OSM | «A 100 m de un edificio público: +7,5» |
+| Sin puntos cerca | «Sin escuelas, centros de salud, paradas ni edificios públicos a menos de 150 m: +0» |
+| Ajuste manual | «Ajuste manual de Juan Pérez (obra programada): −5,3» |
+
+**Ejemplo completo**, con los valores de partida: un pozo en la calzada (peso 1,5) de gravedad grave, con 3 reportes válidos y 2 vecinos que lo confirmaron, que lleva 10 días, a 80 m de una escuela y a 20 m de una parada.
+
+| Factor | Cuenta | Valor |
+|---|---|---|
+| Severidad | 40 × 3/3 × 1,5 | 60 |
+| Evidencias | n = 3 + 2 = 5: 25 × ln 6 / ln 16 = 25 × 0,6462 | 16,16 |
+| Antigüedad | 20 × 10/60 | 3,33 |
+| Contexto urbano | La escuela (1,0) gana a la parada (0,6), aunque está más lejos: 15 × 1,0 | 15 |
+| **Puntaje** | | **94,49** |
+
+**Ajuste manual** (lo fija un operador, #62). Si el incidente tiene `prioridad_manual`, el desglose suma `AJUSTE_MANUAL` = `prioridad_manual − puntaje calculado`, con el motivo y quién lo fijó. `puntaje_prioridad` sigue guardando el calculado, y la bandeja ordena por `coalesce(prioridad_manual, puntaje_prioridad)`. Así, al quitar el ajuste, se vuelve al calculado sin recalcular nada.
+
+**Máximo:** `puntaje_prioridad` y `factor_prioridad.valor` son `numeric(6,2)`, así que cada factor y el puntaje se recortan a 9999,99. Con los valores de partida el máximo es 40 × peso de la categoría + 60: 120 para un pozo, y 4059,6 con el peso más alto que admite `categoria.peso_severidad_base` (99,99). Solo se llega al tope con pesos fuera de escala, y entonces la suma del desglose puede pasar el puntaje.
+
+**Cuándo se recalcula:** en la misma transacción que el cambio, cada vez que un reporte se suma al incidente, un reporte se verifica o se desestima, se une o se deshace una unión y se separa un reporte (`alCambiarIncidente` en `incidentes/eventos.ts`). Se guarda `puntaje_prioridad` y se **reemplazan** las filas de `factor_prioridad` del incidente: es el único borrado del sistema, porque son datos derivados y la tabla no tiene fecha (decisión del 01/10). Si el recálculo falla, no queda nada del cambio. Un incidente resuelto o desestimado no se recalcula: su desglose queda como estaba al cerrarse. El recálculo diario, que actualiza la antigüedad, es la #63.
+
+**Límite conocido:** `primer_reporte_en` sale del `registradoEn` del primer reporte, que manda el celular sin límite hacia atrás, porque el modo sin conexión carga reportes de días anteriores. Un reporte con una fecha vieja lleva la antigüedad al máximo, como mucho +20.
+
 ### Cierre, vigencia y recorridos
 
 | Parámetro | Tipo | Valor | Para qué |

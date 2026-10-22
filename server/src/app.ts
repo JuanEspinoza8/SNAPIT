@@ -6,9 +6,14 @@ import { rutasAdmin } from './modulos/admin/rutas.js';
 import { rutasAuth } from './modulos/auth/rutas.js';
 import { rutasCatalogo } from './modulos/catalogo/rutas.js';
 import { rutasIa } from './modulos/ia/rutas.js';
+import { alCambiarIncidente } from './modulos/incidentes/eventos.js';
 import { rutasIncidentes } from './modulos/incidentes/rutas.js';
+import { recalcularPrioridad } from './modulos/prioridad/servicio.js';
 import { rutasFotos, rutasReportes } from './modulos/reportes/rutas.js';
 import { rutasSalud } from './modulos/salud/rutas.js';
+
+// Va acá y no en index.ts: los tests usan la app y tienen que ver la prioridad recalculada.
+alCambiarIncidente(recalcularPrioridad);
 
 export const app = express();
 
