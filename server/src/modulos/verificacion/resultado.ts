@@ -9,6 +9,8 @@ export interface ResultadoVerificacion {
   /** El operador que lo revisó, o null si lo verificó el sistema al recibirlo. */
   operadorId: number | null;
   comentario: string | null;
+  /** Lo decidió la IA al procesar la cola (ia/cola.ts), a pedido de `operadorId`. */
+  porIa?: boolean;
 }
 
 export interface EfectoDelResultado {
@@ -83,6 +85,10 @@ export async function aplicarResultado(
 /** El texto del movimiento: qué reporte, quién lo decidió y, si hay, el comentario del operador. */
 function describir(resultado: ResultadoVerificacion, nivelConfianza: number) {
   const que = resultado.decision === 'VERIFICADO' ? 'verificado' : 'desestimado';
+  if (resultado.porIa) {
+    const base = `Reporte #${resultado.reporteId} ${que} por la IA al procesar la cola de verificación`;
+    return resultado.comentario ? `${base}: ${resultado.comentario}` : base;
+  }
   if (resultado.operadorId === null) {
     return `Reporte #${resultado.reporteId} ${que} automáticamente (confianza ${nivelConfianza})`;
   }

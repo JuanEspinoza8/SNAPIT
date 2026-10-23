@@ -3,7 +3,7 @@ import { prisma } from '../../compartido/prisma.js';
 import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
-import { esquemaIdReporte, esquemaRevision } from './esquemas.js';
+import { esquemaFiltrosReportes, esquemaIdReporte, esquemaRevision } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 import { aplicarResultado } from './resultado.js';
 
@@ -14,31 +14,64 @@ import { aplicarResultado } from './resultado.js';
 export async function listarPendientes(sesion: UsuarioSesion) {
   if (sesion.organismoId === null) return { reportes: [] };
   const filas = await repositorio.listarPendientes(sesion.organismoId);
+  return { reportes: filas.map(aRespuesta) };
+}
+
+/**
+ * Todos los reportes de los incidentes del organismo (pendientes, verificados y desestimados), del más nuevo
+ * al más viejo, con los mismos datos que los pendientes y en qué quedó cada uno.
+ */
+export async function listarReportes(sesion: UsuarioSesion, consulta: unknown) {
+  const { estado, categoriaId, limite } = validar(esquemaFiltrosReportes, consulta ?? {});
+  if (sesion.organismoId === null) return { reportes: [] };
+  const filas = await repositorio.listarDelOrganismo(sesion.organismoId, {
+    estado,
+    categoriaId,
+    orden: 'nuevos',
+    limite,
+  });
   return {
     reportes: filas.map((fila) => ({
-      id: fila.id,
-      registradoEn: fila.registradoEn,
-      categoria: { id: fila.categoriaId, nombre: fila.categoriaNombre },
-      severidadDeclarada: fila.severidadDeclarada,
-      descripcion: fila.descripcion,
-      direccion: fila.direccion,
-      lat: fila.lat,
-      lon: fila.lon,
-      origen: fila.origen,
-      nivelConfianza: fila.nivelConfianza,
-      senales: fila.senales.map((senal) => ({ ...senal, valor: Number(senal.valor) })),
-      fotos: fila.fotos.map((fotoId) => ({ id: fotoId, url: `/api/fotos/${fotoId}` })),
-      incidente:
-        fila.incidenteId === null
-          ? null
-          : { id: fila.incidenteId, estado: fila.incidenteEstado, cantidadReportes: fila.cantidadReportes },
-      // El historial, no quién es: para decidir alcanza con saber cuánto acertó antes.
-      vecino: {
-        reputacion: Number(fila.reputacion),
-        reportesConfirmados: fila.reportesConfirmados,
-        reportesDesestimados: fila.reportesDesestimados,
-      },
+      ...aRespuesta(fila),
+      estadoVerificacion: fila.estadoVerificacion,
+      // Si lo publicó la IA al procesar la cola, cuándo. Si no, null: lo verificó el sistema al recibirlo o
+      // un operador (eso todavía no se registra aparte).
+      publicadoPorIaEn: fila.publicadoPorIaEn,
     })),
+  };
+}
+
+function aRespuesta(fila: repositorio.FilaPendiente) {
+  return {
+    id: fila.id,
+    registradoEn: fila.registradoEn,
+    categoria: { id: fila.categoriaId, nombre: fila.categoriaNombre },
+    severidadDeclarada: fila.severidadDeclarada,
+    descripcion: fila.descripcion,
+    direccion: fila.direccion,
+    lat: fila.lat,
+    lon: fila.lon,
+    origen: fila.origen,
+    nivelConfianza: fila.nivelConfianza,
+    senales: fila.senales.map((senal) => ({ ...senal, valor: Number(senal.valor) })),
+    fotos: fila.fotos.map((fotoId) => ({ id: fotoId, url: `/api/fotos/${fotoId}` })),
+    incidente:
+      fila.incidenteId === null
+        ? null
+        : {
+            id: fila.incidenteId,
+            estado: fila.incidenteEstado,
+            cantidadReportes: fila.cantidadReportes,
+            propioId: fila.propioId,
+          },
+    // El historial, no quién es: para decidir alcanza con saber cuánto acertó antes.
+    vecino: {
+      reputacion: Number(fila.reputacion),
+      reportesConfirmados: fila.reportesConfirmados,
+      reportesDesestimados: fila.reportesDesestimados,
+    },
+    // Si la IA ya lo procesó y lo derivó a revisión: qué propuso y por qué.
+    propuestaIa: fila.propuestaIa,
   };
 }
 

@@ -11,6 +11,7 @@ import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import type { Senal } from '../verificacion/calculo.js';
 import { aplicarResultado } from '../verificacion/resultado.js';
+import { modoDemostracion } from '../verificacion/repositorio.js';
 import { verificarReporte } from '../verificacion/servicio.js';
 import { type DatosReporte, esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
@@ -130,7 +131,7 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
 
   const parametrosAgrupacion = await agrupacion.leerParametros();
   // Antes de guardar: la foto todavía no está en la base, así que no se encuentra a sí misma como repetida.
-  const verificacion = await verificarReporte({
+  let verificacion = await verificarReporte({
     usuarioId,
     lat: datos.lat,
     lon: datos.lon,
@@ -139,6 +140,11 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
     exif: imagen!.exif,
     hashPerceptual: imagen!.hashPerceptual,
   });
+  // Modo demostración: el nivel y las señales se guardan igual, pero el reporte espera en la cola aunque la
+  // verificación automática lo aprobaría, para mostrar la revisión manual y la de la IA (ia/cola.ts).
+  if (verificacion.estado === 'VERIFICADO' && (await modoDemostracion())) {
+    verificacion = { ...verificacion, estado: 'PENDIENTE_REVISION' };
+  }
 
   // Primero el archivo y después la base. Si la base falla, se borra el archivo: nunca queda
   // un reporte sin foto ni una foto suelta.

@@ -338,3 +338,77 @@ describe('POST /api/reportes/:id/revision', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('GET /api/reportes', () => {
+  const todos = (consulta: Record<string, string> = {}, conToken = token) =>
+    request(app).get('/api/reportes').query(consulta).set('Authorization', `Bearer ${conToken}`);
+
+  it('lista los reportes del organismo en cualquier estado, del más nuevo al más viejo', async () => {
+    const verificado = await reportar(await crearVecino(), { verificado: true });
+    const pendiente = await reportar(await crearVecino(), { verificado: false });
+    const desestimado = await reportar(await crearVecino(), { verificado: false });
+    await revisar(desestimado.id, { decision: 'DESESTIMADO' });
+
+    const res = await todos();
+
+    expect(res.status).toBe(200);
+    const propios = res.body.reportes.filter((r: { id: number }) =>
+      [verificado.id, pendiente.id, desestimado.id].includes(r.id),
+    );
+    expect(
+      propios.map((r: { id: number; estadoVerificacion: string }) => [r.id, r.estadoVerificacion]),
+    ).toEqual([
+      [desestimado.id, 'DESESTIMADO'],
+      [pendiente.id, 'PENDIENTE_REVISION'],
+      [verificado.id, 'VERIFICADO'],
+    ]);
+    // Con los mismos datos que un pendiente, y sin publicación de la IA (lo decidieron el sistema y un operador).
+    expect(propios[0]).toMatchObject({
+      categoria: { id: categoria.id },
+      senales: expect.any(Array),
+      vecino: expect.objectContaining({ reputacion: expect.any(Number) }),
+      propuestaIa: null,
+      publicadoPorIaEn: null,
+    });
+  });
+
+  it('filtra por estado y por categoría', async () => {
+    const verificado = await reportar(await crearVecino(), { verificado: true });
+    const pendiente = await reportar(await crearVecino(), { verificado: false });
+
+    const verificados = await todos({ estado: 'VERIFICADO' });
+    const deOtraCategoria = await todos({ categoriaId: '2000000000' });
+    const deEsta = await todos({ categoriaId: String(categoria.id) });
+
+    const ids = (res: request.Response) => res.body.reportes.map((r: { id: number }) => r.id);
+    expect(ids(verificados)).toContain(verificado.id);
+    expect(ids(verificados)).not.toContain(pendiente.id);
+    expect(ids(deOtraCategoria)).toEqual([]);
+    expect(ids(deEsta).sort()).toEqual([verificado.id, pendiente.id].sort());
+  });
+
+  it('no incluye los de otros organismos', async () => {
+    const reporte = await reportar(await crearVecino(), { verificado: true });
+    const otro = await crearOperador((await crearOrganismo()).area);
+
+    const res = await todos({}, otro.token);
+
+    expect(res.body.reportes.map((r: { id: number }) => r.id)).not.toContain(reporte.id);
+  });
+
+  it('valida los filtros', async () => {
+    const res = await todos({ estado: 'PUBLICADO' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles).toContainEqual({
+      campo: 'estado',
+      mensaje: 'Tiene que ser PENDIENTE_REVISION, VERIFICADO o DESESTIMADO',
+    });
+  });
+
+  it('un vecino no puede verlo', async () => {
+    const res = await todos({}, crearTokenAcceso(await crearVecino()));
+
+    expect(res.status).toBe(403);
+  });
+});

@@ -149,6 +149,15 @@ enum Plataforma {
   @@map("plataforma")
 }
 
+enum EstadoEventoIa {
+  EN_PROCESO
+  CLASIFICADO
+  PUBLICADO
+  REVISION_MANUAL
+  ERROR
+  @@map("estado_evento_ia")
+}
+
 /// Persona registrada en el sistema: el vecino que reporta, el operador del organismo o el administrador.
 model Usuario {
   /// Identificador interno.
@@ -199,6 +208,7 @@ model Usuario {
   notificaciones             Notificacion[]
   registroIas                RegistroIa[]
   informes                   Informe[]
+  eventosVerificacionIa      EventoVerificacionIa[]
 
   @@map("usuario")
 }
@@ -217,6 +227,7 @@ model Organismo {
   creadoEn     DateTime   @default(now()) @db.Timestamptz(6) @map("creado_en")
   areas        Area[]
   usuarios     Usuario[]
+  eventosVerificacionIa EventoVerificacionIa[]
 
   @@map("organismo")
 }
@@ -448,6 +459,7 @@ model Reporte {
   registroIa           RegistroIa?                            @relation(fields: [registroIaId], references: [id], onDelete: SetNull)
   fotografias          Fotografia[]
   senalVerificaciones  SenalVerificacion[]
+  eventosVerificacionIa EventoVerificacionIa[]
 
   @@index([incidenteId])
   @@index([usuarioId])
@@ -823,9 +835,43 @@ model RegistroIa {
   reportes          Reporte[]
   cierreIncidentes  CierreIncidente[]
   informes          Informe[]
+  eventosVerificacionIa EventoVerificacionIa[]
 
   @@index([creadoEn])
   @@map("registro_ia")
+}
+
+/// Cada paso que dio la IA con cada reporte al procesar la cola de verificación: el log que ve el operador.
+model EventoVerificacionIa {
+  /// Identificador interno.
+  id             Int             @id @default(autoincrement()) @map("id")
+  /// Procesamiento de la cola al que pertenece: todos los pasos de una misma corrida comparten el valor.
+  procesoId      String          @db.Uuid @map("proceso_id")
+  /// Organismo cuya cola se procesó.
+  organismoId    Int             @map("organismo_id")
+  /// Operador que inició el procesamiento.
+  usuarioId      Int?            @map("usuario_id")
+  /// Reporte procesado.
+  reporteId      Int             @map("reporte_id")
+  /// Paso: en proceso, clasificado, publicado, derivado a revisión manual o error.
+  estado         EstadoEventoIa  @map("estado")
+  /// Llamada al modelo que clasificó el reporte.
+  registroIaId   Int?            @map("registro_ia_id")
+  /// Explicación legible del paso.
+  detalle        String?         @db.Text @map("detalle")
+  /// Tokens de entrada que usó la clasificación, para calcular su costo.
+  tokensEntrada  Int?            @map("tokens_entrada")
+  /// Tokens de salida que usó la clasificación, para calcular su costo.
+  tokensSalida   Int?            @map("tokens_salida")
+  /// Fecha del paso.
+  creadoEn       DateTime        @default(now()) @db.Timestamptz(6) @map("creado_en")
+  organismo      Organismo       @relation(fields: [organismoId], references: [id], onDelete: Restrict)
+  usuario        Usuario?        @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  reporte        Reporte         @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  registroIa     RegistroIa?     @relation(fields: [registroIaId], references: [id], onDelete: SetNull)
+
+  @@index([procesoId])
+  @@map("evento_verificacion_ia")
 }
 
 /// Informe de estado y prioridades generado automáticamente, guardado para poder releerlo.

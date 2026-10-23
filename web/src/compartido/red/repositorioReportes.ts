@@ -3,6 +3,7 @@ import type { DatosReporte, ReporteEnviado } from '../../funcionalidades/reporta
 import type { ReporteMio } from '../../funcionalidades/misReportes/tipos.js';
 import type {
   DecisionRevision,
+  ReporteDelOrganismo,
   ReportePendiente,
   ResultadoRevision,
 } from '../../funcionalidades/revision/tipos.js';
@@ -13,6 +14,8 @@ export interface RepositorioReportes {
   mios(): Promise<ReporteMio[]>;
   /** Los reportes de baja confianza a revisar, del más viejo al más nuevo. */
   pendientes(): Promise<ReportePendiente[]>;
+  /** Todos los reportes del organismo, en cualquier estado, del más nuevo al más viejo. */
+  delOrganismo(): Promise<ReporteDelOrganismo[]>;
   /** Verifica o desestima un reporte pendiente, con comentario opcional. */
   revisar(id: number, decision: DecisionRevision, comentario: string): Promise<ResultadoRevision>;
 }
@@ -29,6 +32,11 @@ export function crearRepositorioReportes(cliente: ClienteApi): RepositorioReport
       formulario.append('origen', 'SITIO_WEB');
       const descripcion = datos.descripcion.trim();
       if (descripcion) formulario.append('descripcion', descripcion);
+      if (datos.sugerencia) {
+        formulario.append('categoriaSugeridaId', String(datos.sugerencia.categoriaId));
+        formulario.append('severidadSugerida', datos.sugerencia.severidad);
+        formulario.append('registroIaId', String(datos.sugerencia.registroIaId));
+      }
       return cliente.pedir<ReporteEnviado>('/reportes', { metodo: 'POST', cuerpo: formulario });
     },
     async mios() {
@@ -38,6 +46,11 @@ export function crearRepositorioReportes(cliente: ClienteApi): RepositorioReport
     },
     async pendientes() {
       const { reportes } = await cliente.pedir<{ reportes: ReportePendiente[] }>('/reportes/pendientes');
+      return reportes;
+    },
+    async delOrganismo() {
+      // Sin filtros: la pantalla filtra y cuenta por estado con la lista completa (hasta 500).
+      const { reportes } = await cliente.pedir<{ reportes: ReporteDelOrganismo[] }>('/reportes?limite=500');
       return reportes;
     },
     revisar(id, decision, comentario) {

@@ -12,11 +12,19 @@ function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
     return [MAPA, { ruta: '/reportar', texto: 'Reportar' }, { ruta: '/mis-reportes', texto: 'Mis reportes' }];
   }
   if (esOperador(usuario)) {
-    return [MAPA, { ruta: '/bandeja', texto: 'Bandeja' }, { ruta: '/revision', texto: 'Revisión' }];
+    return [
+      MAPA,
+      { ruta: '/bandeja', texto: 'Bandeja' },
+      { ruta: '/revision', texto: 'Revisión' },
+      { ruta: '/incidentes', texto: 'Incidentes' },
+    ];
   }
   if (esAdministrador(usuario)) return [MAPA, { ruta: '/administracion', texto: 'Administración' }];
   return [MAPA];
 }
+
+// Todo el ancho de la pantalla, hasta 1536 px. Los formularios de la cuenta tienen su propio límite (max-w-md).
+const ANCHO = 'max-w-screen-2xl';
 
 export function Layout() {
   const sesionPerdida = useSesionPerdida();
@@ -26,7 +34,9 @@ export function Layout() {
   return (
     <div className="flex min-h-dvh flex-col bg-superficie text-texto">
       <header className="border-b border-borde bg-superficie">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+        <div
+          className={`mx-auto flex w-full ${ANCHO} flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3`}
+        >
           <Link to="/" className="text-xl font-semibold text-primario">
             SnapIt
           </Link>
@@ -93,12 +103,12 @@ export function Layout() {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+      <main className={`mx-auto w-full ${ANCHO} flex-1 px-4 py-6`}>
         <Outlet />
       </main>
 
       <footer className="border-t border-borde bg-superficie">
-        <div className="mx-auto w-full max-w-5xl px-4 py-3 text-sm text-texto-secundario">SnapIt</div>
+        <div className={`mx-auto w-full ${ANCHO} px-4 py-3 text-sm text-texto-secundario`}>SnapIt</div>
       </footer>
     </div>
   );
