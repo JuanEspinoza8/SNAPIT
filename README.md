@@ -50,11 +50,11 @@ Requisitos: Node 22 (ver `.nvmrc`) y la base levantada.
 cd server
 npm install                 # también genera el cliente de Prisma
 npx prisma migrate deploy   # crea las tablas en la base de desarrollo
-npm run semilla             # catálogo, parámetros y usuarios de prueba
+npm run semilla             # catálogo, parámetros, zona piloto y usuarios de prueba
 npm run dev                 # http://localhost:3000/api/salud
 ```
 
-La semilla se puede correr las veces que haga falta: no duplica nada y vuelve a dejar los valores de [`docs/calculos.md`](docs/calculos.md), aunque se hayan cambiado a mano. Toma la base de `DATABASE_URL`.
+La semilla se puede correr las veces que haga falta: no duplica nada y vuelve a dejar los valores de [`docs/calculos.md`](docs/calculos.md), aunque se hayan cambiado a mano. Toma la base de `DATABASE_URL`. La zona piloto sale de `db/datos/zona-piloto.geojson`: si el polígono no es válido (por ejemplo, si se cruza a sí mismo), la semilla no carga nada y dice por qué.
 
 Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar. Con `NODE_ENV=production` no se cargan: se cargan solo el catálogo y los parámetros.
 
@@ -70,7 +70,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 | Script | Qué hace |
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
-| `npm run semilla` | Carga o restaura el catálogo, los parámetros y los usuarios de prueba (estos, fuera de producción) |
+| `npm run semilla` | Carga o restaura el catálogo, los parámetros, la zona piloto y los usuarios de prueba (estos, fuera de producción) |
 | `npm run importar:puntos` | Carga los puntos de interés de Neuquén desde OpenStreetMap (ver «Puntos de interés») |
 | `npm run importar:red` | Carga la red peatonal de la zona piloto desde OpenStreetMap (ver «Red peatonal») |
 | `npm run tarea:prioridad` | Corre ya el recálculo diario de prioridad, que el servidor hace solo a las 03:00 y al arrancar |
@@ -81,7 +81,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 
 Para levantar el servidor en Docker junto con la base: `docker compose up -d --build`. Al arrancar, el contenedor aplica las migraciones pendientes, así que no hace falta Node en la PC. El contenedor y `npm run dev` usan el mismo puerto: si uno está levantado, el otro no arranca y avisa que el puerto está ocupado.
 
-La semilla también se corre dentro del contenedor. Como corre con `NODE_ENV=production`, carga el catálogo y los parámetros sin los usuarios de prueba; para sumarlos en desarrollo, agregá `-e NODE_ENV=development`:
+La semilla también se corre dentro del contenedor. Como corre con `NODE_ENV=production`, carga el catálogo, los parámetros y la zona piloto sin los usuarios de prueba; para sumarlos en desarrollo, agregá `-e NODE_ENV=development`. La imagen se arma solo con `server/`: `docker-compose.yml` le monta `db/datos/` (solo lectura) para que la semilla encuentre el polígono.
 
 ```bash
 docker compose exec server node dist/semilla/index.js
@@ -147,7 +147,7 @@ npm run importar:red                    # descarga de Overpass, guarda la respue
 npm run importar:red -- --sin-conexion  # carga la respuesta guardada, sin usar la red
 ```
 
-- Trae los caminos que tocan las zonas activas de `zona_piloto`: sin ninguna, no corre.
+- Trae los caminos que tocan las zonas activas de `zona_piloto`, que carga la semilla. Sin ninguna, no corre.
 - La respuesta queda en `db/datos/red-zona-piloto.json` y se versiona. Si cambiás el polígono de la zona, corré el comando con conexión para bajarla de nuevo.
 - Cada corrida reemplaza la red entera, en una sola transacción: con la misma respuesta deja exactamente la misma red, y si algo falla queda la anterior. También vacía los vínculos entre incidentes y tramos (`incidente_tramo`), que hay que volver a calcular.
 - Al terminar muestra cuántos nodos y tramos cargó, en cuántos pedazos quedó la red (componentes conexos, con un link a OSM para ubicar cada uno) y qué caminos descartó y por qué.

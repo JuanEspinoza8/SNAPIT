@@ -372,6 +372,29 @@ Con `verificacion.hamming_duplicado_max` = 6 queda margen de sobra para la misma
 - En una foto con grandes zonas lisas (un cielo parejo, asfalto sin textura) dos zonas vecinas pueden quedar casi iguales, y entonces una recompresión puede dar vuelta esos bits. En las fotos reales casi no pasa (la luz y la perspectiva nunca son parejas), pero conviene revisar las distancias con las fotos de la prueba piloto antes de ajustar `hamming_duplicado_max`.
 - Al revés, dos fotos lisas u oscuras distintas pueden parecer la misma. Una imagen lisa da 64 ceros, sea negra, gris o blanca. En escenas nocturnas dibujadas para probarlo (fondo casi negro con una luz chica en distintos lugares), dos escenas distintas quedaron a 8–11 bits, cerca del umbral de 6. Pasa con «Luminaria apagada», que se fotografía de noche. Qué se hace con un hash de pocos unos está en «Verificación automática del reporte» (`hamming_duplicado_max`) y en «Agrupación de reportes en incidentes» (`unos_minimos_hash`).
 
+### Zona piloto
+
+Los recorridos (F11) se calculan solo dentro de la zona piloto (#99). El polígono está en `db/datos/zona-piloto.geojson` y lo carga la semilla en `zona_piloto`. El sector lo eligió el grupo el 27/10/2026.
+
+**Dónde.** Un rectángulo de unos 650 × 800 m (0,51 km²) alrededor del Hospital Bouquet Roldán. Toma el sur del barrio Bouquet Roldán y el oeste de La Sirena, a los dos lados de la Ruta 22 (Av. Mosconi).
+
+| Lado | Calle |
+|---|---|
+| Norte | Bulevar 12 de Septiembre, con sus dos manos |
+| Sur | Fray Luis Beltrán |
+| Oeste | Cornelio Saavedra |
+| Este | Catamarca y, al sur de la ruta, Cacique Purrán |
+
+El contorno pasa 20 m por fuera del eje de esas calles, para que las calles del borde y sus esquinas queden adentro.
+
+**Por qué ese sector.**
+
+- Tiene lo que pide la #99: el hospital de área, las Escuelas Especiales N° 6 y N° 7, las Escuelas Primarias N° 16 y N° 132 y 17 paradas de colectivo (puntos de interés de OSM).
+- El hospital y las escuelas especiales son destinos de personas con movilidad reducida: es donde un recorrido accesible tiene más sentido.
+- Es barrio residencial, con más chances de obstáculos reales que el centro.
+- Cruza la Ruta 22: el hospital y las escuelas especiales quedan de un lado y las primarias del otro. Así la demo puede mostrar el cruce de una ruta, uno de los obstáculos más grandes para quien camina. El barrio Bouquet Roldán solo, como lo dibuja OSM, es una franja de 400 m entre la ruta y 12 de Septiembre y no llega a las primarias.
+- Se puede recorrer a pie para el relevamiento (#101): son unas 37 manzanas de una hectárea. En OSM quedan 20 espacios entre calles, porque el hospital, las escuelas especiales y Desarrollo Social ocupan una supermanzana de 13,6 ha entre Saavedra y Gobernador Anaya.
+
 ### Red peatonal
 
 `npm run importar:red` arma el grafo sobre el que se calculan los recorridos (F11) con los caminos de OpenStreetMap que tocan las zonas piloto activas (#100, `server/src/modulos/red/redPeatonal.ts` y `repositorio.ts`).
