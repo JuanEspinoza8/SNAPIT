@@ -395,6 +395,8 @@ El contorno pasa 20 m por fuera del eje de esas calles, para que las calles del 
 - Cruza la Ruta 22: el hospital y las escuelas especiales quedan de un lado y las primarias del otro. Así la demo puede mostrar el cruce de una ruta, uno de los obstáculos más grandes para quien camina. El barrio Bouquet Roldán solo, como lo dibuja OSM, es una franja de 400 m entre la ruta y 12 de Septiembre y no llega a las primarias.
 - Se puede recorrer a pie para el relevamiento (#101): son unas 37 manzanas de una hectárea. En OSM quedan 20 espacios entre calles, porque el hospital, las escuelas especiales y Desarrollo Social ocupan una supermanzana de 13,6 ha entre Saavedra y Gobernador Anaya.
 
+**Cómo quedó la red** (importación del 27/10/2026): 216 nodos y 273 tramos, 249 veredas y 24 cruces. 20 tramos tienen rampa; no hay ningún semáforo sonoro ni piso podotáctil mapeado. El 90 % de los nodos forma un solo componente que llega a los dos lados de la ruta: del hospital a la Escuela Primaria N° 132 hay un recorrido de 478 m. Quedan 5 pedazos sueltos para revisar en el relevamiento: uno de 17 tramos sobre el borde este y cuatro tramos aislados.
+
 ### Red peatonal
 
 `npm run importar:red` arma el grafo sobre el que se calculan los recorridos (F11) con los caminos de OpenStreetMap que tocan las zonas piloto activas (#100, `server/src/modulos/red/redPeatonal.ts` y `repositorio.ts`).
