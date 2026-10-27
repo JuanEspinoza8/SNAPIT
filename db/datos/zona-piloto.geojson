@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "nombre": "Bouquet Roldán y La Sirena" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-68.09023, -38.96258],
+            [-68.08277, -38.96258],
+            [-68.08277, -38.95542],
+            [-68.09023, -38.95542],
+            [-68.09023, -38.96258]
+          ]
+        ]
+      }
+    }
+  ]
+}

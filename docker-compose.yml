@@ -43,6 +43,8 @@ services:
     volumes:
       # Las fotos de los reportes sobreviven aunque se reconstruya la imagen.
       - fotos_data:/app/fotos
+      # La semilla lee de acá el polígono de la zona piloto: la imagen se arma solo con server/.
+      - ./db/datos:/db/datos:ro
     ports:
       - "${PORT:-3000}:3000"
     depends_on:

@@ -10,6 +10,8 @@ const esquemaElemento = z.object({
   lat: z.number().optional(),
   lon: z.number().optional(),
   center: z.object({ lat: z.number(), lon: z.number() }).optional(),
+  // Las vías traen sus nodos en orden, si se piden con "out body".
+  nodes: z.array(z.number().int().positive()).optional(),
   tags: z.record(z.string(), z.string()).optional(),
 });
 
