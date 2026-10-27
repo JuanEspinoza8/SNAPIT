@@ -8,7 +8,6 @@ import { PaginaRegistro } from '../../funcionalidades/cuenta/paginaRegistro.js';
 import { PaginaConfirmarCorreo } from '../../funcionalidades/cuenta/paginaConfirmarCorreo.js';
 import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuperarClave.js';
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
-import { SeccionEnConstruccion } from '../../funcionalidades/comun/SeccionEnConstruccion.js';
 import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
 import { PaginaMisReportes } from '../../funcionalidades/misReportes/paginaMisReportes.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
@@ -25,6 +24,14 @@ const PaginaReportar = lazy(() =>
   })),
 );
 
+const PaginaBandeja = lazy(() =>
+  import('../../funcionalidades/bandeja/paginaBandeja.js').then((modulo) => ({
+    default: modulo.PaginaBandeja,
+  })),
+);
+const PaginaFicha = lazy(() =>
+  import('../../funcionalidades/bandeja/paginaFicha.js').then((modulo) => ({ default: modulo.PaginaFicha })),
+);
 const PaginaIncidentes = lazy(() =>
   import('../../funcionalidades/incidentes/paginaIncidentes.js').then((modulo) => ({
     default: modulo.PaginaIncidentes,
@@ -112,15 +119,28 @@ export const rutas: RouteObject[] = [
           </RutaProtegida>
         ),
       },
+      // Los incidentes del organismo por prioridad (#67) y la ficha de cada uno con sus acciones (#68).
       {
         path: 'bandeja',
         element: (
           <RutaProtegida rol="OPERADOR">
-            <SeccionEnConstruccion titulo="Bandeja" />
+            <Suspense fallback={<Cargando />}>
+              <PaginaBandeja />
+            </Suspense>
           </RutaProtegida>
         ),
       },
-      // Revisión de los reportes de baja confianza (#52). La bandeja de incidentes por prioridad es la #67.
+      {
+        path: 'bandeja/:id',
+        element: (
+          <RutaProtegida rol="OPERADOR">
+            <Suspense fallback={<Cargando />}>
+              <PaginaFicha />
+            </Suspense>
+          </RutaProtegida>
+        ),
+      },
+      // Revisión de los reportes de baja confianza (#52).
       {
         path: 'revision',
         element: (
