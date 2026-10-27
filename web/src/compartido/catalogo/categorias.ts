@@ -2,10 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useCliente } from '../red/clienteContexto.js';
 import { aErrorApi } from '../red/error.js';
 
-/** Una categoría de GET /api/categorias. La web solo usa el id y el nombre. */
+/** Una categoría de GET /api/categorias, con el área que la atiende. */
 export interface Categoria {
   id: number;
   nombre: string;
+  area: { id: number; nombre: string };
 }
 
 /** Las categorías activas: las usan los filtros del mapa y el formulario de reporte. */

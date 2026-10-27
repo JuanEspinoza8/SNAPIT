@@ -53,14 +53,13 @@ const organismoMunicipalidad: Organismo = {
 
 const organismos: Organismo[] = [organismoMunicipalidad];
 
-// Las categorías de la semilla, ordenadas por nombre como las devuelve GET /categorias
-// (id y nombre alcanzan para el formulario).
+// Las categorías de la semilla, ordenadas por nombre como las devuelve GET /categorias, con su área.
 const categorias = [
-  { id: 3, nombre: 'Cordón sin rampa' },
-  { id: 4, nombre: 'Luminaria apagada' },
-  { id: 5, nombre: 'Obra que interrumpe el paso' },
-  { id: 1, nombre: 'Pozo en la calzada' },
-  { id: 2, nombre: 'Vereda rota' },
+  { id: 3, nombre: 'Cordón sin rampa', area: { id: 2, nombre: 'Veredas' } },
+  { id: 4, nombre: 'Luminaria apagada', area: { id: 3, nombre: 'Alumbrado' } },
+  { id: 5, nombre: 'Obra que interrumpe el paso', area: { id: 4, nombre: 'Obras' } },
+  { id: 1, nombre: 'Pozo en la calzada', area: { id: 1, nombre: 'Bacheo' } },
+  { id: 2, nombre: 'Vereda rota', area: { id: 2, nombre: 'Veredas' } },
 ];
 
 const nombreCategoria = (id: number) =>
