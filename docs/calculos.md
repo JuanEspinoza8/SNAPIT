@@ -371,3 +371,50 @@ Con `verificacion.hamming_duplicado_max` = 6 queda margen de sobra para la misma
 
 - En una foto con grandes zonas lisas (un cielo parejo, asfalto sin textura) dos zonas vecinas pueden quedar casi iguales, y entonces una recompresión puede dar vuelta esos bits. En las fotos reales casi no pasa (la luz y la perspectiva nunca son parejas), pero conviene revisar las distancias con las fotos de la prueba piloto antes de ajustar `hamming_duplicado_max`.
 - Al revés, dos fotos lisas u oscuras distintas pueden parecer la misma. Una imagen lisa da 64 ceros, sea negra, gris o blanca. En escenas nocturnas dibujadas para probarlo (fondo casi negro con una luz chica en distintos lugares), dos escenas distintas quedaron a 8–11 bits, cerca del umbral de 6. Pasa con «Luminaria apagada», que se fotografía de noche. Qué se hace con un hash de pocos unos está en «Verificación automática del reporte» (`hamming_duplicado_max`) y en «Agrupación de reportes en incidentes» (`unos_minimos_hash`).
+
+### Red peatonal
+
+`npm run importar:red` arma el grafo sobre el que se calculan los recorridos (F11) con los caminos de OpenStreetMap que tocan las zonas piloto activas (#100, `server/src/modulos/red/redPeatonal.ts` y `repositorio.ts`).
+
+**Qué caminos entran.** En Neuquén casi no hay veredas mapeadas aparte (92 en toda la ciudad, en julio de 2026), así que la calle se usa como aproximación de sus dos veredas.
+
+| `highway` | Cómo se usa |
+|---|---|
+| `footway`, `pedestrian`, `path`, `steps`, `track` | Caminos para peatones: sus etiquetas describen lo que pisa el peatón |
+| `cycleway` | Solo si dice `foot=yes`, `designated` o `permissive` |
+| `living_street`, `residential`, `unclassified`, `tertiary`, `secondary`, `primary`, `service` | La calle como aproximación de la vereda |
+
+Las autopistas y las rutas (`motorway`, `trunk`) no se piden. De lo que llega se descarta, y el script dice qué y por qué:
+
+- `foot=no`.
+- `access=private` o `access=no`, salvo que diga `foot=yes`, `designated` o `permissive`.
+- `service=parking_aisle`, `driveway` o `drive-through` (estacionamientos y entradas de garage).
+- Una calle con `sidewalk=separate` o `sidewalk:both=separate`: sus veredas ya están dibujadas como caminos. Si la calle quedara, un recorrido podría esquivar por ella un obstáculo de la vereda real.
+
+**Cómo se arma el grafo.**
+
+1. Cada camino se corta en sus extremos y en los nodos que comparte con otro camino (las esquinas). Un nodo que no comparte con nadie queda dentro de la traza del tramo.
+2. Un tramo que vuelve a su nodo de partida (una plaza dibujada por su contorno, una rotonda) se parte en dos en el nodo del medio: la base no acepta tramos con el mismo nodo en los dos extremos.
+3. Se cargan los tramos que tocan alguna zona piloto activa (`ST_Intersects`), enteros aunque salgan un poco del polígono, y los nodos de sus extremos. Los que quedan del todo afuera se cuentan y no se cargan.
+4. Para el peatón todo es de doble mano: `red_peatonal` da el mismo costo a la ida y a la vuelta, así que no se mira `oneway`.
+
+**De etiquetas de OSM a columnas.**
+
+| Columna | De dónde sale |
+|---|---|
+| `nodo_peatonal.osm_id` | El id del nodo en OSM |
+| `tiene_semaforo_sonoro` | `traffic_signals:sound` = `yes`, `walk` o `locate` |
+| `tiene_piso_podotactil` | `tactile_paving` = `yes`, `contrasted` o `primitive` |
+| `tramo_peatonal.tipo` | `ESCALERA` si `highway=steps`; `CRUCE` si `footway`, `path` o `cycleway` = `crossing` (solo en caminos, no en calles); `SENDA` si `highway=path` o `track`; si no, `VEREDA` |
+| `tiene_rampa` | `kerb=lowered` o `flush`, en el camino o en cualquiera de sus nodos: el cordón casi siempre se marca en un nodo, con `barrier=kerb` |
+| `pendiente_porcentaje` | `incline` en %: `8%`, `-5 %` o `8` (sin unidad se toma como %). En grados (`4°`) se pasa a %. `up`, `down` o un rango no dicen cuánto: null. El signo va en el sentido del tramo, del origen al destino |
+| `ancho_estimado` | `width` en metros (`1.5`, `1,5 m`, `150 cm`). En una calle, null: es el ancho de la calzada |
+| `superficie` | `surface` tal como está en OSM (`concrete`, `paving_stones`…), hasta 40 caracteres. En una calle, null: es la de la calzada |
+| `longitud_metros` | `ST_Length` sobre `geography`: metros sobre el elipsoide, con 2 decimales |
+| `costo_base` | La longitud. Cómo pesan los atributos del tramo para cada perfil se decide en #102 |
+
+Un valor que no entra en su columna (por ejemplo, una pendiente de más de 999,99 %) queda en null.
+
+**Recarga.** Cada corrida reemplaza toda la red en una sola transacción (`TRUNCATE ... RESTART IDENTITY`): si algo falla, queda la anterior, y con la misma respuesta los id salen iguales. Como `factor_prioridad`, es un dato derivado que se reemplaza en vez de acumularse: la red es una copia de OSM, no algo que cargue una persona. La recarga también vacía `incidente_tramo`: después hay que volver a vincular los incidentes con la red (#103).
+
+**Componentes conexos.** Al terminar se cuentan con `pgr_connectedComponents`. Si hay más de uno, desde un pedazo no se llega a los otros: el script muestra un nodo de cada uno, con su link a OSM, para revisarlo en el relevamiento (#101).
