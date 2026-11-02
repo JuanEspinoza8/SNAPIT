@@ -10,6 +10,7 @@ if (!process.env.TEST_DATABASE_URL) {
 }
 
 const SEMILLA = 'test/semilla.test.ts';
+const RED = 'test/importar-red.test.ts';
 
 export default defineConfig({
   test: {
@@ -33,13 +34,19 @@ export default defineConfig({
     // El primer test de cada archivo abre la conexión a la base: en una PC lenta o en CI pasa los 5 s por defecto.
     testTimeout: 15_000,
     // La semilla vuelve a cargar el catálogo y los parámetros que usan los demás tests: corre sola, al final,
-    // para no cambiarles un valor mientras corren en paralelo.
+    // para no cambiarles un valor mientras corren en paralelo. La importación de la red reemplaza toda la red
+    // de la base: corre sola, después.
     projects: [
       {
         extends: true,
-        test: { name: 'general', exclude: [...configDefaults.exclude, SEMILLA], sequence: { groupOrder: 0 } },
+        test: {
+          name: 'general',
+          exclude: [...configDefaults.exclude, SEMILLA, RED],
+          sequence: { groupOrder: 0 },
+        },
       },
       { extends: true, test: { name: 'semilla', include: [SEMILLA], sequence: { groupOrder: 1 } } },
+      { extends: true, test: { name: 'red', include: [RED], sequence: { groupOrder: 2 } } },
     ],
   },
 });

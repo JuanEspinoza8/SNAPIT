@@ -269,6 +269,32 @@ Los barrios que tienen al menos un incidente en el mapa. Son los valores que ace
 - `"Sin barrio"` aparece si hay incidentes en un lugar donde OpenStreetMap no tiene barrio cargado.
 - No cuentan los incidentes que no se ven en el mapa ni los que todavía no tienen dirección.
 
+## Zona piloto
+
+### `GET /api/zona-piloto`
+Dónde se pueden pedir recorridos accesibles (F11). Ruta pública: la app dibuja la zona en el mapa antes de que el usuario elija origen y destino. Responde **200** con las zonas **activas** como un `FeatureCollection` de GeoJSON, listo para Leaflet o flutter_map:
+
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": 1,
+      "properties": { "nombre": "Bouquet Roldán y La Sirena" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-68.09023, -38.96258], [-68.08277, -38.96258], [-68.08277, -38.95542], [-68.09023, -38.95542], [-68.09023, -38.96258]]]
+      }
+    }
+  ]
+}
+```
+
+- Como en todo GeoJSON, cada punto es `[longitud, latitud]`, al revés que los `lat` / `lon` del resto de la API.
+- Hoy hay una sola zona. Si se desactiva, deja de aparecer acá y `features` queda vacío.
+- Por qué se eligió esa zona: «Zona piloto» en [`calculos.md`](calculos.md).
+
 ## Reportes
 
 ### `GET /api/reportes/mios`

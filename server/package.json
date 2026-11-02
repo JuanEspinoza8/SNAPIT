@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "semilla": "tsx src/semilla/index.ts",
     "importar:puntos": "tsx scripts/importarPuntos.ts",
+    "importar:red": "tsx scripts/importarRed.ts",
     "tarea:prioridad": "tsx src/tareas/recalcularPrioridad.ts"
   },
   "keywords": [],

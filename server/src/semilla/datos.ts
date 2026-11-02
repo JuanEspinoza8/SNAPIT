@@ -1,9 +1,18 @@
+import { fileURLToPath } from 'node:url';
 import type { RolUsuario, TipoVigencia } from '@prisma/client';
 
 /**
  * Datos iniciales del sistema. Los valores están explicados en docs/calculos.md: si cambiás uno acá,
  * actualizalo también allá.
  */
+
+/**
+ * El polígono de cada zona piloto (por qué se eligió, en docs/calculos.md). Está fuera de server/: en el
+ * contenedor, docker-compose.yml monta db/datos/ en /db/datos, que queda a la misma distancia de dist/semilla/.
+ */
+export const ARCHIVO_ZONAS_PILOTO = fileURLToPath(
+  new URL('../../../db/datos/zona-piloto.geojson', import.meta.url),
+);
 
 export const ORGANISMO = {
   nombre: 'Municipalidad de Neuquén',

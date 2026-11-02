@@ -1,7 +1,10 @@
+import { readFile } from 'node:fs/promises';
 import type { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { leerZonasPiloto } from '../modulos/red/zonaPiloto.js';
 import {
   AREAS,
+  ARCHIVO_ZONAS_PILOTO,
   CATEGORIAS,
   CLAVE_USUARIOS_PRUEBA,
   MATRIZ_CATEGORIA_PERFIL,
@@ -11,13 +14,32 @@ import {
   USUARIOS_PRUEBA,
 } from './datos.js';
 
+async function leerArchivoZonas(archivo: string) {
+  try {
+    return leerZonasPiloto(await readFile(archivo, 'utf8'));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`No se encontró el archivo de zonas piloto: ${archivo}`, { cause: error });
+    }
+    throw error;
+  }
+}
+
 /**
- * Carga el catálogo, los parámetros y, si se pide, los usuarios de prueba. Se puede correr las veces que
- * haga falta: cada dato se busca por su nombre o clave y se actualiza si ya existe, así que nunca se duplica.
+ * Carga el catálogo, los parámetros, las zonas piloto y, si se pide, los usuarios de prueba. Se puede correr
+ * las veces que haga falta: cada dato se busca por su nombre o clave y se actualiza si ya existe, así que nunca
+ * se duplica. Las zonas salen de `db/datos/zona-piloto.geojson` (o del archivo que se pase).
  */
-export async function cargarSemilla(prisma: PrismaClient, { usuariosPrueba }: { usuariosPrueba: boolean }) {
+export async function cargarSemilla(
+  prisma: PrismaClient,
+  {
+    usuariosPrueba,
+    archivoZonasPiloto = ARCHIVO_ZONAS_PILOTO,
+  }: { usuariosPrueba: boolean; archivoZonasPiloto?: string },
+) {
   // Fuera de la transacción: bcrypt tarda y la transacción tiene un tiempo máximo.
   const hashClavePrueba = await bcrypt.hash(CLAVE_USUARIOS_PRUEBA, 10);
+  const zonasPiloto = await leerArchivoZonas(archivoZonasPiloto);
 
   // Son unas 60 consultas seguidas: se amplían los tiempos por defecto de Prisma (2 s para empezar, 5 s en total).
   return prisma.$transaction(
@@ -91,6 +113,22 @@ export async function cargarSemilla(prisma: PrismaClient, { usuariosPrueba }: { 
         });
       }
 
+      // zona_piloto no tiene nombre único en el modelo y la geometría no la escribe Prisma: SQL a mano.
+      for (const { nombre, geometria } of zonasPiloto) {
+        const geojson = JSON.stringify(geometria);
+        const [{ valido, motivo }] = await tx.$queryRaw<[{ valido: boolean; motivo: string }]>`
+          SELECT ST_IsValid(g) AS valido, ST_IsValidReason(g) AS motivo FROM ST_GeomFromGeoJSON(${geojson}) AS g`;
+        if (!valido) throw new Error(`El polígono de la zona piloto «${nombre}» no es válido: ${motivo}`);
+
+        const actualizadas = await tx.$executeRaw`
+          UPDATE zona_piloto SET geometria = ST_GeomFromGeoJSON(${geojson})::geography, activa = true
+          WHERE nombre = ${nombre}`;
+        if (actualizadas === 0) {
+          await tx.$executeRaw`
+            INSERT INTO zona_piloto (nombre, geometria) VALUES (${nombre}, ST_GeomFromGeoJSON(${geojson})::geography)`;
+        }
+      }
+
       if (usuariosPrueba) {
         for (const { email, nombre, rol, area } of USUARIOS_PRUEBA) {
           const datos = {
@@ -126,6 +164,7 @@ export async function cargarSemilla(prisma: PrismaClient, { usuariosPrueba }: { 
         perfiles: perfiles.size,
         matriz: categorias.size * perfiles.size,
         parametros: PARAMETROS.length,
+        zonasPiloto: zonasPiloto.length,
         usuarios: usuariosPrueba ? USUARIOS_PRUEBA.length : 0,
       };
     },
