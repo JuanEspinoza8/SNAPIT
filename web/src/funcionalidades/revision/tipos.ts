@@ -70,6 +70,16 @@ export const severidadEnTexto: Record<ReportePendiente['severidadDeclarada'], st
   GRAVE: 'Grave',
 };
 
+// El nombre de cada señal de la verificación (F04), para mostrarla junto a su detalle.
+export const SENALES: Record<string, string> = {
+  EXIF_COINCIDE: 'Ubicación de la foto',
+  EXIF_AUSENTE: 'Foto sin ubicación',
+  HASH_DUPLICADO: 'Foto repetida',
+  ORIGEN_APP: 'Cámara de la app',
+  REPUTACION: 'Reputación del vecino',
+  FECHA_ANTIGUA: 'Foto antigua',
+};
+
 export const origenEnTexto: Record<ReportePendiente['origen'], string> = {
   SITIO_WEB: 'Sitio web',
   APP_MOVIL: 'App móvil',

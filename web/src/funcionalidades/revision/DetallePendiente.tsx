@@ -4,7 +4,7 @@ import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import type { ErrorApi } from '../../compartido/red/error.js';
 import { MapaChico } from './MapaChico.js';
-import type { ReportePendiente, Severidad } from './tipos.js';
+import { SENALES, type ReportePendiente, type Severidad } from './tipos.js';
 
 type Decision = 'VERIFICADO' | 'DESESTIMADO';
 
@@ -21,14 +21,6 @@ interface Props {
   alDecidir: (decision: Decision, comentario: string) => void;
 }
 
-const SENALES: Record<string, string> = {
-  EXIF_COINCIDE: 'Ubicación de la foto',
-  EXIF_AUSENTE: 'Foto sin ubicación',
-  HASH_DUPLICADO: 'Foto repetida',
-  ORIGEN_APP: 'Cámara de la app',
-  REPUTACION: 'Reputación del vecino',
-  FECHA_ANTIGUA: 'Foto antigua',
-};
 const GRAVEDADES: Record<Severidad, string> = { LEVE: 'Leve', MODERADA: 'Moderada', GRAVE: 'Grave' };
 const MAX_COMENTARIO = 1000;
 

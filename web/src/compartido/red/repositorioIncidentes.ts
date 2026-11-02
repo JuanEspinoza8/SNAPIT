@@ -22,7 +22,7 @@ export interface RepositorioIncidentes {
 }
 
 // Un comentario vacío no se manda: para el servidor es opcional.
-const conComentario = <T extends object>(cuerpo: T, comentario: string) => {
+export const conComentario = <T extends object>(cuerpo: T, comentario: string) => {
   const texto = comentario.trim();
   return texto ? { ...cuerpo, comentario: texto } : cuerpo;
 };
