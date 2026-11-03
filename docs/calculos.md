@@ -440,7 +440,7 @@ Las autopistas y las rutas (`motorway`, `trunk`) no se piden. De lo que llega se
 
 Un valor que no entra en su columna (por ejemplo, una pendiente de más de 999,99 %) queda en null.
 
-**Recarga.** Cada corrida reemplaza toda la red en una sola transacción (`TRUNCATE ... RESTART IDENTITY`): si algo falla, queda la anterior, y con la misma respuesta los id salen iguales. Como `factor_prioridad`, es un dato derivado que se reemplaza en vez de acumularse: la red es una copia de OSM, no algo que cargue una persona. La recarga también vacía `incidente_tramo`: después hay que volver a vincular los incidentes con la red (#103).
+**Recarga.** Cada corrida reemplaza toda la red en una sola transacción (`TRUNCATE ... RESTART IDENTITY`): si algo falla, queda la anterior, y con la misma respuesta los id salen iguales. Como `factor_prioridad`, es un dato derivado que se reemplaza en vez de acumularse: la red es una copia de OSM, no algo que cargue una persona. La recarga vacía `incidente_tramo` y, en la misma transacción, vuelve a vincular todos los incidentes con la red nueva («Vínculo entre incidentes y tramos», abajo).
 
 **Componentes conexos.** Al terminar se cuentan con `pgr_connectedComponents`. Si hay más de uno, desde un pedazo no se llega a los otros: el script muestra un nodo de cada uno, con su link a OSM, para revisarlo en el relevamiento (#101).
 
@@ -482,3 +482,38 @@ Qué punta de cada esquina toca cada vereda:
 - Semáforo sonoro: no se puede escuchar en Street View. Queda el de OSM.
 
 **Puntos revisados.** Los caminos que no son públicos salen de la red: la vereda interna de la escuela especial que entra por Gobernador Anaya (P-01), dos pedazos de vereda de un edificio sobre Lastra (P-07) y la calle de servicio del corralón al oeste de Saavedra (P-08). Se agregan dos uniones en línea recta entre nodos de OSM que en la realidad se conectan caminando: la plaza de Catamarca con la esquina de Andacollo (P-06) e Intendente Carro, que en OSM está cortada entre Eva Duarte y Gobernador Anaya (P-10). Si OSM ya tiene la unión, no se duplica.
+
+### Vínculo entre incidentes y tramos
+
+Un incidente cambia los recorridos (F11) a través de `incidente_tramo`, los tramos que obstruye (#103, `server/src/modulos/red/repositorio.ts`). Cuánto le estorba a cada perfil lo dice después `categoria_perfil` (la matriz de arriba).
+
+**Regla.** Un incidente obstruye los tramos que pasan a no más de `ruteo.radio_obstruccion_m` metros de su punto, si el punto está dentro de una zona piloto activa (`ST_Covers`). Es la distancia más corta entre el punto y la traza del tramo, en metros sobre el elipsoide (`ST_DWithin` sobre `geography`, con el índice GIST de `tramo_peatonal`).
+
+- En una esquina, el punto toca el nodo: vincula todos los tramos que llegan a ella.
+- En la mitad de una cuadra vincula solo esa cuadra. Como la calle hace de vereda, un obstáculo sobre cualquiera de las dos veredas queda a unos 5 a 10 m del eje: entra con 15 m.
+- Fuera de la zona no vincula nada, aunque tenga un tramo al lado: los tramos que cruzan el borde se cargan enteros, pero el recorrido se calcula solo adentro.
+- No mira la categoría ni el estado. El recorrido cuenta solo los incidentes vigentes (no resueltos, no desestimados, no caducados ni unidos a otro), así que uno resuelto puede conservar sus vínculos.
+
+| Caso, con 15 m | Tramos vinculados |
+|---|---|
+| En una esquina a la que llegan cuatro cuadras | Las cuatro |
+| En la mitad de una cuadra | Esa cuadra |
+| A 14 m del eje de la calle | Esa cuadra |
+| A 16 m del eje de la calle más cercana | Ninguno |
+| A 10 m de una esquina | Todas las cuadras de esa esquina |
+| Fuera de la zona piloto | Ninguno |
+
+**Cuándo se calcula.** En la misma transacción que el cambio, así un incidente nunca existe sin sus vínculos:
+
+- Al crear un incidente: cuando un reporte no se suma a ninguno (#53) y cuando se separa un reporte (#55).
+- Cuando un incidente cambia de punto: al separar un reporte, si el original estaba en el punto del que se fue, pasa a otro punto y se vuelven a calcular los suyos.
+
+Un reporte que se suma a un incidente no lo mueve, así que no le cambia los vínculos. Unir tampoco: el duplicado conserva los suyos, y el recorrido no lo cuenta mientras esté unido.
+
+**Recálculo.** Los vínculos salen del punto del incidente, de la red, de las zonas y del radio. Por eso se borran y se arman de nuevo en vez de acumularse, como `factor_prioridad` y la red (decisión del 27/10). Recalcular todos usa la misma consulta que al crear cada uno y no depende del estado, así que da los mismos vínculos que había.
+
+- `npm run importar:red` vuelve a vincular todos los incidentes en la misma transacción que reemplaza la red: los recorridos nunca ven la red nueva sin sus incidentes. Con la misma respuesta de OSM, los tramos conservan sus id y los vínculos quedan iguales.
+- `npm run vincular:incidentes` los recalcula sin tocar la red: después de cambiar `ruteo.radio_obstruccion_m` o una zona piloto, o para los incidentes cargados antes de la #103.
+- Los dos dicen al terminar cuántos incidentes obstruyen cuántos tramos y cuántos vínculos había antes.
+
+**Límite conocido.** Un incidente a menos de 15 m de una esquina vincula todas las cuadras que llegan a ella, no solo la suya. Si para un perfil es intransitable (una vereda rota para una silla de ruedas), le bloquea la esquina entera.
