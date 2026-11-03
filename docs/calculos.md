@@ -436,7 +436,7 @@ Las autopistas y las rutas (`motorway`, `trunk`) no se piden. De lo que llega se
 | `ancho_estimado` | `width` en metros (`1.5`, `1,5 m`, `150 cm`). En una calle, null: es el ancho de la calzada |
 | `superficie` | `surface` tal como está en OSM (`concrete`, `paving_stones`…), hasta 40 caracteres. En una calle, null: es la de la calzada |
 | `longitud_metros` | `ST_Length` sobre `geography`: metros sobre el elipsoide, con 2 decimales |
-| `costo_base` | La longitud. Cómo pesan los atributos del tramo para cada perfil se decide en #102 |
+| `costo_base` | La longitud. Los atributos del tramo pesan después, según el perfil («Atributos del tramo por perfil», abajo) |
 
 Un valor que no entra en su columna (por ejemplo, una pendiente de más de 999,99 %) queda en null.
 
@@ -476,8 +476,8 @@ Qué punta de cada esquina toca cada vereda:
 
 **Lo que se anota pero no cambia columnas, y por qué.**
 
-- ¿Pasa una silla de ruedas? No hay columna para eso. Queda en el archivo y decide la superficie de una cuadra mixta. Cómo pesa cada atributo para cada perfil se decide en #102; hasta entonces, el recorrido cambia solo por los incidentes.
-- Escalones o desniveles: un escalón entre dos frentes no hace de la cuadra una escalera (`ESCALERA` es para `highway=steps`). Queda en el archivo para #102.
+- ¿Pasa una silla de ruedas? No hay columna para eso. Queda en el archivo y decide la superficie de una cuadra mixta. Cómo pesa cada atributo para cada perfil está en «Atributos del tramo por perfil».
+- Escalones o desniveles: un escalón entre dos frentes no hace de la cuadra una escalera (`ESCALERA` es para `highway=steps`). Queda en el archivo, sin columna ni regla.
 - Pendiente fuerte: la planilla dice sí o no y la columna pide un porcentaje.
 - Semáforo sonoro: no se puede escuchar en Street View. Queda el de OSM.
 
@@ -517,3 +517,54 @@ Un reporte que se suma a un incidente no lo mueve, así que no le cambia los ví
 - Los dos dicen al terminar cuántos incidentes obstruyen cuántos tramos y cuántos vínculos había antes.
 
 **Límite conocido.** Un incidente a menos de 15 m de una esquina vincula todas las cuadras que llegan a ella, no solo la suya. Si para un perfil es intransitable (una vereda rota para una silla de ruedas), le bloquea la esquina entera.
+
+### Atributos del tramo por perfil
+
+Además de los incidentes, cada tramo tiene atributos propios que le estorban distinto a cada perfil: el tipo, la rampa, la pendiente, la superficie, el ancho y, en sus extremos, el semáforo sonoro y el piso podotáctil. Cómo pesan lo decidió el grupo el 02/11/2026 (#102), después de ver qué hay en la zona con la red importada y el relevamiento. Se aplican en el costo del recorrido (#104).
+
+**Regla.** Cada atributo multiplica el costo del tramo por un factor según el perfil, o lo vuelve intransitable (⛔). Los factores de un tramo se multiplican entre sí y con los de sus incidentes vigentes:
+
+> costo = `costo_base` × (producto de los factores de sus atributos) × (producto de los `factor_penalizacion` de sus incidentes)
+
+Si un atributo o un incidente lo bloquea para ese perfil, el recorrido no pasa por ese tramo. «—» es que no le cambia el costo.
+
+| Atributo del tramo | Silla de ruedas | Bastón o andador | Coche de bebé | Baja visión |
+|---|---|---|---|---|
+| Escalera (`tipo = ESCALERA`) | ⛔ | 2,0 | ⛔ | 1,5 |
+| Sin rampa (`tiene_rampa = false`) | 3,0 | 1,5 | 2,0 | 1,5 |
+| Pendiente de más de 8 %, subiendo o bajando | 3,0 | 1,5 | 1,5 | — |
+| Superficie sin pavimentar | 2,0 | 1,5 | 1,5 | 1,2 |
+| Ancho de menos de 0,9 m | ⛔ | — | ⛔ | — |
+| Cruce sin semáforo sonoro ni piso podotáctil en sus extremos | — | — | — | 1,5 |
+
+- **Superficie sin pavimentar:** `unpaved`, `dirt`, `earth`, `ground`, `gravel`, `fine_gravel`, `grass`, `sand` y `mud`, de OSM. El relevamiento usa `dirt`, `gravel`, `grass` y `unpaved`.
+- Un dato que falta (pendiente, ancho o superficie en null) no aplica ninguna regla. La rampa no puede faltar: la columna es `NOT NULL DEFAULT false`.
+- Los factores, los bloqueos y los dos umbrales (8 % y 0,9 m) van en `parametro_sistema`, como los del resto de los cálculos: el administrador los ajusta sin tocar el código (F16). Las claves se definen en #104. Un perfil nuevo no tiene reglas hasta que se le cargan.
+- Son valores de partida, como los de la matriz de incidentes: se revisan con los datos de la prueba piloto.
+
+**Por qué «sin rampa» encarece y no bloquea.** El incidente «Cordón sin rampa» sí bloquea a la silla, porque alguien lo vio. El atributo no puede: `tiene_rampa = false` junta las cuadras sin rampa con las que nadie relevó, porque la columna no tiene «sin dato». En la red de la zona, si las cuadras sin rampa fueran intransitables para la silla, la red quedaría partida en 11 pedazos y el más grande tendría 38 de los 208 nodos: casi cualquier recorrido daría «No hay un recorrido transitable». Con ×3, la silla prefiere las cuadras con rampa confirmada y sigue llegando.
+
+**Qué hay en la zona** (la red del 27/10 con el relevamiento, 271 tramos):
+
+| Regla | Tramos que toca hoy |
+|---|---|
+| Escalera | 0 |
+| Sin rampa | 194 (77 tienen rampa) |
+| Pendiente de más de 8 % | 0: ningún tramo tiene pendiente. OSM no la trae y el relevamiento solo anotó «sí» o «no» |
+| Superficie sin pavimentar | 16 (8 `dirt` y 8 `unpaved`) |
+| Ancho de menos de 0,9 m | 0: 106 tramos tienen ancho, de 1 a 3 m |
+| Cruce sin semáforo sonoro ni piso podotáctil | Los 24 cruces. Hay 9 semáforos y ninguno es sonoro; los 3 nodos con piso podotáctil no son extremos de un cruce |
+
+Hoy pesan sobre todo la rampa y la superficie. Las reglas de escalera, pendiente, ancho y semáforo se prueban sobre la grilla de los tests, que tiene una escalera, una pendiente del 5 % y un semáforo sonoro, y empiezan a pesar en cuanto se releve más o OSM sume esos datos.
+
+**Lo que no se usa.** Lo que el relevamiento anotó sin columna: si pasa una silla de ruedas (los criterios no coinciden entre quienes relevaron), los escalones entre frentes y la pendiente fuerte, que es «sí» o «no», sin porcentaje.
+
+**Límite conocido.** Como la calle hace de vereda, casi todos los cruces de calle quedan dentro de un tramo `VEREDA`: la regla del semáforo sonoro alcanza solo a los 24 cruces dibujados en OSM.
+
+**Alternativas descartadas.**
+
+- No usar los atributos, y que el recorrido cambie solo por los incidentes: el grupo decidió que la app los tiene que tener en cuenta. Si no, el relevamiento no cambiaría ningún costo.
+- Reglas fijas en el código: el administrador no podría ajustarlas, que es lo que pide F16, y habría que reconocer cada perfil por su nombre.
+- Bloquear a la silla y al coche en las cuadras sin rampa: con el dato que falta, deja la red en pedazos (arriba).
+- Usar para los tramos sin rampa la fila de «Cordón sin rampa» de la matriz de incidentes: tiene el mismo bloqueo, y no hay categorías para la escalera, la pendiente ni el semáforo.
+- Una issue aparte para aplicarlos: el costo del recorrido se arma en #104, así que van ahí y se prueban con el recorrido real.
