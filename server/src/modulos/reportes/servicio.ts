@@ -9,6 +9,7 @@ import * as agrupacion from '../agrupacion/repositorio.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
+import { vincularIncidente } from '../red/repositorio.js';
 import type { Senal } from '../verificacion/calculo.js';
 import { aplicarResultado } from '../verificacion/resultado.js';
 import { modoDemostracion } from '../verificacion/repositorio.js';
@@ -221,16 +222,19 @@ function guardarReporte(alta: {
       parametros,
       reporte.sincronizadoEn,
     );
-    const incidenteId =
-      elegido?.incidenteId ??
-      (await repositorio.insertarIncidente(tx, {
+    let incidenteId = elegido?.incidenteId;
+    if (incidenteId === undefined) {
+      incidenteId = await repositorio.insertarIncidente(tx, {
         categoriaId: reporte.categoriaId,
         severidad: reporte.severidad,
         lat: reporte.lat,
         lon: reporte.lon,
         ...alta.vigencia,
         primerReporteEn: reporte.registradoEn,
-      }));
+      });
+      // Si cae en la zona piloto, desde ya cambia los recorridos (F11).
+      await vincularIncidente(tx, incidenteId);
+    }
 
     const guardado = await repositorio.insertarReporte(tx, { ...reporte, incidenteId });
     await repositorio.guardarFoto(tx, guardado.id, alta.foto);

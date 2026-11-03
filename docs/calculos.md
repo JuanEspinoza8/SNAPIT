@@ -436,11 +436,11 @@ Las autopistas y las rutas (`motorway`, `trunk`) no se piden. De lo que llega se
 | `ancho_estimado` | `width` en metros (`1.5`, `1,5 m`, `150 cm`). En una calle, null: es el ancho de la calzada |
 | `superficie` | `surface` tal como está en OSM (`concrete`, `paving_stones`…), hasta 40 caracteres. En una calle, null: es la de la calzada |
 | `longitud_metros` | `ST_Length` sobre `geography`: metros sobre el elipsoide, con 2 decimales |
-| `costo_base` | La longitud. Cómo pesan los atributos del tramo para cada perfil se decide en #102 |
+| `costo_base` | La longitud. Los atributos del tramo pesan después, según el perfil («Atributos del tramo por perfil», abajo) |
 
 Un valor que no entra en su columna (por ejemplo, una pendiente de más de 999,99 %) queda en null.
 
-**Recarga.** Cada corrida reemplaza toda la red en una sola transacción (`TRUNCATE ... RESTART IDENTITY`): si algo falla, queda la anterior, y con la misma respuesta los id salen iguales. Como `factor_prioridad`, es un dato derivado que se reemplaza en vez de acumularse: la red es una copia de OSM, no algo que cargue una persona. La recarga también vacía `incidente_tramo`: después hay que volver a vincular los incidentes con la red (#103).
+**Recarga.** Cada corrida reemplaza toda la red en una sola transacción (`TRUNCATE ... RESTART IDENTITY`): si algo falla, queda la anterior, y con la misma respuesta los id salen iguales. Como `factor_prioridad`, es un dato derivado que se reemplaza en vez de acumularse: la red es una copia de OSM, no algo que cargue una persona. La recarga vacía `incidente_tramo` y, en la misma transacción, vuelve a vincular todos los incidentes con la red nueva («Vínculo entre incidentes y tramos», abajo).
 
 **Componentes conexos.** Al terminar se cuentan con `pgr_connectedComponents`. Si hay más de uno, desde un pedazo no se llega a los otros: el script muestra un nodo de cada uno, con su link a OSM, para revisarlo en el relevamiento (#101).
 
@@ -476,9 +476,95 @@ Qué punta de cada esquina toca cada vereda:
 
 **Lo que se anota pero no cambia columnas, y por qué.**
 
-- ¿Pasa una silla de ruedas? No hay columna para eso. Queda en el archivo y decide la superficie de una cuadra mixta. Cómo pesa cada atributo para cada perfil se decide en #102; hasta entonces, el recorrido cambia solo por los incidentes.
-- Escalones o desniveles: un escalón entre dos frentes no hace de la cuadra una escalera (`ESCALERA` es para `highway=steps`). Queda en el archivo para #102.
+- ¿Pasa una silla de ruedas? No hay columna para eso. Queda en el archivo y decide la superficie de una cuadra mixta. Cómo pesa cada atributo para cada perfil está en «Atributos del tramo por perfil».
+- Escalones o desniveles: un escalón entre dos frentes no hace de la cuadra una escalera (`ESCALERA` es para `highway=steps`). Queda en el archivo, sin columna ni regla.
 - Pendiente fuerte: la planilla dice sí o no y la columna pide un porcentaje.
 - Semáforo sonoro: no se puede escuchar en Street View. Queda el de OSM.
 
 **Puntos revisados.** Los caminos que no son públicos salen de la red: la vereda interna de la escuela especial que entra por Gobernador Anaya (P-01), dos pedazos de vereda de un edificio sobre Lastra (P-07) y la calle de servicio del corralón al oeste de Saavedra (P-08). Se agregan dos uniones en línea recta entre nodos de OSM que en la realidad se conectan caminando: la plaza de Catamarca con la esquina de Andacollo (P-06) e Intendente Carro, que en OSM está cortada entre Eva Duarte y Gobernador Anaya (P-10). Si OSM ya tiene la unión, no se duplica.
+
+### Vínculo entre incidentes y tramos
+
+Un incidente cambia los recorridos (F11) a través de `incidente_tramo`, los tramos que obstruye (#103, `server/src/modulos/red/repositorio.ts`). Cuánto le estorba a cada perfil lo dice después `categoria_perfil` (la matriz de arriba).
+
+**Regla.** Un incidente obstruye los tramos que pasan a no más de `ruteo.radio_obstruccion_m` metros de su punto, si el punto está dentro de una zona piloto activa (`ST_Covers`). Es la distancia más corta entre el punto y la traza del tramo, en metros sobre el elipsoide (`ST_DWithin` sobre `geography`, con el índice GIST de `tramo_peatonal`).
+
+- En una esquina, el punto toca el nodo: vincula todos los tramos que llegan a ella.
+- En la mitad de una cuadra vincula solo esa cuadra. Como la calle hace de vereda, un obstáculo sobre cualquiera de las dos veredas queda a unos 5 a 10 m del eje: entra con 15 m.
+- Fuera de la zona no vincula nada, aunque tenga un tramo al lado: los tramos que cruzan el borde se cargan enteros, pero el recorrido se calcula solo adentro.
+- No mira la categoría ni el estado. El recorrido cuenta solo los incidentes vigentes (no resueltos, no desestimados, no caducados ni unidos a otro), así que uno resuelto puede conservar sus vínculos.
+
+| Caso, con 15 m | Tramos vinculados |
+|---|---|
+| En una esquina a la que llegan cuatro cuadras | Las cuatro |
+| En la mitad de una cuadra | Esa cuadra |
+| A 14 m del eje de la calle | Esa cuadra |
+| A 16 m del eje de la calle más cercana | Ninguno |
+| A 10 m de una esquina | Todas las cuadras de esa esquina |
+| Fuera de la zona piloto | Ninguno |
+
+**Cuándo se calcula.** En la misma transacción que el cambio, así un incidente nunca existe sin sus vínculos:
+
+- Al crear un incidente: cuando un reporte no se suma a ninguno (#53) y cuando se separa un reporte (#55).
+- Cuando un incidente cambia de punto: al separar un reporte, si el original estaba en el punto del que se fue, pasa a otro punto y se vuelven a calcular los suyos.
+
+Un reporte que se suma a un incidente no lo mueve, así que no le cambia los vínculos. Unir tampoco: el duplicado conserva los suyos, y el recorrido no lo cuenta mientras esté unido.
+
+**Recálculo.** Los vínculos salen del punto del incidente, de la red, de las zonas y del radio. Por eso se borran y se arman de nuevo en vez de acumularse, como `factor_prioridad` y la red (decisión del 27/10). Recalcular todos usa la misma consulta que al crear cada uno y no depende del estado, así que da los mismos vínculos que había.
+
+- `npm run importar:red` vuelve a vincular todos los incidentes en la misma transacción que reemplaza la red: los recorridos nunca ven la red nueva sin sus incidentes. Con la misma respuesta de OSM, los tramos conservan sus id y los vínculos quedan iguales.
+- `npm run vincular:incidentes` los recalcula sin tocar la red: después de cambiar `ruteo.radio_obstruccion_m` o una zona piloto, o para los incidentes cargados antes de la #103.
+- Los dos dicen al terminar cuántos incidentes obstruyen cuántos tramos y cuántos vínculos había antes.
+
+**Límite conocido.** Un incidente a menos de 15 m de una esquina vincula todas las cuadras que llegan a ella, no solo la suya. Si para un perfil es intransitable (una vereda rota para una silla de ruedas), le bloquea la esquina entera.
+
+### Atributos del tramo por perfil
+
+Además de los incidentes, cada tramo tiene atributos propios que le estorban distinto a cada perfil: el tipo, la rampa, la pendiente, la superficie, el ancho y, en sus extremos, el semáforo sonoro y el piso podotáctil. Cómo pesan lo decidió el grupo el 02/11/2026 (#102), después de ver qué hay en la zona con la red importada y el relevamiento. Se aplican en el costo del recorrido (#104).
+
+**Regla.** Cada atributo multiplica el costo del tramo por un factor según el perfil, o lo vuelve intransitable (⛔). Los factores de un tramo se multiplican entre sí y con los de sus incidentes vigentes:
+
+> costo = `costo_base` × (producto de los factores de sus atributos) × (producto de los `factor_penalizacion` de sus incidentes)
+
+Si un atributo o un incidente lo bloquea para ese perfil, el recorrido no pasa por ese tramo. «—» es que no le cambia el costo.
+
+| Atributo del tramo | Silla de ruedas | Bastón o andador | Coche de bebé | Baja visión |
+|---|---|---|---|---|
+| Escalera (`tipo = ESCALERA`) | ⛔ | 2,0 | ⛔ | 1,5 |
+| Sin rampa (`tiene_rampa = false`) | 3,0 | 1,5 | 2,0 | 1,5 |
+| Pendiente de más de 8 %, subiendo o bajando | 3,0 | 1,5 | 1,5 | — |
+| Superficie sin pavimentar | 2,0 | 1,5 | 1,5 | 1,2 |
+| Ancho de menos de 0,9 m | ⛔ | — | ⛔ | — |
+| Cruce sin semáforo sonoro ni piso podotáctil en sus extremos | — | — | — | 1,5 |
+
+- **Superficie sin pavimentar:** `unpaved`, `dirt`, `earth`, `ground`, `gravel`, `fine_gravel`, `grass`, `sand` y `mud`, de OSM. El relevamiento usa `dirt`, `gravel`, `grass` y `unpaved`.
+- Un dato que falta (pendiente, ancho o superficie en null) no aplica ninguna regla. La rampa no puede faltar: la columna es `NOT NULL DEFAULT false`.
+- Los factores, los bloqueos y los dos umbrales (8 % y 0,9 m) van en `parametro_sistema`, como los del resto de los cálculos: el administrador los ajusta sin tocar el código (F16). Las claves se definen en #104. Un perfil nuevo no tiene reglas hasta que se le cargan.
+- Son valores de partida, como los de la matriz de incidentes: se revisan con los datos de la prueba piloto.
+
+**Por qué «sin rampa» encarece y no bloquea.** El incidente «Cordón sin rampa» sí bloquea a la silla, porque alguien lo vio. El atributo no puede: `tiene_rampa = false` junta las cuadras sin rampa con las que nadie relevó, porque la columna no tiene «sin dato». En la red de la zona, si las cuadras sin rampa fueran intransitables para la silla, la red quedaría partida en 11 pedazos y el más grande tendría 38 de los 208 nodos: casi cualquier recorrido daría «No hay un recorrido transitable». Con ×3, la silla prefiere las cuadras con rampa confirmada y sigue llegando.
+
+**Qué hay en la zona** (la red del 27/10 con el relevamiento, 271 tramos):
+
+| Regla | Tramos que toca hoy |
+|---|---|
+| Escalera | 0 |
+| Sin rampa | 194 (77 tienen rampa) |
+| Pendiente de más de 8 % | 0: ningún tramo tiene pendiente. OSM no la trae y el relevamiento solo anotó «sí» o «no» |
+| Superficie sin pavimentar | 16 (8 `dirt` y 8 `unpaved`) |
+| Ancho de menos de 0,9 m | 0: 106 tramos tienen ancho, de 1 a 3 m |
+| Cruce sin semáforo sonoro ni piso podotáctil | Los 24 cruces. Hay 9 semáforos y ninguno es sonoro; los 3 nodos con piso podotáctil no son extremos de un cruce |
+
+Hoy pesan sobre todo la rampa y la superficie. Las reglas de escalera, pendiente, ancho y semáforo se prueban sobre la grilla de los tests, que tiene una escalera, una pendiente del 5 % y un semáforo sonoro, y empiezan a pesar en cuanto se releve más o OSM sume esos datos.
+
+**Lo que no se usa.** Lo que el relevamiento anotó sin columna: si pasa una silla de ruedas (los criterios no coinciden entre quienes relevaron), los escalones entre frentes y la pendiente fuerte, que es «sí» o «no», sin porcentaje.
+
+**Límite conocido.** Como la calle hace de vereda, casi todos los cruces de calle quedan dentro de un tramo `VEREDA`: la regla del semáforo sonoro alcanza solo a los 24 cruces dibujados en OSM.
+
+**Alternativas descartadas.**
+
+- No usar los atributos, y que el recorrido cambie solo por los incidentes: el grupo decidió que la app los tiene que tener en cuenta. Si no, el relevamiento no cambiaría ningún costo.
+- Reglas fijas en el código: el administrador no podría ajustarlas, que es lo que pide F16, y habría que reconocer cada perfil por su nombre.
+- Bloquear a la silla y al coche en las cuadras sin rampa: con el dato que falta, deja la red en pedazos (arriba).
+- Usar para los tramos sin rampa la fila de «Cordón sin rampa» de la matriz de incidentes: tiene el mismo bloqueo, y no hay categorías para la escalera, la pendiente ni el semáforo.
+- Una issue aparte para aplicarlos: el costo del recorrido se arma en #104, así que van ahí y se prueban con el recorrido real.

@@ -73,6 +73,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 | `npm run semilla` | Carga o restaura el catálogo, los parámetros, la zona piloto y los usuarios de prueba (estos, fuera de producción) |
 | `npm run importar:puntos` | Carga los puntos de interés de Neuquén desde OpenStreetMap (ver «Puntos de interés») |
 | `npm run importar:red` | Carga la red peatonal de la zona piloto desde OpenStreetMap (ver «Red peatonal») |
+| `npm run vincular:incidentes` | Recalcula qué tramos de la red obstruye cada incidente (ver «Red peatonal») |
 | `npm run tarea:prioridad` | Corre ya el recálculo diario de prioridad, que el servidor hace solo a las 03:00 y al arrancar |
 | `npm test` | Tests con Vitest contra la base `snapit_test` (se crea sola) |
 | `npm run lint` | ESLint |
@@ -136,7 +137,7 @@ npm run importar:puntos -- --sin-conexion  # carga la respuesta guardada, sin us
 - Se puede correr las veces que haga falta: un punto que ya está (mismo `osm_id`) se actualiza en vez de duplicarse. Los que desaparecieron de OSM no se borran; el script avisa cuántos son.
 - Al terminar muestra cuántos puntos de cada tipo cargó (nuevos y actualizados) y cuáles descartó y por qué. Los lugares sin nombre en OSM se guardan con el de su tipo («Escuela», «Parada de colectivo»…).
 - El servicio público de Overpass se satura seguido (responde 429, 502 o 504). Si falla, la respuesta guardada no se toca: probá en unos minutos o usá `--sin-conexion`.
-- Toma la base de `DATABASE_URL` y Overpass de `OVERPASS_URL`. No corre dentro del contenedor, porque la imagen no tiene `db/datos/`: para cargar otra base, correlo desde la PC con `DATABASE_URL` apuntando a ella.
+- Toma la base de `DATABASE_URL` y Overpass de `OVERPASS_URL`, y como el servidor necesita el `.env` completo. No corre dentro del contenedor, porque la imagen no tiene `db/datos/`: para cargar otra base, correlo desde la PC con `DATABASE_URL` apuntando a ella.
 
 ### Red peatonal
 
@@ -149,10 +150,18 @@ npm run importar:red -- --sin-conexion  # carga la respuesta guardada, sin usar 
 
 - Trae los caminos que tocan las zonas activas de `zona_piloto`, que carga la semilla. Sin ninguna, no corre.
 - La respuesta queda en `db/datos/red-zona-piloto.json` y se versiona. Si cambiás el polígono de la zona, corré el comando con conexión para bajarla de nuevo.
-- Cada corrida reemplaza la red entera, en una sola transacción: con la misma respuesta deja exactamente la misma red, y si algo falla queda la anterior. También vacía los vínculos entre incidentes y tramos (`incidente_tramo`), que hay que volver a calcular.
+- Cada corrida reemplaza la red entera, en una sola transacción: con la misma respuesta deja exactamente la misma red, y si algo falla queda la anterior. En la misma transacción vuelve a vincular cada incidente con los tramos que obstruye (`incidente_tramo`).
 - Al terminar muestra cuántos nodos y tramos cargó, en cuántos pedazos quedó la red (componentes conexos, con un link a OSM para ubicar cada uno) y qué caminos descartó y por qué.
 - Qué caminos entran y cómo se traducen las etiquetas de OSM a columnas: «Red peatonal» en [`docs/calculos.md`](docs/calculos.md).
 - Igual que `importar:puntos`, toma `DATABASE_URL` y `OVERPASS_URL` y no corre dentro del contenedor.
+
+Para recalcular los vínculos sin tocar la red, por ejemplo después de cambiar `ruteo.radio_obstruccion_m` o una zona piloto, o para los incidentes cargados antes de la #103:
+
+```bash
+npm run vincular:incidentes
+```
+
+Qué tramos obstruye cada incidente: «Vínculo entre incidentes y tramos» en [`docs/calculos.md`](docs/calculos.md). Los dos comandos leen los parámetros del sistema, así que, como el servidor, necesitan el `.env` completo.
 
 Los datos son © colaboradores de OpenStreetMap, con licencia [ODbL](https://opendatacommons.org/licenses/odbl/).
 

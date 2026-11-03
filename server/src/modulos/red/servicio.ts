@@ -5,7 +5,13 @@ import { leerRespuestaOverpass, type ClienteOverpass } from './overpass.js';
 import { aPuntosInteres, CONSULTA_PUNTOS_INTERES, type Descarte } from './puntosInteres.js';
 import { armarRed, consultaRed } from './redPeatonal.js';
 import { aplicarRelevamiento, leerRelevamiento, type ResumenRelevamiento } from './relevamiento.js';
-import { guardarPuntosInteres, listarZonasActivas, reemplazarRed, type CargaRed } from './repositorio.js';
+import {
+  guardarPuntosInteres,
+  listarZonasActivas,
+  reemplazarRed,
+  type CargaRed,
+  type VinculosRecalculados,
+} from './repositorio.js';
 
 export interface OpcionesImportacion {
   prisma: PrismaClient;
@@ -141,8 +147,8 @@ async function leerArchivoRelevamiento(archivo: string) {
 
 /**
  * Trae de Overpass (o de la respuesta guardada) los caminos que tocan las zonas piloto activas, arma la red
- * peatonal, le aplica las correcciones del relevamiento (si se pasa el archivo) y reemplaza la que había en
- * `nodo_peatonal` y `tramo_peatonal`.
+ * peatonal, le aplica las correcciones del relevamiento (si se pasa el archivo), reemplaza la que había en
+ * `nodo_peatonal` y `tramo_peatonal` y vuelve a vincular los incidentes con los tramos nuevos.
  */
 export async function importarRed({
   prisma,
@@ -239,11 +245,15 @@ export function describirResumenRed(resumen: ResumenRed) {
       lineas.push(`  ${motivo}: ${lista.length} (${ejemplos.join(', ')}${lista.length > 5 ? ', …' : ''})`);
     }
   }
-  if (resumen.vinculosBorrados > 0) {
-    lineas.push(
-      '',
-      `Se vaciaron ${cuantos(resumen.vinculosBorrados, 'vínculo', 'vínculos')} entre incidentes y tramos: hay que volver a vincular los incidentes con la red nueva.`,
-    );
-  }
+  lineas.push('', describirVinculos({ ...resumen.vinculos, antes: resumen.vinculosBorrados }));
   return lineas.join('\n');
+}
+
+/** Cómo quedaron los vínculos entre incidentes y tramos. Lo muestran importar:red y vincular:incidentes. */
+export function describirVinculos({ radioM, antes, vinculos, incidentes }: VinculosRecalculados) {
+  const despues =
+    vinculos === 0
+      ? 'ningún incidente de las zonas piloto queda cerca de un tramo'
+      : `${cuantos(incidentes, 'incidente obstruye', 'incidentes obstruyen')} ${cuantos(vinculos, 'tramo', 'tramos')}`;
+  return `Incidentes vinculados con la red (tramos a ${radioM} m o menos): ${despues}. Antes había ${cuantos(antes, 'vínculo', 'vínculos')}.`;
 }

@@ -1,4 +1,5 @@
-import type { PrismaClient, TipoTramo } from '@prisma/client';
+import { Prisma, type PrismaClient, type TipoTramo } from '@prisma/client';
+import { type DefinicionParametros, leerParametrosNumericos, positivo } from '../../compartido/parametros.js';
 import type { PuntoInteresOsm } from './puntosInteres.js';
 import type { Anillo, NodoRed, TramoRed } from './redPeatonal.js';
 
@@ -66,6 +67,8 @@ export interface CargaRed {
   fueraDeZona: number;
   /** Filas de `incidente_tramo` que se vaciaron con la recarga. */
   vinculosBorrados: number;
+  /** Cómo quedaron los incidentes vinculados con la red nueva. */
+  vinculos: VinculosRecalculados;
   /** Del más grande al más chico, con un nodo de cada uno para ubicarlo en OSM. */
   componentes: { nodos: number; nodoOsmId: number }[];
 }
@@ -76,7 +79,8 @@ const comoTexto = (valor: number | string | null) => (valor === null ? '' : Stri
 /**
  * Reemplaza toda la red por la que se pasa, en una sola transacción: si algo falla, queda la anterior.
  * Carga solo los tramos que tocan alguna zona piloto activa (y sus nodos), calcula `longitud_metros` y
- * `costo_base` con ST_Length sobre geography y cuenta los componentes conexos con pgRouting.
+ * `costo_base` con ST_Length sobre geography, vuelve a vincular los incidentes con los tramos nuevos y cuenta
+ * los componentes conexos con pgRouting.
  */
 export function reemplazarRed(
   prisma: PrismaClient,
@@ -161,6 +165,9 @@ export function reemplazarRed(
         GROUP BY c.component
         ORDER BY nodos DESC, "nodoOsmId"`;
 
+      // En la misma transacción: los recorridos nunca ven la red nueva sin sus incidentes.
+      const recalculados = await vincularTodos(tx);
+
       const porTipo: Record<TipoTramo, number> = { VEREDA: 0, CRUCE: 0, ESCALERA: 0, SENDA: 0 };
       for (const { tipo, cantidad } of tipos) porTipo[tipo] = cantidad;
 
@@ -171,9 +178,74 @@ export function reemplazarRed(
         ...atributos,
         fueraDeZona,
         vinculosBorrados: vinculos,
+        vinculos: recalculados,
         componentes: componentes.map((c) => ({ nodos: c.nodos, nodoOsmId: Number(c.nodoOsmId) })),
       };
     },
     { maxWait: 15_000, timeout: 120_000 },
   );
+}
+
+// El mismo valor que carga la semilla.
+const PARAMETROS_VINCULO: DefinicionParametros<'radioM'> = {
+  radioM: { clave: 'ruteo.radio_obstruccion_m', valor: 15, valido: positivo },
+};
+
+/**
+ * Los tramos que obstruye un incidente: los que pasan a no más de `radioM` metros de su punto, si el punto
+ * está dentro de una zona piloto activa. Sin `incidenteId`, los de todos los incidentes, en cualquier estado:
+ * el recorrido ya filtra los vigentes, y así recalcular da lo mismo que se guardó al crear cada uno.
+ */
+function insertarVinculos(tx: Prisma.TransactionClient, radioM: number, incidenteId?: number) {
+  const soloUno = incidenteId === undefined ? Prisma.empty : Prisma.sql`AND i.id = ${incidenteId}`;
+  return tx.$queryRaw<[{ vinculos: number; incidentes: number }]>`
+    WITH nuevos AS (
+      INSERT INTO incidente_tramo (incidente_id, tramo_peatonal_id)
+      SELECT i.id, t.id
+      FROM incidente i
+      JOIN tramo_peatonal t ON ST_DWithin(t.geometria, i.ubicacion, ${radioM})
+      WHERE EXISTS (SELECT 1 FROM zona_piloto z WHERE z.activa AND ST_Covers(z.geometria, i.ubicacion))
+        ${soloUno}
+      ON CONFLICT DO NOTHING
+      RETURNING incidente_id
+    )
+    SELECT count(*)::int AS vinculos, count(DISTINCT incidente_id)::int AS incidentes FROM nuevos`;
+}
+
+/**
+ * Vuelve a calcular qué tramos obstruye un incidente (F11). Se llama al crearlo y cada vez que cambia de
+ * lugar: borra sus vínculos y los arma de nuevo, porque son un dato derivado de su punto y de la red.
+ * Devuelve cuántos tramos quedaron vinculados.
+ */
+export async function vincularIncidente(tx: Prisma.TransactionClient, incidenteId: number) {
+  const { radioM } = await leerParametrosNumericos(PARAMETROS_VINCULO, tx);
+  await tx.$executeRaw`DELETE FROM incidente_tramo WHERE incidente_id = ${incidenteId}`;
+  const [{ vinculos }] = await insertarVinculos(tx, radioM, incidenteId);
+  return vinculos;
+}
+
+export interface VinculosRecalculados {
+  radioM: number;
+  /** Vínculos que había antes de recalcular. */
+  antes: number;
+  /** Vínculos que quedaron. */
+  vinculos: number;
+  /** Incidentes que obstruyen al menos un tramo. */
+  incidentes: number;
+}
+
+/**
+ * Recalcula los vínculos de todos los incidentes con la red, por ejemplo después de reimportarla o de
+ * cambiar el radio o una zona. Da lo mismo que vincular cada incidente por separado.
+ */
+export async function vincularTodos(tx: Prisma.TransactionClient): Promise<VinculosRecalculados> {
+  const { radioM } = await leerParametrosNumericos(PARAMETROS_VINCULO, tx);
+  const antes = await tx.$executeRaw`DELETE FROM incidente_tramo`;
+  const [{ vinculos, incidentes }] = await insertarVinculos(tx, radioM);
+  return { radioM, antes, vinculos, incidentes };
+}
+
+/** `vincularTodos` en su propia transacción. Lo usa el script `vincular:incidentes`. */
+export function revincularIncidentes(prisma: PrismaClient) {
+  return prisma.$transaction((tx) => vincularTodos(tx), { maxWait: 15_000, timeout: 120_000 });
 }

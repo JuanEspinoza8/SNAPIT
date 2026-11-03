@@ -6,6 +6,7 @@ import type { UsuarioSesion } from '../auth/tokens.js';
 import { severidadConsolidada } from '../agrupacion/calculo.js';
 import * as agrupacion from '../agrupacion/repositorio.js';
 import { recalcularEstado } from '../agrupacion/repositorio.js';
+import { vincularIncidente } from '../red/repositorio.js';
 import { insertarIncidente, transaccion } from '../reportes/repositorio.js';
 import { vigenciaDeCategoria } from '../reportes/servicio.js';
 import { esquemaId } from './esquemas.js';
@@ -88,10 +89,11 @@ async function primerReporteEn(tx: Tx, incidenteId: number) {
 
 /**
  * Si el incidente está en el punto del reporte que se fue (el que lo creó), pasa al punto y la dirección del
- * reporte válido propio que llegó primero. Si no, se queda donde está: lo ubicó otro reporte.
+ * reporte válido propio que llegó primero. Si no, se queda donde está: lo ubicó otro reporte. Devuelve si
+ * cambió de punto.
  */
 async function reubicarSiHaceFalta(tx: Tx, incidenteId: number, reporteSeparadoId: number) {
-  await tx.$executeRaw`
+  const movidos = await tx.$executeRaw`
     UPDATE incidente i
     SET ubicacion = otro.ubicacion, direccion = otro.direccion
     FROM (SELECT r.ubicacion, r.direccion
@@ -102,6 +104,7 @@ async function reubicarSiHaceFalta(tx: Tx, incidenteId: number, reporteSeparadoI
     WHERE i.id = ${incidenteId}
       AND ST_Equals(i.ubicacion::geometry,
                     (SELECT s.ubicacion::geometry FROM reporte s WHERE s.id = ${reporteSeparadoId}))`;
+  return movidos > 0;
 }
 
 /**
@@ -111,6 +114,8 @@ async function reubicarSiHaceFalta(tx: Tx, incidenteId: number, reporteSeparadoI
  *   categoría desde que llegó el reporte (§7.6). Queda sin área: el operador lo deriva de nuevo.
  * - Al original se le resta el reporte y se recalculan su severidad y su primer reporte. Si estaba en el punto
  *   del reporte separado, pasa al del reporte que llegó primero de los que le quedan.
+ * - El nuevo obstruye los tramos de alrededor de su punto (F11). Si el original cambió de punto, se recalculan
+ *   los suyos.
  * - Los dos quedan con un movimiento SEPARACION que apunta al otro. Después, cada uno toma el estado que dicen
  *   sus reportes (estadoSegunReportes), con un CAMBIO_ESTADO del sistema: el nuevo nace REGISTRADO y pasa a
  *   VERIFICADO si el reporte lo estaba; el original vuelve a REGISTRADO si se le fue el único verificado.
@@ -174,6 +179,7 @@ export async function separarReporte(sesion: UsuarioSesion, parametros: unknown,
       data: { direccion: reporte.direccion, cantidadReportes: 1, actualizadoEn: ahora },
     });
     await tx.reporte.update({ where: { id }, data: { incidenteId: nuevoId } });
+    await vincularIncidente(tx, nuevoId);
 
     // Ya sin el reporte separado: la severidad consolidada (#53) y el primer reporte son los de los que quedan.
     const severidad = severidadConsolidada(await agrupacion.severidadesDeclaradas(tx, originalId));
@@ -186,7 +192,7 @@ export async function separarReporte(sesion: UsuarioSesion, parametros: unknown,
         actualizadoEn: ahora,
       },
     });
-    await reubicarSiHaceFalta(tx, originalId, id);
+    if (await reubicarSiHaceFalta(tx, originalId, id)) await vincularIncidente(tx, originalId);
 
     const nota = comentario ? `: ${comentario}` : '';
     await tx.movimientoIncidente.createMany({

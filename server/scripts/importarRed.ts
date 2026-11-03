@@ -5,7 +5,8 @@ import { config } from 'dotenv';
 import { crearClienteOverpass } from '../src/modulos/red/overpass.js';
 import { describirResumenRed, importarRed } from '../src/modulos/red/servicio.js';
 
-// Como la semilla, no usa config/env.ts: solo necesita la base y Overpass, no el correo ni los tokens.
+// Al vincular los incidentes con la red nueva lee ruteo.radio_obstruccion_m, y los parámetros pasan por
+// config/env.ts: hace falta el .env completo, como para el servidor.
 config({ path: fileURLToPath(new URL('../../.env', import.meta.url)), quiet: true });
 
 const ARCHIVO = fileURLToPath(new URL('../../db/datos/red-zona-piloto.json', import.meta.url));

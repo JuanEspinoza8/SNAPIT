@@ -5,7 +5,8 @@ import { config } from 'dotenv';
 import { crearClienteOverpass } from '../src/modulos/red/overpass.js';
 import { describirResumen, importarPuntosInteres } from '../src/modulos/red/servicio.js';
 
-// Como la semilla, no usa config/env.ts: solo necesita la base y Overpass, no el correo ni los tokens.
+// El módulo red carga config/env.ts (por los parámetros del vínculo con los incidentes): hace falta el .env
+// completo, como para el servidor.
 config({ path: fileURLToPath(new URL('../../.env', import.meta.url)), quiet: true });
 
 const ARCHIVO = fileURLToPath(new URL('../../db/datos/puntos-interes-neuquen.json', import.meta.url));

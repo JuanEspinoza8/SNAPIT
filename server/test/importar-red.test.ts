@@ -225,9 +225,10 @@ describe('importar la red peatonal', () => {
     expect(camino.at(-1)!.acumulado).toBeLessThan(350);
   });
 
-  it('vacía los vínculos con incidentes y avisa cuántos eran', async () => {
+  it('vuelve a vincular los incidentes con la red nueva y avisa cuántos vínculos había', async () => {
     await importar(true, RECORTE);
     const { categoria } = await crearOrganismoDePrueba();
+    // En la esquina 11, a la que llegan cinco tramos.
     const [incidente] = await prisma.$queryRaw<[{ id: number }]>`
       INSERT INTO incidente (categoria_id, ubicacion)
       VALUES (${categoria.id}, ST_SetSRID(ST_MakePoint(-68.49885, -38.6991), 4326)::geography)
@@ -239,7 +240,9 @@ describe('importar la red peatonal', () => {
       const resumen = await importar(true, RECORTE);
 
       expect(resumen.vinculosBorrados).toBe(2);
-      expect(await prisma.incidenteTramo.count()).toBe(0);
+      expect(resumen.vinculos.radioM).toBe(15);
+      expect(resumen.vinculos.vinculos).toBe(await prisma.incidenteTramo.count());
+      expect(await prisma.incidenteTramo.count({ where: { incidenteId: incidente.id } })).toBe(5);
     } finally {
       await prisma.incidente.delete({ where: { id: incidente.id } });
     }
