@@ -1,10 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { env } from '../src/config/env.js';
-import { generarTokenAleatorio, hashToken } from '../src/modulos/auth/tokens.js';
+import { crearTokenAcceso, generarTokenAleatorio, hashToken } from '../src/modulos/auth/tokens.js';
 import { CLAVE, correoNuevo, crearUsuario, ingresar } from './apoyo.js';
 
 // El registro manda un correo: en los tests no sale a ningún servidor SMTP.
@@ -125,6 +126,7 @@ describe('POST /api/auth/ingreso', () => {
         rol: 'VECINO',
         organismoId: null,
         areaId: null,
+        perfilMovilidadId: null,
       },
     });
 
@@ -262,6 +264,22 @@ describe('GET /api/auth/yo', () => {
     const res = await request(app).get('/api/auth/yo').set('Authorization', `Bearer ${tokenAcceso}`);
     expect(res.status).toBe(200);
     expect(res.body.usuario.id).toBe(usuario.id);
+  });
+
+  it('incluye el perfil de movilidad del usuario, para elegirlo de entrada en el recorrido', async () => {
+    const perfil = await prisma.perfilMovilidad.create({ data: { nombre: `Perfil ${randomUUID()}` } });
+    const usuario = await prisma.usuario.update({
+      where: { id: (await crearUsuario()).id },
+      data: { perfilMovilidadId: perfil.id },
+    });
+
+    const res = await request(app)
+      .get('/api/auth/yo')
+      .set('Authorization', `Bearer ${crearTokenAcceso(usuario)}`);
+
+    expect(res.body.usuario.perfilMovilidadId).toBe(perfil.id);
+    await prisma.usuario.update({ where: { id: usuario.id }, data: { perfilMovilidadId: null } });
+    await prisma.perfilMovilidad.delete({ where: { id: perfil.id } });
   });
 
   it('sin token responde 401 NO_AUTENTICADO', async () => {

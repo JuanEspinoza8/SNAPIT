@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import type { RolUsuario, TipoVigencia } from '@prisma/client';
+import type { Efecto, ReglaTramo } from '../modulos/recorridos/calculo.js';
 
 /**
  * Datos iniciales del sistema. Los valores están explicados en docs/calculos.md: si cambiás uno acá,
@@ -89,9 +90,7 @@ export const PERFILES = [
 
 type NombrePerfil = (typeof PERFILES)[number]['nombre'];
 
-/** Factor por el que se multiplica el costo del tramo, o 'intransitable' si queda bloqueado para ese perfil. */
-type Efecto = number | 'intransitable';
-
+/** Cuánto le estorba a cada perfil un incidente de cada categoría (categoria_perfil). */
 export const MATRIZ_CATEGORIA_PERFIL: Record<NombreCategoria, Record<NombrePerfil, Efecto>> = {
   'Pozo en la calzada': {
     'Silla de ruedas': 3.0,
@@ -122,6 +121,51 @@ export const MATRIZ_CATEGORIA_PERFIL: Record<NombreCategoria, Record<NombrePerfi
     'Bastón o andador': 'intransitable',
     'Coche de bebé': 'intransitable',
     'Baja visión': 'intransitable',
+  },
+};
+
+/**
+ * Cómo pesa cada atributo del tramo para cada perfil (#102). Se guarda en parametro_sistema como
+ * ruteo.<regla>.perfil_<id>, con tipo 'factor'. Un 1 no le cambia el costo: va igual, para que el administrador
+ * vea la regla y la pueda activar.
+ */
+export const ATRIBUTOS_TRAMO_PERFIL: Record<
+  ReglaTramo,
+  { describe: string; efectos: Record<NombrePerfil, Efecto> }
+> = {
+  escalera: {
+    describe: 'una escalera',
+    efectos: {
+      'Silla de ruedas': 'intransitable',
+      'Bastón o andador': 2.0,
+      'Coche de bebé': 'intransitable',
+      'Baja visión': 1.5,
+    },
+  },
+  sin_rampa: {
+    describe: 'un tramo sin rampa',
+    efectos: { 'Silla de ruedas': 3.0, 'Bastón o andador': 1.5, 'Coche de bebé': 2.0, 'Baja visión': 1.5 },
+  },
+  pendiente: {
+    describe: 'un tramo con más pendiente que ruteo.pendiente_max_porcentaje',
+    efectos: { 'Silla de ruedas': 3.0, 'Bastón o andador': 1.5, 'Coche de bebé': 1.5, 'Baja visión': 1.0 },
+  },
+  sin_pavimentar: {
+    describe: 'un tramo sin pavimentar (tierra, ripio, pasto...)',
+    efectos: { 'Silla de ruedas': 2.0, 'Bastón o andador': 1.5, 'Coche de bebé': 1.5, 'Baja visión': 1.2 },
+  },
+  angosto: {
+    describe: 'un tramo más angosto que ruteo.ancho_min_m',
+    efectos: {
+      'Silla de ruedas': 'intransitable',
+      'Bastón o andador': 1.0,
+      'Coche de bebé': 'intransitable',
+      'Baja visión': 1.0,
+    },
+  },
+  cruce_sin_senal: {
+    describe: 'un cruce sin semáforo sonoro ni piso podotáctil en sus extremos',
+    efectos: { 'Silla de ruedas': 1.0, 'Bastón o andador': 1.0, 'Coche de bebé': 1.0, 'Baja visión': 1.5 },
   },
 };
 
@@ -354,6 +398,20 @@ export const PARAMETROS: { clave: string; valor: string; tipo: 'entero' | 'decim
       valor: '50',
       tipo: 'decimal',
       descripcion: 'Velocidad al caminar, en metros por minuto, para estimar el tiempo del recorrido',
+    },
+    {
+      clave: 'ruteo.pendiente_max_porcentaje',
+      valor: '8',
+      tipo: 'decimal',
+      descripcion:
+        'Pendiente, en %, desde la que un tramo cuenta como empinado, subiendo o bajando (reglas ruteo.pendiente.perfil_<id>)',
+    },
+    {
+      clave: 'ruteo.ancho_min_m',
+      valor: '0.9',
+      tipo: 'decimal',
+      descripcion:
+        'Ancho, en metros, por debajo del cual un tramo cuenta como angosto (reglas ruteo.angosto.perfil_<id>)',
     },
     // Demostración de la cola de verificación con IA
     {
