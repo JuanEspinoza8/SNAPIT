@@ -4,6 +4,7 @@ import { TipoPuntoInteres, type PrismaClient } from '@prisma/client';
 import { leerRespuestaOverpass, type ClienteOverpass } from './overpass.js';
 import { aPuntosInteres, CONSULTA_PUNTOS_INTERES, type Descarte } from './puntosInteres.js';
 import { armarRed, consultaRed } from './redPeatonal.js';
+import { aplicarRelevamiento, leerRelevamiento, type ResumenRelevamiento } from './relevamiento.js';
 import { guardarPuntosInteres, listarZonasActivas, reemplazarRed, type CargaRed } from './repositorio.js';
 
 export interface OpcionesImportacion {
@@ -123,35 +124,55 @@ export interface ResumenRed extends CargaRed {
   zonas: string[];
   /** Caminos de la respuesta que no entran en la red, con el motivo. */
   descartados: Descarte[];
+  /** Qué cambió el relevamiento de la zona piloto, si se aplicó. */
+  relevamiento: ResumenRelevamiento | null;
+}
+
+async function leerArchivoRelevamiento(archivo: string) {
+  try {
+    return leerRelevamiento(await readFile(archivo, 'utf8'));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`No está el relevamiento de la zona piloto en ${archivo}`, { cause: error });
+    }
+    throw error;
+  }
 }
 
 /**
  * Trae de Overpass (o de la respuesta guardada) los caminos que tocan las zonas piloto activas, arma la red
- * peatonal y reemplaza la que había en `nodo_peatonal` y `tramo_peatonal`.
+ * peatonal, le aplica las correcciones del relevamiento (si se pasa el archivo) y reemplaza la que había en
+ * `nodo_peatonal` y `tramo_peatonal`.
  */
 export async function importarRed({
   prisma,
   archivo,
   sinConexion,
   overpass,
-}: OpcionesImportacion): Promise<ResumenRed> {
+  relevamiento: archivoRelevamiento,
+}: OpcionesImportacion & { relevamiento?: string }): Promise<ResumenRed> {
   const zonas = await listarZonasActivas(prisma);
   if (zonas.length === 0) {
     throw new Error('No hay ninguna zona piloto activa: cargala primero con npm run semilla.');
   }
+  // Se lee antes de pedir nada a Overpass: si el archivo tiene un error, no tiene sentido descargar la red.
+  const relevamiento = archivoRelevamiento ? await leerArchivoRelevamiento(archivoRelevamiento) : null;
   const consulta = consultaRed(zonas.map((zona) => zona.geometria.coordinates[0]!));
   const respuesta = sinConexion
     ? await leerGuardada(archivo)
     : await descargar(overpass, consulta, archivo, 'ningún camino');
   const { nodos, tramos, descartados } = armarRed(respuesta.elementos);
   if (tramos.length === 0) throw new Error('La respuesta no tiene ningún camino para peatones');
-  const carga = await reemplazarRed(prisma, { nodos, tramos });
+  // Las correcciones se aplican antes de cargar: la red queda en la base ya corregida, en una sola transacción.
+  const corregida = relevamiento ? aplicarRelevamiento({ nodos, tramos }, relevamiento) : null;
+  const carga = await reemplazarRed(prisma, corregida ?? { nodos, tramos });
 
   return {
     origen: sinConexion ? 'archivo' : 'overpass',
     fechaDatos: respuesta.fechaDatos,
     zonas: zonas.map((zona) => zona.nombre),
     descartados,
+    relevamiento: corregida?.resumen ?? null,
     ...carga,
   };
 }
@@ -175,6 +196,22 @@ export function describirResumenRed(resumen: ResumenRed) {
     lineas.push(
       `  ${cuantos(resumen.fueraDeZona, 'tramo no toca', 'tramos no tocan')} la zona y no se cargan.`,
     );
+  }
+
+  const { relevamiento } = resumen;
+  if (relevamiento) {
+    lineas.push(
+      '',
+      `Relevamiento aplicado: ${cuantos(relevamiento.tramosCorregidos, 'tramo corregido', 'tramos corregidos')}, ` +
+        `${cuantos(relevamiento.nodosCorregidos, 'nodo corregido', 'nodos corregidos')}, ` +
+        `${cuantos(relevamiento.tramosQuitados, 'tramo quitado', 'tramos quitados')} y ` +
+        `${cuantos(relevamiento.conexionesAgregadas, 'unión agregada', 'uniones agregadas')}.`,
+    );
+    if (relevamiento.sinUbicar.length > 0) {
+      lineas.push(
+        `  No se encontraron en la red (revisar si cambió OSM): ${relevamiento.sinUbicar.join(', ')}`,
+      );
+    }
   }
 
   lineas.push('');

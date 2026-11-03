@@ -1,0 +1,2995 @@
+{
+  "zona": "Bouquet Roldán y La Sirena",
+  "metodo": "Relevamiento remoto con Google Street View, noviembre de 2026. Cada fila dice la fecha de la imagen que se miró.",
+  "esquinas": [
+    {
+      "id": "E-01",
+      "recorrido": "R1",
+      "nombre": "12 de Septiembre Norte y Cornelio Saavedra",
+      "lat": -38.955615,
+      "lon": -68.089815,
+      "nodosOsm": [
+        1309651640,
+        1309651568
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": "La esquina SO solo tiene rampa hacia la esquina SE, ya que la NO no tiene rampa"
+    },
+    {
+      "id": "E-02",
+      "recorrido": "R1",
+      "nombre": "Nogueira y 12 de Septiembre Norte",
+      "lat": -38.955609,
+      "lon": -68.088461,
+      "nodosOsm": [
+        1974006495
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "no",
+        "SO": "no corresponde",
+        "SE": "no corresponde"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-03",
+      "recorrido": "R1",
+      "nombre": "12 de Septiembre Norte y Estrellas del Neuquén",
+      "lat": -38.955615,
+      "lon": -68.087624,
+      "nodosOsm": [
+        5271237075
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-04",
+      "recorrido": "R1",
+      "nombre": "12 de Septiembre Norte y Gobernador Anaya",
+      "lat": -38.955638,
+      "lon": -68.08431,
+      "nodosOsm": [
+        1309495442
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-05",
+      "recorrido": "R1",
+      "nombre": "Cornelio Saavedra y 12 de Septiembre Sur",
+      "lat": -38.956068,
+      "lon": -68.08982,
+      "nodosOsm": [
+        1923126628
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-06",
+      "recorrido": "R1",
+      "nombre": "12 de Septiembre Sur y Nogueira",
+      "lat": -38.956071,
+      "lon": -68.08906,
+      "nodosOsm": [
+        1923126633
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-07",
+      "recorrido": "R1",
+      "nombre": "Estrellas del Neuquén y 12 de Septiembre Sur",
+      "lat": -38.956077,
+      "lon": -68.087215,
+      "nodosOsm": [
+        1990377636
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-08",
+      "recorrido": "R1",
+      "nombre": "12 de Septiembre Sur y Gobernador Anaya",
+      "lat": -38.956088,
+      "lon": -68.084288,
+      "nodosOsm": [
+        1309495531
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-09",
+      "recorrido": "R1",
+      "nombre": "Alicia Moreau de Justo y Cornelio Saavedra",
+      "lat": -38.956509,
+      "lon": -68.089826,
+      "nodosOsm": [
+        1923126624
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-10",
+      "recorrido": "R1",
+      "nombre": "Alicia Moreau de Justo y Nogueira",
+      "lat": -38.956523,
+      "lon": -68.089066,
+      "nodosOsm": [
+        1923126622
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "no",
+        "SO": "sí, pero mal",
+        "SE": "sí, pero mal"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-11",
+      "recorrido": "R1",
+      "nombre": "Alicia Moreau de Justo y Estrellas del Neuquén",
+      "lat": -38.956557,
+      "lon": -68.08722,
+      "nodosOsm": [
+        1923126620
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "sí, pero mal",
+        "SE": "sí, pero mal"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-12",
+      "recorrido": "R1",
+      "nombre": "Alicia Moreau de Justo y Gobernador Anaya",
+      "lat": -38.956612,
+      "lon": -68.084299,
+      "nodosOsm": [
+        1923126626
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí, pero mal",
+        "NE": "sí",
+        "SO": "sí, pero mal",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-13",
+      "recorrido": "R1",
+      "nombre": "Cornelio Saavedra y María Curie",
+      "lat": -38.956871,
+      "lon": -68.08983,
+      "nodosOsm": [
+        1938817871
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "no",
+        "SO": "sí",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-14",
+      "recorrido": "R1",
+      "nombre": "Arcenio Durán y Gobernador Anaya",
+      "lat": -38.957516,
+      "lon": -68.084316,
+      "nodosOsm": [
+        1309495297
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-15",
+      "recorrido": "R1",
+      "nombre": "Andacollo y Gobernador Anaya",
+      "lat": -38.958059,
+      "lon": -68.084327,
+      "nodosOsm": [
+        1974006644
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-16",
+      "recorrido": "R1",
+      "nombre": "Doctor Luis Teodoro Planas y Cornelio Saavedra",
+      "lat": -38.959107,
+      "lon": -68.089861,
+      "nodosOsm": [
+        1309651246
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": "La esquina NE solo tiene rampa a la esquina NO"
+    },
+    {
+      "id": "E-17",
+      "recorrido": "R1",
+      "nombre": "Doctor Luis Teodoro Planas y Petróleo",
+      "lat": -38.959121,
+      "lon": -68.087016,
+      "nodosOsm": [
+        1923116178
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-18",
+      "recorrido": "R1",
+      "nombre": "Doctor Luis Teodoro Planas y Gobernador Anaya",
+      "lat": -38.959133,
+      "lon": -68.084348,
+      "nodosOsm": [
+        1309495002
+      ],
+      "fechaImagen": "2025-11",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "sí",
+      "observaciones": "Piso podotactil solo en las esquinas NO y NE"
+    },
+    {
+      "id": "E-19",
+      "recorrido": "R2",
+      "nombre": "Catamarca y 12 de Septiembre Norte",
+      "lat": -38.955651,
+      "lon": -68.082903,
+      "nodosOsm": [
+        1309495013
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "sí",
+      "observaciones": "Solo podotactil en las SE y SO"
+    },
+    {
+      "id": "E-20",
+      "recorrido": "R2",
+      "nombre": "12 de Septiembre Sur y Merlo",
+      "lat": -38.956094,
+      "lon": -68.083599,
+      "nodosOsm": [
+        1309495010
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-21",
+      "recorrido": "R2",
+      "nombre": "12 de Septiembre Sur y Catamarca",
+      "lat": -38.956101,
+      "lon": -68.08291,
+      "nodosOsm": [
+        1309494820
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "sí, pero mal",
+        "SE": "sí, pero mal"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-22",
+      "recorrido": "R2",
+      "nombre": "Merlo y Arcenio Durán",
+      "lat": -38.957522,
+      "lon": -68.083616,
+      "nodosOsm": [
+        1309495231
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-23",
+      "recorrido": "R2",
+      "nombre": "Catamarca y Arcenio Durán",
+      "lat": -38.957527,
+      "lon": -68.083042,
+      "nodosOsm": [
+        1309495465,
+        1974006611
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-24",
+      "recorrido": "R2",
+      "nombre": "Catamarca y Andacollo",
+      "lat": -38.958069,
+      "lon": -68.083164,
+      "nodosOsm": [
+        1974006645
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "sí",
+        "NE": "no",
+        "SO": "sí",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-25",
+      "recorrido": "R2",
+      "nombre": "Cacique Cheuquén y Catamarca",
+      "lat": -38.958612,
+      "lon": -68.083171,
+      "nodosOsm": [
+        1974006688
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-26",
+      "recorrido": "R2",
+      "nombre": "Catamarca y Doctor Luis Teodoro Planas",
+      "lat": -38.959142,
+      "lon": -68.083178,
+      "nodosOsm": [
+        1309495323
+      ],
+      "fechaImagen": "2025-11",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí, pero mal",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "sí",
+      "observaciones": "Podotatil solo en la esquina NO"
+    },
+    {
+      "id": "E-27",
+      "recorrido": "R2",
+      "nombre": "Cornelio Saavedra y Juan Julián Lastra",
+      "lat": -38.959474,
+      "lon": -68.089866,
+      "nodosOsm": [
+        1923101974
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-28",
+      "recorrido": "R2",
+      "nombre": "Juan Julián Lastra y Pasaje del Centenario",
+      "lat": -38.959507,
+      "lon": -68.088145,
+      "nodosOsm": [
+        9953791271
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-29",
+      "recorrido": "R2",
+      "nombre": "Juan Julián Lastra y Petróleo",
+      "lat": -38.959513,
+      "lon": -68.087054,
+      "nodosOsm": [
+        1922058864,
+        9953791299
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-30",
+      "recorrido": "R2",
+      "nombre": "Eva Duarte y Juan Julián Lastra",
+      "lat": -38.959515,
+      "lon": -68.086404,
+      "nodosOsm": [
+        1922058863
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "sí",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-31",
+      "recorrido": "R2",
+      "nombre": "Juan Julián Lastra y Gobernador Anaya",
+      "lat": -38.959523,
+      "lon": -68.084339,
+      "nodosOsm": [
+        1309651122
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-32",
+      "recorrido": "R2",
+      "nombre": "Cacique Purrán y Juan Julián Lastra",
+      "lat": -38.95953,
+      "lon": -68.083014,
+      "nodosOsm": [
+        1309651416
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-33",
+      "recorrido": "R3",
+      "nombre": "Cornelio Saavedra y Pasaje del Centenario",
+      "lat": -38.959692,
+      "lon": -68.08987,
+      "nodosOsm": [
+        1990234310
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí, pero mal",
+        "NE": "sí, pero mal",
+        "SO": "sí, pero mal",
+        "SE": "sí, pero mal"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-34",
+      "recorrido": "R3",
+      "nombre": "Cornelio Saavedra y Intendente Carro",
+      "lat": -38.960264,
+      "lon": -68.089877,
+      "nodosOsm": [
+        1922058866
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-35",
+      "recorrido": "R3",
+      "nombre": "José Nogara y Intendente Carro",
+      "lat": -38.960396,
+      "lon": -68.088023,
+      "nodosOsm": [
+        1922140042,
+        1922134137
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "no",
+        "SO": "sí",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-36",
+      "recorrido": "R3",
+      "nombre": "Eva Duarte y Intendente Carro",
+      "lat": -38.960412,
+      "lon": -68.086411,
+      "nodosOsm": [
+        9953866320
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "no",
+        "SO": "no",
+        "SE": "sí, pero mal"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-37",
+      "recorrido": "R3",
+      "nombre": "Petróleo y Intendente Carro",
+      "lat": -38.960495,
+      "lon": -68.087184,
+      "nodosOsm": [
+        1922140043
+      ],
+      "fechaImagen": "2024-07",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "sí, pero mal",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-38",
+      "recorrido": "R3",
+      "nombre": "Gobernador Anaya y Intendente Carro",
+      "lat": -38.960532,
+      "lon": -68.084352,
+      "nodosOsm": [
+        9953866317
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-39",
+      "recorrido": "R3",
+      "nombre": "Cacique Purrán y Intendente Carro",
+      "lat": -38.960474,
+      "lon": -68.083006,
+      "nodosOsm": [
+        1974006793
+      ],
+      "fechaImagen": "2024-06",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-40",
+      "recorrido": "R3",
+      "nombre": "Cornelio Saavedra y Francisco Armas",
+      "lat": -38.96091,
+      "lon": -68.08982,
+      "nodosOsm": [
+        1990234307,
+        1990234313,
+        1974006849
+      ],
+      "fechaImagen": "2024-06",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-41",
+      "recorrido": "R3",
+      "nombre": "Francisco Armas y Lago Espejo",
+      "lat": -38.960881,
+      "lon": -68.088853,
+      "nodosOsm": [
+        1922156592,
+        1941970876
+      ],
+      "fechaImagen": "2024-06",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-42",
+      "recorrido": "R3",
+      "nombre": "José Nogara y Francisco Armas",
+      "lat": -38.960881,
+      "lon": -68.088012,
+      "nodosOsm": [
+        2003517784,
+        1941970878
+      ],
+      "fechaImagen": "2024-06",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-43",
+      "recorrido": "R3",
+      "nombre": "Petróleo y Francisco Armas",
+      "lat": -38.960881,
+      "lon": -68.087184,
+      "nodosOsm": [
+        1974006805,
+        1941970880
+      ],
+      "fechaImagen": "2024-06",
+      "rampas": {
+        "NO": "sí",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-44",
+      "recorrido": "R3",
+      "nombre": "Eva Duarte y Francisco Armas",
+      "lat": -38.960947,
+      "lon": -68.086415,
+      "nodosOsm": [
+        1922140044,
+        1922134135,
+        1974006807
+      ],
+      "fechaImagen": "2024-06",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-45",
+      "recorrido": "R3",
+      "nombre": "Francisco Armas y Gobernador Anaya",
+      "lat": -38.961082,
+      "lon": -68.08436,
+      "nodosOsm": [
+        1922140045
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "sí, pero mal",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-46",
+      "recorrido": "R3",
+      "nombre": "Cacique Purrán y Comisario Belmonte",
+      "lat": -38.961418,
+      "lon": -68.083031,
+      "nodosOsm": [
+        1923194846
+      ],
+      "fechaImagen": "2024-06",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-47",
+      "recorrido": "R3",
+      "nombre": "Comisario Belmonte y Gobernador Anaya",
+      "lat": -38.96152,
+      "lon": -68.084366,
+      "nodosOsm": [
+        1922142449,
+        1974006887
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-48",
+      "recorrido": "R3",
+      "nombre": "Cornelio Saavedra y Fray Luis Beltrán",
+      "lat": -38.962232,
+      "lon": -68.089831,
+      "nodosOsm": [
+        884716287,
+        1922167211,
+        1974006910
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-49",
+      "recorrido": "R3",
+      "nombre": "Lago Espejo y Fray Luis Beltrán",
+      "lat": -38.96227,
+      "lon": -68.08872,
+      "nodosOsm": [
+        1309651553,
+        1922156591
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "sí",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-50",
+      "recorrido": "R3",
+      "nombre": "José Nogara y Fray Luis Beltrán",
+      "lat": -38.962276,
+      "lon": -68.088022,
+      "nodosOsm": [
+        1922134140,
+        1941970873
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-51",
+      "recorrido": "R3",
+      "nombre": "Petróleo y Fray Luis Beltrán",
+      "lat": -38.962283,
+      "lon": -68.087171,
+      "nodosOsm": [
+        1941970882,
+        1309651257
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-52",
+      "recorrido": "R3",
+      "nombre": "Eva Duarte y Fray Luis Beltrán",
+      "lat": -38.962289,
+      "lon": -68.086426,
+      "nodosOsm": [
+        1922058865,
+        1922167210
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí, pero mal",
+        "SO": "no",
+        "SE": "sí"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-53",
+      "recorrido": "R3",
+      "nombre": "Purciano Labrín y Fray Luis Beltrán",
+      "lat": -38.962383,
+      "lon": -68.08572,
+      "nodosOsm": [
+        2635173026,
+        1309651172
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "no",
+        "NE": "sí",
+        "SO": "sí",
+        "SE": "sí, pero mal"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-54",
+      "recorrido": "R3",
+      "nombre": "Fray Luis Beltrán y Gobernador Anaya",
+      "lat": -38.962393,
+      "lon": -68.084386,
+      "nodosOsm": [
+        1309651637
+      ],
+      "fechaImagen": "2025-08",
+      "rampas": {
+        "NO": "sí",
+        "NE": "sí",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    },
+    {
+      "id": "E-55",
+      "recorrido": "R3",
+      "nombre": "Cacique Purrán y Fray Luis Beltrán",
+      "lat": -38.962396,
+      "lon": -68.083031,
+      "nodosOsm": [
+        1309651589
+      ],
+      "fechaImagen": "2024-06",
+      "rampas": {
+        "NO": "no",
+        "NE": "no",
+        "SO": "no",
+        "SE": "no"
+      },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no",
+      "observaciones": null
+    }
+  ],
+  "cuadras": [
+    {
+      "id": "C-01",
+      "recorrido": "R1",
+      "calle": "12 de Septiembre Norte",
+      "entre": "entre Nogueira y Cornelio Saavedra",
+      "esquinas": [
+        "E-01",
+        "E-02"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "mala",
+        "S": "cantero / no aplica"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "Autos estacionados sobre la vereda N",
+      "observaciones": null
+    },
+    {
+      "id": "C-02",
+      "recorrido": "R1",
+      "calle": "12 de Septiembre Norte",
+      "entre": "entre Nogueira y Estrellas del Neuquén",
+      "esquinas": [
+        "E-02",
+        "E-03"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "mala",
+        "S": "cantero / no aplica"
+      },
+      "escalones": "en N u O",
+      "superficie": "mixta",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "sí",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "desnivel y pasto",
+      "observaciones": null
+    },
+    {
+      "id": "C-03",
+      "recorrido": "R1",
+      "calle": "12 de Septiembre Norte",
+      "entre": "entre Gobernador Anaya y Estrellas del Neuquén",
+      "esquinas": [
+        "E-03",
+        "E-04"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "regular",
+        "S": "cantero / no aplica"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "parte de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-04",
+      "recorrido": "R1",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre 12 de Septiembre Norte y 12 de Septiembre Sur",
+      "esquinas": [
+        "E-01",
+        "E-05"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "tierra",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "calle de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-05",
+      "recorrido": "R1",
+      "calle": "Gobernador Anaya",
+      "entre": "entre 12 de Septiembre Sur y 12 de Septiembre Norte",
+      "esquinas": [
+        "E-04",
+        "E-08"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "en N u O",
+      "superficie": "tierra",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "calle de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-06",
+      "recorrido": "R1",
+      "calle": "12 de Septiembre Sur",
+      "entre": "entre Cornelio Saavedra y Nogueira",
+      "esquinas": [
+        "E-05",
+        "E-06"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "mala"
+      },
+      "escalones": "no",
+      "superficie": "adoquín",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "Autos estacionados sobre la vereda N",
+      "observaciones": null
+    },
+    {
+      "id": "C-07",
+      "recorrido": "R1",
+      "calle": "12 de Septiembre Sur",
+      "entre": "entre Estrellas del Neuquén y Nogueira",
+      "esquinas": [
+        "E-06",
+        "E-07"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "partes de tierra y autos estacionados en vereda",
+      "observaciones": null
+    },
+    {
+      "id": "C-08",
+      "recorrido": "R1",
+      "calle": "12 de Septiembre Sur",
+      "entre": "entre Gobernador Anaya y Estrellas del Neuquén",
+      "esquinas": [
+        "E-07",
+        "E-08"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "partes de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-09",
+      "recorrido": "R1",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre Alicia Moreau de Justo y 12 de Septiembre Sur",
+      "esquinas": [
+        "E-05",
+        "E-09"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "en S o E",
+      "superficie": "mixta",
+      "anchoMetros": 1.6,
+      "pendienteFuerte": "no se ve",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "por el O no puede porque tiene una aprte de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-10",
+      "recorrido": "R1",
+      "calle": "Nogueira",
+      "entre": "entre Alicia Moreau de Justo y 12 de Septiembre Sur",
+      "esquinas": [
+        "E-06",
+        "E-10"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "O": "regular",
+        "E": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "por el E no puede porque tiene una aprte de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-11",
+      "recorrido": "R1",
+      "calle": "Estrellas del Neuquén",
+      "entre": "entre Alicia Moreau de Justo y 12 de Septiembre Sur",
+      "esquinas": [
+        "E-07",
+        "E-11"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "no hay vereda",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "en O un vecino construyo su casa en la vereda, tapandola",
+      "observaciones": null
+    },
+    {
+      "id": "C-12",
+      "recorrido": "R1",
+      "calle": "Gobernador Anaya",
+      "entre": "entre 12 de Septiembre Sur y Alicia Moreau de Justo",
+      "esquinas": [
+        "E-08",
+        "E-12"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "mala"
+      },
+      "escalones": "en S o E",
+      "superficie": "mixta",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "por el E no puede porque tiene una aprte de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-13",
+      "recorrido": "R1",
+      "calle": "Alicia Moreau de Justo",
+      "entre": "entre Cornelio Saavedra y Nogueira",
+      "esquinas": [
+        "E-09",
+        "E-10"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "por el S no puede porque tiene una aprte de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-14",
+      "recorrido": "R1",
+      "calle": "Alicia Moreau de Justo",
+      "entre": "entre Nogueira y Estrellas del Neuquén",
+      "esquinas": [
+        "E-10",
+        "E-11"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "en las dos",
+      "superficie": "mixta",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "calle de tierra, autos y desniveles",
+      "observaciones": null
+    },
+    {
+      "id": "C-15",
+      "recorrido": "R1",
+      "calle": "Alicia Moreau de Justo",
+      "entre": "entre Estrellas del Neuquén y Gobernador Anaya",
+      "esquinas": [
+        "E-11",
+        "E-12"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "buena",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": null
+    },
+    {
+      "id": "C-16",
+      "recorrido": "R1",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre Alicia Moreau de Justo y María Curie",
+      "esquinas": [
+        "E-09",
+        "E-13"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "tierra",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "partes de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-17",
+      "recorrido": "R1",
+      "calle": "Gobernador Anaya",
+      "entre": "entre Arcenio Durán y Alicia Moreau de Justo",
+      "esquinas": [
+        "E-12",
+        "E-14"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "en S o E",
+      "superficie": "mixta",
+      "anchoMetros": null,
+      "pendienteFuerte": "no se ve",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Por la parte E hay demasiados desniveles",
+      "observaciones": null
+    },
+    {
+      "id": "C-18",
+      "recorrido": "R1",
+      "calle": "Gobernador Anaya",
+      "entre": "entre Arcenio Durán y Andacollo",
+      "esquinas": [
+        "E-14",
+        "E-15"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "mala"
+      },
+      "escalones": "en S o E",
+      "superficie": "mixta",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Por la parte E hay demasiados desniveles y piedra",
+      "observaciones": null
+    },
+    {
+      "id": "C-19",
+      "recorrido": "R1",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre Doctor Luis Teodoro Planas y María Curie",
+      "esquinas": [
+        "E-13",
+        "E-16"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "buena",
+        "E": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "en la parte E el hormigon esta roto y hay un aprte de tierra",
+      "observaciones": null
+    },
+    {
+      "id": "C-20",
+      "recorrido": "R1",
+      "calle": "Gobernador Anaya",
+      "entre": "entre Doctor Luis Teodoro Planas y Andacollo",
+      "esquinas": [
+        "E-15",
+        "E-18"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Oeste: franja de hormigón junto al paredón de la escuela y tierra hacia el cordón."
+    },
+    {
+      "id": "C-21",
+      "recorrido": "R1",
+      "calle": "Doctor Luis Teodoro Planas",
+      "entre": "entre Petróleo y Cornelio Saavedra",
+      "esquinas": [
+        "E-16",
+        "E-17"
+      ],
+      "fechaImagen": "2025-11",
+      "veredas": {
+        "N": "regular",
+        "S": "buena"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Norte: franja de hormigón con árboles y tierra. Sur: camino de hormigón en el cantero de la ruta."
+    },
+    {
+      "id": "C-22",
+      "recorrido": "R1",
+      "calle": "Doctor Luis Teodoro Planas",
+      "entre": "entre Gobernador Anaya y Petróleo",
+      "esquinas": [
+        "E-17",
+        "E-18"
+      ],
+      "fechaImagen": "2025-11",
+      "veredas": {
+        "N": "buena",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Frente del hospital: vereda norte ancha. Sur: franja de hormigón junto al cordón en el cantero de la ruta, con autos estacionados al lado."
+    },
+    {
+      "id": "C-23",
+      "recorrido": "R2",
+      "calle": "12 de Septiembre Norte",
+      "entre": "entre Catamarca y Gobernador Anaya",
+      "esquinas": [
+        "E-04",
+        "E-19"
+      ],
+      "fechaImagen": "2025-11",
+      "veredas": {
+        "N": "regular",
+        "S": "cantero / no aplica"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "Partes de tierra en la vereda N",
+      "observaciones": "Del lado del cantero hay una franja de hormigón junto al cordón."
+    },
+    {
+      "id": "C-24",
+      "recorrido": "R2",
+      "calle": "12 de Septiembre Sur",
+      "entre": "entre Gobernador Anaya y Merlo",
+      "esquinas": [
+        "E-08",
+        "E-20"
+      ],
+      "fechaImagen": "2025-07",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "no hay vereda"
+      },
+      "escalones": "no",
+      "superficie": "tierra",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "Vereda S de tierra, solo la entrada del garaje es de hormigón",
+      "observaciones": null
+    },
+    {
+      "id": "C-25",
+      "recorrido": "R2",
+      "calle": "12 de Septiembre Sur",
+      "entre": "entre Merlo y Catamarca",
+      "esquinas": [
+        "E-20",
+        "E-21"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "no hay vereda"
+      },
+      "escalones": "no",
+      "superficie": "tierra",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "Vereda S de tierra y pasto",
+      "observaciones": null
+    },
+    {
+      "id": "C-26",
+      "recorrido": "R2",
+      "calle": "Merlo",
+      "entre": "entre 12 de Septiembre Sur y Arcenio Durán",
+      "esquinas": [
+        "E-20",
+        "E-22"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "O": "mala",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda O con partes de tierra y autos estacionados encima",
+      "observaciones": "Este: hormigón con rampas de garaje."
+    },
+    {
+      "id": "C-27",
+      "recorrido": "R2",
+      "calle": "Catamarca",
+      "entre": "entre 12 de Septiembre Sur y Arcenio Durán",
+      "esquinas": [
+        "E-21",
+        "E-23"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "O": "no hay vereda",
+        "E": "mala"
+      },
+      "escalones": "no",
+      "superficie": "tierra",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "Tierra en las dos veredas y autos estacionados sobre la vereda O",
+      "observaciones": "Este: tramos sueltos de hormigón y baldosa frente a algunas casas."
+    },
+    {
+      "id": "C-28",
+      "recorrido": "R2",
+      "calle": "Arcenio Durán",
+      "entre": "entre Merlo y Gobernador Anaya",
+      "esquinas": [
+        "E-14",
+        "E-22"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "En los dos lados, franja de hormigón junto a las casas y tierra con árboles junto al cordón."
+    },
+    {
+      "id": "C-29",
+      "recorrido": "R2",
+      "calle": "Arcenio Durán",
+      "entre": "entre Merlo y Catamarca",
+      "esquinas": [
+        "E-22",
+        "E-23"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "N": "no hay vereda",
+        "S": "mala"
+      },
+      "escalones": "no",
+      "superficie": "tierra",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "Tierra y pasto en las dos veredas, autos estacionados sobre la vereda N",
+      "observaciones": "Norte: paredón de un terreno sin vereda armada."
+    },
+    {
+      "id": "C-30",
+      "recorrido": "R2",
+      "calle": "Catamarca",
+      "entre": "entre Andacollo y Arcenio Durán",
+      "esquinas": [
+        "E-23",
+        "E-24"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "O": "regular",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Este: frente de la plaza, con veredas anchas de hormigón. Oeste: franja de hormigón junto a las casas y pasto junto al cordón."
+    },
+    {
+      "id": "C-31",
+      "recorrido": "R2",
+      "calle": "Andacollo",
+      "entre": "entre Catamarca y Gobernador Anaya",
+      "esquinas": [
+        "E-15",
+        "E-24"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "N": "regular",
+        "S": "no hay vereda"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda S de tierra frente a las casas",
+      "observaciones": "Norte: franja de hormigón junto a las rejas y pasto junto al cordón."
+    },
+    {
+      "id": "C-32",
+      "recorrido": "R2",
+      "calle": "Catamarca",
+      "entre": "entre Cacique Cheuquén y Andacollo",
+      "esquinas": [
+        "E-24",
+        "E-25"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "O": "regular",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Este: frente de la plaza, vereda ancha de hormigón. Oeste: hormigón con entradas de garaje y algo de pasto."
+    },
+    {
+      "id": "C-33",
+      "recorrido": "R2",
+      "calle": "Catamarca",
+      "entre": "entre Cacique Cheuquén y Doctor Luis Teodoro Planas",
+      "esquinas": [
+        "E-25",
+        "E-26"
+      ],
+      "fechaImagen": "2024-07",
+      "veredas": {
+        "O": "buena",
+        "E": "no hay vereda"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda E: terreno baldío con pasto y tierra, sin vereda",
+      "observaciones": "Oeste: hormigón continuo frente a las casas."
+    },
+    {
+      "id": "C-34",
+      "recorrido": "R2",
+      "calle": "Doctor Luis Teodoro Planas",
+      "entre": "entre Catamarca y Gobernador Anaya",
+      "esquinas": [
+        "E-18",
+        "E-26"
+      ],
+      "fechaImagen": "2025-11",
+      "veredas": {
+        "N": "buena",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 3,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Norte: frente de concesionarias, vereda ancha. Sur: franja angosta de hormigón junto al cordón en el cantero de la ruta."
+    },
+    {
+      "id": "C-35",
+      "recorrido": "R2",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre Juan Julián Lastra y Doctor Luis Teodoro Planas",
+      "esquinas": [
+        "E-16",
+        "E-27"
+      ],
+      "fechaImagen": "2025-11",
+      "veredas": {
+        "O": "buena",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Cruce de la Ruta 22 con semáforo, senda peatonal y rampas en el cantero (ver P-02)."
+    },
+    {
+      "id": "C-36",
+      "recorrido": "R2",
+      "calle": "Petróleo",
+      "entre": "entre Doctor Luis Teodoro Planas y Juan Julián Lastra",
+      "esquinas": [
+        "E-17",
+        "E-29"
+      ],
+      "fechaImagen": "2025-11",
+      "veredas": {
+        "O": "buena",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Cruce de la Ruta 22 con semáforo y senda peatonal (ver P-03)."
+    },
+    {
+      "id": "C-37",
+      "recorrido": "R2",
+      "calle": "Gobernador Anaya",
+      "entre": "entre Doctor Luis Teodoro Planas y Juan Julián Lastra",
+      "esquinas": [
+        "E-18",
+        "E-31"
+      ],
+      "fechaImagen": "2025-11",
+      "veredas": {
+        "O": "buena",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Cruce de la Ruta 22 con semáforo, senda peatonal y rampas (ver P-04)."
+    },
+    {
+      "id": "C-38",
+      "recorrido": "R2",
+      "calle": "Juan Julián Lastra",
+      "entre": "entre Cornelio Saavedra y Pasaje del Centenario",
+      "esquinas": [
+        "E-27",
+        "E-28"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Sur: franja de hormigón continua junto al cordón, con un espacio verde detrás."
+    },
+    {
+      "id": "C-39",
+      "recorrido": "R2",
+      "calle": "Juan Julián Lastra",
+      "entre": "entre Pasaje del Centenario y Petróleo",
+      "esquinas": [
+        "E-28",
+        "E-29"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "buena"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Sur: vereda ancha frente a un predio con reja."
+    },
+    {
+      "id": "C-40",
+      "recorrido": "R2",
+      "calle": "Juan Julián Lastra",
+      "entre": "entre Eva Duarte y Petróleo",
+      "esquinas": [
+        "E-29",
+        "E-30"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Sur: baldosa frente a las casas, con entradas de garaje y árboles."
+    },
+    {
+      "id": "C-41",
+      "recorrido": "R2",
+      "calle": "Juan Julián Lastra",
+      "entre": "entre Eva Duarte y Gobernador Anaya",
+      "esquinas": [
+        "E-30",
+        "E-31"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Sur: franja de hormigón junto al cordón y tierra con pinos detrás. Hay un pozo en la calzada hacia Eva Duarte."
+    },
+    {
+      "id": "C-42",
+      "recorrido": "R2",
+      "calle": "Juan Julián Lastra",
+      "entre": "entre Cacique Purrán y Gobernador Anaya",
+      "esquinas": [
+        "E-31",
+        "E-32"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "cantero / no aplica",
+        "S": "buena"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 2.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Sur: frente de comercios, vereda ancha y continua."
+    },
+    {
+      "id": "C-43",
+      "recorrido": "R2",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre Pasaje del Centenario y Juan Julián Lastra",
+      "esquinas": [
+        "E-27",
+        "E-33"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Lado E: isleta de tierra en la esquina con Lastra",
+      "observaciones": "Oeste: playón de la estación de servicio."
+    },
+    {
+      "id": "C-44",
+      "recorrido": "R2",
+      "calle": "Pasaje del Centenario",
+      "entre": "entre Cornelio Saavedra y Juan Julián Lastra",
+      "esquinas": [
+        "E-28",
+        "E-33"
+      ],
+      "fechaImagen": "2014-03",
+      "veredas": {
+        "N": "mala",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda N de tierra con árboles",
+      "observaciones": "Imagen de 2014, la más nueva disponible. Sur: baldosa frente a las casas, con árboles."
+    },
+    {
+      "id": "C-45",
+      "recorrido": "R3",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre Intendente Carro y Pasaje del Centenario",
+      "esquinas": [
+        "E-33",
+        "E-34"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda E de tierra frente a las casas, con autos estacionados encima",
+      "observaciones": "Oeste: franja de hormigón junto al cordón."
+    },
+    {
+      "id": "C-46",
+      "recorrido": "R3",
+      "calle": "Petróleo",
+      "entre": "entre Intendente Carro y Juan Julián Lastra",
+      "esquinas": [
+        "E-29",
+        "E-37"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "buena",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Oeste: baldosa continua junto a un paredón. Este: hormigón con entradas de garaje."
+    },
+    {
+      "id": "C-47",
+      "recorrido": "R3",
+      "calle": "Eva Duarte",
+      "entre": "entre Intendente Carro y Juan Julián Lastra",
+      "esquinas": [
+        "E-30",
+        "E-36"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "O": "regular",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Este: hormigón continuo junto a un paredón, pasto con árboles junto al cordón. Oeste: hormigón con entradas de garaje."
+    },
+    {
+      "id": "C-48",
+      "recorrido": "R3",
+      "calle": "Gobernador Anaya",
+      "entre": "entre Juan Julián Lastra y Intendente Carro",
+      "esquinas": [
+        "E-31",
+        "E-38"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Oeste: hormigón con pasto y árboles junto al cordón. Este: galpones con camionetas y colectivos estacionados al borde."
+    },
+    {
+      "id": "C-49",
+      "recorrido": "R3",
+      "calle": "Cacique Purrán",
+      "entre": "entre Juan Julián Lastra y Intendente Carro",
+      "esquinas": [
+        "E-32",
+        "E-39"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "O": "regular",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Oeste: galpones y comercios, con camiones estacionados en las entradas. Este: hormigón continuo."
+    },
+    {
+      "id": "C-50",
+      "recorrido": "R3",
+      "calle": "Intendente Carro",
+      "entre": "entre Cornelio Saavedra y José Nogara",
+      "esquinas": [
+        "E-34",
+        "E-35"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "buena",
+        "S": "buena"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 1.8,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Baldosa continua en los dos lados, con árboles en cazuela."
+    },
+    {
+      "id": "C-51",
+      "recorrido": "R3",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre Francisco Armas y Intendente Carro",
+      "esquinas": [
+        "E-34",
+        "E-40"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda E de tierra y pasto frente a las casas",
+      "observaciones": "Oeste: camino angosto de hormigón junto a la reja del corralón, con tierra al costado."
+    },
+    {
+      "id": "C-52",
+      "recorrido": "R3",
+      "calle": "Intendente Carro",
+      "entre": "entre Petróleo y José Nogara",
+      "esquinas": [
+        "E-35",
+        "E-37"
+      ],
+      "fechaImagen": "2014-06",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Imagen de 2014, la más nueva disponible. Hormigón frente a las casas con pasto junto al cordón."
+    },
+    {
+      "id": "C-53",
+      "recorrido": "R3",
+      "calle": "José Nogara",
+      "entre": "entre Francisco Armas y Intendente Carro",
+      "esquinas": [
+        "E-35",
+        "E-42"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "no hay vereda"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda E de tierra y escombros frente a un paredón",
+      "observaciones": "Oeste: baldosa frente a las casas."
+    },
+    {
+      "id": "C-54",
+      "recorrido": "R3",
+      "calle": "Petróleo",
+      "entre": "entre Intendente Carro y Francisco Armas",
+      "esquinas": [
+        "E-37",
+        "E-43"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "O": "regular",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Este: vereda ancha frente a un edificio blanco con reja."
+    },
+    {
+      "id": "C-55",
+      "recorrido": "R3",
+      "calle": "Eva Duarte",
+      "entre": "entre Francisco Armas y Intendente Carro",
+      "esquinas": [
+        "E-36",
+        "E-44"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "O": "regular",
+        "E": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda E con tierra y pasto frente a un paredón y algunas casas",
+      "observaciones": "Oeste: hormigón frente a las casas con pasto junto al cordón."
+    },
+    {
+      "id": "C-56",
+      "recorrido": "R3",
+      "calle": "Francisco Armas",
+      "entre": "entre Cornelio Saavedra y Lago Espejo",
+      "esquinas": [
+        "E-40",
+        "E-41"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Bulevar. Baldosa frente a las casas en los dos lados, con árboles en cazuela. Mano norte con imagen de 06/2024."
+    },
+    {
+      "id": "C-57",
+      "recorrido": "R3",
+      "calle": "Francisco Armas",
+      "entre": "entre Petróleo y Eva Duarte",
+      "esquinas": [
+        "E-43",
+        "E-44"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Bulevar con un camino de hormigón por el cantero central. La vereda sur se ve en parte difuminada."
+    },
+    {
+      "id": "C-58",
+      "recorrido": "R3",
+      "calle": "Gobernador Anaya",
+      "entre": "entre Francisco Armas y Intendente Carro",
+      "esquinas": [
+        "E-38",
+        "E-45"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "mala"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda E de tierra frente a un terreno en venta",
+      "observaciones": "Oeste: hormigón frente a las casas."
+    },
+    {
+      "id": "C-59",
+      "recorrido": "R3",
+      "calle": "Cacique Purrán",
+      "entre": "entre Intendente Carro y Comisario Belmonte",
+      "esquinas": [
+        "E-39",
+        "E-46"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Hormigón y baldosa con algunos parches. Parte de la imagen hacia el sur está difuminada."
+    },
+    {
+      "id": "C-60",
+      "recorrido": "R3",
+      "calle": "Francisco Armas",
+      "entre": "entre José Nogara y Lago Espejo",
+      "esquinas": [
+        "E-41",
+        "E-42"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Bulevar. Baldosa frente a las casas en los dos lados, con árboles y algo de pasto."
+    },
+    {
+      "id": "C-61",
+      "recorrido": "R3",
+      "calle": "Francisco Armas",
+      "entre": "entre Petróleo y José Nogara",
+      "esquinas": [
+        "E-42",
+        "E-43"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "no se ve",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Bulevar con camino de hormigón por el cantero central. Street View solo tiene imágenes desde la mano sur."
+    },
+    {
+      "id": "C-62",
+      "recorrido": "R3",
+      "calle": "Francisco Armas",
+      "entre": "entre Eva Duarte y Gobernador Anaya",
+      "esquinas": [
+        "E-44",
+        "E-45"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "regular",
+        "S": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.8,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Sur: vereda ancha de hormigón junto a la reja de un predio con árboles. Norte: hormigón frente a las casas con entradas de garaje."
+    },
+    {
+      "id": "C-63",
+      "recorrido": "R3",
+      "calle": "Gobernador Anaya",
+      "entre": "entre Francisco Armas y Comisario Belmonte",
+      "esquinas": [
+        "E-45",
+        "E-47"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "mala",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda O de tierra y pasto junto a una reja",
+      "observaciones": "Este: hormigón frente a las casas."
+    },
+    {
+      "id": "C-64",
+      "recorrido": "R3",
+      "calle": "Comisario Belmonte",
+      "entre": "entre Cacique Purrán y Gobernador Anaya",
+      "esquinas": [
+        "E-46",
+        "E-47"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "regular",
+        "S": "no hay vereda"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda S de tierra y pasto, con materiales de obra",
+      "observaciones": "Norte: baldosa y hormigón frente a las casas, con algo de pasto."
+    },
+    {
+      "id": "C-65",
+      "recorrido": "R3",
+      "calle": "Cornelio Saavedra",
+      "entre": "entre Fray Luis Beltrán y Francisco Armas",
+      "esquinas": [
+        "E-40",
+        "E-48"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "no hay vereda"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda E de tierra y pasto con árboles",
+      "observaciones": "Oeste: camino de hormigón junto a la reja del corralón, con tierra hacia el cordón."
+    },
+    {
+      "id": "C-66",
+      "recorrido": "R3",
+      "calle": "Lago Espejo",
+      "entre": "entre Francisco Armas y Fray Luis Beltrán",
+      "esquinas": [
+        "E-41",
+        "E-49"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Hormigón y baldosa frente a las casas, con árboles y autos sobre la vereda en algunos tramos."
+    },
+    {
+      "id": "C-67",
+      "recorrido": "R3",
+      "calle": "José Nogara",
+      "entre": "entre Fray Luis Beltrán y Francisco Armas",
+      "esquinas": [
+        "E-42",
+        "E-50"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "mala",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda O con tramos de tierra y pasto junto a las rejas",
+      "observaciones": "Este: hormigón frente a las casas."
+    },
+    {
+      "id": "C-68",
+      "recorrido": "R3",
+      "calle": "Petróleo",
+      "entre": "entre Francisco Armas y Fray Luis Beltrán",
+      "esquinas": [
+        "E-43",
+        "E-51"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Hormigón y baldosa frente a las casas en los dos lados, con árboles."
+    },
+    {
+      "id": "C-69",
+      "recorrido": "R3",
+      "calle": "Eva Duarte",
+      "entre": "entre Fray Luis Beltrán y Francisco Armas",
+      "esquinas": [
+        "E-44",
+        "E-52"
+      ],
+      "fechaImagen": "2014-05",
+      "veredas": {
+        "O": "regular",
+        "E": "buena"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.8,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Imagen de 2014, la más nueva disponible. Este: vereda ancha de hormigón junto a un paredón."
+    },
+    {
+      "id": "C-70",
+      "recorrido": "R3",
+      "calle": "Cacique Purrán",
+      "entre": "entre Comisario Belmonte y Fray Luis Beltrán",
+      "esquinas": [
+        "E-46",
+        "E-55"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Hormigón frente a las casas en los dos lados, con pasto y árboles junto al cordón."
+    },
+    {
+      "id": "C-71",
+      "recorrido": "R3",
+      "calle": "Gobernador Anaya",
+      "entre": "entre Fray Luis Beltrán y Comisario Belmonte",
+      "esquinas": [
+        "E-47",
+        "E-54"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "O": "regular",
+        "E": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Oeste: baldosa ancha, con una camioneta estacionada encima. Este: hormigón con algo de tierra."
+    },
+    {
+      "id": "C-72",
+      "recorrido": "R3",
+      "calle": "Fray Luis Beltrán",
+      "entre": "entre Petróleo y José Nogara",
+      "esquinas": [
+        "E-50",
+        "E-51"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 1.8,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Bulevar. Norte: baldosa frente a un kiosco y casas. Sur: hormigón frente a las casas con pasto junto al cordón."
+    },
+    {
+      "id": "C-73",
+      "recorrido": "R3",
+      "calle": "Fray Luis Beltrán",
+      "entre": "entre Petróleo y Eva Duarte",
+      "esquinas": [
+        "E-51",
+        "E-52"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Bulevar. La mano norte solo tiene imagen de 08/2015. Hormigón frente a las casas con pasto en los dos lados."
+    },
+    {
+      "id": "C-74",
+      "recorrido": "R3",
+      "calle": "Fray Luis Beltrán",
+      "entre": "entre Cornelio Saavedra y Lago Espejo",
+      "esquinas": [
+        "E-48",
+        "E-49"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Bulevar con camino de hormigón por el cantero central. Hormigón y baldosa frente a las casas en los dos lados."
+    },
+    {
+      "id": "C-75",
+      "recorrido": "R3",
+      "calle": "Fray Luis Beltrán",
+      "entre": "entre Lago Espejo y José Nogara",
+      "esquinas": [
+        "E-49",
+        "E-50"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Bulevar. Norte: hormigón junto a un paredón. Sur: baldosa frente a las casas con pasto."
+    },
+    {
+      "id": "C-76",
+      "recorrido": "R3",
+      "calle": "Fray Luis Beltrán",
+      "entre": "entre Eva Duarte y Purciano Labrín",
+      "esquinas": [
+        "E-52",
+        "E-53"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Norte: hormigón junto a un paredón. Sur: hormigón frente a las casas con pasto y arbustos junto al cordón."
+    },
+    {
+      "id": "C-77",
+      "recorrido": "R3",
+      "calle": "Fray Luis Beltrán",
+      "entre": "entre Gobernador Anaya y Purciano Labrín",
+      "esquinas": [
+        "E-53",
+        "E-54"
+      ],
+      "fechaImagen": "2025-08",
+      "veredas": {
+        "N": "regular",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "mixta",
+      "anchoMetros": 1.2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Norte: franja de hormigón junto al cordón con un playón de tierra detrás. Sur: hormigón con autos estacionados sobre la vereda."
+    },
+    {
+      "id": "C-78",
+      "recorrido": "R3",
+      "calle": "Fray Luis Beltrán",
+      "entre": "entre Cacique Purrán y Gobernador Anaya",
+      "esquinas": [
+        "E-54",
+        "E-55"
+      ],
+      "fechaImagen": "2024-06",
+      "veredas": {
+        "N": "buena",
+        "S": "regular"
+      },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 2,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "Norte: baldosa ancha frente a edificios. Sur: hormigón frente a las casas con pasto."
+    }
+  ],
+  "puntos": [
+    {
+      "id": "P-01",
+      "recorrido": "R1",
+      "donde": "Supermanzana del hospital, a 10 m de Gobernador Anaya",
+      "pregunta": "Una vereda interna termina a 10 m de Anaya sin tocarla. ¿Llega a la vereda de Anaya o queda adentro de un predio cerrado?",
+      "fechaImagen": "2025-08",
+      "sePasaCaminando": "no",
+      "sePasaEnSilla": "no",
+      "detalle": "figura asi en maps, pero en realidad es la entrada de vehiculos del personal de la escuela",
+      "lat": -38.95707,
+      "lon": -68.0845,
+      "quitarCaminos": [
+        "way/1122962371"
+      ]
+    },
+    {
+      "id": "P-02",
+      "recorrido": "R2",
+      "donde": "Ruta 22 por Cornelio Saavedra",
+      "pregunta": "Semáforo para peatones, senda pintada y rampas en las dos veredas y en el cantero de la ciclovía.",
+      "fechaImagen": "2025-11",
+      "sePasaCaminando": "sí",
+      "sePasaEnSilla": "sí",
+      "detalle": "si",
+      "lat": -38.9593,
+      "lon": -68.08986
+    },
+    {
+      "id": "P-03",
+      "recorrido": "R2",
+      "donde": "Ruta 22 por Petróleo",
+      "pregunta": "Semáforo para peatones, senda pintada y rampas en las dos veredas y en el cantero de la ciclovía.",
+      "fechaImagen": "2025-11",
+      "sePasaCaminando": "sí",
+      "sePasaEnSilla": "sí",
+      "detalle": "si",
+      "lat": -38.95932,
+      "lon": -68.08712
+    },
+    {
+      "id": "P-04",
+      "recorrido": "R2",
+      "donde": "Ruta 22 por Gobernador Anaya",
+      "pregunta": "Semáforo para peatones, senda pintada y rampas en las dos veredas y en el cantero de la ciclovía.",
+      "fechaImagen": "2025-11",
+      "sePasaCaminando": "sí",
+      "sePasaEnSilla": "sí",
+      "detalle": "si",
+      "lat": -38.95933,
+      "lon": -68.08434
+    },
+    {
+      "id": "P-05",
+      "recorrido": "R2",
+      "donde": "Ruta 22 entre Catamarca y Cacique Purrán",
+      "pregunta": "En OSM no hay cruce acá. ¿Hay semáforo o senda? ¿La gente cruza igual?",
+      "fechaImagen": "2025-11",
+      "sePasaCaminando": "no",
+      "sePasaEnSilla": "no",
+      "detalle": "No hay cruce",
+      "lat": -38.95933,
+      "lon": -68.0831
+    },
+    {
+      "id": "P-06",
+      "recorrido": "R2",
+      "donde": "Plaza al este de Catamarca, entre Arcenio Durán y Cacique Cheuquén",
+      "pregunta": "Los senderos de la plaza no tocan la vereda de Catamarca en OSM. ¿Se entra caminando desde Catamarca? ¿Por dónde?",
+      "fechaImagen": "2025-11",
+      "sePasaCaminando": "sí",
+      "sePasaEnSilla": "sí",
+      "detalle": "Los cenderos de la plaza si tocan la vereda de catamarca",
+      "lat": -38.9581,
+      "lon": -68.083,
+      "conectarNodos": [
+        10267981329,
+        1974006645
+      ]
+    },
+    {
+      "id": "P-07",
+      "recorrido": "R2",
+      "donde": "Lastra al sur, entre Pasaje del Centenario y Petróleo",
+      "pregunta": "Hay dos pedazos de vereda de unos 20 m hacia el sur que en OSM no se unen con nada. ¿Adónde llevan? ¿Hay una entrada?",
+      "fechaImagen": "2025-08",
+      "sePasaCaminando": "no",
+      "sePasaEnSilla": "no",
+      "detalle": "No son caminos para el publico, son del edificio que hay ahi",
+      "lat": -38.95968,
+      "lon": -68.08766,
+      "quitarCaminos": [
+        "way/1086569615",
+        "way/1086569616"
+      ]
+    },
+    {
+      "id": "P-08",
+      "recorrido": "R3",
+      "donde": "Calles de servicio al oeste de Cornelio Saavedra (Proveedores, Retiro de Materiales)",
+      "pregunta": "¿Son calles abiertas o un predio cerrado? Si son un predio, se descartan.",
+      "fechaImagen": "2025-08",
+      "sePasaCaminando": "no",
+      "sePasaEnSilla": "no",
+      "detalle": "Son del Easy, una parte se podra caminar, la de la entrada, pero el resto es por donde van los trabajadores",
+      "lat": -38.96108,
+      "lon": -68.0904,
+      "quitarCaminos": [
+        "way/1089975725"
+      ]
+    },
+    {
+      "id": "P-09",
+      "recorrido": "R3",
+      "donde": "Intendente Carro entre Petróleo y Eva Duarte",
+      "pregunta": "En OSM la calle no sigue. ¿Hay calle o al menos vereda para pasar?",
+      "fechaImagen": "2025-08",
+      "sePasaCaminando": "no",
+      "sePasaEnSilla": "no",
+      "detalle": "Entre preoleo y Duarte no hay calle Carro, se corta y sigue despues, tenes que pasar si o si por Armas  o Lastra",
+      "lat": -38.96045,
+      "lon": -68.0868
+    },
+    {
+      "id": "P-10",
+      "recorrido": "R3",
+      "donde": "Intendente Carro entre Eva Duarte y Gobernador Anaya",
+      "pregunta": "En OSM está cortada en el medio. ¿Se puede pasar de punta a punta?",
+      "fechaImagen": "2024-06",
+      "sePasaCaminando": "sí",
+      "sePasaEnSilla": "sí",
+      "detalle": "Se puede pasar a pie ye n silla de ruedas, no en auto, porque se corta la calle, pero no la vereda",
+      "lat": -38.96047,
+      "lon": -68.08525,
+      "conectarNodos": [
+        9953866326,
+        9953791312
+      ]
+    },
+    {
+      "id": "P-11",
+      "recorrido": "R3",
+      "donde": "Intendente Carro entre Gobernador Anaya y Cacique Purrán",
+      "pregunta": "En OSM no hay calle. ¿Hay calle, pasaje o vereda para pasar?",
+      "fechaImagen": null,
+      "sePasaCaminando": null,
+      "sePasaEnSilla": null,
+      "detalle": "Entre Anaya y Purran no hay calle Carro, se corta y sigue despues, tenes que pasar si o si por Belmonte o Lastra",
+      "lat": -38.9605,
+      "lon": -68.08368
+    }
+  ]
+}
