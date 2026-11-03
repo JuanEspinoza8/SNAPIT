@@ -443,3 +443,42 @@ Un valor que no entra en su columna (por ejemplo, una pendiente de más de 999,9
 **Recarga.** Cada corrida reemplaza toda la red en una sola transacción (`TRUNCATE ... RESTART IDENTITY`): si algo falla, queda la anterior, y con la misma respuesta los id salen iguales. Como `factor_prioridad`, es un dato derivado que se reemplaza en vez de acumularse: la red es una copia de OSM, no algo que cargue una persona. La recarga también vacía `incidente_tramo`: después hay que volver a vincular los incidentes con la red (#103).
 
 **Componentes conexos.** Al terminar se cuentan con `pgr_connectedComponents`. Si hay más de uno, desde un pedazo no se llega a los otros: el script muestra un nodo de cada uno, con su link a OSM, para revisarlo en el relevamiento (#101).
+
+### Relevamiento de la zona piloto
+
+OSM no trae las rampas, los escalones ni el estado de las veredas de la zona. El relevamiento (#101) los anota en `db/datos/relevamiento-zona-piloto.json` y `npm run importar:red` los aplica en cada importación, antes de cargar la red (`server/src/modulos/red/relevamiento.ts`): la red llega a la base ya corregida, en la misma transacción. Si el archivo tiene un error, la importación se corta antes de tocar nada y dice qué está mal.
+
+**Cómo se relevó.** De forma remota, con Google Street View, en noviembre de 2026: 55 esquinas, 78 cuadras y 11 puntos donde OSM podía estar mal. Cada fila dice la fecha de la imagen que se miró (de 2014 a 2025). El archivo guarda lo que se vio, con las opciones de la planilla; la traducción a columnas está en el código.
+
+**Cómo se ubica cada dato en la red.**
+
+- Una esquina, por los nodos de OSM de la intersección: uno, o dos o cuatro en un bulevar.
+- Una cuadra, por los tramos de la misma calle (el nombre en OSM) cuyo punto medio cae entre sus dos esquinas y a menos de 20 m de la recta que las une. Los 20 m alcanzan para las dos manos de un bulevar, que quedan a unos 10 m del centro de la esquina.
+- Lo que no se encuentra (porque OSM cambió) no frena la importación: el script lo lista para revisarlo.
+
+**De la planilla a columnas.** Lo que no se vio ("no se ve") deja el valor de OSM.
+
+| Columna | Regla |
+|---|---|
+| `tiene_rampa` de los tramos de una cuadra | true si alguna de sus dos veredas tiene rampa en sus dos puntas; false si ninguna. Cuentan como rampa "sí" y "no corresponde" (en esa punta no se cruza); no cuentan "no" ni "sí, pero mal" (rota, empinada o tapada). Un lado sin vereda ("no hay vereda", "cantero / no aplica") no cuenta |
+| `superficie` | En el vocabulario de OSM: hormigón `concrete`, baldosa `paving_stones`, adoquín `sett`, tierra `dirt`, ripio `gravel`, pasto `grass`. Una mixta queda `paved` si una silla de ruedas pasa por algún lado y `unpaved` si no |
+| `ancho_estimado` | El ancho anotado, en metros |
+| `tiene_piso_podotactil` de los nodos de una esquina | "sí" true, "no" false |
+
+Qué punta de cada esquina toca cada vereda:
+
+| Vereda | Esquina del oeste o del sur | Esquina del este o del norte |
+|---|---|---|
+| N | NE | NO |
+| S | SE | SO |
+| O | NO | SO |
+| E | NE | SE |
+
+**Lo que se anota pero no cambia columnas, y por qué.**
+
+- ¿Pasa una silla de ruedas? No hay columna para eso. Queda en el archivo y decide la superficie de una cuadra mixta. Cómo pesa cada atributo para cada perfil se decide en #102; hasta entonces, el recorrido cambia solo por los incidentes.
+- Escalones o desniveles: un escalón entre dos frentes no hace de la cuadra una escalera (`ESCALERA` es para `highway=steps`). Queda en el archivo para #102.
+- Pendiente fuerte: la planilla dice sí o no y la columna pide un porcentaje.
+- Semáforo sonoro: no se puede escuchar en Street View. Queda el de OSM.
+
+**Puntos revisados.** Los caminos que no son públicos salen de la red: la vereda interna de la escuela especial que entra por Gobernador Anaya (P-01), dos pedazos de vereda de un edificio sobre Lastra (P-07) y la calle de servicio del corralón al oeste de Saavedra (P-08). Se agregan dos uniones en línea recta entre nodos de OSM que en la realidad se conectan caminando: la plaza de Catamarca con la esquina de Andacollo (P-06) e Intendente Carro, que en OSM está cortada entre Eva Duarte y Gobernador Anaya (P-10). Si OSM ya tiene la unión, no se duplica.

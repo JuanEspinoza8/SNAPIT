@@ -30,6 +30,14 @@ import { crearOrganismoDePrueba } from './apoyo.js';
  * - 20 ─ p1: calle privada (se descarta). La columna 3 y el tramo 31 ─ 41 quedan fuera de la zona.
  */
 const RECORTE = fileURLToPath(new URL('./osm/recorte-red.json', import.meta.url));
+/*
+ * test/osm/relevamiento-recorte.json, sobre la misma grilla:
+ * - C-1 (Calle Uno, 00 ─ 10): baldosa, 1,5 m y rampa en las dos puntas de la vereda N.
+ * - C-2 (Avenida A, 00 ─ 01): mixta y no pasa una silla; ninguna vereda tiene rampa en las dos puntas.
+ * - C-3: una calle que no está en OSM. E-11: sin piso podotáctil, aunque OSM diga que sí.
+ * - P-1 quita la escalera; P-2 une la vereda suelta (f2) con la esquina 21.
+ */
+const RELEVAMIENTO = fileURLToPath(new URL('./osm/relevamiento-recorte.json', import.meta.url));
 const BASE = 900_000_000_000_000;
 const esquina = (columna: number, fila: number) => BASE + 100 + 10 * columna + fila;
 const C1 = BASE + 204;
@@ -55,6 +63,8 @@ let archivo: string;
 
 const importar = (sinConexion: boolean, desde = archivo) =>
   importarRed({ prisma, archivo: desde, sinConexion, overpass });
+const importarCorregida = (relevamiento = RELEVAMIENTO) =>
+  importarRed({ prisma, archivo: RECORTE, sinConexion: true, overpass, relevamiento });
 
 const vaciarRed = () => prisma.$executeRaw`TRUNCATE tramo_peatonal, nodo_peatonal RESTART IDENTITY CASCADE`;
 
@@ -280,5 +290,66 @@ describe('importar la red peatonal', () => {
 
     expect(await readFile(archivo, 'utf8')).toBe('respuesta anterior');
     expect(await leerTramos()).toHaveLength(19);
+  });
+});
+
+describe('aplicar el relevamiento al importar', () => {
+  it('carga la red ya corregida y cuenta qué cambió', async () => {
+    const resumen = await importarCorregida();
+
+    expect(resumen.relevamiento).toEqual({
+      tramosCorregidos: 2,
+      nodosCorregidos: 1,
+      tramosQuitados: 1,
+      conexionesAgregadas: 1,
+      sinUbicar: ['C-3'],
+    });
+    expect(resumen).toMatchObject({
+      nodos: 14,
+      tramos: 19,
+      porTipo: { VEREDA: 16, CRUCE: 1, ESCALERA: 0, SENDA: 2 },
+      conRampa: 2,
+      conPisoPodotactil: 0,
+    });
+    // La vereda suelta quedó unida al resto.
+    expect(resumen.componentes).toEqual([{ nodos: 14, nodoOsmId: esquina(0, 0) }]);
+    expect(await tramoEntre(esquina(0, 0), esquina(1, 0))).toMatchObject([
+      { rampa: true, superficie: 'paving_stones', ancho: 1.5 },
+    ]);
+    // La pendiente no se relevó: queda la de OSM.
+    expect(await tramoEntre(esquina(0, 0), esquina(0, 1))).toMatchObject([
+      { rampa: false, superficie: 'unpaved', ancho: null, pendiente: 5 },
+    ]);
+    expect(await tramoEntre(BASE + 209, esquina(2, 1))).toMatchObject([{ tipo: 'VEREDA' }]);
+  });
+
+  it('correrlo dos veces deja la misma red corregida', async () => {
+    await importarCorregida();
+    const nodos = await leerNodos();
+    const tramos = await leerTramos();
+
+    await importarCorregida();
+
+    expect(await leerNodos()).toEqual(nodos);
+    expect(await leerTramos()).toEqual(tramos);
+  });
+
+  it('si el relevamiento tiene un error, no toca la red y dice qué está mal', async () => {
+    await importar(true, RECORTE);
+    const relevamiento = JSON.parse(await readFile(RELEVAMIENTO, 'utf8'));
+    relevamiento.cuadras[0].superficie = 'cemento';
+    await writeFile(archivo, JSON.stringify(relevamiento));
+
+    await expect(importarCorregida(archivo)).rejects.toThrow('cuadras.0.superficie');
+
+    const tramos = await leerTramos();
+    expect(tramos).toHaveLength(19);
+    expect(tramos.some((t) => t.tipo === 'ESCALERA')).toBe(true);
+  });
+
+  it('sin el archivo del relevamiento, dice dónde lo buscó', async () => {
+    await expect(importarCorregida(archivo)).rejects.toThrow(
+      `No está el relevamiento de la zona piloto en ${archivo}`,
+    );
   });
 });

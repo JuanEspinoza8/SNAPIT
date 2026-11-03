@@ -61,6 +61,8 @@ export interface NodoRed {
 export interface TramoRed {
   /** El camino de OSM del que sale, como "way/123". */
   camino: string;
+  /** El nombre de la calle en OSM. Con él se ubica cada cuadra del relevamiento. No se guarda en la base. */
+  calle: string | null;
   /** osm_id de los nodos de los extremos. */
   nodoOrigen: number;
   nodoDestino: number;
@@ -219,6 +221,7 @@ function armarTramo(
 
   return {
     camino: `way/${camino.id}`,
+    calle: etiquetas.name ?? null,
     nodoOrigen: nodos[0]!,
     nodoDestino: nodos.at(-1)!,
     puntos: puntos.map(({ lon, lat }) => [lon, lat]),

@@ -9,6 +9,8 @@ import { describirResumenRed, importarRed } from '../src/modulos/red/servicio.js
 config({ path: fileURLToPath(new URL('../../.env', import.meta.url)), quiet: true });
 
 const ARCHIVO = fileURLToPath(new URL('../../db/datos/red-zona-piloto.json', import.meta.url));
+// Las correcciones del relevamiento (#101) se aplican en cada importación.
+const RELEVAMIENTO = fileURLToPath(new URL('../../db/datos/relevamiento-zona-piloto.json', import.meta.url));
 const USO = 'Uso: npm run importar:red [-- --sin-conexion]';
 
 const opciones = process.argv.slice(2);
@@ -27,7 +29,13 @@ const archivoRelativo = path.relative(process.cwd(), ARCHIVO);
 
 try {
   if (!sinConexion) console.log('Pidiendo la red peatonal a Overpass (puede tardar un minuto)...');
-  const resumen = await importarRed({ prisma, archivo: ARCHIVO, sinConexion, overpass });
+  const resumen = await importarRed({
+    prisma,
+    archivo: ARCHIVO,
+    sinConexion,
+    overpass,
+    relevamiento: RELEVAMIENTO,
+  });
   if (!sinConexion) console.log(`Respuesta guardada en ${archivoRelativo}`);
   console.log(describirResumenRed(resumen));
 } catch (error) {

@@ -1,0 +1,127 @@
+{
+  "zona": "Zona de prueba de importar-red",
+  "metodo": "Armado a mano sobre recorte-red.json para los tests",
+  "esquinas": [
+    {
+      "id": "E-00",
+      "nombre": "Avenida A y Calle Uno",
+      "lat": -38.7,
+      "lon": -68.5,
+      "nodosOsm": [900000000000100],
+      "fechaImagen": "2025-08",
+      "rampas": { "NO": "no", "NE": "sí", "SO": "no corresponde", "SE": "no corresponde" },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no se ve",
+      "observaciones": null
+    },
+    {
+      "id": "E-10",
+      "nombre": "Calle B y Calle Uno",
+      "lat": -38.7,
+      "lon": -68.49885,
+      "nodosOsm": [900000000000110],
+      "fechaImagen": "2025-08",
+      "rampas": { "NO": "sí", "NE": "sí", "SO": "no", "SE": "no" },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no se ve",
+      "observaciones": null
+    },
+    {
+      "id": "E-01",
+      "nombre": "Avenida A y Calle Dos",
+      "lat": -38.6991,
+      "lon": -68.5,
+      "nodosOsm": [900000000000101],
+      "fechaImagen": "2025-08",
+      "rampas": { "NO": "no", "NE": "sí, pero mal", "SO": "no", "SE": "no" },
+      "semaforo": "no hay",
+      "pisoPodotactil": "no se ve",
+      "observaciones": null
+    },
+    {
+      "id": "E-11",
+      "nombre": "Calle B y Calle Dos",
+      "lat": -38.6991,
+      "lon": -68.49885,
+      "nodosOsm": [900000000000111],
+      "fechaImagen": "2025-08",
+      "rampas": { "NO": "no se ve", "NE": "no se ve", "SO": "no se ve", "SE": "no se ve" },
+      "semaforo": "sí, sin pulsador",
+      "pisoPodotactil": "no",
+      "observaciones": "En OSM figura con piso podotáctil."
+    }
+  ],
+  "cuadras": [
+    {
+      "id": "C-1",
+      "calle": "Calle Uno",
+      "entre": "entre Avenida A y Calle B",
+      "esquinas": ["E-00", "E-10"],
+      "fechaImagen": "2025-08",
+      "veredas": { "N": "buena", "S": "mala" },
+      "escalones": "no",
+      "superficie": "baldosa",
+      "anchoMetros": 1.5,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "solo por un lado",
+      "queLaBloquea": "Vereda S rota",
+      "observaciones": null
+    },
+    {
+      "id": "C-2",
+      "calle": "Avenida A",
+      "entre": "entre Calle Uno y Calle Dos",
+      "esquinas": ["E-00", "E-01"],
+      "fechaImagen": "2025-08",
+      "veredas": { "O": "regular", "E": "no hay vereda" },
+      "escalones": "en N u O",
+      "superficie": "mixta",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "no",
+      "queLaBloquea": "Tierra y escalones",
+      "observaciones": null
+    },
+    {
+      "id": "C-3",
+      "calle": "Calle Inexistente",
+      "entre": "entre Avenida A y Calle B",
+      "esquinas": ["E-00", "E-10"],
+      "fechaImagen": "2025-08",
+      "veredas": { "N": "buena", "S": "buena" },
+      "escalones": "no",
+      "superficie": "hormigón",
+      "anchoMetros": null,
+      "pendienteFuerte": "no",
+      "pasaSillaDeRuedas": "sí",
+      "queLaBloquea": null,
+      "observaciones": "No está en OSM: tiene que aparecer en el resumen."
+    }
+  ],
+  "puntos": [
+    {
+      "id": "P-1",
+      "donde": "Escalera de Calle C",
+      "pregunta": "¿Es pública?",
+      "fechaImagen": "2025-08",
+      "sePasaCaminando": "no",
+      "sePasaEnSilla": "no",
+      "detalle": "Es de un edificio",
+      "lat": -38.6982,
+      "lon": -68.4977,
+      "quitarCaminos": ["way/900000000000009"]
+    },
+    {
+      "id": "P-2",
+      "donde": "Vereda suelta",
+      "pregunta": "¿Se une con Calle Dos?",
+      "fechaImagen": "2025-08",
+      "sePasaCaminando": "sí",
+      "sePasaEnSilla": "sí",
+      "detalle": "Sigue hasta la esquina de Calle C",
+      "lat": -38.69973,
+      "lon": -68.498045,
+      "conectarNodos": [900000000000209, 900000000000121]
+    }
+  ]
+}
