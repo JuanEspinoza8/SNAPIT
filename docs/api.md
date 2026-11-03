@@ -38,6 +38,7 @@ Todas las respuestas de error tienen el mismo formato:
 | 415 | Codificación o compresión del cuerpo no soportada (`FORMATO_NO_SOPORTADO`) |
 | 422 | Los datos tienen la forma correcta, pero no se puede hacer lo pedido (por ejemplo, un recorrido sin camino posible) |
 | 500 | Error inesperado (`ERROR_INTERNO`): nunca incluye detalles internos |
+| 503 | Un servicio externo no responde: la IA (`IA_NO_DISPONIBLE`) o Nominatim (`GEOCODIFICACION_NO_DISPONIBLE`) |
 
 En el servidor, los errores esperados se lanzan con `throw new ErrorApp(status, codigo, mensaje, detalles?)`.
 
@@ -339,6 +340,18 @@ Los tres son obligatorios. Responde **200**:
   }
 }
 ```
+
+### `GET /api/geocodificacion`
+Busca una dirección o un lugar en Neuquén Capital, para elegir el origen o el destino de un recorrido escribiéndolo (F11). Requiere sesión (sin sesión: 401). Parámetro `texto`, de 3 a 200 caracteres, por ejemplo `?texto=Saavedra 500`. Responde **200** con hasta 5 lugares, en el orden de Nominatim:
+
+```json
+{ "lugares": [{ "nombre": "Cornelio Saavedra 500, La Sirena", "lat": -38.9601407, "lon": -68.0897074 }] }
+```
+
+- `nombre`: el nombre propio del lugar, si tiene (un hospital, una escuela), y la dirección con el barrio: `"Hospital Bouquet Roldán, Doctor Luis Teodoro Planas 1915, Bouquet Roldán"`.
+- Solo devuelve lugares de Neuquén Capital: se le pide a Nominatim dentro del rectángulo del municipio y, de lo que responde, quedan solo los que su dirección marca como de la ciudad (el centro de Cipolletti cae dentro del rectángulo). Sin resultados, `lugares` viene vacía.
+- Usa el mismo cliente de Nominatim que la dirección de los reportes: una consulta por segundo entre las dos y la misma caché. La app busca al confirmar el texto, no con cada letra.
+- Si Nominatim falla o no responde a tiempo: **503** `GEOCODIFICACION_NO_DISPONIBLE`, con un mensaje que propone marcar el punto en el mapa. Texto de menos de 3 letras: **400**.
 
 ## Reportes
 
