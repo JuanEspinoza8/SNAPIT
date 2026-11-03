@@ -24,10 +24,12 @@ void main() {
       'Desde la app podés ver el mapa. La gestión de incidentes se hace en el '
       'panel web.';
 
-  testWidgets('el vecino tiene mapa, reportar y mis reportes', (tester) async {
+  testWidgets('el vecino tiene mapa, reportar, mis reportes y recorrido', (
+    tester,
+  ) async {
     await abrirApp(tester, servidorCon());
 
-    expect(find.byType(NavigationDestination), findsNWidgets(3));
+    expect(find.byType(NavigationDestination), findsNWidgets(4));
     expect(find.text(avisoPanelWeb), findsNothing);
     expect(find.widgetWithText(AppBar, 'Mapa de incidentes'), findsOneWidget);
     expect(find.byType(MapaIncidentes), findsOneWidget);
@@ -40,6 +42,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Mis reportes'), findsOneWidget);
     expect(find.text('Todavía no hiciste reportes'), findsOneWidget);
+
+    await tester.tap(find.text('Recorrido'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Recorrido accesible'), findsOneWidget);
   });
 
   testWidgets('el mapa no se vuelve a armar al cambiar de pestaña', (
