@@ -749,7 +749,7 @@ Responde **200**:
 - La paginación es por cursor y no por número de página: si entra un incidente nuevo mientras alguien scrollea, la página siguiente no repite el último que vio. Para ver los nuevos, se vuelve a pedir sin cursor.
 - `fotos`: hasta 5, las primeras que se cargaron, con la misma regla que la ficha (sin las de reportes desestimados, sumando las de los incidentes unidos). `cantidadFotos` dice cuántas hay en total, para mostrar «+3» en el carrusel.
 - `severidad` es la consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`). `cantidadVecinos` y `direccion` son los de la ficha.
-- `cantidadMeGusta` suma los de todos sus reportes; `cantidadComentarios`, los de sus reportes más los del incidente. Con la misma regla que las fotos: sin reportes desestimados ni eliminados, y sin comentarios eliminados. El detalle de cada uno está en [Social](#social).
+- `cantidadMeGusta` suma los de todos sus reportes; `cantidadComentarios`, los de sus reportes más los del incidente y los de sus unidos. Con la misma regla que las fotos: sin reportes desestimados ni eliminados, y sin comentarios eliminados. El detalle de cada uno está en [Social](#social).
 
 Un `cursor` que no se puede leer, un `limite` fuera de rango o un filtro inválido: **400** `DATOS_INVALIDOS` con `detalles`.
 
@@ -824,11 +824,13 @@ Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA
 - Caché de una hora: `Cache-Control: public, max-age=3600` sin sesión y `private, max-age=3600` con sesión (solo la guarda el navegador de quien la pidió). Todas llevan `Vary: Authorization`.
 
 ## Social
-Likes y comentarios del feed (por ahora solo para leer). Rutas públicas, sin sesión, como el mapa. Lo de cada **reporte** (una foto de un vecino) va aparte de lo del **incidente** (el problema en general).
+Likes y comentarios del feed (por ahora solo para leer). Rutas públicas, sin sesión, como el mapa. Van bajo `/api/social` para no chocar con las del operador: `POST /api/incidentes/:id/comentarios` es la bitácora, no un comentario público. Lo de cada **reporte** (una foto de un vecino) va aparte de lo del **incidente** (el problema en general).
 
-Valen las mismas reglas que en la ficha: un incidente unido a otro responde con el principal; los reportes desestimados o que su autor eliminó no se muestran, y los comentarios eliminados tampoco. Del autor solo se publica el nombre.
+Valen las mismas reglas que en la ficha: un incidente unido a otro responde con el principal; los reportes desestimados o que su autor eliminó no se muestran, y los comentarios eliminados tampoco.
 
-### `GET /api/incidentes/:id/reportes`
+**Del autor no se publica nada que lo identifique**, ni el nombre ni el id. Dentro de cada incidente es `{ "numero": 2, "nombre": "Vecino 2" }`: los vecinos que participan (reportaron una foto visible o comentaron en el incidente, en uno de sus unidos o en una de sus fotos) se numeran por orden de llegada, y si llegaron en el mismo instante, por id. El mismo vecino tiene el mismo número en todo el incidente, así se sigue una conversación; en otro incidente puede tener otro número, así no se puede saber si dos incidentes los reportó la misma persona. Si se unen dos incidentes o se desestima un reporte, la numeración puede correrse.
+
+### `GET /api/social/incidentes/:id/reportes`
 Los reportes que forman el incidente, del más viejo al más nuevo:
 
 ```json
@@ -840,7 +842,7 @@ Los reportes que forman el incidente, del más viejo al más nuevo:
       "incidenteId": 17,
       "descripcion": "Una baldosa rota frente al kiosco",
       "creadoEn": "2026-10-20T11:46:46.388Z",
-      "autor": { "id": 6, "nombre": "Carla Vecina" },
+      "autor": { "numero": 1, "nombre": "Vecino 1" },
       "fotos": [{ "id": 19, "url": "/api/fotos/19" }],
       "cantidadMeGusta": 7,
       "cantidadComentarios": 3
@@ -851,8 +853,8 @@ Los reportes que forman el incidente, del más viejo al más nuevo:
 
 Incidente desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`.
 
-### `GET /api/incidentes/:id/comentarios`
-Los comentarios sobre el incidente en general (no los de sus fotos), del más viejo al más nuevo:
+### `GET /api/social/incidentes/:id/comentarios`
+Los comentarios sobre el incidente en general (no los de sus fotos), también los que se hicieron en un incidente que después se le unió, del más viejo al más nuevo:
 
 ```json
 {
@@ -863,7 +865,7 @@ Los comentarios sobre el incidente en general (no los de sus fotos), del más vi
       "texto": "Hay una escuela a dos cuadras, es urgente.",
       "creadoEn": "2026-10-20T16:46:46.388Z",
       "editadoEn": null,
-      "autor": { "id": 5, "nombre": "Bruno Vecino" }
+      "autor": { "numero": 4, "nombre": "Vecino 4" }
     }
   ]
 }
@@ -871,11 +873,11 @@ Los comentarios sobre el incidente en general (no los de sus fotos), del más vi
 
 `editadoEn` es `null` si nunca se editó. Mismos errores que la anterior.
 
-### `GET /api/reportes/:id/publico`
-Un reporte suelto, con la misma forma que cada elemento de `GET /api/incidentes/:id/reportes`. `incidenteId` es el que ve el público: el principal, si el suyo se unió a otro.
+### `GET /api/social/reportes/:id`
+Un reporte suelto, con la misma forma que cada elemento de `GET /api/social/incidentes/:id/reportes`. `incidenteId` es el que ve el público: el principal, si el suyo se unió a otro. El número del autor es el de ese incidente.
 
-### `GET /api/reportes/:id/comentarios`
-Los comentarios de un reporte, con la misma forma que los del incidente (`{ "comentarios": [...] }`).
+### `GET /api/social/reportes/:id/comentarios`
+Los comentarios de un reporte, con la misma forma que los del incidente (`{ "comentarios": [...] }`) y los números del incidente del reporte.
 
 En las dos: un reporte desestimado, eliminado, de un incidente que no se ve o inexistente responde **404** `REPORTE_NO_ENCONTRADO`. Un id inválido, **400** `DATOS_INVALIDOS`.
 

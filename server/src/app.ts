@@ -33,8 +33,7 @@ app.use('/api/auth', rutasAuth);
 app.use('/api/admin', rutasAdmin);
 app.use('/api', rutasCatalogo);
 app.use('/api', rutasRed);
-// Antes que los de reportes e incidentes: son subrutas públicas de los dos (/:id/comentarios, /:id/reportes).
-app.use('/api', rutasSocial);
+app.use('/api/social', rutasSocial);
 app.use('/api/reportes', rutasReportes);
 app.use('/api/fotos', rutasFotos);
 app.use('/api/incidentes', rutasIncidentes);

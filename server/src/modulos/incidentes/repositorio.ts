@@ -137,11 +137,20 @@ export function listarFeed(pedido: PedidoFeed) {
       FROM me_gusta_reporte m
       JOIN (SELECT r.id ${reportes}) validos ON validos.id = m.reporte_id
     ) likes
+    -- Los de sus fotos más los del incidente y de los unidos. Dos cuentas por separado, cada una por su
+    -- índice: juntas en un OR, la base recorría toda la tabla comentario por cada tarjeta.
     CROSS JOIN LATERAL (
-      SELECT count(*) AS total
-      FROM comentario c
-      LEFT JOIN (SELECT r.id ${reportes}) validos ON validos.id = c.reporte_id
-      WHERE c.eliminado_en IS NULL AND (validos.id IS NOT NULL OR c.incidente_id = i.id)
+      SELECT (
+        SELECT count(*)
+        FROM comentario c
+        JOIN (SELECT r.id ${reportes}) validos ON validos.id = c.reporte_id
+        WHERE c.eliminado_en IS NULL
+      ) + (
+        SELECT count(*)
+        FROM comentario c
+        JOIN incidente comentado ON comentado.id = c.incidente_id
+        WHERE (comentado.id = i.id OR comentado.incidente_principal_id = i.id) AND c.eliminado_en IS NULL
+      ) AS total
     ) comentarios
     WHERE ${Prisma.join(condiciones, ' AND ')}
     ORDER BY i.primer_reporte_en DESC, i.id DESC
