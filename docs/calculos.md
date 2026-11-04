@@ -258,7 +258,7 @@ Además de la transición, el operador no trabaja un incidente unido a otro (se 
 |---|---|---|---|
 | `prioridad.peso_severidad` | decimal | 40 | Peso de la gravedad del incidente |
 | `prioridad.peso_evidencias` | decimal | 25 | Peso de la cantidad de vecinos que lo informaron o confirmaron |
-| `prioridad.tope_evidencias` | entero | 15 | Vecinos a partir de los cuales el factor de evidencias no crece más |
+| `prioridad.tope_evidencias` | entero | 15 | Reportes y confirmaciones a partir de los cuales el factor de evidencias no crece más |
 | `prioridad.peso_antiguedad` | decimal | 20 | Peso de los días que lleva sin resolverse |
 | `prioridad.tope_antiguedad_dias` | entero | 60 | Días a partir de los cuales el factor de antigüedad no crece más |
 | `prioridad.peso_contexto` | decimal | 15 | Peso de la cercanía a un punto de interés |
@@ -281,7 +281,7 @@ Cada incidente tiene un **puntaje** que lo ordena en la bandeja y un **desglose*
 | `ANTIGUEDAD` | `peso_antiguedad × min(1, días / tope_antiguedad_dias)` | `días`: días completos desde `primer_reporte_en` |
 | `CONTEXTO_URBANO` | `peso_contexto × factor del punto` | El punto de interés a no más de `radio_contexto_m` con el mayor `factor_*` de su tipo; ante un empate, el más cercano. Sin ninguno, 0 |
 
-- **Evidencias con logaritmo:** los primeros vecinos dicen mucho y los siguientes cada vez menos. Con un reporte suma un cuarto del peso (ln 2 / ln 16), con cinco casi dos tercios, y desde `tope_evidencias` el peso entero.
+- **Evidencias con logaritmo:** los primeros reportes y confirmaciones dicen mucho y los siguientes cada vez menos. Con un reporte suma un cuarto del peso (ln 2 / ln 16), con cinco casi dos tercios, y desde `tope_evidencias` el peso entero.
 - **Días completos:** 10 días y medio cuentan como 10. Así el número del texto coincide con la cuenta, y el valor cambia una vez por día.
 - **Un solo punto de interés:** cuenta el más relevante, no la suma. Diez paradas juntas no valen más que una escuela. Para eso alcanza con buscar el más cercano de cada tipo (`ST_DWithin` sobre el índice GIST de `punto_interes`).
 

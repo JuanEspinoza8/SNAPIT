@@ -311,7 +311,7 @@ export const PARAMETROS: { clave: string; valor: string; tipo: 'entero' | 'decim
       clave: 'prioridad.tope_evidencias',
       valor: '15',
       tipo: 'entero',
-      descripcion: 'Vecinos a partir de los cuales el factor de evidencias no crece más',
+      descripcion: 'Reportes y confirmaciones a partir de los cuales el factor de evidencias no crece más',
     },
     {
       clave: 'prioridad.peso_antiguedad',
