@@ -172,6 +172,15 @@ describe('agrupación de reportes en incidentes (F05)', () => {
     expect(nuevo.incidenteId).not.toBe(primero.incidenteId);
   });
 
+  it('un reporte que su autor eliminó sigue contando para agrupar: eso lo decide la issue de eliminar', async () => {
+    const primero = await reportar();
+    await prisma.reporte.update({ where: { id: primero.id }, data: { eliminadoEn: new Date() } });
+
+    const nuevo = await reportar();
+
+    expect(nuevo.incidenteId).toBe(primero.incidenteId);
+  });
+
   it('la severidad suma los reportes de los incidentes que se le unieron', async () => {
     const principal = await reportar({ severidad: 'LEVE' });
     const duplicado = await reportar({ severidad: 'GRAVE', desplazamiento: 0.01 });

@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
-import { INCIDENTE_VISIBLE, REPORTES_DEL_INCIDENTE } from '../incidentes/repositorio.js';
+import { INCIDENTE_VISIBLE, REPORTES_VISIBLES_DEL_INCIDENTE } from '../incidentes/repositorio.js';
 
 export interface ReportePublico {
   id: number;
@@ -34,7 +34,7 @@ export function listarReportes(principalId: number) {
     SELECT ${COLUMNAS_REPORTE}, ${principalId}::int AS "incidenteId"
     FROM reporte r
     JOIN usuario u ON u.id = r.usuario_id
-    WHERE r.id IN (SELECT r.id ${REPORTES_DEL_INCIDENTE(principalId)})
+    WHERE r.id IN (SELECT r.id ${REPORTES_VISIBLES_DEL_INCIDENTE(principalId)})
     ORDER BY r.creado_en, r.id`;
 }
 

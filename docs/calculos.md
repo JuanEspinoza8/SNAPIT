@@ -161,6 +161,8 @@ Cada reporte nuevo se suma al incidente que más se le parece, o abre uno nuevo 
 
 **Candidatos:** incidentes de la **misma categoría**, a no más de `radio_m` metros, no resueltos ni desestimados, no caducados ni vencidos, no unidos a otro, y con algún reporte válido que llegó en los últimos `ventana_dias` días. "Reportes del incidente" son siempre los no desestimados del incidente y de los que se le unieron (`REPORTES_DEL_INCIDENTE`, en `incidentes/repositorio.ts`): de ahí salen el último reporte, la foto más parecida y la severidad consolidada.
 
+**Reportes eliminados por su autor** (`reporte.eliminado_en`, #125): no se muestran (ficha, feed, lo social y la foto sin sesión, con `REPORTES_VISIBLES_DEL_INCIDENTE`), pero por ahora **siguen contando** en la agrupación, en `cantidad_reportes`, en la prioridad y en la reputación. Todavía no hay forma de eliminar un reporte: qué deja de contar al eliminarlo (y si se puede eliminar uno desestimado o el único de un incidente) se decide con esa issue. Mientras tanto, un incidente puede decir más reportes de los que muestra.
+
 **Puntaje** de cada candidato, de 0 a 1:
 
 ```math

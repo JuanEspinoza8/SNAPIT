@@ -812,8 +812,8 @@ Quién ve cada foto:
 
 | Quién pide | Qué fotos ve |
 |---|---|
-| Cualquiera, sin sesión | Las que se ven en el mapa: las de un reporte **no desestimado** cuyo incidente (o su principal, si se unió a otro) aparece en `GET /api/incidentes`. |
-| El dueño del reporte | Además, todas las de sus reportes, aunque estén desestimados o el incidente ya no esté en el mapa. |
+| Cualquiera, sin sesión | Las que se ven en el mapa: las de un reporte **no desestimado ni eliminado por su autor** cuyo incidente (o su principal, si se unió a otro) aparece en `GET /api/incidentes`. |
+| El dueño del reporte | Además, todas las de sus reportes, aunque estén desestimados o eliminados, o el incidente ya no esté en el mapa. |
 | `OPERADOR` o `ADMINISTRADOR` | Además, todas las de los incidentes de su organismo, en cualquier estado. El organismo es el del área a la que se derivó el incidente o, si todavía no se derivó, el del área de su categoría. Si se unió a otro, manda el principal. Un administrador sin organismo ve solo las del mapa. |
 
 Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA`. Las fotos de los cierres todavía no se sirven (llegan con el cierre, corte 75 %).
