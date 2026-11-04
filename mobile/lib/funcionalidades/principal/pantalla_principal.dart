@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../compartido/sesion/sesion.dart';
 import '../../compartido/sesion/usuario.dart';
+import '../../compartido/tema/modo_tema.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../feed/pantalla_feed.dart';
 import '../mapa/foco_mapa.dart';
@@ -58,7 +59,18 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(seccion.titulo),
+        // En el inicio va el logo; en las demás secciones, su nombre.
+        title: _seccion == _inicio
+            ? Semantics(
+                header: true,
+                label: 'SnapIt',
+                child: Image.asset(
+                  'assets/logo.png',
+                  height: 32,
+                  excludeFromSemantics: true,
+                ),
+              )
+            : Text(seccion.titulo),
         actions: [
           IconButton(
             tooltip: 'Cuenta',
@@ -147,7 +159,19 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
                   color: Theme.of(contexto).colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: Espacio.xl),
+              const SizedBox(height: Espacio.lg),
+              Consumer(
+                builder: (_, ref, _) => SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.dark_mode_outlined),
+                  title: const Text('Tema oscuro'),
+                  value: ref.watch(modoTemaProvider) == ThemeMode.dark,
+                  onChanged: (oscuro) => ref
+                      .read(modoTemaProvider.notifier)
+                      .elegir(oscuro: oscuro),
+                ),
+              ),
+              const SizedBox(height: Espacio.lg),
               OutlinedButton.icon(
                 icon: const Icon(Icons.logout),
                 label: const Text('Salir'),

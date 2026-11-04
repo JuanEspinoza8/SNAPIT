@@ -35,7 +35,6 @@ class _CarruselFotosState extends State<CarruselFotos> {
     if (fotos.isEmpty) return _SinFotos(widget.descripcion);
 
     final restantes = (widget.cantidadTotal ?? fotos.length) - fotos.length;
-    final tema = Theme.of(context);
 
     return AspectRatio(
       aspectRatio: 4 / 3,
@@ -88,10 +87,8 @@ class _CarruselFotosState extends State<CarruselFotos> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: i == _actual
-                              ? tema.colorScheme.onPrimary
-                              : tema.colorScheme.onPrimary.withValues(
-                                  alpha: 0.5,
-                                ),
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.5),
                           boxShadow: const [
                             BoxShadow(color: Colors.black38, blurRadius: 2),
                           ],

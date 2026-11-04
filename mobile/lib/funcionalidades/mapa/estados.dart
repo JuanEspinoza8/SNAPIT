@@ -105,7 +105,9 @@ class Etiqueta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    final colorTexto = tema.colorScheme.onPrimary;
+    // Blanco en los dos temas: los colores de estado y gravedad están
+    // elegidos para llevar texto blanco con contraste AA.
+    const colorTexto = Colors.white;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color,
@@ -151,7 +153,7 @@ class MarcaEstado extends StatelessWidget {
         border: Border.all(color: esquema.surface, width: 2),
         boxShadow: [_sombraMarcador(esquema)],
       ),
-      child: Icon(estado.icono, size: tamanio * 0.55, color: esquema.onPrimary),
+      child: Icon(estado.icono, size: tamanio * 0.55, color: Colors.white),
     );
   }
 }
