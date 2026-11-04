@@ -23,7 +23,8 @@ abstract final class Rutas {
   static const mapa = '/mapa';
   static const principal = '/';
 
-  /// Recibe el punto actual en `extra` y devuelve el elegido al volver.
+  /// Recibe en `extra` el punto actual (o un `PedidoPunto`, con los textos
+  /// de la pantalla) y devuelve el elegido al volver.
   static const elegirPunto = '/elegir-punto';
 
   /// El detalle de un incidente, desde el feed.
@@ -69,9 +70,12 @@ final rutasProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Rutas.elegirPunto,
-        builder: (_, estado) => PantallaElegirPunto(
-          inicial: estado.extra as LatLng? ?? centroInicial,
-        ),
+        builder: (_, estado) => switch (estado.extra) {
+          PedidoPunto(:final inicial, :final textos, :final zonas) =>
+            PantallaElegirPunto(inicial: inicial, textos: textos, zonas: zonas),
+          final LatLng inicial => PantallaElegirPunto(inicial: inicial),
+          _ => const PantallaElegirPunto(inicial: centroInicial),
+        },
       ),
     ],
   );

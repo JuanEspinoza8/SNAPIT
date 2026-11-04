@@ -12,6 +12,7 @@ if (!process.env.TEST_DATABASE_URL) {
 const SEMILLA = 'test/semilla.test.ts';
 const RED = 'test/importar-red.test.ts';
 const VINCULOS = 'test/vinculos.test.ts';
+const RECORRIDOS = 'test/recorridos.test.ts';
 
 export default defineConfig({
   test: {
@@ -36,19 +37,20 @@ export default defineConfig({
     testTimeout: 15_000,
     // La semilla vuelve a cargar el catálogo y los parámetros que usan los demás tests: corre sola, al final,
     // para no cambiarles un valor mientras corren en paralelo. La importación de la red y los vínculos con los
-    // incidentes reemplazan toda la red de la base: corren solos, después, uno detrás del otro.
+    // incidentes y los recorridos reemplazan toda la red de la base: corren solos, después, uno detrás del otro.
     projects: [
       {
         extends: true,
         test: {
           name: 'general',
-          exclude: [...configDefaults.exclude, SEMILLA, RED, VINCULOS],
+          exclude: [...configDefaults.exclude, SEMILLA, RED, VINCULOS, RECORRIDOS],
           sequence: { groupOrder: 0 },
         },
       },
       { extends: true, test: { name: 'semilla', include: [SEMILLA], sequence: { groupOrder: 1 } } },
       { extends: true, test: { name: 'red', include: [RED], sequence: { groupOrder: 2 } } },
       { extends: true, test: { name: 'vinculos', include: [VINCULOS], sequence: { groupOrder: 3 } } },
+      { extends: true, test: { name: 'recorridos', include: [RECORRIDOS], sequence: { groupOrder: 4 } } },
     ],
   },
 });
