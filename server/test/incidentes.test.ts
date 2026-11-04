@@ -535,6 +535,8 @@ describe('GET /api/incidentes/feed', () => {
           resueltoEn: null,
           fotos: [foto1, foto2].map((f) => ({ id: f.id, url: `/api/fotos/${f.id}` })),
           cantidadFotos: 2,
+          cantidadMeGusta: 0,
+          cantidadComentarios: 0,
         },
       ],
       siguiente: null,

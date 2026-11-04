@@ -159,14 +159,16 @@ export interface PedidoFoto {
 }
 
 /**
- * Una foto que puede ver quien la pide. Cualquiera, la de un reporte no desestimado cuyo incidente
- * (o el principal, si se unió a otro) está en el mapa. El dueño, las de sus reportes. Un operador
- * o administrador, las de los incidentes de su organismo: el del área a la que se derivó el
- * principal o, si todavía no se derivó, el del área de su categoría (como la bandeja).
+ * Una foto que puede ver quien la pide. Cualquiera, la de un reporte no desestimado ni eliminado por
+ * su autor cuyo incidente (o el principal, si se unió a otro) está en el mapa. El dueño, las de sus
+ * reportes. Un operador o administrador, las de los incidentes de su organismo: el del área a la que
+ * se derivó el principal o, si todavía no se derivó, el del área de su categoría (como la bandeja).
  * Las fotos de los cierres todavía no se sirven.
  */
 export async function buscarFotoPermitida(id: number, pedido: PedidoFoto) {
-  const permisos = [Prisma.sql`(r.estado_verificacion <> 'DESESTIMADO' AND ${INCIDENTE_VISIBLE})`];
+  const permisos = [
+    Prisma.sql`(r.estado_verificacion <> 'DESESTIMADO' AND r.eliminado_en IS NULL AND ${INCIDENTE_VISIBLE})`,
+  ];
   if (pedido.usuarioId !== null) permisos.push(Prisma.sql`r.usuario_id = ${pedido.usuarioId}`);
   if (pedido.organismoId !== null) permisos.push(Prisma.sql`a.organismo_id = ${pedido.organismoId}`);
 

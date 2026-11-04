@@ -85,6 +85,8 @@ export interface TarjetaFeed extends PuntoMapa {
   cantidadVecinos: bigint;
   fotoIds: number[];
   cantidadFotos: bigint;
+  cantidadMeGusta: bigint;
+  cantidadComentarios: bigint;
 }
 
 /**
@@ -100,7 +102,7 @@ export function listarFeed(pedido: PedidoFeed) {
         (to_timestamp(0) + ${pedido.cursor.microsegundos}::bigint * interval '1 microsecond', ${pedido.cursor.id}::int)`,
     );
   }
-  const reportes = REPORTES_DEL_INCIDENTE(Prisma.sql`i.id`);
+  const reportes = REPORTES_VISIBLES_DEL_INCIDENTE(Prisma.sql`i.id`);
 
   return prisma.$queryRaw<TarjetaFeed[]>`
     SELECT i.id,
@@ -118,7 +120,9 @@ export function listarFeed(pedido: PedidoFeed) {
            i.resuelto_en AS "resueltoEn",
            vecinos.cantidad AS "cantidadVecinos",
            coalesce(fotos.ids, '{}') AS "fotoIds",
-           fotos.total AS "cantidadFotos"
+           fotos.total AS "cantidadFotos",
+           likes.total AS "cantidadMeGusta",
+           comentarios.total AS "cantidadComentarios"
     FROM incidente i
     JOIN categoria c ON c.id = i.categoria_id
     CROSS JOIN LATERAL (SELECT count(DISTINCT r.usuario_id) AS cantidad ${reportes}) vecinos
@@ -127,6 +131,27 @@ export function listarFeed(pedido: PedidoFeed) {
       FROM fotografia f
       JOIN (SELECT r.id ${reportes}) validos ON validos.id = f.reporte_id
     ) fotos
+    -- Lo social suma todos sus reportes: el de cada foto se ve en el detalle.
+    CROSS JOIN LATERAL (
+      SELECT count(*) AS total
+      FROM me_gusta_reporte m
+      JOIN (SELECT r.id ${reportes}) validos ON validos.id = m.reporte_id
+    ) likes
+    -- Los de sus fotos más los del incidente y de los unidos. Dos cuentas por separado, cada una por su
+    -- índice: juntas en un OR, la base recorría toda la tabla comentario por cada tarjeta.
+    CROSS JOIN LATERAL (
+      SELECT (
+        SELECT count(*)
+        FROM comentario c
+        JOIN (SELECT r.id ${reportes}) validos ON validos.id = c.reporte_id
+        WHERE c.eliminado_en IS NULL
+      ) + (
+        SELECT count(*)
+        FROM comentario c
+        JOIN incidente comentado ON comentado.id = c.incidente_id
+        WHERE (comentado.id = i.id OR comentado.incidente_principal_id = i.id) AND c.eliminado_en IS NULL
+      ) AS total
+    ) comentarios
     WHERE ${Prisma.join(condiciones, ' AND ')}
     ORDER BY i.primer_reporte_en DESC, i.id DESC
     LIMIT ${pedido.limite + 1}`;
@@ -156,9 +181,11 @@ export async function buscarVisible(id: number) {
 }
 
 /**
- * Reportes válidos del incidente y de los que se le unieron: de ahí salen los vecinos y las fotos, y en la
- * agrupación la severidad, el último reporte y la foto más parecida. Alcanza con un nivel: un incidente que
- * tiene unidos no se puede unir a otro, así que no hay cadenas. Los reportes desestimados no cuentan.
+ * Reportes válidos del incidente y de los que se le unieron: de ahí salen, en la agrupación, la severidad, el
+ * último reporte y la foto más parecida. Alcanza con un nivel: un incidente que tiene unidos no se puede unir a
+ * otro, así que no hay cadenas. Los reportes desestimados no cuentan. Los que su autor eliminó sí: qué cambia en
+ * los cálculos al eliminar se decide con la issue de eliminar (docs/calculos.md). Para mostrar, se usa
+ * REPORTES_VISIBLES_DEL_INCIDENTE.
  * `id` puede ser un número o una columna de la consulta de afuera (por ejemplo, Prisma.sql`i.id`); los
  * reportes quedan con el alias `r`.
  */
@@ -168,10 +195,18 @@ export const REPORTES_DEL_INCIDENTE = (id: number | Prisma.Sql) => Prisma.sql`
   WHERE (del_incidente.id = ${id} OR del_incidente.incidente_principal_id = ${id})
     AND r.estado_verificacion <> 'DESESTIMADO'`;
 
+/**
+ * Los reportes que ve el público: los de REPORTES_DEL_INCIDENTE menos los que su autor eliminó. De acá salen las
+ * fotos, los vecinos y lo social de la ficha y del feed.
+ */
+export const REPORTES_VISIBLES_DEL_INCIDENTE = (id: number | Prisma.Sql) => Prisma.sql`
+  ${REPORTES_DEL_INCIDENTE(id)}
+    AND r.eliminado_en IS NULL`;
+
 export async function contarVecinos(id: number) {
   // count() de PostgreSQL llega como bigint: se pasa a número para el JSON.
   const [fila] = await prisma.$queryRaw<{ cantidad: bigint }[]>`
-    SELECT count(DISTINCT r.usuario_id) AS cantidad ${REPORTES_DEL_INCIDENTE(id)}`;
+    SELECT count(DISTINCT r.usuario_id) AS cantidad ${REPORTES_VISIBLES_DEL_INCIDENTE(id)}`;
   return Number(fila?.cantidad ?? 0);
 }
 
@@ -179,6 +214,6 @@ export function listarFotos(id: number) {
   return prisma.$queryRaw<{ id: number }[]>`
     SELECT f.id
     FROM fotografia f
-    JOIN (SELECT r.id ${REPORTES_DEL_INCIDENTE(id)}) validos ON validos.id = f.reporte_id
+    JOIN (SELECT r.id ${REPORTES_VISIBLES_DEL_INCIDENTE(id)}) validos ON validos.id = f.reporte_id
     ORDER BY f.id`;
 }

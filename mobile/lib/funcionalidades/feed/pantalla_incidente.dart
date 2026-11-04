@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/formato/fechas.dart';
 import '../../compartido/mapa/capa_osm.dart';
 import '../../compartido/red/error_api.dart';
+import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../mapa/estados.dart';
 import '../mapa/modelos.dart';
 import '../mapa/repositorio_mapa.dart';
 import 'carrusel_fotos.dart';
+import 'social.dart';
+import 'widgets_social.dart';
 
 /// El detalle de un incidente que se abre desde el feed: todas sus fotos,
 /// sus datos y dónde está.
@@ -111,6 +115,13 @@ class _Contenido extends StatelessWidget {
               ),
               const SizedBox(height: Espacio.sm),
               _MapaChico(ficha),
+              const SizedBox(height: Espacio.xl),
+              _Reportes(ficha.id),
+              const Divider(height: Espacio.xxl),
+              SeccionComentarios(
+                titulo: 'Comentarios del incidente',
+                provider: comentariosDeIncidenteProvider(ficha.id),
+              ),
             ],
           ),
         ),
@@ -193,6 +204,135 @@ class _MapaChico extends StatelessWidget {
               ),
               const AtribucionOsm(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Una foto por vecino: al tocarla se abre con sus me gusta y comentarios.
+class _Reportes extends ConsumerWidget {
+  const _Reportes(this.incidenteId);
+
+  final int incidenteId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tema = Theme.of(context);
+    final reportes = ref.watch(reportesDeIncidenteProvider(incidenteId));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(switch (reportes) {
+          AsyncData(:final value) => 'Fotos de los vecinos (${value.length})',
+          _ => 'Fotos de los vecinos',
+        }, style: tema.textTheme.titleMedium),
+        const SizedBox(height: Espacio.md),
+        switch (reportes) {
+          AsyncData(:final value) => GridView.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: Espacio.sm,
+            crossAxisSpacing: Espacio.sm,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [for (final r in value) _FotoDeVecino(r)],
+          ),
+          AsyncError(:final error) when !reportes.isLoading => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MensajeError(ErrorApi.desde(error).mensaje),
+              const SizedBox(height: Espacio.sm),
+              OutlinedButton(
+                onPressed: () =>
+                    ref.invalidate(reportesDeIncidenteProvider(incidenteId)),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+          _ => const Padding(
+            padding: EdgeInsets.all(Espacio.lg),
+            child: Center(
+              child: CircularProgressIndicator(
+                semanticsLabel: 'Cargando las fotos de los vecinos',
+              ),
+            ),
+          ),
+        },
+      ],
+    );
+  }
+}
+
+class _FotoDeVecino extends StatelessWidget {
+  const _FotoDeVecino(this.reporte);
+
+  final ReportePublico reporte;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final blanco = tema.textTheme.labelSmall?.copyWith(color: Colors.white);
+    return Semantics(
+      button: true,
+      label:
+          'Foto del ${reporte.autor.nombre}, ${reporte.cantidadMeGusta} me '
+          'gusta, ${reporte.cantidadComentarios} comentarios',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radioBorde),
+        child: Material(
+          child: InkWell(
+            onTap: () => context.push(Rutas.reporte(reporte.id)),
+            child: ExcludeSemantics(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (reporte.fotoIds.isNotEmpty)
+                    FotoIncidente(
+                      reporte.fotoIds.first,
+                      descripcion: 'Foto del ${reporte.autor.nombre}',
+                    )
+                  else
+                    ColoredBox(color: tema.colorScheme.surfaceContainerLow),
+                  // Degradé abajo para que el nombre se lea sobre cualquier
+                  // foto.
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.center,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Colors.black87],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: Espacio.sm,
+                    right: Espacio.sm,
+                    bottom: Espacio.sm,
+                    child: Row(
+                      children: [
+                        AvatarAutor(reporte.autor, radio: 11),
+                        const SizedBox(width: Espacio.xs),
+                        Expanded(
+                          child: Text(
+                            reporte.autor.nombre,
+                            style: blanco,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.favorite,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 2),
+                        Text('${reporte.cantidadMeGusta}', style: blanco),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

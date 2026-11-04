@@ -111,6 +111,14 @@ describe('GET /api/fotos/:id sin sesión', () => {
     expect(res.body.error.codigo).toBe('FOTO_NO_ENCONTRADA');
   });
 
+  it('la foto de un reporte que su autor eliminó no se sirve sin sesión, pero el dueño la sigue viendo', async () => {
+    const { fotoId, reporteId, duenio } = await reporteConFoto();
+    await prisma.reporte.update({ where: { id: reporteId }, data: { eliminadoEn: new Date() } });
+
+    expect((await bajar(fotoId)).status).toBe(404);
+    expect((await bajar(fotoId, duenio)).status).toBe(200);
+  });
+
   it('la foto de un incidente que no está en el mapa no se sirve', async () => {
     const desestimado = await reporteConFoto();
     const caducado = await reporteConFoto();

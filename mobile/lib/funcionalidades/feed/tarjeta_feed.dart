@@ -5,6 +5,7 @@ import '../../compartido/tema/tema_app.dart';
 import '../mapa/estados.dart';
 import 'carrusel_fotos.dart';
 import 'modelos.dart';
+import 'widgets_social.dart';
 
 /// Un incidente en el feed: la foto a todo el ancho y los datos abajo. Si
 /// lo reportaron varios vecinos, es el «post destacado» que los agrupa.
@@ -81,20 +82,27 @@ class TarjetaIncidente extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: Espacio.md),
+                  Text(
+                    tarjeta.cantidadVecinos == 1
+                        ? 'Lo reportó 1 vecino'
+                        : 'Lo reportaron ${tarjeta.cantidadVecinos} vecinos',
+                    style: secundario,
+                  ),
+                  const SizedBox(height: Espacio.md),
                   Row(
                     children: [
+                      ContadoresSociales(
+                        meGusta: tarjeta.cantidadMeGusta,
+                        comentarios: tarjeta.cantidadComentarios,
+                      ),
+                      const SizedBox(width: Espacio.md),
+                      // Pasada una semana es la fecha larga: si no entra, baja.
                       Expanded(
                         child: Text(
-                          tarjeta.cantidadVecinos == 1
-                              ? 'Lo reportó 1 vecino'
-                              : 'Lo reportaron '
-                                    '${tarjeta.cantidadVecinos} vecinos',
+                          haceCuanto(tarjeta.primerReporteEn),
                           style: secundario,
+                          textAlign: TextAlign.end,
                         ),
-                      ),
-                      Text(
-                        haceCuanto(tarjeta.primerReporteEn),
-                        style: secundario,
                       ),
                     ],
                   ),
