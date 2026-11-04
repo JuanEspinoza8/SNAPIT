@@ -34,6 +34,9 @@ abstract final class Rutas {
 /// Las que se usan sin sesión. Con sesión, llevan a la principal.
 const _rutasDeCuenta = {Rutas.ingreso, Rutas.registro, Rutas.recuperarClave};
 
+/// El detalle de un incidente: público, como el mapa desde el que se abre.
+bool _esDetalle(String ruta) => ruta.startsWith('/incidente/');
+
 final rutasProvider = Provider<GoRouter>((ref) {
   // El router se crea una sola vez. Cuando cambia la sesión, solo vuelve a
   // calcular la redirección.
@@ -94,9 +97,12 @@ String? redireccion(AsyncValue<Usuario?> sesion, String ruta) {
     return ruta == Rutas.arranque ? null : Rutas.arranque;
   }
   final esDeCuenta = _rutasDeCuenta.contains(ruta);
-  // El mapa es público. Con sesión ya está en la pantalla principal.
+  // El mapa y el detalle de un incidente son públicos. Con sesión, el mapa ya
+  // está en la pantalla principal.
   if (sesion.value == null) {
-    return esDeCuenta || ruta == Rutas.mapa ? null : Rutas.ingreso;
+    return esDeCuenta || ruta == Rutas.mapa || _esDetalle(ruta)
+        ? null
+        : Rutas.ingreso;
   }
   return esDeCuenta || ruta == Rutas.arranque || ruta == Rutas.mapa
       ? Rutas.principal
