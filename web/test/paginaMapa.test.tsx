@@ -154,6 +154,8 @@ describe('mapa público', () => {
     expect(within(ficha).getByText('En revisión')).toBeInTheDocument();
     expect(within(ficha).getByText('2')).toBeInTheDocument();
     expect(within(ficha).getByText('1 de octubre de 2026')).toBeInTheDocument();
+    // El panel es un resumen: la ficha completa es el detalle.
+    expect(within(ficha).getByRole('link', { name: 'Ver detalle' })).toHaveAttribute('href', '/incidente/1');
     const fotos = within(ficha).getAllByRole('img');
     // En los tests la API es http://localhost:3000/api (vite.config.ts); en el navegador, /api.
     expect(fotos.map((foto) => foto.getAttribute('src'))).toEqual([
