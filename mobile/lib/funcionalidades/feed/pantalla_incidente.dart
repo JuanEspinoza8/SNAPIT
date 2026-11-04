@@ -272,7 +272,10 @@ class _FotoDeVecino extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    final blanco = tema.textTheme.labelSmall?.copyWith(color: Colors.white);
+    final fijos = tema.extension<ColoresFijos>()!;
+    final sobreVelo = tema.textTheme.labelSmall?.copyWith(
+      color: fijos.sobreVelo,
+    );
     return Semantics(
       button: true,
       label:
@@ -294,40 +297,40 @@ class _FotoDeVecino extends StatelessWidget {
                     )
                   else
                     ColoredBox(color: tema.colorScheme.surfaceContainerLow),
-                  // Degradé abajo para que el nombre se lea sobre cualquier
-                  // foto.
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.center,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black87],
-                      ),
-                    ),
-                  ),
+                  // Una franja con el velo abajo, para que el autor se lea
+                  // sobre cualquier foto.
                   Positioned(
-                    left: Espacio.sm,
-                    right: Espacio.sm,
-                    bottom: Espacio.sm,
-                    child: Row(
-                      children: [
-                        AvatarAutor(reporte.autor, radio: 11),
-                        const SizedBox(width: Espacio.xs),
-                        Expanded(
-                          child: Text(
-                            reporte.autor.nombre,
-                            style: blanco,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: ColoredBox(
+                      color: fijos.velo,
+                      child: Padding(
+                        padding: const EdgeInsets.all(Espacio.sm),
+                        child: Row(
+                          children: [
+                            AvatarAutor(reporte.autor, radio: 11),
+                            const SizedBox(width: Espacio.xs),
+                            Expanded(
+                              child: Text(
+                                reporte.autor.nombre,
+                                style: sobreVelo,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Icon(
+                              Icons.favorite,
+                              size: 14,
+                              color: fijos.sobreVelo,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              '${reporte.cantidadMeGusta}',
+                              style: sobreVelo,
+                            ),
+                          ],
                         ),
-                        const Icon(
-                          Icons.favorite,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 2),
-                        Text('${reporte.cantidadMeGusta}', style: blanco),
-                      ],
+                      ),
                     ),
                   ),
                 ],

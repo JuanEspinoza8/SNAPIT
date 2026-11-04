@@ -35,6 +35,7 @@ class _CarruselFotosState extends State<CarruselFotos> {
     if (fotos.isEmpty) return _SinFotos(widget.descripcion);
 
     final restantes = (widget.cantidadTotal ?? fotos.length) - fotos.length;
+    final fijos = Theme.of(context).extension<ColoresFijos>()!;
 
     return AspectRatio(
       aspectRatio: 4 / 3,
@@ -87,10 +88,10 @@ class _CarruselFotosState extends State<CarruselFotos> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: i == _actual
-                              ? Colors.white
-                              : Colors.white.withValues(alpha: 0.5),
-                          boxShadow: const [
-                            BoxShadow(color: Colors.black38, blurRadius: 2),
+                              ? fijos.sobreVelo
+                              : fijos.sobreVelo.withValues(alpha: 0.5),
+                          boxShadow: [
+                            BoxShadow(color: fijos.velo, blurRadius: 2),
                           ],
                         ),
                       ),
@@ -104,8 +105,8 @@ class _CarruselFotosState extends State<CarruselFotos> {
   }
 }
 
-/// Texto chico sobre la foto, con fondo oscuro para que se lea sobre
-/// cualquier imagen.
+/// Texto chico sobre la foto, con el velo para que se lea sobre cualquier
+/// imagen.
 class _Pastilla extends StatelessWidget {
   const _Pastilla(this.texto);
 
@@ -114,10 +115,11 @@ class _Pastilla extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final fijos = tema.extension<ColoresFijos>()!;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
+        color: fijos.velo,
+        borderRadius: BorderRadius.circular(radioBorde),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -126,7 +128,7 @@ class _Pastilla extends StatelessWidget {
         ),
         child: Text(
           texto,
-          style: tema.textTheme.labelSmall?.copyWith(color: Colors.white),
+          style: tema.textTheme.labelSmall?.copyWith(color: fijos.sobreVelo),
         ),
       ),
     );

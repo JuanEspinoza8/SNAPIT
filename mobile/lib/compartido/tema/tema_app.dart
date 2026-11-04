@@ -140,8 +140,9 @@ class ColoresEstado extends ThemeExtension<ColoresEstado> {
 }
 
 /// Colores de la gravedad de un incidente (`severidad` en la base). Todos
-/// llevan texto blanco encima con contraste AA. Se leen con
-/// `Theme.of(context).extension<ColoresGravedad>()!`.
+/// llevan [ColoresFijos.sobreEstado] encima con contraste AA. Moderada no
+/// repite el color de «En revisión»: van una al lado de la otra en las
+/// tarjetas. Se leen con `Theme.of(context).extension<ColoresGravedad>()!`.
 @immutable
 class ColoresGravedad extends ThemeExtension<ColoresGravedad> {
   const ColoresGravedad({
@@ -152,7 +153,7 @@ class ColoresGravedad extends ThemeExtension<ColoresGravedad> {
 
   static const claro = ColoresGravedad(
     leve: Color(0xFF3D5A80),
-    moderada: Color(0xFF975A16),
+    moderada: Color(0xFFC2410C),
     grave: Color(0xFFC53030),
   );
 
@@ -176,6 +177,63 @@ class ColoresGravedad extends ThemeExtension<ColoresGravedad> {
       leve: Color.lerp(leve, other.leve, t)!,
       moderada: Color.lerp(moderada, other.moderada, t)!,
       grave: Color.lerp(grave, other.grave, t)!,
+    );
+  }
+}
+
+/// Colores que no cambian con el tema. Mismos valores que en la web
+/// (`web/src/compartido/tema/tema.css`). Se leen con
+/// `Theme.of(context).extension<ColoresFijos>()!`.
+@immutable
+class ColoresFijos extends ThemeExtension<ColoresFijos> {
+  const ColoresFijos({
+    required this.sobreEstado,
+    required this.velo,
+    required this.sobreVelo,
+    required this.marcadorBorde,
+  });
+
+  static const valores = ColoresFijos(
+    sobreEstado: Color(0xFFFFFFFF),
+    velo: Color(0x99000000),
+    sobreVelo: Color(0xFFFFFFFF),
+    marcadorBorde: Color(0xFFFFFFFF),
+  );
+
+  /// Texto e íconos sobre los estados y las gravedades: con todos da AA.
+  final Color sobreEstado;
+
+  /// Fondo de lo que va encima de una foto (cuál se ve, «+3 fotos», el
+  /// autor): se lee sobre cualquier imagen.
+  final Color velo;
+  final Color sobreVelo;
+
+  /// Borde de los marcadores: el mapa es claro en los dos temas.
+  final Color marcadorBorde;
+
+  @override
+  ColoresFijos copyWith({
+    Color? sobreEstado,
+    Color? velo,
+    Color? sobreVelo,
+    Color? marcadorBorde,
+  }) {
+    return ColoresFijos(
+      sobreEstado: sobreEstado ?? this.sobreEstado,
+      velo: velo ?? this.velo,
+      sobreVelo: sobreVelo ?? this.sobreVelo,
+      marcadorBorde: marcadorBorde ?? this.marcadorBorde,
+    );
+  }
+
+  @override
+  ColoresFijos lerp(ColoresFijos? other, double t) {
+    if (other == null) return this;
+    return ColoresFijos(
+      sobreEstado: Color.lerp(sobreEstado, other.sobreEstado, t)!,
+      velo: Color.lerp(velo, other.velo, t)!,
+      sobreVelo: Color.lerp(sobreVelo, other.sobreVelo, t)!,
+      marcadorBorde: Color.lerp(marcadorBorde, other.marcadorBorde, t)!,
     );
   }
 }
@@ -282,6 +340,10 @@ ThemeData crearTema([PaletaSnapIt p = PaletaSnapIt.claro]) {
     dividerTheme: DividerThemeData(color: p.borde),
     // Los estados y las gravedades llevan texto blanco en los dos temas: sus
     // colores ya están elegidos para eso.
-    extensions: const [ColoresEstado.claro, ColoresGravedad.claro],
+    extensions: const [
+      ColoresEstado.claro,
+      ColoresGravedad.claro,
+      ColoresFijos.valores,
+    ],
   );
 }
