@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { tokenPush } from '../avisos/esquemas.js';
 
 export const email = z
   .string({ error: 'Es obligatorio' })
@@ -34,6 +35,9 @@ export const esquemaIngreso = z.object({
 export const esquemaTokenRenovacion = z.object({
   tokenRenovacion: z.string({ error: 'Es obligatorio' }).min(1, { error: 'Es obligatorio' }),
 });
+
+// Al salir, la app manda también el token de avisos del celular, para darlo de baja.
+export const esquemaSalir = esquemaTokenRenovacion.extend({ tokenPush: tokenPush.optional() });
 
 // El token que llega en el link de un correo.
 const tokenEnlace = z.string({ error: 'Es obligatorio' }).min(1, { error: 'Es obligatorio' });

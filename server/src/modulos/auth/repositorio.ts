@@ -74,11 +74,13 @@ export function cambiarClave(
   return tx.usuario.update({ where: { id: usuarioId }, data: { passwordHash, actualizadoEn: ahora } });
 }
 
-export function cerrarSesionPorHash(tokenHash: string, ahora: Date) {
-  return prisma.tokenAcceso.updateMany({
-    where: { tokenHash, tipo: 'SESION', usadoEn: null },
-    data: { usadoEn: ahora },
-  });
+/** Marca usado el token de la sesión. Devuelve de quién era, o null si no existe o ya estaba cerrada. */
+export async function cerrarSesionPorHash(tokenHash: string, ahora: Date) {
+  const [sesion] = await prisma.$queryRaw<{ usuarioId: number }[]>`
+    UPDATE token_acceso SET usado_en = ${ahora}
+    WHERE token_hash = ${tokenHash} AND tipo = 'SESION' AND usado_en IS NULL
+    RETURNING usuario_id AS "usuarioId"`;
+  return sesion?.usuarioId ?? null;
 }
 
 export function transaccion<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) {

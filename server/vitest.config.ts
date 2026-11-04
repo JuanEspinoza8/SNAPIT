@@ -31,6 +31,8 @@ export default defineConfig({
       // clave real, ningún test hace una llamada que se cobre.
       ANTHROPIC_API_KEY: '',
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:9',
+      // Los tests simulan FCM. Sin credenciales, aunque el .env tenga unas, ningún test manda un aviso real.
+      FIREBASE_CREDENCIALES: '',
     },
     globalSetup: './test/prepararBase.ts',
     // El primer test de cada archivo abre la conexión a la base: en una PC lenta o en CI pasa los 5 s por defecto.
