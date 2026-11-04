@@ -36,6 +36,7 @@ void main() {
     expect(redireccion(sinSesion, Rutas.recuperarClave), isNull);
     expect(redireccion(sinSesion, Rutas.mapa), isNull);
     expect(redireccion(sinSesion, Rutas.incidente(9)), isNull);
+    expect(redireccion(sinSesion, Rutas.reporte(31)), isNull);
     expect(redireccion(sinSesion, Rutas.elegirPunto), Rutas.ingreso);
   });
 

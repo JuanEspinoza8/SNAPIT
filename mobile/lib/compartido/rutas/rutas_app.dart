@@ -38,8 +38,10 @@ abstract final class Rutas {
 /// Las que se usan sin sesión. Con sesión, llevan a la principal.
 const _rutasDeCuenta = {Rutas.ingreso, Rutas.registro, Rutas.recuperarClave};
 
-/// El detalle de un incidente: público, como el mapa desde el que se abre.
-bool _esDetalle(String ruta) => ruta.startsWith('/incidente/');
+/// El detalle de un incidente y el de cada foto: públicos, como el mapa desde
+/// el que se abren.
+bool _esDetalle(String ruta) =>
+    ruta.startsWith('/incidente/') || ruta.startsWith('/reporte/');
 
 final rutasProvider = Provider<GoRouter>((ref) {
   // El router se crea una sola vez. Cuando cambia la sesión, solo vuelve a
