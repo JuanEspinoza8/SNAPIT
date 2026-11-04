@@ -11,9 +11,7 @@ export const ESTADOS_INCIDENTE: Record<EstadoIncidente, { etiqueta: string; clas
 export function EtiquetaEstadoIncidente({ estado }: { estado: EstadoIncidente }) {
   const { etiqueta, clase } = ESTADOS_INCIDENTE[estado];
   return (
-    <span
-      className={`${clase} whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold text-sobre-primario`}
-    >
+    <span className={`${clase} whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold text-white`}>
       {etiqueta}
     </span>
   );

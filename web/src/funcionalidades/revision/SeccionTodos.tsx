@@ -151,9 +151,7 @@ export function EtiquetaEstado({ reporte }: { reporte: ReporteDelOrganismo }) {
           ? { texto: 'Publicado por la IA', clase: 'bg-estado-resuelto' }
           : { texto: 'Publicado', clase: 'bg-estado-resuelto' };
   return (
-    <span
-      className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold text-sobre-primario ${clase}`}
-    >
+    <span className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold text-white ${clase}`}>
       {texto}
     </span>
   );

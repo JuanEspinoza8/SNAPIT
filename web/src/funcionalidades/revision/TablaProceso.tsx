@@ -211,9 +211,9 @@ function Historial({ eventos }: { eventos: EventoCola[] }) {
 
 const ETIQUETAS: Record<EstadoEvento, { texto: string; clase: string }> = {
   EN_PROCESO: { texto: 'En proceso', clase: 'bg-superficie-alterna text-texto-secundario animate-pulse' },
-  CLASIFICADO: { texto: 'Clasificado', clase: 'bg-estado-verificado text-sobre-primario' },
-  PUBLICADO: { texto: 'Publicado', clase: 'bg-estado-resuelto text-sobre-primario' },
-  REVISION_MANUAL: { texto: 'Revisión manual', clase: 'bg-estado-registrado text-sobre-primario' },
+  CLASIFICADO: { texto: 'Clasificado', clase: 'bg-estado-verificado text-white' },
+  PUBLICADO: { texto: 'Publicado', clase: 'bg-estado-resuelto text-white' },
+  REVISION_MANUAL: { texto: 'Revisión manual', clase: 'bg-estado-registrado text-white' },
   ERROR: { texto: 'Error', clase: 'bg-peligro text-sobre-primario' },
 };
 

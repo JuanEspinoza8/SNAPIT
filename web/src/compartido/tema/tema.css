@@ -18,6 +18,12 @@
   --color-estado-resuelto: #276749;
   --color-estado-desestimado: #4a5568;
 
+  /* Gravedad de un incidente (enum Severidad). Llevan texto blanco, como los estados.
+     Mismos valores que ColoresGravedad en mobile/lib/compartido/tema/tema_app.dart */
+  --color-gravedad-leve: #3d5a80;
+  --color-gravedad-moderada: #975a16;
+  --color-gravedad-grave: #c53030;
+
   --font-sans: 'Inter Variable', system-ui, sans-serif;
 
   /* Escala de texto del sistema de diseño: 12 / 14 / 16 / 20 / 24 / 32 px.
@@ -35,4 +41,20 @@
   --text-2xl--line-height: 2rem;
   --text-3xl: 2rem;
   --text-3xl--line-height: 2.5rem;
+}
+
+/* «Noche neutra», el tema oscuro: mismos valores que PaletaSnapIt.oscuro en
+   mobile/lib/compartido/tema/tema_app.dart. Las utilidades de Tailwind leen estas variables, así que
+   alcanza con redefinirlas. El azul con texto blanco no llega a AA (3,7:1): lo que va sobre el azul
+   es casi negro (5:1). Los estados y las gravedades no cambian: llevan texto blanco en los dos. */
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
+  --color-primario: #3b82f6;
+  --color-sobre-primario: #0b1220;
+  --color-superficie: #0f1115;
+  --color-superficie-alterna: #181b21;
+  --color-borde: #2a2f38;
+  --color-texto: #e6e8eb;
+  --color-texto-secundario: #9aa3ae;
+  --color-peligro: #f87171;
 }
