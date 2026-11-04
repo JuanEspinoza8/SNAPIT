@@ -1,11 +1,44 @@
 import { ErrorApp } from '../../compartido/errores.js';
-import type { Filtros } from './esquemas.js';
+import { codificarCursor, type Filtros, type PedidoFeed } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 
 const noEncontrado = () => new ErrorApp(404, 'INCIDENTE_NO_ENCONTRADO', 'El incidente no existe');
 
 export async function listar(filtros: Filtros) {
   return { incidentes: await repositorio.listarVisibles(filtros) };
+}
+
+const urlFoto = (id: number) => ({ id, url: `/api/fotos/${id}` });
+
+export async function listarFeed(pedido: PedidoFeed) {
+  const filas = await repositorio.listarFeed(pedido);
+  const pagina = filas.slice(0, pedido.limite);
+  const ultima = pagina.at(-1);
+  return {
+    incidentes: pagina.map(
+      ({
+        categoriaId,
+        categoriaNombre,
+        cursorMicrosegundos: _cursor,
+        cantidadVecinos,
+        fotoIds,
+        cantidadFotos,
+        ...datos
+      }) => ({
+        ...datos,
+        categoria: { id: categoriaId, nombre: categoriaNombre },
+        // count() de PostgreSQL llega como bigint: se pasa a número para el JSON.
+        cantidadVecinos: Number(cantidadVecinos),
+        fotos: fotoIds.map(urlFoto),
+        cantidadFotos: Number(cantidadFotos),
+      }),
+    ),
+    // Vino una fila de más: hay otra página, que arranca después de la última que se muestra.
+    siguiente:
+      filas.length > pedido.limite && ultima
+        ? codificarCursor({ microsegundos: Number(ultima.cursorMicrosegundos), id: ultima.id })
+        : null,
+  };
 }
 
 export async function obtenerFicha(id: number) {
@@ -27,6 +60,6 @@ export async function obtenerFicha(id: number) {
     ...datos,
     categoria: { id: categoriaId, nombre: categoriaNombre },
     cantidadVecinos,
-    fotos: fotos.map(({ id: fotoId }) => ({ id: fotoId, url: `/api/fotos/${fotoId}` })),
+    fotos: fotos.map(({ id: fotoId }) => urlFoto(fotoId)),
   };
 }

@@ -73,6 +73,64 @@ const finDe = (texto: string) =>
     ? new Date(new Date(`${texto}T00:00:00-03:00`).getTime() + 86_400_000 - 1)
     : new Date(texto);
 
+/**
+ * Dónde sigue el feed: el primer reporte del último incidente de la página anterior, en microsegundos desde
+ * 1970, y su id. Va en microsegundos porque un Date de JavaScript redondea a milisegundos y la página
+ * siguiente podría repetir o saltear un incidente. Y va como entero, no como texto de fecha, para que un
+ * cursor armado a mano no llegue a la base con algo que PostgreSQL no puede convertir.
+ */
+export interface Cursor {
+  microsegundos: number;
+  id: number;
+}
+
+export const codificarCursor = (cursor: Cursor) =>
+  Buffer.from(JSON.stringify([cursor.microsegundos, cursor.id])).toString('base64url');
+
+const MAXIMO_INT = 2_147_483_647;
+
+const cursor = z.string().transform((texto, contexto) => {
+  try {
+    const [microsegundos, id] = JSON.parse(Buffer.from(texto, 'base64url').toString()) as unknown[];
+    // Un entero seguro de microsegundos son unos 285 años para cada lado de 1970: PostgreSQL lo acepta siempre.
+    if (
+      Number.isSafeInteger(microsegundos) &&
+      Number.isInteger(id) &&
+      (id as number) > 0 &&
+      (id as number) <= MAXIMO_INT
+    ) {
+      return { microsegundos: microsegundos as number, id: id as number };
+    }
+  } catch {
+    // Cae al error de abajo: un cursor que no se puede leer es igual de inválido que uno mal armado.
+  }
+  contexto.addIssue({
+    code: 'custom',
+    message: 'No es un cursor válido: usá el campo siguiente de la página anterior',
+  });
+  return z.NEVER;
+});
+
+export const LIMITE_FEED = { porDefecto: 20, maximo: 50 };
+
+// El feed acepta los mismos filtros que el mapa, más la página.
+export const esquemaFeed = z
+  .object({
+    cursor: cursor.optional(),
+    limite: z.coerce
+      .number({ error: 'Tiene que ser un número' })
+      .pipe(
+        z
+          .int({ error: 'Tiene que ser un número entero' })
+          .min(1, { error: 'Tiene que ser al menos 1' })
+          .max(LIMITE_FEED.maximo, { error: `Puede ser hasta ${LIMITE_FEED.maximo}` }),
+      )
+      .default(LIMITE_FEED.porDefecto),
+  })
+  .and(esquemaFiltros);
+
+export type PedidoFeed = z.output<typeof esquemaFeed>;
+
 // int32 porque las columnas id son int: un número más grande haría fallar la consulta con un 500.
 export const esquemaId = z.object({
   id: z.coerce

@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
 import { SIN_BARRIO } from '../geocodificacion/calculo.js';
-import type { Filtros } from './esquemas.js';
+import type { Filtros, PedidoFeed } from './esquemas.js';
 
 /**
  * Lo que se ve en el mapa público: ni desestimados, ni caducados, ni los unidos a otro incidente.
@@ -36,7 +36,8 @@ export interface PuntoMapa {
   cantidadReportes: number;
 }
 
-export function listarVisibles(filtros: Filtros) {
+// Lo que pueden filtrar el mapa y el feed, siempre sobre lo visible.
+function condicionesDe(filtros: Filtros) {
   const condiciones = [INCIDENTE_VISIBLE];
   if (filtros.categoriaId) condiciones.push(Prisma.sql`i.categoria_id = ${filtros.categoriaId}`);
   if (filtros.estado) condiciones.push(Prisma.sql`i.estado = ${filtros.estado}::estado_incidente`);
@@ -52,7 +53,11 @@ export function listarVisibles(filtros: Filtros) {
       Prisma.sql`i.ubicacion && ${rectangulo}::geography AND ST_Intersects(i.ubicacion::geometry, ${rectangulo})`,
     );
   }
+  return condiciones;
+}
 
+export function listarVisibles(filtros: Filtros) {
+  const condiciones = condicionesDe(filtros);
   return prisma.$queryRaw<PuntoMapa[]>`
     SELECT i.id,
            ST_Y(i.ubicacion::geometry) AS lat,
@@ -69,12 +74,35 @@ export function listarVisibles(filtros: Filtros) {
     ORDER BY i.primer_reporte_en DESC, i.id DESC`;
 }
 
-export function buscarPrincipal(id: number) {
-  return prisma.incidente.findUnique({ where: { id }, select: { id: true, incidentePrincipalId: true } });
+/** Cuántas fotos trae cada tarjeta del feed: alcanzan para el carrusel, el resto se ve en la ficha. */
+export const FOTOS_POR_TARJETA = 5;
+
+export interface TarjetaFeed extends PuntoMapa {
+  severidad: string;
+  direccion: string | null;
+  resueltoEn: Date | null;
+  cursorMicrosegundos: bigint;
+  cantidadVecinos: bigint;
+  fotoIds: number[];
+  cantidadFotos: bigint;
 }
 
-export async function buscarVisible(id: number) {
-  const [incidente] = await prisma.$queryRaw<(PuntoMapa & { direccion: string | null })[]>`
+/**
+ * Una página del feed, del más nuevo al más viejo, con el mismo orden que el mapa. Pagina por cursor
+ * (fecha del primer reporte e id) y no por desplazamiento: si entra un incidente nuevo mientras alguien
+ * scrollea, la página siguiente no repite el último. Trae uno de más para saber si hay otra página.
+ */
+export function listarFeed(pedido: PedidoFeed) {
+  const condiciones = condicionesDe(pedido);
+  if (pedido.cursor) {
+    condiciones.push(
+      Prisma.sql`(i.primer_reporte_en, i.id) <
+        (to_timestamp(0) + ${pedido.cursor.microsegundos}::bigint * interval '1 microsecond', ${pedido.cursor.id}::int)`,
+    );
+  }
+  const reportes = REPORTES_DEL_INCIDENTE(Prisma.sql`i.id`);
+
+  return prisma.$queryRaw<TarjetaFeed[]>`
     SELECT i.id,
            ST_Y(i.ubicacion::geometry) AS lat,
            ST_X(i.ubicacion::geometry) AS lon,
@@ -82,6 +110,42 @@ export async function buscarVisible(id: number) {
            c.nombre AS "categoriaNombre",
            i.estado::text AS estado,
            i.estado = 'REGISTRADO' AS "enRevision",
+           i.severidad::text AS severidad,
+           i.primer_reporte_en AS "primerReporteEn",
+           (extract(epoch FROM i.primer_reporte_en) * 1000000)::bigint AS "cursorMicrosegundos",
+           i.cantidad_reportes AS "cantidadReportes",
+           i.direccion,
+           i.resuelto_en AS "resueltoEn",
+           vecinos.cantidad AS "cantidadVecinos",
+           coalesce(fotos.ids, '{}') AS "fotoIds",
+           fotos.total AS "cantidadFotos"
+    FROM incidente i
+    JOIN categoria c ON c.id = i.categoria_id
+    CROSS JOIN LATERAL (SELECT count(DISTINCT r.usuario_id) AS cantidad ${reportes}) vecinos
+    CROSS JOIN LATERAL (
+      SELECT (array_agg(f.id ORDER BY f.id))[1:${FOTOS_POR_TARJETA}] AS ids, count(*) AS total
+      FROM fotografia f
+      JOIN (SELECT r.id ${reportes}) validos ON validos.id = f.reporte_id
+    ) fotos
+    WHERE ${Prisma.join(condiciones, ' AND ')}
+    ORDER BY i.primer_reporte_en DESC, i.id DESC
+    LIMIT ${pedido.limite + 1}`;
+}
+
+export function buscarPrincipal(id: number) {
+  return prisma.incidente.findUnique({ where: { id }, select: { id: true, incidentePrincipalId: true } });
+}
+
+export async function buscarVisible(id: number) {
+  const [incidente] = await prisma.$queryRaw<(PuntoMapa & { severidad: string; direccion: string | null })[]>`
+    SELECT i.id,
+           ST_Y(i.ubicacion::geometry) AS lat,
+           ST_X(i.ubicacion::geometry) AS lon,
+           i.categoria_id AS "categoriaId",
+           c.nombre AS "categoriaNombre",
+           i.estado::text AS estado,
+           i.estado = 'REGISTRADO' AS "enRevision",
+           i.severidad::text AS severidad,
            i.primer_reporte_en AS "primerReporteEn",
            i.cantidad_reportes AS "cantidadReportes",
            i.direccion

@@ -707,7 +707,11 @@ void main() {
     final servidor = ServidorDeReportes();
     await abrirReportar(tester, servidor);
     // El mapa ya mostró la zona, todavía sin el reporte.
+    await tester.tap(find.text('Mapa'));
+    await tester.pumpAndSettle();
     expect(servidor.servidor.cantidad('/incidentes'), greaterThan(0));
+    await tester.tap(find.text('Reportar'));
+    await tester.pumpAndSettle();
     await completar(tester);
     await enviar(tester);
 

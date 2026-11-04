@@ -91,6 +91,47 @@ class ColoresEstado extends ThemeExtension<ColoresEstado> {
   }
 }
 
+/// Colores de la gravedad de un incidente (`severidad` en la base). Todos
+/// llevan texto blanco encima con contraste AA. Se leen con
+/// `Theme.of(context).extension<ColoresGravedad>()!`.
+@immutable
+class ColoresGravedad extends ThemeExtension<ColoresGravedad> {
+  const ColoresGravedad({
+    required this.leve,
+    required this.moderada,
+    required this.grave,
+  });
+
+  static const claro = ColoresGravedad(
+    leve: Color(0xFF3D5A80),
+    moderada: Color(0xFF975A16),
+    grave: Color(0xFFC53030),
+  );
+
+  final Color leve;
+  final Color moderada;
+  final Color grave;
+
+  @override
+  ColoresGravedad copyWith({Color? leve, Color? moderada, Color? grave}) {
+    return ColoresGravedad(
+      leve: leve ?? this.leve,
+      moderada: moderada ?? this.moderada,
+      grave: grave ?? this.grave,
+    );
+  }
+
+  @override
+  ColoresGravedad lerp(ColoresGravedad? other, double t) {
+    if (other == null) return this;
+    return ColoresGravedad(
+      leve: Color.lerp(leve, other.leve, t)!,
+      moderada: Color.lerp(moderada, other.moderada, t)!,
+      grave: Color.lerp(grave, other.grave, t)!,
+    );
+  }
+}
+
 ThemeData crearTema() {
   const esquema = ColorScheme(
     brightness: Brightness.light,
@@ -186,6 +227,6 @@ ThemeData crearTema() {
       ),
     ),
     dividerTheme: const DividerThemeData(color: ColoresSnapIt.borde),
-    extensions: const [ColoresEstado.claro],
+    extensions: const [ColoresEstado.claro, ColoresGravedad.claro],
   );
 }

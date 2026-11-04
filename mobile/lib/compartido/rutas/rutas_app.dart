@@ -7,6 +7,7 @@ import '../../funcionalidades/cuenta/pantalla_arranque.dart';
 import '../../funcionalidades/cuenta/pantalla_ingreso.dart';
 import '../../funcionalidades/cuenta/pantalla_recuperar_clave.dart';
 import '../../funcionalidades/cuenta/pantalla_registro.dart';
+import '../../funcionalidades/feed/pantalla_incidente.dart';
 import '../../funcionalidades/mapa/mapa_incidentes.dart';
 import '../../funcionalidades/mapa/pantalla_mapa_publico.dart';
 import '../../funcionalidades/principal/pantalla_principal.dart';
@@ -25,10 +26,16 @@ abstract final class Rutas {
   /// Recibe en `extra` el punto actual (o un `PedidoPunto`, con los textos
   /// de la pantalla) y devuelve el elegido al volver.
   static const elegirPunto = '/elegir-punto';
+
+  /// El detalle de un incidente, desde el feed.
+  static String incidente(int id) => '/incidente/$id';
 }
 
 /// Las que se usan sin sesión. Con sesión, llevan a la principal.
 const _rutasDeCuenta = {Rutas.ingreso, Rutas.registro, Rutas.recuperarClave};
+
+/// El detalle de un incidente: público, como el mapa desde el que se abre.
+bool _esDetalle(String ruta) => ruta.startsWith('/incidente/');
 
 final rutasProvider = Provider<GoRouter>((ref) {
   // El router se crea una sola vez. Cuando cambia la sesión, solo vuelve a
@@ -60,6 +67,11 @@ final rutasProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const PantallaPrincipal(),
       ),
       GoRoute(
+        path: '/incidente/:id',
+        builder: (_, estado) =>
+            PantallaIncidente(int.parse(estado.pathParameters['id']!)),
+      ),
+      GoRoute(
         path: Rutas.elegirPunto,
         builder: (_, estado) => switch (estado.extra) {
           PedidoPunto(:final inicial, :final textos, :final zonas) =>
@@ -85,9 +97,12 @@ String? redireccion(AsyncValue<Usuario?> sesion, String ruta) {
     return ruta == Rutas.arranque ? null : Rutas.arranque;
   }
   final esDeCuenta = _rutasDeCuenta.contains(ruta);
-  // El mapa es público. Con sesión ya está en la pantalla principal.
+  // El mapa y el detalle de un incidente son públicos. Con sesión, el mapa ya
+  // está en la pantalla principal.
   if (sesion.value == null) {
-    return esDeCuenta || ruta == Rutas.mapa ? null : Rutas.ingreso;
+    return esDeCuenta || ruta == Rutas.mapa || _esDetalle(ruta)
+        ? null
+        : Rutas.ingreso;
   }
   return esDeCuenta || ruta == Rutas.arranque || ruta == Rutas.mapa
       ? Rutas.principal
