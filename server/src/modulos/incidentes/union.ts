@@ -179,7 +179,8 @@ export async function unirIncidentes(sesion: UsuarioSesion, parametros: unknown,
 /**
  * Deshace la unión: el duplicado vuelve a ser un incidente aparte y el principal deja de contar sus reportes.
  * Mientras estuvieron unidos, los reportes del duplicado se revisaron sobre el principal: al separarlos, cada
- * uno toma el estado que dicen sus propios reportes (estadoSegunReportes), con un CAMBIO_ESTADO del sistema.
+ * uno toma el estado y la severidad que dicen sus propios reportes (estadoSegunReportes), con un CAMBIO_ESTADO
+ * del sistema. El ajuste manual de la prioridad del duplicado no se toca: si tenía uno, vuelve con él.
  */
 export async function deshacerUnion(sesion: UsuarioSesion, parametros: unknown) {
   const { id } = validar(esquemaId, parametros);
@@ -202,9 +203,16 @@ export async function deshacerUnion(sesion: UsuarioSesion, parametros: unknown) 
       throw new ErrorApp(403, 'SIN_PERMISO', 'Los dos incidentes tienen que ser de tu organismo');
     }
 
+    // Mientras estuvo unido, un reporte desestimado solo recalculaba la severidad del principal: el duplicado
+    // vuelve con la que dicen sus propios reportes, como si nunca se hubiera unido (D2).
+    const declaradas = await severidadesDeclaradas(tx, id);
     await tx.incidente.update({
       where: { id },
-      data: { incidentePrincipalId: null, actualizadoEn: new Date() },
+      data: {
+        incidentePrincipalId: null,
+        ...(declaradas.length > 0 && { severidad: severidadConsolidada(declaradas) }),
+        actualizadoEn: new Date(),
+      },
     });
     const actualizado = await recalcularPrincipal(tx, principalId, { decrement: duplicado.cantidadReportes });
 

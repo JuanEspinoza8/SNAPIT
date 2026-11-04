@@ -205,12 +205,14 @@ Desde `DERIVADO` el estado no cambia por los reportes: el organismo ya lo está 
 
 Se aplica:
 - **Al verificar o desestimar un reporte** (arriba).
-- **Al deshacer una unión**, a los dos incidentes. Mientras estuvieron unidos, los reportes del duplicado se revisaron sobre el principal; al separarlos, cada uno toma el estado de sus propios reportes. Por ejemplo, si se desestimó el único reporte del duplicado, vuelve como `DESESTIMADO`; si el principal estaba `VERIFICADO` solo por un reporte del duplicado, vuelve a `REGISTRADO`.
+- **Al deshacer una unión**, a los dos incidentes. Mientras estuvieron unidos, los reportes del duplicado se revisaron sobre el principal; al separarlos, cada uno toma el estado de sus propios reportes. Por ejemplo, si se desestimó el único reporte del duplicado, vuelve como `DESESTIMADO`; si el principal estaba `VERIFICADO` solo por un reporte del duplicado, vuelve a `REGISTRADO`. Lo mismo con la **severidad**: el duplicado vuelve con la que dicen sus reportes no desestimados. Si tenía uno GRAVE y uno LEVE (GRAVE por el empate) y se desestimó el GRAVE mientras estaba unido, vuelve LEVE.
 - **Al separar un reporte**, al original y al nuevo. El nuevo nace `REGISTRADO` y pasa a `VERIFICADO` si el reporte estaba verificado; el original vuelve a `REGISTRADO` si se le fue el único verificado.
 
 Cada cambio queda en la bitácora como `CAMBIO_ESTADO` del sistema (sin usuario).
 
 **Unir.** No se une un duplicado más avanzado que el principal (`REGISTRADO` < `VERIFICADO` < `DERIVADO` < `EN_EJECUCION`): el principal no cambia de estado al unir, así que el problema saldría de la bandeja. Hay que unir al revés.
+
+**Límite: el ajuste manual del duplicado.** Unir no toca la `prioridad_manual` del duplicado: mientras está unido no se ve, porque no está en la bandeja, pero al deshacer la unión vuelve con el ajuste que tenía.
 
 **Separar.** No se separa el único reporte propio no desestimado de un incidente (los de los unidos no cuentan: al deshacer la unión se van). El nuevo toma la vigencia de su categoría desde que llegó el reporte. Si el original estaba en el punto del reporte separado (el que lo creó), pasa al punto y la dirección del reporte válido propio que llegó primero.
 
