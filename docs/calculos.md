@@ -410,7 +410,7 @@ El contorno pasa 20 m por fuera del eje de esas calles, para que las calles del 
 - Cruza la Ruta 22: el hospital y las escuelas especiales quedan de un lado y las primarias del otro. Así la demo puede mostrar el cruce de una ruta, uno de los obstáculos más grandes para quien camina. El barrio Bouquet Roldán solo, como lo dibuja OSM, es una franja de 400 m entre la ruta y 12 de Septiembre y no llega a las primarias.
 - Se puede recorrer a pie para el relevamiento (#101): son unas 37 manzanas de una hectárea. En OSM quedan 20 espacios entre calles, porque el hospital, las escuelas especiales y Desarrollo Social ocupan una supermanzana de 13,6 ha entre Saavedra y Gobernador Anaya.
 
-**Cómo quedó la red** (importación del 27/10/2026): 216 nodos y 273 tramos, 249 veredas y 24 cruces. 20 tramos tienen rampa; no hay ningún semáforo sonoro ni piso podotáctil mapeado. El 90 % de los nodos forma un solo componente que llega a los dos lados de la ruta: del hospital a la Escuela Primaria N° 132 hay un recorrido de 478 m. Quedan 5 pedazos sueltos para revisar en el relevamiento: uno de 17 tramos sobre el borde este y cuatro tramos aislados.
+**Cómo quedó la red** (importación del 27/10/2026): 216 nodos y 273 tramos, 249 veredas y 24 cruces. 20 tramos tienen rampa; no hay ningún semáforo sonoro ni piso podotáctil mapeado. El 90 % de los nodos forma un solo componente que llega a los dos lados de la ruta: del hospital a la Escuela Primaria N° 132 hay un recorrido de 478 m. Quedaban 5 pedazos sueltos para revisar en el relevamiento: uno de 17 tramos sobre el borde este y cuatro tramos aislados. Con las correcciones del relevamiento (#101) la red queda en un solo pedazo; lo controla un test con los datos reales (`relevamiento-calculo.test.ts`).
 
 ### Red peatonal
 
@@ -446,7 +446,7 @@ Las autopistas y las rutas (`motorway`, `trunk`) no se piden. De lo que llega se
 | `tiene_semaforo_sonoro` | `traffic_signals:sound` = `yes`, `walk` o `locate` |
 | `tiene_piso_podotactil` | `tactile_paving` = `yes`, `contrasted` o `primitive` |
 | `tramo_peatonal.tipo` | `ESCALERA` si `highway=steps`; `CRUCE` si `footway`, `path` o `cycleway` = `crossing` (solo en caminos, no en calles); `SENDA` si `highway=path` o `track`; si no, `VEREDA` |
-| `tiene_rampa` | `kerb=lowered` o `flush`, en el camino o en cualquiera de sus nodos: el cordón casi siempre se marca en un nodo, con `barrier=kerb` |
+| `tiene_rampa` | `kerb=lowered` o `flush`, en el camino o en cualquiera de sus nodos: el cordón casi siempre se marca en un nodo, con `barrier=kerb`. Las calles peatonales y de convivencia (`highway=pedestrian` o `living_street`) van siempre con rampa: se caminan a nivel, sin cordón que bajar, así que para el perfil «con rampa» quiere decir «se pasa sin escalón» (decisión del 04/11). Los `footway` que no son cruces siguen la regla del cordón: queda para decidir en grupo |
 | `pendiente_porcentaje` | `incline` en %: `8%`, `-5 %` o `8` (sin unidad se toma como %). En grados (`4°`) se pasa a %. `up`, `down` o un rango no dicen cuánto: null. El signo va en el sentido del tramo, del origen al destino |
 | `ancho_estimado` | `width` en metros (`1.5`, `1,5 m`, `150 cm`). En una calle, null: es el ancho de la calzada |
 | `superficie` | `surface` tal como está en OSM (`concrete`, `paving_stones`…), hasta 40 caracteres. En una calle, null: es la de la calzada |
@@ -491,12 +491,12 @@ Qué punta de cada esquina toca cada vereda:
 
 **Lo que se anota pero no cambia columnas, y por qué.**
 
-- ¿Pasa una silla de ruedas? No hay columna para eso. Queda en el archivo y decide la superficie de una cuadra mixta. Cómo pesa cada atributo para cada perfil está en «Atributos del tramo por perfil».
+- ¿Pasa una silla de ruedas? No hay columna para eso. Queda en el archivo y decide dos cosas: la superficie de una cuadra mixta y si una unión del relevamiento tiene rampa. Cómo pesa cada atributo para cada perfil está en «Atributos del tramo por perfil».
 - Escalones o desniveles: un escalón entre dos frentes no hace de la cuadra una escalera (`ESCALERA` es para `highway=steps`). Queda en el archivo, sin columna ni regla.
 - Pendiente fuerte: la planilla dice sí o no y la columna pide un porcentaje.
 - Semáforo sonoro: no se puede escuchar en Street View. Queda el de OSM.
 
-**Puntos revisados.** Los caminos que no son públicos salen de la red: la vereda interna de la escuela especial que entra por Gobernador Anaya (P-01), dos pedazos de vereda de un edificio sobre Lastra (P-07) y la calle de servicio del corralón al oeste de Saavedra (P-08). Se agregan dos uniones en línea recta entre nodos de OSM que en la realidad se conectan caminando: la plaza de Catamarca con la esquina de Andacollo (P-06) e Intendente Carro, que en OSM está cortada entre Eva Duarte y Gobernador Anaya (P-10). Si OSM ya tiene la unión, no se duplica.
+**Puntos revisados.** Los caminos que no son públicos salen de la red: la vereda interna de la escuela especial que entra por Gobernador Anaya (P-01), dos pedazos de vereda de un edificio sobre Lastra (P-07) y la calle de servicio del corralón al oeste de Saavedra (P-08). Se agregan dos uniones en línea recta entre nodos de OSM que en la realidad se conectan caminando: la plaza de Catamarca con la esquina de Andacollo (P-06) e Intendente Carro, que en OSM está cortada entre Eva Duarte y Gobernador Anaya (P-10). Si OSM ya tiene la unión, no se duplica. Una unión no tiene cordón: va con rampa si el punto dice que pasa una silla (las dos dicen que sí).
 
 ### Vínculo entre incidentes y tramos
 
@@ -574,7 +574,7 @@ Si un atributo o un incidente lo bloquea para ese perfil, el recorrido no pasa p
 | Regla | Tramos que toca hoy |
 |---|---|
 | Escalera | 0 |
-| Sin rampa | 194 (77 tienen rampa) |
+| Sin rampa | 166 (105 tienen rampa, contando las calles peatonales y de convivencia y las uniones del relevamiento) |
 | Pendiente de más de 8 % | 0: ningún tramo tiene pendiente. OSM no la trae y el relevamiento solo anotó «sí» o «no» |
 | Superficie sin pavimentar | 16 (8 `dirt` y 8 `unpaved`) |
 | Ancho de menos de 0,9 m | 0: 106 tramos tienen ancho, de 1 a 3 m |
@@ -582,7 +582,7 @@ Si un atributo o un incidente lo bloquea para ese perfil, el recorrido no pasa p
 
 Hoy pesan sobre todo la rampa y la superficie. Las otras reglas se prueban con los tests: todas en los del cálculo (`recorridos-calculo.test.ts`) y la escalera y la rampa también en los del recorrido, sobre una grilla de prueba («Recorrido accesible», abajo). Empiezan a pesar en cuanto se releve más o OSM sume esos datos.
 
-**Lo que no se usa.** Lo que el relevamiento anotó sin columna: si pasa una silla de ruedas (los criterios no coinciden entre quienes relevaron), los escalones entre frentes y la pendiente fuerte, que es «sí» o «no», sin porcentaje.
+**Lo que no se usa.** Lo que el relevamiento anotó sin columna: los escalones entre frentes y la pendiente fuerte, que es «sí» o «no», sin porcentaje. Si pasa una silla de ruedas tampoco tiene columna, pero no queda afuera: decide la superficie de las cuadras «mixta» y la rampa de las uniones («Relevamiento de la zona piloto»). Los criterios de quienes relevaron no coinciden del todo: falta revisarlos en grupo.
 
 **Límite conocido.** Como la calle hace de vereda, casi todos los cruces de calle quedan dentro de un tramo `VEREDA`: la regla del semáforo sonoro alcanza solo a los 24 cruces dibujados en OSM.
 
@@ -632,5 +632,6 @@ Con una escalera en 01 ─ 02, la silla da la vuelta (⛔) y el bastón sigue po
 **Límites conocidos.**
 
 - La traza va de esquina a esquina: el tramo entre el punto elegido y la esquina más cercana (hasta 100 m) no se dibuja ni se suma.
+- El punto se acerca al nodo más cercano aunque sea la punta suelta de un camino que termina sin tocar otro (OSM tiene 7 a menos de 15 m de otro nodo, casi todas sendas que terminan contra una calle). Desde ahí el recorrido puede dar un rodeo hasta la esquina conectada. Las que se confirmen en el relevamiento se unen con `conectarNodos`, como P-06 y P-10 («Relevamiento de la zona piloto»).
 - Un incidente a menos de 15 m de una esquina obstruye todas las cuadras que llegan a ella («Vínculo entre incidentes y tramos»): si es intransitable para el perfil, le cierra la esquina entera.
 - Cada pedido lee la red entera de la base (273 tramos en la zona piloto). Alcanza para la zona; para toda la ciudad (A01) habría que filtrar por cercanía.
