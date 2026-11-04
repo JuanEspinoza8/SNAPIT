@@ -1,14 +1,9 @@
 import { useState } from 'react';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
-import { SENALES, severidadEnTexto, type EstadoVerificacion } from '../revision/tipos.js';
+import { ESTADOS_VERIFICACION } from '../../compartido/formato/verificacion.js';
+import { SENALES, severidadEnTexto } from '../revision/tipos.js';
 import { fechaHora, numero } from './formato.js';
 import type { ReporteGestion } from './tipos.js';
-
-const VERIFICACION: Record<EstadoVerificacion, string> = {
-  VERIFICADO: 'Verificado',
-  PENDIENTE_REVISION: 'Pendiente de revisión',
-  DESESTIMADO: 'Desestimado',
-};
 
 /** Los reportes del incidente y de sus unidos, con sus fotos, su nivel de confianza y por qué. */
 export function ReportesFicha({
@@ -41,15 +36,15 @@ function Reporte({ reporte, deUnido }: { reporte: ReporteGestion; deUnido: boole
           <FotoConSesion
             key={foto.id}
             fotoId={foto.id}
-            className="aspect-[4/3] w-full rounded object-cover"
+            className="aspect-[4/3] w-full rounded-md object-cover"
             siFalla={
-              <span className="flex aspect-[4/3] w-full items-center justify-center rounded bg-borde text-xs text-texto-secundario">
+              <span className="flex aspect-[4/3] w-full items-center justify-center rounded-md border border-borde bg-superficie text-xs text-texto-secundario">
                 Foto no disponible
               </span>
             }
           />
         ) : (
-          <span className="flex aspect-[4/3] w-full items-center justify-center rounded bg-borde text-xs text-texto-secundario">
+          <span className="flex aspect-[4/3] w-full items-center justify-center rounded-md border border-borde bg-superficie text-xs text-texto-secundario">
             Sin foto
           </span>
         )}
@@ -61,9 +56,13 @@ function Reporte({ reporte, deUnido }: { reporte: ReporteGestion; deUnido: boole
                 type="button"
                 onClick={() => setFotoElegida(indice)}
                 aria-label={`Ver la foto ${indice + 1} del reporte #${reporte.id}`}
-                className={`rounded border-2 ${indice === fotoElegida ? 'border-primario' : 'border-transparent'}`}
+                className={`rounded-md border-2 ${indice === fotoElegida ? 'border-primario' : 'border-transparent'}`}
               >
-                <FotoConSesion fotoId={otra.id} className="h-10 w-14 rounded object-cover" siFalla={null} />
+                <FotoConSesion
+                  fotoId={otra.id}
+                  className="h-10 w-14 rounded-md object-cover"
+                  siFalla={null}
+                />
               </button>
             ))}
           </div>
@@ -85,10 +84,11 @@ function Reporte({ reporte, deUnido }: { reporte: ReporteGestion; deUnido: boole
           {reporte.origen === 'APP_MOVIL' ? 'la app' : 'el sitio web'}
         </p>
         <p className="text-texto">
-          Confianza <strong>{reporte.nivelConfianza}</strong>/100 · {VERIFICACION[reporte.estadoVerificacion]}
+          Confianza <span className="font-semibold">{reporte.nivelConfianza}</span>/100 ·{' '}
+          {ESTADOS_VERIFICACION[reporte.estadoVerificacion]}
         </p>
         {reporte.senales.length > 0 && (
-          <ul className="flex flex-col gap-0.5 text-xs text-texto">
+          <ul className="flex flex-col gap-1 text-xs text-texto">
             {reporte.senales.map((senal) => (
               <li key={senal.tipo}>
                 <span className="font-semibold">

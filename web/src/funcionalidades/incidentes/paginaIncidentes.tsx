@@ -3,13 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
+import { Modal } from '../../compartido/componentes/Modal.js';
+import { ESTADOS_VERIFICACION } from '../../compartido/formato/verificacion.js';
 import { useCliente } from '../../compartido/red/clienteContexto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { crearRepositorioIncidentes } from '../../compartido/red/repositorioIncidentes.js';
 import { crearRepositorioReportes } from '../../compartido/red/repositorioReportes.js';
-import { ESTADOS } from '../mapa/estados.js';
-import type { EstadoVisible } from '../mapa/tipos.js';
-import { Modal } from '../revision/Modal.js';
+import { ESTADOS_INCIDENTE } from '../bandeja/EtiquetaEstadoIncidente.js';
+import type { EstadoIncidente } from '../bandeja/tipos.js';
 import { severidadEnTexto, type ReporteDelOrganismo } from '../revision/tipos.js';
 
 /** Un incidente armado con sus reportes, a partir de GET /api/reportes. */
@@ -61,7 +62,17 @@ function metros(a: { lat: number; lon: number }, b: { lat: number; lon: number }
   return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
 }
 
-const distanciaEnTexto = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+const distanciaEnTexto = (m: number) =>
+  m < 1000
+    ? `${Math.round(m)} m`
+    : `${(m / 1000).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
+
+/**
+ * Se ofrece separar si al incidente le queda otro reporte: cuentan solo los propios no desestimados, sin los de
+ * los unidos, igual que el 409 `UNICO_REPORTE` del servidor (D6).
+ */
+const sePuedeSeparar = (propios: ReporteDelOrganismo[]) =>
+  propios.filter((reporte) => reporte.estadoVerificacion !== 'DESESTIMADO').length > 1;
 
 type Accion =
   | { tipo: 'separar'; reporte: ReporteDelOrganismo; incidente: Incidente }
@@ -163,8 +174,8 @@ export function PaginaIncidentes() {
                     #{incidente.id} · {incidente.categoria}
                   </p>
                   <p className="text-sm text-texto-secundario">
-                    {incidente.direccion ?? 'Sin dirección todavía'} · {incidente.estado.toLowerCase()} ·{' '}
-                    <strong>{reportesTotales}</strong> reporte(s)
+                    {incidente.direccion ?? 'Sin dirección todavía'} · {estadoEnTexto(incidente.estado)} ·{' '}
+                    <span className="font-semibold">{reportesTotales}</span> reporte(s)
                     {unidos.length > 0 && ' contando los unidos'}
                   </p>
                 </div>
@@ -175,7 +186,7 @@ export function PaginaIncidentes() {
                       unir.reset();
                       setAccion({ tipo: 'unir', incidente });
                     }}
-                    className="rounded-md border border-borde px-3 py-1.5 text-sm font-semibold text-primario hover:bg-superficie-alterna"
+                    className="rounded-md border border-borde px-3 py-2 text-sm font-semibold text-primario hover:bg-superficie-alterna"
                   >
                     Unir a otro…
                   </button>
@@ -184,19 +195,20 @@ export function PaginaIncidentes() {
 
               <ListaReportes
                 reportes={incidente.reportes}
-                puedeSeparar={reportesTotales > 1}
+                puedeSeparar={sePuedeSeparar(incidente.reportes)}
                 alSeparar={(reporte) => {
                   separar.reset();
                   setAccion({ tipo: 'separar', reporte, incidente });
                 }}
               />
 
+              {/* Los unidos van debajo, separados por una línea: sin otra tarjeta dentro de la del incidente. */}
               {unidos.map((unido) => (
-                <div key={unido.id} className="mt-3 rounded-md border border-dashed border-borde p-3">
+                <div key={unido.id} className="mt-3 border-t border-borde pt-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm text-texto">
-                      Unido a este: <strong>#{unido.id}</strong> · {unido.categoria} · {unido.reportes.length}{' '}
-                      reporte(s)
+                      Unido a este: <span className="font-semibold">#{unido.id}</span> · {unido.categoria} ·{' '}
+                      {unido.reportes.length} reporte(s)
                     </p>
                     <button
                       type="button"
@@ -266,17 +278,17 @@ function ListaReportes({
   alSeparar: (reporte: ReporteDelOrganismo) => void;
 }) {
   return (
-    <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+    <ul className="mt-3 grid gap-x-4 sm:grid-cols-2">
       {reportes.map((reporte) => (
-        <li key={reporte.id} className="flex gap-3 rounded-md bg-superficie-alterna p-2">
+        <li key={reporte.id} className="flex gap-3 border-t border-borde py-2">
           {reporte.fotos[0] ? (
             <FotoConSesion
               fotoId={reporte.fotos[0].id}
-              className="h-16 w-20 shrink-0 rounded object-cover"
-              siFalla={<div className="h-16 w-20 shrink-0 rounded bg-borde" />}
+              className="h-16 w-20 shrink-0 rounded-md object-cover"
+              siFalla={<div className="h-16 w-20 shrink-0 rounded-md bg-superficie-alterna" />}
             />
           ) : (
-            <div className="h-16 w-20 shrink-0 rounded bg-borde" />
+            <div className="h-16 w-20 shrink-0 rounded-md bg-superficie-alterna" />
           )}
           <div className="min-w-0 flex-1 text-sm">
             <p className="font-semibold text-texto">
@@ -287,14 +299,14 @@ function ListaReportes({
             </p>
             <p className="text-xs text-texto-secundario">
               {new Date(reporte.registradoEn).toLocaleString('es-AR')} ·{' '}
-              {reporte.estadoVerificacion.toLowerCase().replace('_', ' ')}
+              {ESTADOS_VERIFICACION[reporte.estadoVerificacion]}
             </p>
           </div>
           {puedeSeparar && reporte.estadoVerificacion !== 'DESESTIMADO' && (
             <button
               type="button"
               onClick={() => alSeparar(reporte)}
-              className="self-center rounded-md border border-borde px-2 py-1 text-xs font-semibold text-primario hover:bg-superficie"
+              className="self-center rounded-md border border-borde px-2 py-1 text-xs font-semibold text-primario hover:bg-superficie-alterna"
             >
               Separar
             </button>
@@ -351,8 +363,8 @@ function FormularioComentario(props: {
 // El principal no cambia de estado al unir: nunca puede quedar detrás del duplicado (D3, decisión del 21/10).
 const AVANCE: Record<string, number> = { REGISTRADO: 0, VERIFICADO: 1, DERIVADO: 2, EN_EJECUCION: 3 };
 
-const estadoEnTexto = (estado: string) =>
-  ESTADOS[estado as EstadoVisible]?.etiqueta ?? estado.toLowerCase().replace('_', ' ');
+// Los mismos nombres que en la bandeja y el mapa, también para los cerrados.
+const estadoEnTexto = (estado: string) => ESTADOS_INCIDENTE[estado as EstadoIncidente]?.etiqueta ?? estado;
 
 /**
  * Por qué `incidente` no puede quedar como principal si se une con `otro`, o null si puede. Un duplicado no
@@ -427,7 +439,7 @@ function FormularioUnir(props: {
                     }}
                   />
                   <span>
-                    <strong>#{candidato.id}</strong> · {candidato.categoria} ·{' '}
+                    <span className="font-semibold">#{candidato.id}</span> · {candidato.categoria} ·{' '}
                     {estadoEnTexto(candidato.estado)} · a {distanciaEnTexto(distancia)}
                     <span className="block text-xs text-texto-secundario">
                       {candidato.direccion ?? 'Sin dirección'}
@@ -503,11 +515,11 @@ function FichaUnion(props: {
       {foto ? (
         <FotoConSesion
           fotoId={foto.id}
-          className="h-32 w-full rounded object-cover"
-          siFalla={<div className="h-32 w-full rounded bg-borde" />}
+          className="h-32 w-full rounded-md object-cover"
+          siFalla={<div className="h-32 w-full rounded-md bg-superficie-alterna" />}
         />
       ) : (
-        <div className="flex h-32 w-full items-center justify-center rounded bg-superficie-alterna text-sm text-texto-secundario">
+        <div className="flex h-32 w-full items-center justify-center rounded-md bg-superficie-alterna text-sm text-texto-secundario">
           Sin foto
         </div>
       )}

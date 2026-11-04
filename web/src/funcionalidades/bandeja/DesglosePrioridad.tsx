@@ -14,7 +14,10 @@ interface Props {
 
 const conSigno = (valor: number) => `${valor > 0 ? '+' : ''}${numeroCorto.format(valor)}`;
 
-/** El puntaje con cada parte que lo forma, explicada en texto, y el ajuste manual si lo hay. */
+/**
+ * El puntaje con cada parte que lo forma, explicada en texto, y el ajuste manual si lo hay. El detalle ya termina
+ * con lo que suma («…: +16,2»): el número va aparte solo si el servidor no mandó el detalle.
+ */
 export function DesglosePrioridad({ prioridad, puedeFijar, puedeQuitar, alFijar, quitar }: Props) {
   const manual = prioridad.prioridadManual;
   return (
@@ -36,9 +39,8 @@ export function DesglosePrioridad({ prioridad, puedeFijar, puedeQuitar, alFijar,
 
       <ul aria-label="Desglose de la prioridad" className="flex flex-col gap-1 text-sm">
         {prioridad.factores.map((factor) => (
-          <li key={factor.factor} className="flex justify-between gap-3">
-            <span className="text-texto">{factor.detalle ?? factor.factor}</span>
-            <span className="shrink-0 font-semibold text-texto">{conSigno(factor.valor)}</span>
+          <li key={factor.factor} className="text-texto">
+            {factor.detalle ?? `${factor.factor}: ${conSigno(factor.valor)}`}
           </li>
         ))}
       </ul>
