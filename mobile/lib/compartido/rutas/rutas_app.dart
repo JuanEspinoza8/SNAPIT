@@ -8,6 +8,7 @@ import '../../funcionalidades/cuenta/pantalla_ingreso.dart';
 import '../../funcionalidades/cuenta/pantalla_recuperar_clave.dart';
 import '../../funcionalidades/cuenta/pantalla_registro.dart';
 import '../../funcionalidades/feed/pantalla_incidente.dart';
+import '../../funcionalidades/feed/pantalla_reporte.dart';
 import '../../funcionalidades/mapa/mapa_incidentes.dart';
 import '../../funcionalidades/mapa/pantalla_mapa_publico.dart';
 import '../../funcionalidades/principal/pantalla_principal.dart';
@@ -28,6 +29,9 @@ abstract final class Rutas {
 
   /// El detalle de un incidente, desde el feed.
   static String incidente(int id) => '/incidente/$id';
+
+  /// Una foto de un vecino dentro de un incidente, con sus comentarios.
+  static String reporte(int id) => '/reporte/$id';
 }
 
 /// Las que se usan sin sesión. Con sesión, llevan a la principal.
@@ -66,6 +70,11 @@ final rutasProvider = Provider<GoRouter>((ref) {
         path: '/incidente/:id',
         builder: (_, estado) =>
             PantallaIncidente(int.parse(estado.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/reporte/:id',
+        builder: (_, estado) =>
+            PantallaReporte(int.parse(estado.pathParameters['id']!)),
       ),
       GoRoute(
         path: Rutas.elegirPunto,

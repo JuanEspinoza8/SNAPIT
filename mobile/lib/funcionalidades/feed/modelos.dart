@@ -18,6 +18,8 @@ class TarjetaFeed {
     required this.direccion,
     required this.fotoIds,
     required this.cantidadFotos,
+    this.cantidadMeGusta = 0,
+    this.cantidadComentarios = 0,
   });
 
   factory TarjetaFeed.desdeJson(Map<String, dynamic> json) => TarjetaFeed(
@@ -36,6 +38,8 @@ class TarjetaFeed {
       for (final foto in json['fotos'] as List) (foto as Map)['id'] as int,
     ],
     cantidadFotos: json['cantidadFotos'] as int,
+    cantidadMeGusta: json['cantidadMeGusta'] as int? ?? 0,
+    cantidadComentarios: json['cantidadComentarios'] as int? ?? 0,
   );
 
   final int id;
@@ -53,6 +57,12 @@ class TarjetaFeed {
   /// Hasta cinco: el resto se ve en el detalle.
   final List<int> fotoIds;
   final int cantidadFotos;
+
+  /// La suma de todos sus reportes: el de cada foto se ve en el detalle.
+  final int cantidadMeGusta;
+
+  /// Los de sus reportes más los del incidente.
+  final int cantidadComentarios;
 
   /// Varios reportes juntos: la tarjeta es el «post destacado» del incidente.
   bool get agrupado => cantidadReportes > 1;
