@@ -67,10 +67,10 @@ describe('rutas de la aplicación', () => {
     expect(await screen.findByRole('heading', { name: 'Ingresar' })).toBeInTheDocument();
   });
 
-  it('la raíz lleva al mapa', async () => {
+  it('la raíz es el inicio (el feed), público como el mapa', async () => {
     abrir('/');
 
-    expect(await screen.findByRole('heading', { name: 'Mapa' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument();
   });
 
   it('un vecino que abre la administración vuelve al mapa', async () => {
