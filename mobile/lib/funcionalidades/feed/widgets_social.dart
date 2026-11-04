@@ -7,7 +7,7 @@ import '../../compartido/red/error_api.dart';
 import '../../compartido/tema/tema_app.dart';
 import 'social.dart';
 
-/// El círculo con la inicial que hace de foto de perfil.
+/// El círculo con el número del vecino, que hace de foto de perfil.
 class AvatarAutor extends StatelessWidget {
   const AvatarAutor(this.autor, {super.key, this.radio = 16});
 
@@ -22,7 +22,7 @@ class AvatarAutor extends StatelessWidget {
         radius: radio,
         backgroundColor: esquema.primary,
         foregroundColor: esquema.onPrimary,
-        child: Text(autor.inicial, style: TextStyle(fontSize: radio * 0.9)),
+        child: Text('${autor.numero}', style: TextStyle(fontSize: radio * 0.9)),
       ),
     );
   }

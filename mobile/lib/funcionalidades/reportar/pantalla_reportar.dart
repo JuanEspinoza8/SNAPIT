@@ -17,6 +17,10 @@ import 'borrador_reporte.dart';
 import 'reporte_en_curso.dart';
 import 'selector_foto.dart';
 
+/// Lo que se publica de cada reporte. Mismo texto en la web (paginaReportar).
+const avisoPublicacion =
+    'La foto y la descripción se ven en el inicio, sin tu nombre.';
+
 /// Cargar un reporte (F02): foto, categoría, gravedad, descripción y el punto
 /// del GPS, que se puede corregir en el mapa.
 class PantallaReportar extends ConsumerStatefulWidget {
@@ -274,6 +278,9 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
               decoration: InputDecoration(
                 labelText: 'Descripción (opcional)',
                 hintText: 'Por ejemplo: pozo grande frente a la escuela',
+                // El inicio publica la foto y la descripción, sin el nombre.
+                helperText: avisoPublicacion,
+                helperMaxLines: 2,
                 errorText: errorDe(CampoReporte.descripcion),
               ),
               onChanged: (texto) {

@@ -263,6 +263,17 @@ void main() {
     });
   });
 
+  testWidgets('avisa que la foto y la descripción se publican sin el nombre', (
+    tester,
+  ) async {
+    await abrirReportar(tester, ServidorDeReportes());
+
+    expect(
+      find.text('La foto y la descripción se ven en el inicio, sin tu nombre.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('al servidor llega el punto corregido, no el del GPS', (
     tester,
   ) async {

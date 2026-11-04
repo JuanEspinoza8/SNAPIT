@@ -7,20 +7,19 @@ import '../../compartido/red/interceptor_sesion.dart';
 
 // Lo social del feed, de solo lectura por ahora (docs/api.md, sección «Social»).
 
+/// Quién reportó o comentó, sin nada que lo identifique: dentro de cada
+/// incidente es «Vecino N», numerado por orden de llegada (docs/api.md,
+/// sección «Social»).
 class Autor {
-  const Autor({required this.id, required this.nombre});
+  const Autor({required this.numero, required this.nombre});
 
   factory Autor.desdeJson(Map<String, dynamic> json) =>
-      Autor(id: json['id'] as int, nombre: json['nombre'] as String);
+      Autor(numero: json['numero'] as int, nombre: json['nombre'] as String);
 
-  final int id;
+  final int numero;
+
+  /// «Vecino 2».
   final String nombre;
-
-  /// La inicial para el círculo que hace de foto de perfil.
-  String get inicial {
-    final limpio = nombre.trim();
-    return limpio.isEmpty ? '?' : limpio[0].toUpperCase();
-  }
 }
 
 /// Un reporte de un vecino, como se ve en el detalle del incidente.
@@ -108,26 +107,33 @@ final comentariosDeReporteProvider = FutureProvider.autoDispose
           ref.watch(repositorioSocialProvider).comentariosDeReporte(id),
     );
 
-/// Rutas públicas, sin sesión: igual que el mapa y el feed.
+/// Rutas públicas, sin sesión: igual que el mapa y el feed. Van bajo
+/// `/social` para no chocar con las del operador.
 class RepositorioSocial {
   RepositorioSocial(this._dio);
 
   final Dio _dio;
 
-  Future<List<ReportePublico>> reportesDeIncidente(int id) =>
-      _lista('/incidentes/$id/reportes', 'reportes', ReportePublico.desdeJson);
+  Future<List<ReportePublico>> reportesDeIncidente(int id) => _lista(
+    '/social/incidentes/$id/reportes',
+    'reportes',
+    ReportePublico.desdeJson,
+  );
 
   Future<List<Comentario>> comentariosDeIncidente(int id) => _lista(
-    '/incidentes/$id/comentarios',
+    '/social/incidentes/$id/comentarios',
     'comentarios',
     Comentario.desdeJson,
   );
 
-  Future<List<Comentario>> comentariosDeReporte(int id) =>
-      _lista('/reportes/$id/comentarios', 'comentarios', Comentario.desdeJson);
+  Future<List<Comentario>> comentariosDeReporte(int id) => _lista(
+    '/social/reportes/$id/comentarios',
+    'comentarios',
+    Comentario.desdeJson,
+  );
 
   Future<ReportePublico> reporte(int id) async {
-    final datos = await _pedir('/reportes/$id/publico');
+    final datos = await _pedir('/social/reportes/$id');
     return ReportePublico.desdeJson(datos);
   }
 
