@@ -308,6 +308,33 @@ describe('POST /api/reportes/:id/revision', () => {
     expect(vecinoDespues.reportesConfirmados + vecinoDespues.reportesDesestimados).toBe(1);
   });
 
+  it('los pendientes de un incidente desestimado salen de la revisión y revisarlos da 409', async () => {
+    const vecino = await crearVecino();
+    const reporte = await reportar(vecino, { verificado: false });
+    const desestimar = await request(app)
+      .post(`/api/incidentes/${reporte.incidenteId}/estado`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ estado: 'DESESTIMADO', comentario: 'No es un problema de la vía pública' });
+    expect(desestimar.status).toBe(200);
+
+    expect((await pendientes()).body.reportes.map((r: { id: number }) => r.id)).not.toContain(reporte.id);
+    for (const decision of ['VERIFICADO', 'DESESTIMADO']) {
+      const res = await revisar(reporte.id, { decision });
+      expect(res.status).toBe(409);
+      expect(res.body.error.codigo).toBe('INCIDENTE_CERRADO');
+    }
+    // Desestimar el incidente no toca a sus reportes ni la reputación (decisión del 22/10).
+    const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
+    expect(guardado.estadoVerificacion).toBe('PENDIENTE_REVISION');
+    expect(await historial(vecino.id)).toMatchObject({ reportesConfirmados: 0, reportesDesestimados: 0 });
+    // En el listado general sigue apareciendo, pendiente.
+    const todos = await request(app)
+      .get('/api/reportes')
+      .query({ estado: 'PENDIENTE_REVISION' })
+      .set('Authorization', `Bearer ${token}`);
+    expect(todos.body.reportes.map((r: { id: number }) => r.id)).toContain(reporte.id);
+  });
+
   it('un reporte que no existe da 404', async () => {
     const res = await revisar(2_000_000_000, { decision: 'VERIFICADO' });
 

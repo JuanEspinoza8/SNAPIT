@@ -124,6 +124,10 @@ Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo m
 
 Un reporte **pendiente** no cuenta para la reputación hasta que un operador lo revisa (`POST /api/reportes/:id/revision`). Un reporte ya verificado o desestimado no se vuelve a revisar.
 
+**Incidente cerrado.** Si el incidente que manda está `RESUELTO` o `DESESTIMADO`, sus pendientes ya no se revisan: no aparecen en `GET /api/reportes/pendientes`, no entran en la cola de la IA y revisarlos da 409 `INCIDENTE_CERRADO`. Siguen `PENDIENTE_REVISION`: desestimar el incidente no toca sus reportes ni la reputación (decisión del 22/10), y revisarlos después tampoco. El vecino ve el estado del incidente en "Mis reportes".
+
+**Revisar mientras se une.** Antes de aplicar el resultado se bloquean el incidente del reporte y el que manda. Si mientras se esperaba el bloqueo terminó una unión, el que manda cambió: por eso, después de bloquear, se vuelve a leer y se bloquea el nuevo, hasta que no cambie. Así el resultado siempre se aplica sobre el principal vigente.
+
 ### Cola de verificación con IA
 
 El operador puede procesar los reportes pendientes de su organismo con la IA (`POST /api/ia/procesar-cola`, `server/src/modulos/ia/cola.ts`), de a uno por vez:

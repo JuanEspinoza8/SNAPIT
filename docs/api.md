@@ -470,6 +470,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`).
 - `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última clasificación: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
+- No trae los pendientes de un incidente resuelto o desestimado: ya no se revisan (ver «Incidente cerrado» en `docs/calculos.md`). Siguen en `GET /api/reportes`, pendientes.
 - Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.
 
 ### `GET /api/reportes`
@@ -519,6 +520,7 @@ Actualiza la reputación del vecino, el estado del incidente, su cantidad de rep
 | 403 `SIN_PERMISO` | El reporte es de un incidente de otro organismo |
 | 404 `REPORTE_NO_ENCONTRADO` | El reporte no existe |
 | 409 `REPORTE_YA_REVISADO` | Ya no está pendiente: lo revisó otro operador o el sistema lo verificó al recibirlo |
+| 409 `INCIDENTE_CERRADO` | Su incidente (el principal, si se unió a otro) ya está resuelto o desestimado. El reporte queda pendiente y la reputación no cambia |
 
 ### `POST /api/ia/clasificar-foto`
 Sugiere la categoría y la gravedad a partir de la foto (F06), para precargarlas en el formulario de reporte. Requiere sesión de `VECINO`. El vecino siempre tiene la última palabra: puede cambiar lo sugerido.
