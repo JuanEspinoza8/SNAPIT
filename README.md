@@ -71,6 +71,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
 | `npm run semilla` | Carga o restaura el catálogo, los parámetros, la zona piloto y los usuarios de prueba (estos, fuera de producción) |
+| `npm run semilla:social` | Solo en desarrollo: suma cinco vecinos de ejemplo (`vecino4..8@snapit.test`, misma clave) y les reparte likes y comentarios sobre los incidentes que ya hay. Se puede correr varias veces: no duplica nada |
 | `npm run importar:puntos` | Carga los puntos de interés de Neuquén desde OpenStreetMap (ver «Puntos de interés») |
 | `npm run importar:red` | Carga la red peatonal de la zona piloto desde OpenStreetMap (ver «Red peatonal») |
 | `npm run vincular:incidentes` | Recalcula qué tramos de la red obstruye cada incidente (ver «Red peatonal») |

@@ -209,6 +209,8 @@ model Usuario {
   registroIas                RegistroIa[]
   informes                   Informe[]
   eventosVerificacionIa      EventoVerificacionIa[]
+  meGustaReportes            MeGustaReporte[]
+  comentarios                Comentario[]
 
   @@map("usuario")
 }
@@ -406,6 +408,7 @@ model Incidente {
   seguimientoIncidentes    SeguimientoIncidente[]
   notificaciones           Notificacion[]
   incidenteTramos          IncidenteTramo[]
+  comentarios              Comentario[]
 
   @@index([estado])
   @@index([areaId])
@@ -452,6 +455,8 @@ model Reporte {
   sincronizadoEn       DateTime?                              @db.Timestamptz(6) @map("sincronizado_en")
   /// Fecha de alta del registro.
   creadoEn             DateTime                               @default(now()) @db.Timestamptz(6) @map("creado_en")
+  /// Baja lógica: si está informado, su autor lo eliminó y ya no se muestra.
+  eliminadoEn          DateTime?                              @db.Timestamptz(6) @map("eliminado_en")
   incidente            Incidente?                             @relation(fields: [incidenteId], references: [id], onDelete: SetNull)
   usuario              Usuario                                @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   categoria            Categoria                              @relation(fields: [categoriaId], references: [id], onDelete: Restrict, name: "Reporte_categoria_id")
@@ -460,6 +465,8 @@ model Reporte {
   fotografias          Fotografia[]
   senalVerificaciones  SenalVerificacion[]
   eventosVerificacionIa EventoVerificacionIa[]
+  meGustas             MeGustaReporte[]
+  comentarios          Comentario[]
 
   @@index([incidenteId])
   @@index([usuarioId])
@@ -503,6 +510,50 @@ model Fotografia {
 
   @@index([hashPerceptual])
   @@map("fotografia")
+}
+
+/// El «me gusta» de un usuario a un reporte. La clave única (reporte, usuario) impide dar dos.
+model MeGustaReporte {
+  /// Identificador interno.
+  id         Int       @id @default(autoincrement()) @map("id")
+  /// Reporte que le gustó.
+  reporteId  Int       @map("reporte_id")
+  /// Usuario que dio el me gusta.
+  usuarioId  Int       @map("usuario_id")
+  /// Cuándo lo dio.
+  creadoEn   DateTime  @default(now()) @db.Timestamptz(6) @map("creado_en")
+  reporte    Reporte   @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([reporteId, usuarioId], map: "me_gusta_unico")
+  @@map("me_gusta_reporte")
+}
+
+/// Comentario público de un usuario. Pertenece a un reporte o a un incidente, nunca a los dos.
+model Comentario {
+  /// Identificador interno.
+  id           Int         @id @default(autoincrement()) @map("id")
+  /// Autor del comentario.
+  usuarioId    Int         @map("usuario_id")
+  /// Reporte comentado.
+  reporteId    Int?        @map("reporte_id")
+  /// Incidente comentado.
+  incidenteId  Int?        @map("incidente_id")
+  /// Lo que escribió, de 1 a 1000 caracteres.
+  texto        String      @db.Text @map("texto")
+  /// Fecha del comentario.
+  creadoEn     DateTime    @default(now()) @db.Timestamptz(6) @map("creado_en")
+  /// Última vez que su autor lo editó.
+  editadoEn    DateTime?   @db.Timestamptz(6) @map("editado_en")
+  /// Baja lógica: lo eliminó su autor o un operador por ofensivo.
+  eliminadoEn  DateTime?   @db.Timestamptz(6) @map("eliminado_en")
+  usuario      Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  reporte      Reporte?    @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  incidente    Incidente?  @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+
+  @@index([reporteId])
+  @@index([incidenteId])
+  @@map("comentario")
 }
 
 /// Cada indicio, a favor o en contra, que usó el sistema para decidir si confía en un reporte.
