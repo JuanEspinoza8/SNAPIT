@@ -25,12 +25,12 @@ class PantallaPrincipal extends ConsumerStatefulWidget {
 class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   var _seccion = 0;
 
-  // Reportar, Mis reportes y Recorrido se arman recién la primera vez que se
-  // abren. Inicio y Mapa, desde el principio: el mapa ya tiene sus puntos al
-  // abrirlo. Reportar pide la ubicación al aparecer, y si lo hiciera junto con
-  // el mapa, Android rechaza el segundo pedido de permiso. Las otras no piden
-  // nada si el vecino nunca las mira.
-  final _abiertas = {_inicio, _mapa};
+  // Todas menos Inicio se arman recién la primera vez que se abren. El mapa y
+  // Reportar piden la ubicación al aparecer: armados de entrada, el permiso
+  // saltaría encima del feed, sin que se entienda para qué es. Además, si los
+  // dos lo pidieran juntos, Android rechaza el segundo pedido. Las otras no
+  // piden nada si el vecino nunca las mira.
+  final _abiertas = {_inicio};
 
   static const _inicio = 0;
   static const _mapa = 1;
@@ -77,7 +77,9 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
           index: _seccion,
           children: [
             const PantallaFeed(),
-            if (esVecino)
+            if (!_abiertas.contains(_mapa))
+              const SizedBox.shrink()
+            else if (esVecino)
               const MapaIncidentes()
             else
               const Column(

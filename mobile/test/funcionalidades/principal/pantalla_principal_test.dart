@@ -1,13 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
 import 'package:snapit/funcionalidades/cuenta/pantalla_ingreso.dart';
 import 'package:snapit/funcionalidades/feed/pantalla_feed.dart';
+import 'package:snapit/funcionalidades/mapa/foco_mapa.dart';
 import 'package:snapit/funcionalidades/mapa/mapa_incidentes.dart';
 
 import '../../apoyo/app_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
+import '../mapa/mapa_incidentes_test.dart' show incidenteJson;
 
 void main() {
   setUp(guardarSesion);
@@ -57,11 +60,58 @@ void main() {
     expect(find.widgetWithText(AppBar, 'Recorrido accesible'), findsOneWidget);
   });
 
+  testWidgets('el mapa no pide la ubicación hasta que se abre', (tester) async {
+    final ubicacion = UbicacionFalsa();
+    await abrirApp(tester, servidorCon(), ubicacion: ubicacion);
+
+    expect(find.byType(MapaIncidentes), findsNothing);
+    expect(ubicacion.pedidos, 0);
+
+    await tester.tap(find.text('Mapa'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MapaIncidentes), findsOneWidget);
+    expect(ubicacion.pedidos, 1);
+  });
+
+  testWidgets('si otra pantalla pidió un punto antes de abrir el mapa, el mapa '
+      'arranca ahí y no en la ubicación', (tester) async {
+    const punto = LatLng(-38.9516, -68.0591);
+    final servidor = ServidorFalso(
+      (pedido) => switch (pedido.path) {
+        '/incidentes' => json(200, {
+          'incidentes': [incidenteJson(9)],
+        }),
+        '/incidentes/feed' => json(200, {
+          'incidentes': <Object>[],
+          'siguiente': null,
+        }),
+        _ => json(200, {'usuario': usuarioJson()}),
+      },
+    );
+    // El teléfono está a unos 10 km: centrado ahí, el incidente no se vería.
+    final contenedor = await abrirApp(
+      tester,
+      servidor,
+      ubicacion: UbicacionFalsa(const LatLng(-38.86, -68.06)),
+    );
+
+    contenedor.read(focoMapaProvider.notifier).enfocar(punto);
+    await tester.tap(find.text('Mapa'));
+    // El mapa pide los puntos cuando se queda quieto (300 ms).
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('Cordón sin rampa, En revisión'), findsOne);
+    expect(contenedor.read(focoMapaProvider), isNull);
+  });
+
   testWidgets('el mapa no se vuelve a armar al cambiar de pestaña', (
     tester,
   ) async {
     final servidor = servidorCon();
     await abrirApp(tester, servidor);
+    await tester.tap(find.text('Mapa'));
+    await tester.pumpAndSettle();
     final pedidos = servidor.cantidad('/incidentes');
 
     await tester.tap(find.text('Reportar'));

@@ -54,6 +54,13 @@ class _MapaIncidentesState extends ConsumerState<MapaIncidentes> {
   }
 
   void _alEstarListo() {
+    // El mapa de la principal se arma recién al abrirlo: si otra pantalla
+    // pidió mostrar un punto justo antes, ese pedido ya está esperando.
+    if (ref.read(focoMapaProvider) case final punto?) {
+      _movidoPorLaPersona = true;
+      _controlador.move(punto, _zoomFoco);
+      ref.read(focoMapaProvider.notifier).limpiar();
+    }
     _actualizarVista();
     _centrarEnUbicacion();
   }
