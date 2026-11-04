@@ -21,9 +21,9 @@ export function esAdministrador(usuario: Usuario): boolean {
   return usuario.rol === 'ADMINISTRADOR';
 }
 
-/** La primera sección a la que entra cada rol (issue #9). */
+/** La primera sección a la que entra cada rol (issue #9). El vecino, al inicio (el feed), como en la app. */
 export function inicioSegunRol(usuario: Usuario): string {
   if (esOperador(usuario)) return '/bandeja';
   if (esAdministrador(usuario)) return '/administracion';
-  return '/mapa';
+  return '/';
 }

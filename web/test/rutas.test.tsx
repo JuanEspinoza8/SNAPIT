@@ -39,7 +39,7 @@ function montarRuta(ruta: string, elemento: ReactElement) {
           <MemoryRouter initialEntries={[ruta]}>
             <Routes>
               <Route path="/ingreso" element={<p>Ingreso</p>} />
-              <Route path="/mapa" element={<p>Mapa</p>} />
+              <Route path="/" element={<p>Inicio</p>} />
               <Route path="/administracion" element={<p>Administración</p>} />
               <Route path={ruta} element={elemento} />
             </Routes>
@@ -72,7 +72,7 @@ describe('guardas de rutas', () => {
       </RutaProtegida>,
     );
 
-    expect(await screen.findByText('Mapa')).toBeInTheDocument();
+    expect(await screen.findByText('Inicio')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Bandeja' })).not.toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe('guardas de rutas', () => {
       </RutaSoloSinSesion>,
     );
 
-    expect(await screen.findByText('Mapa')).toBeInTheDocument();
+    expect(await screen.findByText('Inicio')).toBeInTheDocument();
     expect(screen.queryByText('Registro')).not.toBeInTheDocument();
   });
 
