@@ -22,6 +22,24 @@ enum EstadoVisible {
   }
 }
 
+/// Gravedad consolidada de un incidente (`severidad` en la base).
+enum Gravedad {
+  leve('LEVE'),
+  moderada('MODERADA'),
+  grave('GRAVE');
+
+  const Gravedad(this.valorApi);
+
+  final String valorApi;
+
+  static Gravedad desdeApi(String valor) {
+    for (final gravedad in values) {
+      if (gravedad.valorApi == valor) return gravedad;
+    }
+    throw FormatException('Gravedad desconocida: $valor');
+  }
+}
+
 /// Un incidente en el mapa (`GET /incidentes`).
 class PuntoMapa {
   const PuntoMapa({
@@ -63,9 +81,12 @@ class PuntoMapa {
 class FichaIncidente {
   const FichaIncidente({
     required this.id,
+    required this.lat,
+    required this.lon,
     required this.categoriaNombre,
     required this.estado,
     required this.enRevision,
+    this.gravedad,
     required this.primerReporteEn,
     required this.cantidadVecinos,
     required this.direccion,
@@ -74,9 +95,15 @@ class FichaIncidente {
 
   factory FichaIncidente.desdeJson(Map<String, dynamic> json) => FichaIncidente(
     id: json['id'] as int,
+    lat: (json['lat'] as num).toDouble(),
+    lon: (json['lon'] as num).toDouble(),
     categoriaNombre: (json['categoria'] as Map)['nombre'] as String,
     estado: EstadoVisible.desdeApi(json['estado'] as String),
     enRevision: json['enRevision'] as bool,
+    gravedad: switch (json['severidad']) {
+      final String valor => Gravedad.desdeApi(valor),
+      _ => null,
+    },
     primerReporteEn: DateTime.parse(json['primerReporteEn'] as String),
     cantidadVecinos: json['cantidadVecinos'] as int,
     direccion: json['direccion'] as String?,
@@ -86,9 +113,14 @@ class FichaIncidente {
   );
 
   final int id;
+  final double lat;
+  final double lon;
   final String categoriaNombre;
   final EstadoVisible estado;
   final bool enRevision;
+
+  /// Null si el servidor es anterior a que la ficha la incluyera.
+  final Gravedad? gravedad;
   final DateTime primerReporteEn;
   final int cantidadVecinos;
   final String? direccion;

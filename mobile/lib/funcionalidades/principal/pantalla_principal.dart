@@ -5,13 +5,15 @@ import 'package:latlong2/latlong.dart';
 import '../../compartido/sesion/sesion.dart';
 import '../../compartido/sesion/usuario.dart';
 import '../../compartido/tema/tema_app.dart';
+import '../feed/pantalla_feed.dart';
 import '../mapa/foco_mapa.dart';
 import '../mapa/mapa_incidentes.dart';
 import '../mis_reportes/pantalla_mis_reportes.dart';
 import '../reportar/pantalla_reportar.dart';
 
-/// Lo primero que se ve con sesión. El vecino tiene mapa, reportar y mis
-/// reportes; operador y administrador, solo el mapa: la gestión es en la web.
+/// Lo primero que se ve con sesión: el feed. El vecino tiene además mapa,
+/// reportar y mis reportes; operador y administrador, inicio y mapa: la
+/// gestión es en la web.
 class PantallaPrincipal extends ConsumerStatefulWidget {
   const PantallaPrincipal({super.key});
 
@@ -23,21 +25,26 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   var _seccion = 0;
 
   // Reportar y Mis reportes se arman recién la primera vez que se abren.
+  // Inicio y Mapa, desde el principio: el mapa ya tiene sus puntos al abrirlo.
   // Reportar pide la ubicación al aparecer, y si lo hiciera junto con el mapa,
   // Android rechaza el segundo pedido de permiso. Mis reportes no pide la
   // lista si el vecino nunca la mira.
-  final _abiertas = {0};
+  final _abiertas = {_inicio, _mapa};
+
+  static const _inicio = 0;
+  static const _mapa = 1;
+  static const _reportar = 2;
+  static const _misReportes = 3;
 
   static const _seccionesVecino = [
+    _Seccion('Inicio', Icons.home_outlined, 'SnapIt'),
     _Seccion('Mapa', Icons.map_outlined, 'Mapa de incidentes'),
     _Seccion('Reportar', Icons.add_a_photo_outlined, 'Reportar un problema'),
     _Seccion('Mis reportes', Icons.list_alt_outlined, 'Mis reportes'),
   ];
-  static const _mapa = _Seccion(
-    'Mapa',
-    Icons.map_outlined,
-    'Mapa de incidentes',
-  );
+
+  /// Operador y administrador: las dos primeras.
+  static final _seccionesOrganismo = _seccionesVecino.sublist(0, 2);
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +53,8 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     if (usuario == null) return const SizedBox.shrink();
 
     final esVecino = usuario.rol == Rol.vecino;
-    final seccion = esVecino ? _seccionesVecino[_seccion] : _mapa;
+    final secciones = esVecino ? _seccionesVecino : _seccionesOrganismo;
+    final seccion = secciones[_seccion];
 
     return Scaffold(
       appBar: AppBar(
@@ -60,41 +68,43 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         ],
       ),
       body: SafeArea(
-        child: esVecino
-            // Las secciones quedan vivas al cambiar de pestaña: el mapa no
-            // pierde la zona ni los filtros.
-            ? IndexedStack(
-                index: _seccion,
-                children: [
-                  const MapaIncidentes(),
-                  if (_abiertas.contains(1))
-                    PantallaReportar(alVerEnMapa: _verEnMapa)
-                  else
-                    const SizedBox.shrink(),
-                  if (_abiertas.contains(2))
-                    PantallaMisReportes(alReportar: () => _abrir(1))
-                  else
-                    const SizedBox.shrink(),
-                ],
-              )
-            : const Column(
+        // Las secciones quedan vivas al cambiar de pestaña: el feed no pierde
+        // por dónde iba, ni el mapa la zona y los filtros.
+        child: IndexedStack(
+          index: _seccion,
+          children: [
+            const PantallaFeed(),
+            if (esVecino)
+              const MapaIncidentes()
+            else
+              const Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _AvisoPanelWeb(),
                   Expanded(child: MapaIncidentes()),
                 ],
               ),
+            if (esVecino) ...[
+              if (_abiertas.contains(_reportar))
+                PantallaReportar(alVerEnMapa: _verEnMapa)
+              else
+                const SizedBox.shrink(),
+              if (_abiertas.contains(_misReportes))
+                PantallaMisReportes(alReportar: () => _abrir(_reportar))
+              else
+                const SizedBox.shrink(),
+            ],
+          ],
+        ),
       ),
-      bottomNavigationBar: esVecino
-          ? NavigationBar(
-              selectedIndex: _seccion,
-              onDestinationSelected: _abrir,
-              destinations: [
-                for (final s in _seccionesVecino)
-                  NavigationDestination(icon: Icon(s.icono), label: s.nombre),
-              ],
-            )
-          : null,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _seccion,
+        onDestinationSelected: _abrir,
+        destinations: [
+          for (final s in secciones)
+            NavigationDestination(icon: Icon(s.icono), label: s.nombre),
+        ],
+      ),
     );
   }
 
@@ -104,7 +114,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   });
 
   void _verEnMapa(LatLng punto) {
-    _abrir(0);
+    _abrir(_mapa);
     ref.read(focoMapaProvider.notifier).enfocar(punto);
   }
 

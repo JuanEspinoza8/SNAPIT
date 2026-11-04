@@ -35,6 +35,45 @@ extension PresentacionEstado on EstadoVisible {
   }
 }
 
+/// Como los estados: la gravedad se lee por el texto y las barras del ícono,
+/// no solo por el color.
+extension PresentacionGravedad on Gravedad {
+  String get etiqueta => switch (this) {
+    Gravedad.leve => 'Leve',
+    Gravedad.moderada => 'Moderada',
+    Gravedad.grave => 'Grave',
+  };
+
+  IconData get icono => switch (this) {
+    Gravedad.leve => Icons.signal_cellular_alt_1_bar,
+    Gravedad.moderada => Icons.signal_cellular_alt_2_bar,
+    Gravedad.grave => Icons.signal_cellular_alt,
+  };
+
+  Color color(BuildContext context) {
+    final colores = Theme.of(context).extension<ColoresGravedad>()!;
+    return switch (this) {
+      Gravedad.leve => colores.leve,
+      Gravedad.moderada => colores.moderada,
+      Gravedad.grave => colores.grave,
+    };
+  }
+}
+
+/// La gravedad escrita, con su ícono y su color de fondo.
+class EtiquetaGravedad extends StatelessWidget {
+  const EtiquetaGravedad(this.gravedad, {super.key});
+
+  final Gravedad gravedad;
+
+  @override
+  Widget build(BuildContext context) => Etiqueta(
+    texto: gravedad.etiqueta,
+    icono: gravedad.icono,
+    color: gravedad.color(context),
+  );
+}
+
 /// El estado escrito, con su ícono y su color de fondo.
 class EtiquetaEstado extends StatelessWidget {
   const EtiquetaEstado(this.estado, {super.key});

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
 import 'package:snapit/funcionalidades/cuenta/pantalla_ingreso.dart';
+import 'package:snapit/funcionalidades/feed/pantalla_feed.dart';
 import 'package:snapit/funcionalidades/mapa/mapa_incidentes.dart';
 
 import '../../apoyo/app_de_prueba.dart';
@@ -15,6 +16,10 @@ void main() {
     (pedido) => switch (pedido.path) {
       '/auth/salir' => json(204, ''),
       '/incidentes' => json(200, {'incidentes': <Object>[]}),
+      '/incidentes/feed' => json(200, {
+        'incidentes': <Object>[],
+        'siguiente': null,
+      }),
       '/reportes/mios' => json(200, {'reportes': <Object>[]}),
       _ => json(200, {'usuario': usuarioJson(rol: rol)}),
     },
@@ -24,10 +29,16 @@ void main() {
       'Desde la app podés ver el mapa. La gestión de incidentes se hace en el '
       'panel web.';
 
-  testWidgets('el vecino tiene mapa, reportar y mis reportes', (tester) async {
+  testWidgets('el vecino arranca en el inicio y tiene mapa, reportar y mis '
+      'reportes', (tester) async {
     await abrirApp(tester, servidorCon());
 
-    expect(find.byType(NavigationDestination), findsNWidgets(3));
+    expect(find.byType(NavigationDestination), findsNWidgets(4));
+    expect(find.byType(PantallaFeed), findsOneWidget);
+    expect(find.text('Todavía no hay incidentes'), findsOneWidget);
+
+    await tester.tap(find.text('Mapa'));
+    await tester.pumpAndSettle();
     expect(find.text(avisoPanelWeb), findsNothing);
     expect(find.widgetWithText(AppBar, 'Mapa de incidentes'), findsOneWidget);
     expect(find.byType(MapaIncidentes), findsOneWidget);
@@ -59,14 +70,20 @@ void main() {
   });
 
   for (final rol in ['OPERADOR', 'ADMINISTRADOR']) {
-    testWidgets('$rol ve el mapa y el aviso del panel web', (tester) async {
+    testWidgets('$rol ve el inicio, el mapa y el aviso del panel web', (
+      tester,
+    ) async {
       await abrirApp(tester, servidorCon(rol: rol));
 
+      expect(find.byType(NavigationDestination), findsNWidgets(2));
+      expect(find.byType(PantallaFeed), findsOneWidget);
+      expect(find.text('Reportar'), findsNothing);
+
+      await tester.tap(find.text('Mapa'));
+      await tester.pumpAndSettle();
       expect(find.text(avisoPanelWeb), findsOneWidget);
       expect(find.widgetWithText(AppBar, 'Mapa de incidentes'), findsOneWidget);
       expect(find.byType(MapaIncidentes), findsOneWidget);
-      expect(find.byType(NavigationBar), findsNothing);
-      expect(find.text('Reportar'), findsNothing);
     });
   }
 

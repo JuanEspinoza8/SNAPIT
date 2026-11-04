@@ -7,6 +7,7 @@ import '../../funcionalidades/cuenta/pantalla_arranque.dart';
 import '../../funcionalidades/cuenta/pantalla_ingreso.dart';
 import '../../funcionalidades/cuenta/pantalla_recuperar_clave.dart';
 import '../../funcionalidades/cuenta/pantalla_registro.dart';
+import '../../funcionalidades/feed/pantalla_incidente.dart';
 import '../../funcionalidades/mapa/mapa_incidentes.dart';
 import '../../funcionalidades/mapa/pantalla_mapa_publico.dart';
 import '../../funcionalidades/principal/pantalla_principal.dart';
@@ -24,6 +25,9 @@ abstract final class Rutas {
 
   /// Recibe el punto actual en `extra` y devuelve el elegido al volver.
   static const elegirPunto = '/elegir-punto';
+
+  /// El detalle de un incidente, desde el feed.
+  static String incidente(int id) => '/incidente/$id';
 }
 
 /// Las que se usan sin sesión. Con sesión, llevan a la principal.
@@ -57,6 +61,11 @@ final rutasProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Rutas.principal,
         builder: (_, _) => const PantallaPrincipal(),
+      ),
+      GoRoute(
+        path: '/incidente/:id',
+        builder: (_, estado) =>
+            PantallaIncidente(int.parse(estado.pathParameters['id']!)),
       ),
       GoRoute(
         path: Rutas.elegirPunto,
