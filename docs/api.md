@@ -583,7 +583,7 @@ Responde **200**:
 El operador procesa con la IA los reportes pendientes de su organismo y sigue el avance en un log (ver "Cola de verificación con IA" en `docs/calculos.md`). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, de un usuario con organismo.
 
 #### `POST /api/ia/procesar-cola`
-Empieza a procesar los pendientes del organismo, del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
+Empieza a procesar los pendientes del organismo (los mismos de `GET /api/reportes/pendientes`, sin los de incidentes cerrados), del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
 
 ```json
 { "procesoId": "5b1c0e4e-8f7a-4c1e-9d3b-2a6f0c9e7d11", "total": 6 }

@@ -137,11 +137,15 @@ El operador puede procesar los reportes pendientes de su organismo con la IA (`P
 3. **Si no coincide, o si coincide pero la verificación no lo aprobaba**, queda pendiente para revisión manual, con la propuesta guardada. En el segundo caso el log dice el nivel, el umbral y las señales en contra (foto repetida, lejos del punto, vieja, de galería sin ubicación).
 4. **Si la IA falla** o un operador lo revisó mientras tanto, queda como está: la IA nunca pisa una decisión de una persona.
 
+La lista de pendientes se toma al arrancar, sin los de incidentes cerrados. Antes de clasificar cada reporte se mira si sigue pendiente y si su incidente sigue abierto. Si no, queda `REVISION_MANUAL` sin consultar a la IA, así que no gasta tokens. En el resumen cuenta en `derivados`, como el que un operador revisó mientras la IA lo procesaba: lo decidió una persona.
+
 La IA no reemplaza la verificación (F04): un reporte de baja confianza lo decide siempre un operador, aunque la foto muestre lo que eligió el vecino. Sin el modo demostración, la cola tiene solo reportes de baja confianza, así que la IA no publica ninguno: deja su propuesta para el operador.
 
 Si el vecino aceptó la sugerencia de la IA al cargar el reporte (F06), la IA se compara con su propia propuesta. No es una puerta, porque igual hace falta que la verificación lo aprobara, pero el log lo aclara y el resumen lo cuenta aparte (`publicadosConSugerencia`).
 
 Cada paso queda en `evento_verificacion_ia`, con los tokens que usó la clasificación. Con el precio del modelo (`server/src/modulos/ia/costos.ts`) da el costo de cada procesamiento.
+
+**Límite del costo:** solo suman las clasificaciones que salieron bien. Una respuesta que no es JSON, que se cortó por largo o que no tiene la forma pedida gastó tokens igual, pero queda como `ERROR` sin el uso, así que el costo real puede ser algo mayor.
 
 | Parámetro | Tipo | Valor | Para qué |
 |---|---|---|---|
