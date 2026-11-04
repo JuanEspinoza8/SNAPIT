@@ -19,7 +19,7 @@ export async function listarFeed(pedido: PedidoFeed) {
       ({
         categoriaId,
         categoriaNombre,
-        cursorFecha: _cursor,
+        cursorMicrosegundos: _cursor,
         cantidadVecinos,
         fotoIds,
         cantidadFotos,
@@ -36,7 +36,7 @@ export async function listarFeed(pedido: PedidoFeed) {
     // Vino una fila de más: hay otra página, que arranca después de la última que se muestra.
     siguiente:
       filas.length > pedido.limite && ultima
-        ? codificarCursor({ fecha: ultima.cursorFecha, id: ultima.id })
+        ? codificarCursor({ microsegundos: Number(ultima.cursorMicrosegundos), id: ultima.id })
         : null,
   };
 }

@@ -715,7 +715,7 @@ La pantalla de inicio: los mismos incidentes que el mapa, en el mismo orden (del
 | Parámetro | Ejemplo | Qué hace |
 |---|---|---|
 | `limite` | `20` | Cuántos incidentes trae la página, de 1 a 50 (20 por defecto) |
-| `cursor` | `WyIyMDI2LTEw...` | Dónde sigue: el `siguiente` de la página anterior, tal cual. Sin él, trae la primera |
+| `cursor` | `WzE3OTI0OTY4...` | Dónde sigue: el `siguiente` de la página anterior, tal cual. Sin él, trae la primera |
 
 Responde **200**:
 
@@ -739,7 +739,7 @@ Responde **200**:
       "cantidadFotos": 2
     }
   ],
-  "siguiente": "WyIyMDI2LTEwLTIwIDExOjQ2OjQ2LjM4KzAwIiwxN10"
+  "siguiente": "WzE3OTI0OTY4MDYzODAwMDAsMTdd"
 }
 ```
 
