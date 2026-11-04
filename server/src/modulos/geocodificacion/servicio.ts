@@ -1,5 +1,6 @@
+import { ErrorApp } from '../../compartido/errores.js';
 import { logger } from '../../config/logger.js';
-import { armarDireccion } from './calculo.js';
+import { aLugares, armarDireccion, NEUQUEN_CAPITAL } from './calculo.js';
 import { nominatim } from './nominatim.js';
 import * as repositorio from './repositorio.js';
 import type { ReportePendiente } from './repositorio.js';
@@ -43,4 +44,23 @@ export async function reintentarPendientes() {
     }
   }
   return { pendientes: pendientes.length, completados };
+}
+
+/**
+ * Busca un texto (una dirección, un lugar) en Neuquén Capital, para elegir el origen o el destino de un
+ * recorrido (F11). Si Nominatim no responde, 503: la app ofrece marcar el punto en el mapa.
+ */
+export async function buscarLugares(texto: string) {
+  let resultados;
+  try {
+    resultados = await nominatim.buscar(texto, NEUQUEN_CAPITAL);
+  } catch (error) {
+    logger.warn({ err: error }, 'No se pudo buscar la dirección en Nominatim');
+    throw new ErrorApp(
+      503,
+      'GEOCODIFICACION_NO_DISPONIBLE',
+      'No se pudo buscar la dirección porque el servicio de mapas no responde. Probá de nuevo en un rato o marcá el punto en el mapa',
+    );
+  }
+  return { lugares: aLugares(resultados) };
 }

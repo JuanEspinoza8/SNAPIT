@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../tema/tema_app.dart';
 
@@ -37,6 +38,30 @@ class AtribucionOsm extends StatelessWidget {
           child: Text('© OpenStreetMap', style: tema.textTheme.labelSmall),
         ),
       ),
+    );
+  }
+}
+
+/// Contornos de referencia, como la zona piloto: borde gris oscuro y un relleno
+/// apenas visible, para que no se confundan con un recorrido.
+class CapaZonas extends StatelessWidget {
+  const CapaZonas(this.contornos, {super.key});
+
+  final List<List<LatLng>> contornos;
+
+  @override
+  Widget build(BuildContext context) {
+    final colores = Theme.of(context).colorScheme;
+    return PolygonLayer(
+      polygons: [
+        for (final contorno in contornos)
+          Polygon(
+            points: contorno,
+            color: colores.onSurfaceVariant.withValues(alpha: 0.06),
+            borderColor: colores.onSurfaceVariant,
+            borderStrokeWidth: 2,
+          ),
+      ],
     );
   }
 }

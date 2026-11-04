@@ -13,6 +13,14 @@ void main() {
     expect(usuario.rol, Rol.administrador);
   });
 
+  test('lee el perfil de movilidad, que puede no estar elegido', () {
+    expect(
+      Usuario.desdeJson(usuarioJson(perfilMovilidadId: 2)).perfilMovilidadId,
+      2,
+    );
+    expect(Usuario.desdeJson(usuarioJson()).perfilMovilidadId, isNull);
+  });
+
   test('un rol desconocido es un error', () {
     expect(
       () => Usuario.desdeJson(usuarioJson(rol: 'VISITANTE')),

@@ -8,10 +8,12 @@ import '../../compartido/tema/tema_app.dart';
 import '../mapa/foco_mapa.dart';
 import '../mapa/mapa_incidentes.dart';
 import '../mis_reportes/pantalla_mis_reportes.dart';
+import '../recorrido/pantalla_recorrido.dart';
 import '../reportar/pantalla_reportar.dart';
 
-/// Lo primero que se ve con sesión. El vecino tiene mapa, reportar y mis
-/// reportes; operador y administrador, solo el mapa: la gestión es en la web.
+/// Lo primero que se ve con sesión. El vecino tiene mapa, reportar, mis
+/// reportes y recorrido; operador y administrador, solo el mapa: la gestión es
+/// en la web.
 class PantallaPrincipal extends ConsumerStatefulWidget {
   const PantallaPrincipal({super.key});
 
@@ -22,16 +24,17 @@ class PantallaPrincipal extends ConsumerStatefulWidget {
 class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   var _seccion = 0;
 
-  // Reportar y Mis reportes se arman recién la primera vez que se abren.
-  // Reportar pide la ubicación al aparecer, y si lo hiciera junto con el mapa,
-  // Android rechaza el segundo pedido de permiso. Mis reportes no pide la
-  // lista si el vecino nunca la mira.
+  // Reportar, Mis reportes y Recorrido se arman recién la primera vez que se
+  // abren. Reportar pide la ubicación al aparecer, y si lo hiciera junto con
+  // el mapa, Android rechaza el segundo pedido de permiso. Las otras no piden
+  // nada si el vecino nunca las mira.
   final _abiertas = {0};
 
   static const _seccionesVecino = [
     _Seccion('Mapa', Icons.map_outlined, 'Mapa de incidentes'),
     _Seccion('Reportar', Icons.add_a_photo_outlined, 'Reportar un problema'),
     _Seccion('Mis reportes', Icons.list_alt_outlined, 'Mis reportes'),
+    _Seccion('Recorrido', Icons.route_outlined, 'Recorrido accesible'),
   ];
   static const _mapa = _Seccion(
     'Mapa',
@@ -73,6 +76,10 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
                     const SizedBox.shrink(),
                   if (_abiertas.contains(2))
                     PantallaMisReportes(alReportar: () => _abrir(1))
+                  else
+                    const SizedBox.shrink(),
+                  if (_abiertas.contains(3))
+                    const PantallaRecorrido()
                   else
                     const SizedBox.shrink(),
                 ],
