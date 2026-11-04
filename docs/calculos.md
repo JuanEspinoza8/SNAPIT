@@ -568,3 +568,29 @@ Hoy pesan sobre todo la rampa y la superficie. Las reglas de escalera, pendiente
 - Bloquear a la silla y al coche en las cuadras sin rampa: con el dato que falta, deja la red en pedazos (arriba).
 - Usar para los tramos sin rampa la fila de «Cordón sin rampa» de la matriz de incidentes: tiene el mismo bloqueo, y no hay categorías para la escalera, la pendiente ni el semáforo.
 - Una issue aparte para aplicarlos: el costo del recorrido se arma en #104, así que van ahí y se prueban con el recorrido real.
+
+### Cierre del incidente
+
+Un incidente en `EN_EJECUCION` se cierra con una foto del después (F09). El sistema compara esa foto con las del antes y decide el resultado (`server/src/modulos/cierre/calculo.ts`).
+
+**Comparación con la IA.** `compararCierre(usuarioId, fotosAntes, fotoDespues)` (`server/src/modulos/ia/compararCierre.ts`) le manda al modelo las fotos del antes y la del después y le pide:
+
+- `veredicto`: `RESUELTO`, `NO_RESUELTO` o `NO_CONCLUYENTE`.
+- `explicacion`: una o dos oraciones con lo que ve.
+
+El intento queda en `registro_ia` con `tipo = COMPARACION_CIERRE`. Si la IA no responde, el cierre se decide sin veredicto (ver abajo). La IA **no** decide el resultado final: solo dice si le parece resuelto.
+
+**Decisión.** `decidirCierre(distancia, veredicto, parametros)` combina la distancia entre la foto del después y el punto del incidente con el veredicto. La primera regla que se cumple decide:
+
+| Orden | Condición | Resultado |
+|---|---|---|
+| 1 | La foto del después no trae GPS (`distancia = null`) | `OBSERVADO` |
+| 2 | `distancia > cierre.distancia_max_m` | `RECHAZADO` |
+| 3 | La IA no respondió (`veredicto = null`) | `OBSERVADO` |
+| 4 | `veredicto = RESUELTO` | `VALIDADO` |
+| 5 | `veredicto = NO_RESUELTO` | `RECHAZADO` |
+| 6 | `veredicto = NO_CONCLUYENTE` | `OBSERVADO` |
+
+La distancia justo en el límite **no** rechaza: se rechaza solo si es mayor que `cierre.distancia_max_m`. El valor de partida es 50 m (arriba, «Cierre, vigencia y recorridos»).
+
+`VALIDADO`, `OBSERVADO` y `RECHAZADO` son el enum `ResultadoComparacion` que se guarda en `cierre_incidente.resultado_comparacion`. El endpoint que registra el cierre es la #108; esta parte solo calcula el resultado.

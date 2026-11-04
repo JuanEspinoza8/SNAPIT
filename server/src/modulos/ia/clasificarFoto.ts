@@ -35,7 +35,7 @@ export interface Sugerencia {
  * Deja la foto lista para el modelo: JPEG, girada según el EXIF y con el lado mayor en LADO_MAXIMO_PX.
  * Devuelve null si no es una imagen JPG o PNG.
  */
-async function prepararFoto(contenido: Buffer) {
+export async function prepararFoto(contenido: Buffer) {
   try {
     const { format } = await sharp(contenido).metadata();
     if (format !== 'jpeg' && format !== 'png') return null;
