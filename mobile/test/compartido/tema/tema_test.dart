@@ -1,7 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snapit/app.dart';
+import 'package:snapit/compartido/tema/modo_tema.dart';
 import 'package:snapit/compartido/tema/tema_app.dart';
 
 /// Contraste de WCAG 2 entre dos colores.
@@ -65,5 +69,38 @@ void main() {
       ColoresGravedad.claro.moderada,
       isNot(ColoresEstado.claro.registrado),
     );
+  });
+
+  group('tema guardado', () {
+    test('se lee claro solo si se eligió el claro', () async {
+      FlutterSecureStorage.setMockInitialValues({'modoTema': 'claro'});
+      expect(await ModoTemaNotifier.leerGuardado(), ThemeMode.light);
+
+      FlutterSecureStorage.setMockInitialValues({});
+      expect(await ModoTemaNotifier.leerGuardado(), ThemeMode.dark);
+    });
+
+    testWidgets('leído antes de abrir, la primera pantalla ya sale en ese '
+        'tema, sin pasar por el oscuro', (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final contenedor = ProviderContainer(
+        retry: (_, _) => null,
+        overrides: [
+          modoTemaGuardadoProvider.overrideWithValue(ThemeMode.light),
+        ],
+      );
+      addTearDown(contenedor.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: contenedor,
+          child: const AppSnapIt(),
+        ),
+      );
+
+      // Un solo cuadro: si arrancara oscuro, se vería acá.
+      final tema = Theme.of(tester.element(find.byType(Navigator).first));
+      expect(tema.brightness, Brightness.light);
+    });
   });
 }

@@ -141,6 +141,22 @@ void main() {
     expect(contiene(pedido.consulta, centroInicial), isTrue);
   });
 
+  testWidgets('el visitante puede cambiar el tema, y queda guardado', (
+    tester,
+  ) async {
+    await abrirMapa(tester, servidorDelMapa());
+    Brightness brillo() =>
+        Theme.of(tester.element(find.byType(PantallaMapaPublico))).brightness;
+    expect(brillo(), Brightness.dark);
+
+    await tester.tap(find.byTooltip('Usar el tema claro'));
+    await tester.pumpAndSettle();
+
+    expect(brillo(), Brightness.light);
+    expect(find.byTooltip('Usar el tema oscuro'), findsOneWidget);
+    expect((await tokensGuardados())['modoTema'], 'claro');
+  });
+
   testWidgets('cada marcador dice su estado con texto, no solo con color', (
     tester,
   ) async {
