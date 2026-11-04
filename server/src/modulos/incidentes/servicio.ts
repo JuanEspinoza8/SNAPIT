@@ -23,6 +23,8 @@ export async function listarFeed(pedido: PedidoFeed) {
         cantidadVecinos,
         fotoIds,
         cantidadFotos,
+        cantidadMeGusta,
+        cantidadComentarios,
         ...datos
       }) => ({
         ...datos,
@@ -31,6 +33,8 @@ export async function listarFeed(pedido: PedidoFeed) {
         cantidadVecinos: Number(cantidadVecinos),
         fotos: fotoIds.map(urlFoto),
         cantidadFotos: Number(cantidadFotos),
+        cantidadMeGusta: Number(cantidadMeGusta),
+        cantidadComentarios: Number(cantidadComentarios),
       }),
     ),
     // Vino una fila de más: hay otra página, que arranca después de la última que se muestra.
@@ -41,14 +45,21 @@ export async function listarFeed(pedido: PedidoFeed) {
   };
 }
 
-export async function obtenerFicha(id: number) {
+/**
+ * El incidente que ve el público al pedir [id]: si se unió a otro, el principal. No hay cadenas: el principal
+ * nunca está unido. Desestimado, caducado o inexistente: 404, porque para el público no existe.
+ */
+export async function buscarVisible(id: number) {
   const pedido = await repositorio.buscarPrincipal(id);
   if (!pedido) throw noEncontrado();
-  // Si se unió a otro, la ficha es la del principal. No hay cadenas: el principal nunca está unido.
-  const principalId = pedido.incidentePrincipalId ?? pedido.id;
-  const incidente = await repositorio.buscarVisible(principalId);
-  // Desestimado o caducado: para el público no existe.
+  const incidente = await repositorio.buscarVisible(pedido.incidentePrincipalId ?? pedido.id);
   if (!incidente) throw noEncontrado();
+  return incidente;
+}
+
+export async function obtenerFicha(id: number) {
+  const incidente = await buscarVisible(id);
+  const principalId = incidente.id;
 
   const [cantidadVecinos, fotos] = await Promise.all([
     repositorio.contarVecinos(principalId),

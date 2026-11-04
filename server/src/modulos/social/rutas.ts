@@ -1,0 +1,27 @@
+import { Router } from 'express';
+import { validar } from '../../compartido/validar.js';
+import { esquemaId } from '../incidentes/esquemas.js';
+import * as servicio from './servicio.js';
+
+// Lo social del feed, por ahora solo para leer: públicas, sin sesión, como el mapa. Dar like y comentar va aparte.
+export const rutasSocial = Router();
+
+rutasSocial.get('/incidentes/:id/reportes', async (req, res) => {
+  const { id } = validar(esquemaId, req.params);
+  res.json(await servicio.listarReportesDeIncidente(id));
+});
+
+rutasSocial.get('/incidentes/:id/comentarios', async (req, res) => {
+  const { id } = validar(esquemaId, req.params);
+  res.json(await servicio.listarComentariosDeIncidente(id));
+});
+
+rutasSocial.get('/reportes/:id/publico', async (req, res) => {
+  const { id } = validar(esquemaId, req.params);
+  res.json(await servicio.obtenerReporte(id));
+});
+
+rutasSocial.get('/reportes/:id/comentarios', async (req, res) => {
+  const { id } = validar(esquemaId, req.params);
+  res.json(await servicio.listarComentariosDeReporte(id));
+});
