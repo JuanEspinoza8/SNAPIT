@@ -351,6 +351,7 @@ Busca una dirección o un lugar en Neuquén Capital, para elegir el origen o el 
 - `nombre`: el nombre propio del lugar, si tiene (un hospital, una escuela), y la dirección con el barrio: `"Hospital Bouquet Roldán, Doctor Luis Teodoro Planas 1915, Bouquet Roldán"`.
 - Solo devuelve lugares de Neuquén Capital: se le pide a Nominatim dentro del rectángulo del municipio y, de lo que responde, quedan solo los que su dirección marca como de la ciudad (el centro de Cipolletti cae dentro del rectángulo). Sin resultados, `lugares` viene vacía.
 - Usa el mismo cliente de Nominatim que la dirección de los reportes: una consulta por segundo entre las dos y la misma caché. La app busca al confirmar el texto, no con cada letra.
+- La cola no tiene tope de espera: con varias búsquedas a la vez, cada una espera su turno (con 10 en espera, la última tarda unos 10 s). Lo que está en la caché responde sin esperar.
 - Si Nominatim falla o no responde a tiempo: **503** `GEOCODIFICACION_NO_DISPONIBLE`, con un mensaje que propone marcar el punto en el mapa. Texto de menos de 3 letras: **400**.
 
 ## Reportes
