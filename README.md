@@ -118,6 +118,15 @@ Por ahora la IA es Claude, por la API de Anthropic: lo decidió el grupo en luga
 
 Cada consulta, salga bien o mal, queda en `registro_ia`. Los tests simulan la API: no hace falta clave y no se gasta.
 
+### Avisos push
+
+Los avisos al celular (F10) salen por Firebase Cloud Messaging, con `firebase-admin` (`src/modulos/avisos/fcm.ts`). Hace falta el archivo de la cuenta de servicio del proyecto de Firebase: en la consola, *Configuración del proyecto › Cuentas de servicio › Generar nueva clave privada*.
+
+1. Guardalo como `server/secretos/firebase.json`. La carpeta no se versiona.
+2. En el `.env`: `FIREBASE_CREDENCIALES=secretos/firebase.json`. La ruta es relativa a `server/`, y la misma sirve en Docker, que monta esa carpeta de solo lectura.
+
+Sin el archivo el servidor arranca igual: los avisos se guardan y se ven en la lista de la app, pero no llegan al celular (queda un aviso en el log). Los tests simulan FCM.
+
 ### Puntos de interés
 
 Estar cerca de una escuela, un centro de salud, una parada o un edificio público suma prioridad (F07). Esos lugares se cargan en `punto_interes` desde OpenStreetMap, con [Overpass](https://overpass-api.de/), dentro del límite del Municipio de Neuquén:

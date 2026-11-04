@@ -13,6 +13,9 @@ coverage/
 # Fotos de los reportes en desarrollo (#13)
 server/fotos/
 
+# Credenciales de Firebase y otros secretos en archivo (#113)
+server/secretos/
+
 # Flutter (mobile)
 mobile/.dart_tool/
 mobile/build/

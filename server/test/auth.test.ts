@@ -127,6 +127,7 @@ describe('POST /api/auth/ingreso', () => {
         organismoId: null,
         areaId: null,
         perfilMovilidadId: null,
+        notificacionesHabilitadas: true,
       },
     });
 

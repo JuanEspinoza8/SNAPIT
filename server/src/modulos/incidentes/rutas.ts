@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { autenticar, permitirRoles } from '../../compartido/autenticacion.js';
 import { validar } from '../../compartido/validar.js';
+import { consultarSeguimiento, dejarDeSeguir, seguir } from '../avisos/seguimiento.js';
 import { obtenerGestion } from '../bandeja/servicio.js';
 import { fijarPrioridadManual, quitarPrioridadManual } from '../prioridad/ajusteManual.js';
 import { cambiarCategoria } from './categoria.js';
@@ -9,7 +10,7 @@ import { cambiarEstado, comentarIncidente, derivarIncidente } from './gestion.js
 import * as servicio from './servicio.js';
 import { deshacerUnion, unirIncidentes } from './union.js';
 
-// El mapa y la ficha son públicos: se ven sin iniciar sesión. La gestión del operador, no.
+// El mapa y la ficha son públicos: se ven sin iniciar sesión. El seguimiento y la gestión del operador, no.
 export const rutasIncidentes = Router();
 
 rutasIncidentes.get('/', async (req, res) => {
@@ -24,6 +25,21 @@ rutasIncidentes.get('/feed', async (req, res) => {
 rutasIncidentes.get('/:id', async (req, res) => {
   const { id } = validar(esquemaId, req.params);
   res.json(await servicio.obtenerFicha(id));
+});
+
+// Un vecino sigue un incidente para enterarse de sus cambios (F10). El GET le dice a la ficha si ya lo sigue.
+rutasIncidentes.get('/:id/seguimiento', autenticar, permitirRoles('VECINO'), async (req, res) => {
+  res.json(await consultarSeguimiento(req.usuario!, req.params));
+});
+
+rutasIncidentes.post('/:id/seguimiento', autenticar, permitirRoles('VECINO'), async (req, res) => {
+  await seguir(req.usuario!, req.params);
+  res.status(204).end();
+});
+
+rutasIncidentes.delete('/:id/seguimiento', autenticar, permitirRoles('VECINO'), async (req, res) => {
+  await dejarDeSeguir(req.usuario!, req.params);
+  res.status(204).end();
 });
 
 // Un operador une un incidente duplicado a su principal, o deshace la unión (F05): solo en su organismo.
