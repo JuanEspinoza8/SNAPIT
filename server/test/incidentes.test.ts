@@ -417,6 +417,7 @@ describe('GET /api/incidentes/:id', () => {
       categoria: { id: categoria.id, nombre: categoria.nombre },
       estado: 'VERIFICADO',
       enRevision: false,
+      severidad: 'MODERADA',
       primerReporteEn: '2026-10-01T12:00:00.000Z',
       cantidadReportes: 3,
       cantidadVecinos: 2,
@@ -491,6 +492,128 @@ describe('GET /api/incidentes/:id', () => {
     const res = await request(app).get(`/api/incidentes/${id}`);
 
     expect(res.body.direccion).toBe('Lanín 120, Villa Ceferino');
+  });
+});
+
+describe('GET /api/incidentes/feed', () => {
+  // El feed no pide bbox: cada test filtra por su propia categoría para ver solo lo suyo.
+  const feed = (consulta: Record<string, string | number>) =>
+    request(app).get('/api/incidentes/feed').query(consulta);
+
+  it('es pública y devuelve cada tarjeta con sus fotos y vecinos, sin las de reportes desestimados', async () => {
+    const zona = zonaNueva();
+    const categoria = await crearCategoria();
+    const id = await crearIncidente({
+      categoriaId: categoria.id,
+      punto: zona.punto(),
+      cantidadReportes: 3,
+      direccion: 'Lanín 120, Villa Ceferino',
+    });
+    const ana = await crearUsuario();
+    const foto1 = await crearReporteConFoto(id, categoria.id, ana.id);
+    const foto2 = await crearReporteConFoto(id, categoria.id, (await crearUsuario()).id);
+    await crearReporteConFoto(id, categoria.id, (await crearUsuario()).id, true);
+
+    const res = await feed({ categoriaId: categoria.id });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      incidentes: [
+        {
+          id,
+          lat: expect.any(Number),
+          lon: expect.any(Number),
+          categoria: { id: categoria.id, nombre: categoria.nombre },
+          estado: 'VERIFICADO',
+          enRevision: false,
+          severidad: 'MODERADA',
+          primerReporteEn: '2026-10-01T12:00:00.000Z',
+          cantidadReportes: 3,
+          cantidadVecinos: 2,
+          direccion: 'Lanín 120, Villa Ceferino',
+          resueltoEn: null,
+          fotos: [foto1, foto2].map((f) => ({ id: f.id, url: `/api/fotos/${f.id}` })),
+          cantidadFotos: 2,
+        },
+      ],
+      siguiente: null,
+    });
+  });
+
+  it('pagina del más nuevo al más viejo sin repetir ni saltear, aunque haya fechas iguales', async () => {
+    const zona = zonaNueva();
+    const { id: categoriaId } = await crearCategoria();
+    const misma = new Date('2026-10-05T12:00:00Z');
+    const viejo = await crearIncidente({
+      categoriaId,
+      punto: zona.punto(),
+      primerReporteEn: new Date('2026-10-01'),
+    });
+    const empateA = await crearIncidente({ categoriaId, punto: zona.punto(), primerReporteEn: misma });
+    const empateB = await crearIncidente({ categoriaId, punto: zona.punto(), primerReporteEn: misma });
+    const nuevo = await crearIncidente({ categoriaId, punto: zona.punto() });
+    // Con microsegundos: un cursor redondeado a milisegundos repetiría o saltearía este incidente.
+    await prisma.$executeRaw`
+      UPDATE incidente SET primer_reporte_en = '2026-10-09 12:00:00.000750+00' WHERE id = ${nuevo}`;
+
+    const vistos: number[] = [];
+    let siguiente: string | null = null;
+    let paginas = 0;
+    do {
+      const res = await feed({ categoriaId, limite: 1, ...(siguiente ? { cursor: siguiente } : {}) });
+      expect(res.status).toBe(200);
+      vistos.push(...res.body.incidentes.map((i: { id: number }) => i.id));
+      siguiente = res.body.siguiente;
+      paginas++;
+    } while (siguiente && paginas < 10);
+
+    expect(vistos).toEqual([nuevo, empateB, empateA, viejo]);
+  });
+
+  it('trae hasta cinco fotos por tarjeta, contando las de los incidentes unidos, y dice cuántas hay', async () => {
+    const zona = zonaNueva();
+    const categoria = await crearCategoria();
+    const principal = await crearIncidente({ categoriaId: categoria.id, punto: zona.punto() });
+    const unido = await crearIncidente({
+      categoriaId: categoria.id,
+      punto: zona.punto(),
+      principalId: principal,
+    });
+    const vecino = await crearUsuario();
+    for (let n = 0; n < 4; n++) await crearReporteConFoto(principal, categoria.id, vecino.id);
+    for (let n = 0; n < 3; n++) await crearReporteConFoto(unido, categoria.id, (await crearUsuario()).id);
+
+    const res = await feed({ categoriaId: categoria.id });
+
+    // El unido no aparece: sus fotos y vecinos se ven en la tarjeta del principal.
+    expect(res.body.incidentes).toHaveLength(1);
+    expect(res.body.incidentes[0]).toMatchObject({ id: principal, cantidadFotos: 7, cantidadVecinos: 4 });
+    expect(res.body.incidentes[0].fotos).toHaveLength(5);
+  });
+
+  it('no muestra lo que el mapa tampoco muestra', async () => {
+    const zona = zonaNueva();
+    const { id: categoriaId } = await crearCategoria();
+    const visible = await crearIncidente({ categoriaId, punto: zona.punto() });
+    await crearIncidente({ categoriaId, punto: zona.punto(), estado: 'DESESTIMADO' });
+    await crearIncidente({ categoriaId, punto: zona.punto(), caducadoEn: new Date() });
+
+    const res = await feed({ categoriaId });
+
+    expect(res.body.incidentes.map((i: { id: number }) => i.id)).toEqual([visible]);
+  });
+
+  it.each([
+    ['un cursor que no se puede leer', { cursor: 'no-es-un-cursor' }, 'cursor'],
+    ['un límite de cero', { limite: 0 }, 'limite'],
+    ['un límite de más de 50', { limite: 51 }, 'limite'],
+    ['un filtro del mapa inválido', { estado: 'DESESTIMADO' }, 'estado'],
+  ])('%s responde 400 con detalle', async (_caso, consulta, campo) => {
+    const res = await feed(consulta);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.codigo).toBe('DATOS_INVALIDOS');
+    expect(res.body.error.detalles.map((d: { campo: string }) => d.campo)).toContain(campo);
   });
 });
 

@@ -630,6 +630,7 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   "categoria": { "id": 3, "nombre": "Cordón sin rampa" },
   "estado": "REGISTRADO",
   "enRevision": true,
+  "severidad": "MODERADA",
   "primerReporteEn": "2026-10-06T15:15:33.494Z",
   "cantidadReportes": 1,
   "cantidadVecinos": 1,
@@ -638,6 +639,7 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
 }
 ```
 
+- `severidad`: la gravedad consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`).
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
 - `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` ya incluye `/api`: la web la usa tal cual (pasa por el proxy); la app, que tiene la base terminada en `/api`, arma `fotos/<id>` sobre esa base.
 - `direccion`: `"<calle> <altura>, <barrio>"`, según Nominatim (OpenStreetMap), del primer reporte del incidente. El barrio es lo que está después de la última coma. Si falta algo:
@@ -648,6 +650,47 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   - `null` mientras todavía no se completó (unos segundos después de reportar, o más si Nominatim no respondía).
 
 Desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`. Un id que no es un entero positivo (o no entra en la base): **400** `DATOS_INVALIDOS`.
+
+### `GET /api/incidentes/feed`
+La pantalla de inicio: los mismos incidentes que el mapa, en el mismo orden (del más nuevo al más viejo), con sus fotos y de a páginas. Pública, sin sesión. Acepta los filtros de [`GET /api/incidentes`](#get-apiincidentes) y además:
+
+| Parámetro | Ejemplo | Qué hace |
+|---|---|---|
+| `limite` | `20` | Cuántos incidentes trae la página, de 1 a 50 (20 por defecto) |
+| `cursor` | `WyIyMDI2LTEw...` | Dónde sigue: el `siguiente` de la página anterior, tal cual. Sin él, trae la primera |
+
+Responde **200**:
+
+```json
+{
+  "incidentes": [
+    {
+      "id": 17,
+      "lat": -38.9573,
+      "lon": -68.0701,
+      "categoria": { "id": 2, "nombre": "Vereda rota" },
+      "estado": "VERIFICADO",
+      "enRevision": false,
+      "severidad": "LEVE",
+      "primerReporteEn": "2026-10-20T11:46:46.380Z",
+      "cantidadReportes": 2,
+      "cantidadVecinos": 1,
+      "direccion": "Domingo Faustino Sarmiento 765, Área Centro Sur",
+      "resueltoEn": null,
+      "fotos": [{ "id": 19, "url": "/api/fotos/19" }, { "id": 23, "url": "/api/fotos/23" }],
+      "cantidadFotos": 2
+    }
+  ],
+  "siguiente": "WyIyMDI2LTEwLTIwIDExOjQ2OjQ2LjM4KzAwIiwxN10"
+}
+```
+
+- `siguiente` es `null` en la última página. El cursor es opaco: no hay que armarlo ni interpretarlo.
+- La paginación es por cursor y no por número de página: si entra un incidente nuevo mientras alguien scrollea, la página siguiente no repite el último que vio. Para ver los nuevos, se vuelve a pedir sin cursor.
+- `fotos`: hasta 5, las primeras que se cargaron, con la misma regla que la ficha (sin las de reportes desestimados, sumando las de los incidentes unidos). `cantidadFotos` dice cuántas hay en total, para mostrar «+3» en el carrusel.
+- `severidad` es la consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`). `cantidadVecinos` y `direccion` son los de la ficha.
+
+Un `cursor` que no se puede leer, un `limite` fuera de rango o un filtro inválido: **400** `DATOS_INVALIDOS` con `detalles`.
 
 ### `POST /api/incidentes/:id/union`
 Un operador marca que el incidente `:id` es el mismo problema que otro, el **principal** (F05). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, y los dos incidentes tienen que ser de su organismo.
