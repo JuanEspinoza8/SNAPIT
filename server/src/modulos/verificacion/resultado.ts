@@ -1,4 +1,5 @@
 import type { EstadoIncidente, Prisma } from '@prisma/client';
+import { ErrorApp } from '../../compartido/errores.js';
 import { estadoSegunReportes, severidadConsolidada } from '../agrupacion/calculo.js';
 import { contarReportes, severidadesDeclaradas } from '../agrupacion/repositorio.js';
 import * as repositorio from './repositorio.js';
@@ -30,22 +31,30 @@ export interface EfectoDelResultado {
  *   vivo después de un desestimado, se recalcula su severidad.
  * - Deja el movimiento en la bitácora del incidente.
  *
+ * Si el incidente que manda ya está resuelto o desestimado, no aplica nada: 409 INCIDENTE_CERRADO.
  * No avisa al módulo de prioridad: lo hace quien llama, una vez que terminó con el incidente.
  */
 export async function aplicarResultado(
   tx: Prisma.TransactionClient,
   resultado: ResultadoVerificacion,
 ): Promise<EfectoDelResultado> {
-  const reporte = await repositorio.leerReporte(tx, resultado.reporteId);
   // Primero los incidentes y después el vecino, en el mismo orden que el alta: si no, un alta y una revisión
   // del mismo vecino en el mismo incidente se pueden trabar entre sí.
+  const reporte = await leerYBloquear(tx, resultado.reporteId);
   const incidentes = [reporte.propioId, reporte.incidenteId].filter((id) => id !== null);
-  if (incidentes.length > 0) await repositorio.bloquearIncidentes(tx, incidentes);
-  const reputacion = await repositorio.sumarAlHistorial(tx, reporte.usuarioId, resultado.decision);
-  if (reporte.incidenteId === null) return { reputacion, incidente: null };
-
   const id = reporte.incidenteId;
-  const anterior = await repositorio.bloquearIncidente(tx, id);
+  const anterior = id === null ? null : await repositorio.bloquearIncidente(tx, id);
+  if (anterior && ESTADOS_CERRADOS.includes(anterior)) {
+    // Desestimar el incidente no toca la reputación (decisión del 22/10): revisar sus reportes después tampoco.
+    throw new ErrorApp(
+      409,
+      'INCIDENTE_CERRADO',
+      'El incidente de este reporte ya está resuelto o desestimado',
+    );
+  }
+  const reputacion = await repositorio.sumarAlHistorial(tx, reporte.usuarioId, resultado.decision);
+  if (id === null || anterior === null) return { reputacion, incidente: null };
+
   if (resultado.decision === 'DESESTIMADO') await repositorio.restarReporte(tx, incidentes);
   const nuevo = estadoSegunReportes(anterior, await contarReportes(tx, id));
 
@@ -80,6 +89,26 @@ export async function aplicarResultado(
   }
 
   return { reputacion, incidente: { id, estado: nuevo } };
+}
+
+const ESTADOS_CERRADOS: EstadoIncidente[] = ['RESUELTO', 'DESESTIMADO'];
+
+/**
+ * Lee a qué incidente pertenece el reporte y bloquea ese incidente y el que manda. Una unión que termina
+ * mientras se espera el bloqueo puede cambiar el que manda: por eso se vuelve a leer después de bloquear, hasta
+ * que no aparezca ninguno nuevo.
+ */
+async function leerYBloquear(tx: Prisma.TransactionClient, reporteId: number) {
+  const bloqueados = new Set<number>();
+  for (;;) {
+    const reporte = await repositorio.leerReporte(tx, reporteId);
+    const nuevos = [reporte.propioId, reporte.incidenteId].filter(
+      (id): id is number => id !== null && !bloqueados.has(id),
+    );
+    if (nuevos.length === 0) return reporte;
+    await repositorio.bloquearIncidentes(tx, nuevos);
+    for (const id of nuevos) bloqueados.add(id);
+  }
 }
 
 /** El texto del movimiento: qué reporte, quién lo decidió y, si hay, el comentario del operador. */

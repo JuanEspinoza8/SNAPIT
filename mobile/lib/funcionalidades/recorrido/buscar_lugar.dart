@@ -51,6 +51,11 @@ class _BuscarLugarState extends ConsumerState<_BuscarLugar> {
       setState(() => _aviso = 'Escribí al menos 3 letras');
       return;
     }
+    // Con el mismo texto, el provider guarda la falla anterior: hay que
+    // descartarla para que "Buscar" vuelva a consultar.
+    if (texto == _buscado && ref.read(lugaresProvider(texto)).hasError) {
+      ref.invalidate(lugaresProvider(texto));
+    }
     setState(() {
       _aviso = null;
       _buscado = texto;

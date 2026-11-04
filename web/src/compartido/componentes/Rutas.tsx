@@ -111,7 +111,7 @@ export const rutas: RouteObject[] = [
       {
         path: 'reportar',
         element: (
-          <RutaProtegida rol="VECINO">
+          <RutaProtegida roles={['VECINO']}>
             <Suspense fallback={<Cargando />}>
               <PaginaReportar />
             </Suspense>
@@ -121,16 +121,17 @@ export const rutas: RouteObject[] = [
       {
         path: 'mis-reportes',
         element: (
-          <RutaProtegida rol="VECINO">
+          <RutaProtegida roles={['VECINO']}>
             <PaginaMisReportes />
           </RutaProtegida>
         ),
       },
-      // Los incidentes del organismo por prioridad (#67) y la ficha de cada uno con sus acciones (#68).
+      // Los incidentes del organismo por prioridad (#67) y la ficha de cada uno con sus acciones (#68). El
+      // administrador también entra, como deja el servidor (#64).
       {
         path: 'bandeja',
         element: (
-          <RutaProtegida rol="OPERADOR">
+          <RutaProtegida roles={['OPERADOR', 'ADMINISTRADOR']}>
             <Suspense fallback={<Cargando />}>
               <PaginaBandeja />
             </Suspense>
@@ -140,7 +141,7 @@ export const rutas: RouteObject[] = [
       {
         path: 'bandeja/:id',
         element: (
-          <RutaProtegida rol="OPERADOR">
+          <RutaProtegida roles={['OPERADOR', 'ADMINISTRADOR']}>
             <Suspense fallback={<Cargando />}>
               <PaginaFicha />
             </Suspense>
@@ -151,7 +152,7 @@ export const rutas: RouteObject[] = [
       {
         path: 'revision',
         element: (
-          <RutaProtegida rol="OPERADOR">
+          <RutaProtegida roles={['OPERADOR']}>
             <Suspense fallback={<Cargando />}>
               <PaginaRevision />
             </Suspense>
@@ -162,7 +163,7 @@ export const rutas: RouteObject[] = [
       {
         path: 'incidentes',
         element: (
-          <RutaProtegida rol="OPERADOR">
+          <RutaProtegida roles={['OPERADOR']}>
             <Suspense fallback={<Cargando />}>
               <PaginaIncidentes />
             </Suspense>
@@ -172,7 +173,7 @@ export const rutas: RouteObject[] = [
       {
         path: 'administracion',
         element: (
-          <RutaProtegida rol="ADMINISTRADOR">
+          <RutaProtegida roles={['ADMINISTRADOR']}>
             <PaginaAltaOperador />
           </RutaProtegida>
         ),

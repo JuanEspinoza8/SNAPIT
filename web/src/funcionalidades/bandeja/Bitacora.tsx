@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { aErrorApi } from '../../compartido/red/error.js';
+import { CON_ERROR, SIN_ERROR } from './AccionesFicha.js';
 import { ESTADOS_INCIDENTE } from './EtiquetaEstadoIncidente.js';
 import { fechaHora } from './formato.js';
 import type { Movimiento, TipoMovimiento } from './tipos.js';
@@ -52,7 +53,7 @@ export function Bitacora({ movimientos, comentar }: Props) {
             setError(null);
           }}
           className={`w-full rounded-md border bg-superficie px-3 py-2 text-sm text-texto focus:outline-none ${
-            error ? 'border-peligro' : 'border-borde focus:border-primario'
+            error ? CON_ERROR : SIN_ERROR
           }`}
         />
         {error && <p className="text-sm text-peligro">{error}</p>}
@@ -83,7 +84,7 @@ export function Bitacora({ movimientos, comentar }: Props) {
 function FilaMovimiento({ movimiento }: { movimiento: Movimiento }) {
   const { estadoAnterior, estadoNuevo, incidenteRelacionadoId } = movimiento;
   return (
-    <li className="flex flex-col gap-0.5 py-2 text-sm">
+    <li className="flex flex-col gap-1 py-2 text-sm">
       <p className="text-xs text-texto-secundario">
         {fechaHora(movimiento.creadoEn)} · {movimiento.usuario?.nombre ?? 'Sistema'}
       </p>
