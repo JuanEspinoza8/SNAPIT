@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NEUQUEN_CAPITAL } from '../src/modulos/geocodificacion/calculo.js';
 import { crearClienteNominatim, type OpcionesNominatim } from '../src/modulos/geocodificacion/nominatim.js';
 
 // Nominatim simulado: ningún test sale a la red.
@@ -160,5 +161,82 @@ describe('cliente de Nominatim', () => {
     expect(fetchSimulado).toHaveBeenCalledTimes(3);
     await nominatim.direccionDe(-38.1, -68.1);
     expect(fetchSimulado).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('buscar en Nominatim', () => {
+  const LUGAR = { lat: '-38.9601407', lon: '-68.0897074', name: '', address: DIRECCION };
+
+  it('pide /search acotado a la caja, en Argentina, en castellano y con el User-Agent propio', async () => {
+    fetchSimulado.mockResolvedValueOnce(responder([LUGAR]));
+
+    const resultados = await cliente().buscar('  Saavedra   500 ', NEUQUEN_CAPITAL);
+
+    expect(resultados).toEqual([{ lat: -38.9601407, lon: -68.0897074, name: '', address: DIRECCION }]);
+    const [url, opciones] = fetchSimulado.mock.calls[0]!;
+    const pedido = new URL(String(url));
+    expect(pedido.origin + pedido.pathname).toBe('https://nominatim.test/search');
+    expect(Object.fromEntries(pedido.searchParams)).toEqual({
+      q: 'Saavedra 500',
+      format: 'jsonv2',
+      addressdetails: '1',
+      countrycodes: 'ar',
+      // Oeste, norte, este y sur.
+      viewbox: '-68.2019,-38.8815,-67.9987,-38.9956',
+      bounded: '1',
+      limit: '10',
+      'accept-language': 'es',
+    });
+    expect(opciones?.headers).toMatchObject({ 'User-Agent': 'SnapIt/prueba' });
+  });
+
+  it('el mismo texto, con otras mayúsculas o espacios, sale de la caché', async () => {
+    fetchSimulado.mockResolvedValueOnce(responder([LUGAR]));
+    const nominatim = cliente();
+
+    await nominatim.buscar('Saavedra 500', NEUQUEN_CAPITAL);
+    await nominatim.buscar('saavedra  500', NEUQUEN_CAPITAL);
+
+    expect(fetchSimulado).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin resultados devuelve una lista vacía, sin fallar', async () => {
+    fetchSimulado.mockResolvedValueOnce(responder([]));
+
+    await expect(cliente().buscar('xyzzy', NEUQUEN_CAPITAL)).resolves.toEqual([]);
+  });
+
+  it('un error HTTP o una respuesta que no es una lista es una falla, y no se guarda', async () => {
+    fetchSimulado.mockResolvedValueOnce(responder({}, 503));
+    fetchSimulado.mockResolvedValueOnce(responder({ error: 'algo' }));
+    fetchSimulado.mockResolvedValueOnce(responder([LUGAR]));
+    const nominatim = cliente();
+
+    await expect(nominatim.buscar('Saavedra 500', NEUQUEN_CAPITAL)).rejects.toThrow(
+      'Nominatim respondió 503',
+    );
+    await expect(nominatim.buscar('Saavedra 500', NEUQUEN_CAPITAL)).rejects.toThrow(
+      'no es una lista de lugares',
+    );
+    await expect(nominatim.buscar('Saavedra 500', NEUQUEN_CAPITAL)).resolves.toHaveLength(1);
+  });
+
+  it('comparte con la dirección de los reportes el límite de una consulta por segundo', async () => {
+    vi.useFakeTimers();
+    fetchSimulado.mockImplementation(async (url) =>
+      String(url).includes('/search') ? responder([LUGAR]) : responder({ address: DIRECCION }),
+    );
+    const nominatim = cliente({ intervaloMs: 1000 });
+
+    const consultas = Promise.all([
+      nominatim.direccionDe(-38.95, -68.05),
+      nominatim.buscar('Saavedra 500', NEUQUEN_CAPITAL),
+    ]);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchSimulado).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchSimulado).toHaveBeenCalledTimes(2);
+    await consultas;
   });
 });

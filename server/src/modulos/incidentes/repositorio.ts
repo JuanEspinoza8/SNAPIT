@@ -81,7 +81,7 @@ export interface TarjetaFeed extends PuntoMapa {
   severidad: string;
   direccion: string | null;
   resueltoEn: Date | null;
-  cursorFecha: string;
+  cursorMicrosegundos: bigint;
   cantidadVecinos: bigint;
   fotoIds: number[];
   cantidadFotos: bigint;
@@ -98,7 +98,8 @@ export function listarFeed(pedido: PedidoFeed) {
   const condiciones = condicionesDe(pedido);
   if (pedido.cursor) {
     condiciones.push(
-      Prisma.sql`(i.primer_reporte_en, i.id) < (${pedido.cursor.fecha}::timestamptz, ${pedido.cursor.id})`,
+      Prisma.sql`(i.primer_reporte_en, i.id) <
+        (to_timestamp(0) + ${pedido.cursor.microsegundos}::bigint * interval '1 microsecond', ${pedido.cursor.id}::int)`,
     );
   }
   const reportes = REPORTES_DEL_INCIDENTE(Prisma.sql`i.id`);
@@ -113,7 +114,7 @@ export function listarFeed(pedido: PedidoFeed) {
            i.estado = 'REGISTRADO' AS "enRevision",
            i.severidad::text AS severidad,
            i.primer_reporte_en AS "primerReporteEn",
-           i.primer_reporte_en::text AS "cursorFecha",
+           (extract(epoch FROM i.primer_reporte_en) * 1000000)::bigint AS "cursorMicrosegundos",
            i.cantidad_reportes AS "cantidadReportes",
            i.direccion,
            i.resuelto_en AS "resueltoEn",

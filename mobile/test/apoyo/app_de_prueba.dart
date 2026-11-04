@@ -21,13 +21,17 @@ const sesionGuardada = {
 void guardarSesion() =>
     FlutterSecureStorage.setMockInitialValues({...sesionGuardada});
 
-Map<String, Object?> usuarioJson({String rol = 'VECINO'}) => {
+Map<String, Object?> usuarioJson({
+  String rol = 'VECINO',
+  int? perfilMovilidadId,
+}) => {
   'id': 7,
   'email': 'ana@ejemplo.com',
   'nombre': 'Ana',
   'rol': rol,
   'organismoId': rol == 'VECINO' ? null : 1,
   'areaId': rol == 'OPERADOR' ? 3 : null,
+  'perfilMovilidadId': perfilMovilidadId,
 };
 
 Future<ResponseBody> ingresoCorrecto({String rol = 'VECINO'}) => json(200, {

@@ -499,6 +499,7 @@ describe('GET /api/incidentes/feed', () => {
   // El feed no pide bbox: cada test filtra por su propia categoría para ver solo lo suyo.
   const feed = (consulta: Record<string, string | number>) =>
     request(app).get('/api/incidentes/feed').query(consulta);
+  const armarCursor = (valores: unknown[]) => Buffer.from(JSON.stringify(valores)).toString('base64url');
 
   it('es pública y devuelve cada tarjeta con sus fotos y vecinos, sin las de reportes desestimados', async () => {
     const zona = zonaNueva();
@@ -607,6 +608,11 @@ describe('GET /api/incidentes/feed', () => {
 
   it.each([
     ['un cursor que no se puede leer', { cursor: 'no-es-un-cursor' }, 'cursor'],
+    // Armados a mano: antes llegaban a la base y respondían 500.
+    ['un cursor con una fecha como texto', { cursor: armarCursor(['1', 5]) }, 'cursor'],
+    ['un cursor con microsegundos con coma', { cursor: armarCursor([1.5, 5]) }, 'cursor'],
+    ['un cursor con un id fuera de rango', { cursor: armarCursor([0, 3_000_000_000]) }, 'cursor'],
+    ['un cursor con un id negativo', { cursor: armarCursor([0, -1]) }, 'cursor'],
     ['un límite de cero', { limite: 0 }, 'limite'],
     ['un límite de más de 50', { limite: 51 }, 'limite'],
     ['un filtro del mapa inválido', { estado: 'DESESTIMADO' }, 'estado'],

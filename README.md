@@ -281,6 +281,7 @@ lib/
     principal/       pantalla con el menú según el rol
     mapa/            mapa público: agrupación, filtros, ficha y ubicación
     reportar/        cargar un reporte: borrador, foto, punto y envío
+    recorrido/       recorrido accesible: zona piloto, origen, destino y perfil
     <funcionalidad>/ pantallas, providers y repositorios de cada funcionalidad
 ```
 
@@ -305,6 +306,13 @@ lib/
 - La ubicación es una lectura nueva del GPS, nunca la última conocida. Sin permiso o con la ubicación apagada no se puede enviar, y la pantalla dice qué hacer. «Mover el punto» abre un mapa donde el punto es el centro: se arrastra el mapa, no el pin.
 - Lo cargado vive en un borrador (`reporteEnCursoProvider`) que se manda con `RepositorioReportes`. Si el envío falla, sigue en pantalla y el reintento manda la misma fecha de registro. Al salir de la cuenta, se descarta.
 - En el emulador, la cámara muestra una escena virtual y la ubicación se fija en *Extended controls → Location* (o con `adb emu geo fix <lon> <lat>`).
+
+### Recorrido accesible
+
+- Solo para vecinos, en la pestaña «Recorrido». El mapa muestra la zona piloto con borde gris: los recorridos se calculan solo adentro.
+- El origen sale de la ubicación actual, de un punto marcado en el mapa o de una dirección buscada (`GET /geocodificacion`, al tocar «Buscar»); el destino, de las dos últimas.
+- El perfil arranca en el del usuario (`perfilMovilidadId`); si no eligió ninguno, la pantalla pide elegirlo. Cambiar el perfil vuelve a pedir el recorrido (`recorridoProvider`, una consulta por origen, destino y perfil).
+- Si un punto queda fuera de la zona o no hay camino, se muestra el mensaje del servidor. Cómo se calcula: «Recorrido accesible» en [`docs/calculos.md`](docs/calculos.md).
 
 ### Gestión de estado: Riverpod
 
