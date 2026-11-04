@@ -43,8 +43,9 @@ const tarjeta = (id: number, cambios: Partial<TarjetaFeed> = {}): TarjetaFeed =>
   ...cambios,
 });
 
-const ana = { id: 4, nombre: 'Ana Vecina' };
-const bruno = { id: 5, nombre: 'Bruno Vecino' };
+// Del autor solo llega su número en el incidente (docs/api.md, sección «Social»).
+const vecino1 = { numero: 1, nombre: 'Vecino 1' };
+const vecino2 = { numero: 2, nombre: 'Vecino 2' };
 
 const servidor = setupServer();
 beforeAll(() => servidor.listen());
@@ -182,7 +183,7 @@ describe('detalle del incidente', () => {
           fotos: [{ id: 31, url: '/api/fotos/31' }],
         }),
       ),
-      http.get(`${API}/incidentes/3/reportes`, () =>
+      http.get(`${API}/social/incidentes/3/reportes`, () =>
         HttpResponse.json({
           incidenteId: 3,
           reportes: [
@@ -191,7 +192,7 @@ describe('detalle del incidente', () => {
               incidenteId: 3,
               descripcion: 'Frente al kiosco',
               creadoEn: '2026-10-06T15:15:33.494Z',
-              autor: ana,
+              autor: vecino1,
               fotos: [{ id: 31, url: '/api/fotos/31' }],
               cantidadMeGusta: 5,
               cantidadComentarios: 2,
@@ -199,7 +200,7 @@ describe('detalle del incidente', () => {
           ],
         }),
       ),
-      http.get(`${API}/incidentes/3/comentarios`, () =>
+      http.get(`${API}/social/incidentes/3/comentarios`, () =>
         HttpResponse.json({
           incidenteId: 3,
           comentarios: [
@@ -208,7 +209,7 @@ describe('detalle del incidente', () => {
               texto: 'Hay una escuela cerca',
               creadoEn: '2026-10-07T15:15:33.494Z',
               editadoEn: null,
-              autor: bruno,
+              autor: vecino2,
             },
           ],
         }),
@@ -225,20 +226,20 @@ describe('detalle del incidente', () => {
     expect(screen.getByText('Lanín 120, Villa Ceferino')).toBeInTheDocument();
     expect(await screen.findByRole('list', { name: 'Mapa simulado' })).toHaveTextContent('Vereda rota');
 
-    const foto = await screen.findByRole('link', { name: 'Foto de Ana Vecina, 5 me gusta, 2 comentarios' });
+    const foto = await screen.findByRole('link', { name: 'Foto del Vecino 1, 5 me gusta, 2 comentarios' });
     expect(foto).toHaveAttribute('href', '/reporte/31');
     expect(screen.getByRole('heading', { name: 'Fotos de los vecinos (1)' })).toBeInTheDocument();
 
     expect(await screen.findByRole('heading', { name: 'Comentarios del incidente (1)' })).toBeInTheDocument();
     expect(screen.getByText('Hay una escuela cerca')).toBeInTheDocument();
-    expect(screen.getByText('Bruno Vecino')).toBeInTheDocument();
+    expect(screen.getByText('Vecino 2')).toBeInTheDocument();
   });
 
   it('si los comentarios no cargan, el resto se ve y deja reintentar', async () => {
     servirIncidente();
     let falla = true;
     servidor.use(
-      http.get(`${API}/incidentes/3/comentarios`, () =>
+      http.get(`${API}/social/incidentes/3/comentarios`, () =>
         falla
           ? HttpResponse.json(
               { error: { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal' } },
@@ -261,19 +262,19 @@ describe('detalle del incidente', () => {
 describe('foto de un vecino', () => {
   it('muestra el autor, la descripción, los contadores y sus comentarios', async () => {
     servidor.use(
-      http.get(`${API}/reportes/31/publico`, () =>
+      http.get(`${API}/social/reportes/31`, () =>
         HttpResponse.json({
           id: 31,
           incidenteId: 3,
           descripcion: 'Frente al kiosco',
           creadoEn: '2026-10-06T15:15:33.494Z',
-          autor: ana,
+          autor: vecino1,
           fotos: [{ id: 31, url: '/api/fotos/31' }],
           cantidadMeGusta: 5,
           cantidadComentarios: 1,
         }),
       ),
-      http.get(`${API}/reportes/31/comentarios`, () =>
+      http.get(`${API}/social/reportes/31/comentarios`, () =>
         HttpResponse.json({
           comentarios: [
             {
@@ -281,7 +282,7 @@ describe('foto de un vecino', () => {
               texto: 'Confirmo, sigue igual',
               creadoEn: '2026-10-07T15:15:33.494Z',
               editadoEn: '2026-10-08T15:15:33.494Z',
-              autor: bruno,
+              autor: vecino2,
             },
           ],
         }),
@@ -289,7 +290,7 @@ describe('foto de un vecino', () => {
     );
     renderConSesion('/reporte/31', { '/reporte/:id': <PaginaReporte /> });
 
-    expect(await screen.findByRole('heading', { name: 'Reporte de Ana Vecina' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Reporte del Vecino 1' })).toBeInTheDocument();
     expect(screen.getByText('Frente al kiosco')).toBeInTheDocument();
     expect(screen.getByText('5 me gusta, 1 comentario')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '← Volver al incidente' })).toHaveAttribute(

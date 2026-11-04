@@ -159,9 +159,8 @@ export function Contadores({ meGusta, comentarios }: { meGusta: number; comentar
   );
 }
 
-/** El círculo con la inicial que hace de foto de perfil. */
+/** El círculo con el número del vecino, que hace de foto de perfil. */
 export function Avatar({ autor, chico = false }: { autor: Autor; chico?: boolean }) {
-  const inicial = autor.nombre.trim().charAt(0).toUpperCase() || '?';
   return (
     <span
       aria-hidden="true"
@@ -169,7 +168,7 @@ export function Avatar({ autor, chico = false }: { autor: Autor; chico?: boolean
         chico ? 'h-6 w-6 text-xs' : 'h-9 w-9 text-sm'
       }`}
     >
-      {inicial}
+      {autor.numero}
     </span>
   );
 }

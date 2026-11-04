@@ -6,7 +6,8 @@ import type { Comentario, PaginaFeed, ReportePublico } from './tipos.js';
 /** De a cuántos incidentes pide el feed: alcanza para llenar la pantalla y un poco más. */
 export const POR_PAGINA = 10;
 
-// Todas son públicas: van sin sesión, como el mapa, para que un token vencido no dispare una renovación.
+// Todas son públicas: van sin sesión, como el mapa, para que un token vencido no dispare una renovación. Lo social
+// va bajo /api/social (docs/api.md, sección «Social»).
 function usePedir() {
   const cliente = useCliente();
   return async <T>(ruta: string) => {
@@ -37,7 +38,8 @@ export function useReportesDeIncidente(id: number) {
   const pedir = usePedir();
   return useQuery({
     queryKey: ['incidente', id, 'reportes'],
-    queryFn: async () => (await pedir<{ reportes: ReportePublico[] }>(`incidentes/${id}/reportes`)).reportes,
+    queryFn: async () =>
+      (await pedir<{ reportes: ReportePublico[] }>(`social/incidentes/${id}/reportes`)).reportes,
   });
 }
 
@@ -46,7 +48,7 @@ export function useComentariosDeIncidente(id: number) {
   return useQuery({
     queryKey: ['incidente', id, 'comentarios'],
     queryFn: async () =>
-      (await pedir<{ comentarios: Comentario[] }>(`incidentes/${id}/comentarios`)).comentarios,
+      (await pedir<{ comentarios: Comentario[] }>(`social/incidentes/${id}/comentarios`)).comentarios,
   });
 }
 
@@ -54,7 +56,7 @@ export function useReporte(id: number) {
   const pedir = usePedir();
   return useQuery({
     queryKey: ['reporte', id],
-    queryFn: () => pedir<ReportePublico>(`reportes/${id}/publico`),
+    queryFn: () => pedir<ReportePublico>(`social/reportes/${id}`),
   });
 }
 
@@ -63,6 +65,6 @@ export function useComentariosDeReporte(id: number) {
   return useQuery({
     queryKey: ['reporte', id, 'comentarios'],
     queryFn: async () =>
-      (await pedir<{ comentarios: Comentario[] }>(`reportes/${id}/comentarios`)).comentarios,
+      (await pedir<{ comentarios: Comentario[] }>(`social/reportes/${id}/comentarios`)).comentarios,
   });
 }

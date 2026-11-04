@@ -119,7 +119,7 @@ function FotosDeVecinos({ id }: { id: number }) {
             <li key={reporte.id}>
               <Link
                 to={`/reporte/${reporte.id}`}
-                aria-label={`Foto de ${reporte.autor.nombre}, ${reporte.cantidadMeGusta} me gusta, ${reporte.cantidadComentarios} comentarios`}
+                aria-label={`Foto del ${reporte.autor.nombre}, ${reporte.cantidadMeGusta} me gusta, ${reporte.cantidadComentarios} comentarios`}
                 className="group relative block aspect-square overflow-hidden rounded-lg border border-borde bg-superficie-alterna focus-visible:ring-2 focus-visible:ring-primario"
               >
                 {reporte.fotos[0] && (

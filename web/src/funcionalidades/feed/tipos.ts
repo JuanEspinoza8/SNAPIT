@@ -35,8 +35,13 @@ export interface PaginaFeed {
   siguiente: string | null;
 }
 
+/**
+ * Quién reportó o comentó, sin nada que lo identifique: dentro de cada incidente es «Vecino N», numerado por
+ * orden de llegada.
+ */
 export interface Autor {
-  id: number;
+  numero: number;
+  /** «Vecino 2». */
   nombre: string;
 }
 

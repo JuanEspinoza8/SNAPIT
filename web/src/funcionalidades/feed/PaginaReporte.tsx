@@ -37,11 +37,11 @@ export function PaginaReporte() {
           <header className="flex items-center gap-3 p-4">
             <Avatar autor={reporte.data.autor} />
             <div>
-              <h1 className="font-semibold">Reporte de {reporte.data.autor.nombre}</h1>
+              <h1 className="font-semibold">Reporte del {reporte.data.autor.nombre}</h1>
               <p className="text-sm text-texto-secundario">{haceCuanto(reporte.data.creadoEn)}</p>
             </div>
           </header>
-          <Carrusel fotos={reporte.data.fotos} descripcion={`el reporte de ${reporte.data.autor.nombre}`} />
+          <Carrusel fotos={reporte.data.fotos} descripcion={`el reporte del ${reporte.data.autor.nombre}`} />
           <div className="flex flex-col gap-4 p-4">
             <Contadores
               meGusta={reporte.data.cantidadMeGusta}

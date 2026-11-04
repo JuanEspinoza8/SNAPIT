@@ -318,12 +318,17 @@ export function PaginaReportar() {
             maxLength={1000}
             value={descripcion}
             placeholder="Por ejemplo: pozo grande frente a la escuela"
+            aria-describedby="aviso-publicacion"
             onChange={(evento) => {
               setDescripcion(evento.target.value);
               marcar('descripcion', null);
             }}
             className="w-full rounded-md border border-borde bg-superficie px-3 py-2 text-texto placeholder:text-texto-secundario focus:border-primario focus:outline-none"
           />
+          {/* El inicio publica la foto y la descripción, sin el nombre. Mismo texto que en la app. */}
+          <p id="aviso-publicacion" className="text-sm text-texto-secundario">
+            La foto y la descripción se ven en el inicio, sin tu nombre.
+          </p>
           {errores.descripcion && <p className="text-sm text-peligro">{errores.descripcion}</p>}
         </div>
 
