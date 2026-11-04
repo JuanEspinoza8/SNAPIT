@@ -8,9 +8,9 @@ import '../../apoyo/app_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
 import 'pantalla_feed_test.dart' show tarjetaJson;
 
-Map<String, Object?> autorJson(int id, String nombre) => {
-  'id': id,
-  'nombre': nombre,
+Map<String, Object?> autorJson(int numero) => {
+  'numero': numero,
+  'nombre': 'Vecino $numero',
 };
 
 Map<String, Object?> reporteJson(
@@ -45,11 +45,11 @@ Map<String, Object?> comentarioJson(
   'autor': autor,
 };
 
-final ana = autorJson(4, 'Ana Vecina');
-final bruno = autorJson(5, 'Bruno Vecino');
+final vecino1 = autorJson(1);
+final vecino2 = autorJson(2);
 
 /// Un vecino con sesión, un incidente (3) con dos fotos de vecinos distintos
-/// y comentarios en el incidente y en la foto de Ana (31).
+/// y comentarios en el incidente y en la foto del Vecino 1 (31).
 class ServidorSocial {
   ServidorSocial() {
     servidor = ServidorFalso(_responder);
@@ -57,7 +57,7 @@ class ServidorSocial {
 
   late final ServidorFalso servidor;
 
-  /// Si no es null, `GET /incidentes/3/comentarios` responde así.
+  /// Si no es null, `GET /social/incidentes/3/comentarios` responde así.
   Future<ResponseBody> Function(RequestOptions pedido)? comentariosIncidente;
 
   Future<ResponseBody> _responder(RequestOptions pedido) {
@@ -79,38 +79,38 @@ class ServidorSocial {
         });
       case '/incidentes/3':
         return json(200, tarjetaJson(3, categoria: 'Vereda rota'));
-      case '/incidentes/3/reportes':
+      case '/social/incidentes/3/reportes':
         return json(200, {
           'incidenteId': 3,
           'reportes': [
-            reporteJson(31, autor: ana, meGusta: 5, comentarios: 2),
-            reporteJson(32, autor: bruno, meGusta: 2),
+            reporteJson(31, autor: vecino1, meGusta: 5, comentarios: 2),
+            reporteJson(32, autor: vecino2, meGusta: 2),
           ],
         });
-      case '/incidentes/3/comentarios':
+      case '/social/incidentes/3/comentarios':
         return comentariosIncidente?.call(pedido) ??
             json(200, {
               'incidenteId': 3,
               'comentarios': [
-                comentarioJson(1, 'Hay una escuela cerca', autor: bruno),
+                comentarioJson(1, 'Hay una escuela cerca', autor: vecino2),
               ],
             });
-      case '/reportes/31/publico':
+      case '/social/reportes/31':
         return json(
           200,
           reporteJson(
             31,
-            autor: ana,
+            autor: vecino1,
             meGusta: 5,
             comentarios: 2,
             descripcion: 'Frente al kiosco',
           ),
         );
-      case '/reportes/31/comentarios':
+      case '/social/reportes/31/comentarios':
         return json(200, {
           'comentarios': [
-            comentarioJson(2, 'Confirmo, sigue igual', autor: bruno),
-            comentarioJson(3, 'Casi me caigo', autor: ana, editado: true),
+            comentarioJson(2, 'Confirmo, sigue igual', autor: vecino2),
+            comentarioJson(3, 'Casi me caigo', autor: vecino1, editado: true),
           ],
         });
       default:
@@ -150,16 +150,16 @@ void main() {
 
     expect(find.text('Fotos de los vecinos (2)'), findsOneWidget);
     expect(
-      find.bySemanticsLabel('Foto de Ana Vecina, 5 me gusta, 2 comentarios'),
+      find.bySemanticsLabel('Foto del Vecino 1, 5 me gusta, 2 comentarios'),
       findsOneWidget,
     );
     expect(
-      find.bySemanticsLabel('Foto de Bruno Vecino, 2 me gusta, 0 comentarios'),
+      find.bySemanticsLabel('Foto del Vecino 2, 2 me gusta, 0 comentarios'),
       findsOneWidget,
     );
     expect(find.text('Comentarios del incidente (1)'), findsOneWidget);
     expect(find.text('Hay una escuela cerca'), findsOneWidget);
-    expect(find.text('Bruno Vecino'), findsWidgets);
+    expect(find.text('Vecino 2'), findsWidgets);
   });
 
   testWidgets(
@@ -169,13 +169,13 @@ void main() {
       await abrirIncidente(tester);
 
       await tester.tap(
-        find.bySemanticsLabel('Foto de Ana Vecina, 5 me gusta, 2 comentarios'),
+        find.bySemanticsLabel('Foto del Vecino 1, 5 me gusta, 2 comentarios'),
       );
       await tester.pumpAndSettle();
 
       expect(find.byType(PantallaReporte), findsOneWidget);
       expect(
-        find.widgetWithText(AppBar, 'Reporte de Ana Vecina'),
+        find.widgetWithText(AppBar, 'Reporte del Vecino 1'),
         findsOneWidget,
       );
       expect(find.text('Frente al kiosco'), findsOneWidget);
@@ -206,8 +206,10 @@ void main() {
     expect(find.text('Hay una escuela cerca'), findsOneWidget);
   });
 
-  test('la inicial del autor sale del nombre, aunque tenga espacios', () {
-    expect(const Autor(id: 1, nombre: ' ana').inicial, 'A');
-    expect(const Autor(id: 1, nombre: '').inicial, '?');
+  test('del autor solo llegan su número y su alias en el incidente', () {
+    final autor = Autor.desdeJson({'numero': 3, 'nombre': 'Vecino 3'});
+
+    expect(autor.numero, 3);
+    expect(autor.nombre, 'Vecino 3');
   });
 }

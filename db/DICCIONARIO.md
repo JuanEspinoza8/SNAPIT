@@ -2,7 +2,7 @@
 
 Modelo relacional entregado el 19/09/2026. Grupo Full Stack F.C.
 
-**29 tablas · 226 columnas · 50 claves foraneas · 18 tipos enumerados**
+**31 tablas · 239 columnas · 55 claves foraneas · 18 tipos enumerados**
 
 Claves: `PK` primaria · `FK` foranea · `U` valor unico · `PK,FK` parte de una clave primaria compuesta que ademas es foranea.
 

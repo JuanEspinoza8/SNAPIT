@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { armarDireccion, extraerBarrio, SIN_BARRIO } from '../src/modulos/geocodificacion/calculo.js';
+import {
+  aLugares,
+  armarDireccion,
+  esDeNeuquenCapital,
+  extraerBarrio,
+  nombreDelLugar,
+  type ResultadoBusqueda,
+  SIN_BARRIO,
+} from '../src/modulos/geocodificacion/calculo.js';
 
 describe('armarDireccion', () => {
   it('calle, altura y barrio', () => {
@@ -85,5 +93,111 @@ describe('extraerBarrio', () => {
     ['', SIN_BARRIO],
   ])('%j → %j', (direccion, barrio) => {
     expect(extraerBarrio(direccion)).toBe(barrio);
+  });
+});
+
+// Resultados de verdad de Nominatim para "Saavedra 500" y "Hospital Bouquet Roldán" (02/11/2026), recortados.
+const SAAVEDRA_NEUQUEN: ResultadoBusqueda = {
+  lat: -38.9601407,
+  lon: -68.0897074,
+  name: '',
+  address: {
+    house_number: '500',
+    road: 'Cornelio Saavedra',
+    suburb: 'La Sirena',
+    city: 'Neuquén',
+    municipality: 'Municipio de Neuquén',
+    state: 'Neuquén',
+  },
+};
+// Del otro lado del río, pero dentro del rectángulo del municipio de Neuquén.
+const SAAVEDRA_CIPOLLETTI: ResultadoBusqueda = {
+  lat: -38.9299352,
+  lon: -68.008819,
+  name: '',
+  address: {
+    house_number: '500',
+    road: 'Saavedra',
+    suburb: '12 de Septiembre',
+    city_district: 'Cipolletti',
+    city: 'Municipio de Cipolletti',
+    state: 'Río Negro',
+  },
+};
+const SAAVEDRA_FERNANDEZ_ORO: ResultadoBusqueda = {
+  lat: -38.9520285,
+  lon: -67.9265145,
+  name: '',
+  address: { house_number: '500', road: 'Saavedra', town: 'General Fernández Oro', state: 'Río Negro' },
+};
+const HOSPITAL: ResultadoBusqueda = {
+  lat: -38.9583823,
+  lon: -68.0859225,
+  name: 'Hospital de Área Programa Neuquén "Bouquet Roldán"',
+  address: {
+    house_number: '1915',
+    road: 'Doctor Luis Teodoro Planas',
+    neighbourhood: 'Vidor',
+    suburb: 'Bouquet Roldán',
+    city: 'Neuquén',
+    municipality: 'Municipio de Neuquén',
+  },
+};
+
+describe('esDeNeuquenCapital', () => {
+  it('reconoce la ciudad por city o por municipality', () => {
+    expect(esDeNeuquenCapital({ city: 'Neuquén' })).toBe(true);
+    expect(esDeNeuquenCapital({ municipality: 'Municipio de Neuquén' })).toBe(true);
+  });
+
+  it('no confunde la provincia con la ciudad, ni acepta otras ciudades', () => {
+    expect(esDeNeuquenCapital({ town: 'Plottier', state: 'Neuquén' })).toBe(false);
+    expect(esDeNeuquenCapital(SAAVEDRA_CIPOLLETTI.address)).toBe(false);
+    expect(esDeNeuquenCapital(undefined)).toBe(false);
+  });
+});
+
+describe('nombreDelLugar', () => {
+  it('una dirección queda como "<calle> <altura>, <barrio>"', () => {
+    expect(nombreDelLugar(SAAVEDRA_NEUQUEN)).toBe('Cornelio Saavedra 500, La Sirena');
+  });
+
+  it('un lugar con nombre propio lo pone adelante', () => {
+    expect(nombreDelLugar(HOSPITAL)).toBe(
+      'Hospital de Área Programa Neuquén "Bouquet Roldán", Doctor Luis Teodoro Planas 1915, Bouquet Roldán',
+    );
+  });
+
+  it('una calle no repite su nombre', () => {
+    const calle = {
+      lat: -38.96,
+      lon: -68.09,
+      name: 'Cornelio Saavedra',
+      address: { road: 'Cornelio Saavedra', suburb: 'La Sirena' },
+    };
+
+    expect(nombreDelLugar(calle)).toBe('Cornelio Saavedra, La Sirena');
+  });
+});
+
+describe('aLugares', () => {
+  it('no deja pasar resultados fuera de Neuquén, aunque caigan dentro del rectángulo de la ciudad', () => {
+    const lugares = aLugares([SAAVEDRA_FERNANDEZ_ORO, SAAVEDRA_CIPOLLETTI, SAAVEDRA_NEUQUEN]);
+
+    expect(lugares).toEqual([
+      { nombre: 'Cornelio Saavedra 500, La Sirena', lat: -38.9601407, lon: -68.0897074 },
+    ]);
+  });
+
+  it('no deja pasar un resultado que dice ser de Neuquén pero cae fuera del rectángulo', () => {
+    expect(aLugares([{ ...SAAVEDRA_NEUQUEN, lat: -38.5 }])).toEqual([]);
+  });
+
+  it('devuelve como mucho 5, en el orden de Nominatim', () => {
+    const muchos = Array.from({ length: 8 }, (_, i) => ({ ...HOSPITAL, lat: HOSPITAL.lat + i * 0.0001 }));
+
+    const lugares = aLugares(muchos);
+
+    expect(lugares.map((lugar) => lugar.lat)).toEqual(muchos.slice(0, 5).map((r) => r.lat));
   });
 });

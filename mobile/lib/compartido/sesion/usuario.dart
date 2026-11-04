@@ -15,6 +15,7 @@ class Usuario {
     required this.email,
     required this.nombre,
     required this.rol,
+    this.perfilMovilidadId,
   });
 
   factory Usuario.desdeJson(Map<String, dynamic> json) {
@@ -25,6 +26,7 @@ class Usuario {
       email: json['email'] as String,
       nombre: json['nombre'] as String,
       rol: rol,
+      perfilMovilidadId: json['perfilMovilidadId'] as int?,
     );
   }
 
@@ -32,6 +34,9 @@ class Usuario {
   final String email;
   final String nombre;
   final Rol rol;
+
+  /// El perfil con el que arranca el recorrido accesible. Null si no eligió.
+  final int? perfilMovilidadId;
 
   static const _roles = {
     'VECINO': Rol.vecino,

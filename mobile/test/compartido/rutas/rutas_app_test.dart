@@ -27,14 +27,17 @@ void main() {
     expect(redireccion(conError, Rutas.principal), Rutas.arranque);
   });
 
-  test('sin sesión solo se puede estar en las pantallas de cuenta y en el '
-      'mapa', () {
+  test('sin sesión solo se puede estar en las pantallas de cuenta, en el '
+      'mapa y en el detalle de un incidente', () {
     expect(redireccion(sinSesion, Rutas.arranque), Rutas.ingreso);
     expect(redireccion(sinSesion, Rutas.principal), Rutas.ingreso);
     expect(redireccion(sinSesion, Rutas.ingreso), isNull);
     expect(redireccion(sinSesion, Rutas.registro), isNull);
     expect(redireccion(sinSesion, Rutas.recuperarClave), isNull);
     expect(redireccion(sinSesion, Rutas.mapa), isNull);
+    expect(redireccion(sinSesion, Rutas.incidente(9)), isNull);
+    expect(redireccion(sinSesion, Rutas.reporte(31)), isNull);
+    expect(redireccion(sinSesion, Rutas.elegirPunto), Rutas.ingreso);
   });
 
   test('con sesión, las pantallas de cuenta llevan a la principal', () {

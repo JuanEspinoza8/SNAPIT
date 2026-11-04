@@ -24,7 +24,8 @@ abstract final class Rutas {
   static const mapa = '/mapa';
   static const principal = '/';
 
-  /// Recibe el punto actual en `extra` y devuelve el elegido al volver.
+  /// Recibe en `extra` el punto actual (o un `PedidoPunto`, con los textos
+  /// de la pantalla) y devuelve el elegido al volver.
   static const elegirPunto = '/elegir-punto';
 
   /// El detalle de un incidente, desde el feed.
@@ -36,6 +37,11 @@ abstract final class Rutas {
 
 /// Las que se usan sin sesión. Con sesión, llevan a la principal.
 const _rutasDeCuenta = {Rutas.ingreso, Rutas.registro, Rutas.recuperarClave};
+
+/// El detalle de un incidente y el de cada foto: públicos, como el mapa desde
+/// el que se abren.
+bool _esDetalle(String ruta) =>
+    ruta.startsWith('/incidente/') || ruta.startsWith('/reporte/');
 
 final rutasProvider = Provider<GoRouter>((ref) {
   // El router se crea una sola vez. Cuando cambia la sesión, solo vuelve a
@@ -78,9 +84,12 @@ final rutasProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: Rutas.elegirPunto,
-        builder: (_, estado) => PantallaElegirPunto(
-          inicial: estado.extra as LatLng? ?? centroInicial,
-        ),
+        builder: (_, estado) => switch (estado.extra) {
+          PedidoPunto(:final inicial, :final textos, :final zonas) =>
+            PantallaElegirPunto(inicial: inicial, textos: textos, zonas: zonas),
+          final LatLng inicial => PantallaElegirPunto(inicial: inicial),
+          _ => const PantallaElegirPunto(inicial: centroInicial),
+        },
       ),
     ],
   );
@@ -99,9 +108,12 @@ String? redireccion(AsyncValue<Usuario?> sesion, String ruta) {
     return ruta == Rutas.arranque ? null : Rutas.arranque;
   }
   final esDeCuenta = _rutasDeCuenta.contains(ruta);
-  // El mapa es público. Con sesión ya está en la pantalla principal.
+  // El mapa y el detalle de un incidente son públicos. Con sesión, el mapa ya
+  // está en la pantalla principal.
   if (sesion.value == null) {
-    return esDeCuenta || ruta == Rutas.mapa ? null : Rutas.ingreso;
+    return esDeCuenta || ruta == Rutas.mapa || _esDetalle(ruta)
+        ? null
+        : Rutas.ingreso;
   }
   return esDeCuenta || ruta == Rutas.arranque || ruta == Rutas.mapa
       ? Rutas.principal

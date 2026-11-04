@@ -24,7 +24,7 @@ class PantallaReporte extends ConsumerWidget {
         title: Text(
           reporte.value == null
               ? 'Reporte'
-              : 'Reporte de ${reporte.value!.autor.nombre}',
+              : 'Reporte del ${reporte.value!.autor.nombre}',
         ),
       ),
       body: SafeArea(
@@ -94,7 +94,7 @@ class _Contenido extends StatelessWidget {
         ),
         CarruselFotos(
           fotoIds: reporte.fotoIds,
-          descripcion: 'el reporte de ${reporte.autor.nombre}',
+          descripcion: 'el reporte del ${reporte.autor.nombre}',
         ),
         Padding(
           padding: const EdgeInsets.all(Espacio.lg),

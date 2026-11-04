@@ -276,7 +276,7 @@ class _FotoDeVecino extends StatelessWidget {
     return Semantics(
       button: true,
       label:
-          'Foto de ${reporte.autor.nombre}, ${reporte.cantidadMeGusta} me '
+          'Foto del ${reporte.autor.nombre}, ${reporte.cantidadMeGusta} me '
           'gusta, ${reporte.cantidadComentarios} comentarios',
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radioBorde),
@@ -290,7 +290,7 @@ class _FotoDeVecino extends StatelessWidget {
                   if (reporte.fotoIds.isNotEmpty)
                     FotoIncidente(
                       reporte.fotoIds.first,
-                      descripcion: 'Foto de ${reporte.autor.nombre}',
+                      descripcion: 'Foto del ${reporte.autor.nombre}',
                     )
                   else
                     ColoredBox(color: tema.colorScheme.surfaceContainerLow),

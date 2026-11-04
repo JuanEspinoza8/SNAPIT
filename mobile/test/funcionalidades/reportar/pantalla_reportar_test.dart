@@ -263,6 +263,17 @@ void main() {
     });
   });
 
+  testWidgets('avisa que la foto y la descripción se publican sin el nombre', (
+    tester,
+  ) async {
+    await abrirReportar(tester, ServidorDeReportes());
+
+    expect(
+      find.text('La foto y la descripción se ven en el inicio, sin tu nombre.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('al servidor llega el punto corregido, no el del GPS', (
     tester,
   ) async {
@@ -707,7 +718,11 @@ void main() {
     final servidor = ServidorDeReportes();
     await abrirReportar(tester, servidor);
     // El mapa ya mostró la zona, todavía sin el reporte.
+    await tester.tap(find.text('Mapa'));
+    await tester.pumpAndSettle();
     expect(servidor.servidor.cantidad('/incidentes'), greaterThan(0));
+    await tester.tap(find.text('Reportar'));
+    await tester.pumpAndSettle();
     await completar(tester);
     await enviar(tester);
 

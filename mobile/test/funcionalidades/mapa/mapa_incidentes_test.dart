@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:snapit/compartido/formato/fechas.dart';
 import 'package:snapit/funcionalidades/cuenta/pantalla_ingreso.dart';
+import 'package:snapit/funcionalidades/feed/pantalla_incidente.dart';
+import 'package:snapit/funcionalidades/mapa/ficha_incidente.dart';
 import 'package:snapit/funcionalidades/mapa/mapa_incidentes.dart';
 import 'package:snapit/funcionalidades/mapa/pantalla_mapa_publico.dart';
 
@@ -191,6 +193,19 @@ void main() {
     final pedido = servidor.pedidos.last;
     expect(pedido.ruta, '/incidentes/9');
     expect(pedido.token, isNull);
+  });
+
+  testWidgets('«Ver detalle» cierra la ficha y abre el detalle, también sin '
+      'sesión', (tester) async {
+    await abrirMapa(tester, servidorDelMapa());
+    await tocar(tester, find.bySemanticsLabel('Cordón sin rampa, En revisión'));
+
+    await tester.tap(find.text('Ver detalle'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PantallaIncidente), findsOneWidget);
+    expect(find.byType(FichaIncidenteHoja), findsNothing);
+    expect(find.widgetWithText(AppBar, 'Cordón sin rampa'), findsOneWidget);
   });
 
   testWidgets('al alejar se agrupan; tocar el grupo acerca y los separa', (

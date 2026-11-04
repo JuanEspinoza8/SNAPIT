@@ -36,7 +36,9 @@ Todas las respuestas de error tienen el mismo formato:
 | 409 | Conflicto, por ejemplo un correo ya registrado |
 | 413 | El cuerpo supera 1 MB (`CUERPO_DEMASIADO_GRANDE`) |
 | 415 | Codificación o compresión del cuerpo no soportada (`FORMATO_NO_SOPORTADO`) |
+| 422 | Los datos tienen la forma correcta, pero no se puede hacer lo pedido (por ejemplo, un recorrido sin camino posible) |
 | 500 | Error inesperado (`ERROR_INTERNO`): nunca incluye detalles internos |
+| 503 | Un servicio externo no responde: la IA (`IA_NO_DISPONIBLE`) o Nominatim (`GEOCODIFICACION_NO_DISPONIBLE`) |
 
 En el servidor, los errores esperados se lanzan con `throw new ErrorApp(status, codigo, mensaje, detalles?)`.
 
@@ -89,10 +91,10 @@ Indica si el servidor está activo y si llega a la base de datos. Siempre respon
 Lo devuelven el registro, el ingreso, la renovación, `/yo` y la administración de usuarios. Nunca incluye la clave.
 
 ```json
-{ "id": 7, "email": "ana@ejemplo.com", "nombre": "Ana", "rol": "VECINO", "organismoId": null, "areaId": null }
+{ "id": 7, "email": "ana@ejemplo.com", "nombre": "Ana", "rol": "VECINO", "organismoId": null, "areaId": null, "perfilMovilidadId": null }
 ```
 
-`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` viene informado en los operadores y, si se le asignó uno, en los administradores. `areaId`, solo en los operadores.
+`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` viene informado en los operadores y, si se le asignó uno, en los administradores. `areaId`, solo en los operadores. `perfilMovilidadId` es el perfil con el que la app arranca el [recorrido accesible](#get-apirecorridos); null mientras el usuario no eligió uno.
 
 ### `POST /api/auth/registro`
 Crea una cuenta de vecino. Pública.
@@ -294,6 +296,62 @@ Dónde se pueden pedir recorridos accesibles (F11). Ruta pública: la app dibuja
 - Como en todo GeoJSON, cada punto es `[longitud, latitud]`, al revés que los `lat` / `lon` del resto de la API.
 - Hoy hay una sola zona. Si se desactiva, deja de aparecer acá y `features` queda vacío.
 - Por qué se eligió esa zona: «Zona piloto» en [`calculos.md`](calculos.md).
+
+## Recorridos
+
+### `GET /api/recorridos`
+El recorrido a pie entre dos puntos de la zona piloto para un perfil de movilidad (F11): evita los tramos intransitables para ese perfil y encarece los que le cuestan más, por los incidentes vigentes y por los atributos del tramo. Requiere sesión, de cualquier rol (sin sesión: 401). Cómo se calcula: «Recorrido accesible» en [`calculos.md`](calculos.md).
+
+| Parámetro | Ejemplo | Qué es |
+|---|---|---|
+| `origen` | `-38.9584,-68.0859` | Desde dónde, como `lat,lon` |
+| `destino` | `-38.9601,-68.0897` | Hasta dónde, como `lat,lon` |
+| `perfilId` | `1` | Un perfil activo de [`GET /api/perfiles-movilidad`](#get-apiperfiles-movilidad) |
+
+Los tres son obligatorios. Responde **200**:
+
+```json
+{
+  "distanciaMetros": 478,
+  "minutosEstimados": 10,
+  "geometria": { "type": "LineString", "coordinates": [[-68.0859, -38.9584], [-68.0871, -38.9590], [-68.0897, -38.9601]] }
+}
+```
+
+- `distanciaMetros`: el largo real del camino, en metros enteros.
+- `minutosEstimados`: la distancia a `ruteo.velocidad_m_por_min`, redondeada hacia arriba.
+- `geometria`: la traza en GeoJSON, de la esquina más cercana al origen a la más cercana al destino. Cada punto es `[longitud, latitud]`.
+- Cambiar el perfil puede cambiar el camino: lo que bloquea a una silla de ruedas puede solo encarecerle el paso a un bastón.
+
+| Status | `codigo` | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta un parámetro, un punto no es `lat,lon` o el perfil no existe o no está activo |
+| 422 | `FUERA_DE_ZONA` | El origen, el destino o los dos quedan fuera de las zonas piloto activas. `detalles` dice cuál |
+| 422 | `SIN_RED_CERCA` | No hay ninguna esquina de la red a menos de `ruteo.distancia_max_al_nodo_m` metros del punto. `detalles` dice cuál |
+| 422 | `MISMO_PUNTO` | Los dos puntos quedan en la misma esquina |
+| 422 | `SIN_RECORRIDO` | No hay un camino transitable para ese perfil: el mensaje es «No hay un recorrido transitable» |
+
+```json
+{
+  "error": {
+    "codigo": "FUERA_DE_ZONA",
+    "mensaje": "El origen queda fuera de la zona piloto: por ahora los recorridos se calculan solo dentro de ella",
+    "detalles": [{ "campo": "origen", "mensaje": "Está fuera de la zona piloto" }]
+  }
+}
+```
+
+### `GET /api/geocodificacion`
+Busca una dirección o un lugar en Neuquén Capital, para elegir el origen o el destino de un recorrido escribiéndolo (F11). Requiere sesión (sin sesión: 401). Parámetro `texto`, de 3 a 200 caracteres, por ejemplo `?texto=Saavedra 500`. Responde **200** con hasta 5 lugares, en el orden de Nominatim:
+
+```json
+{ "lugares": [{ "nombre": "Cornelio Saavedra 500, La Sirena", "lat": -38.9601407, "lon": -68.0897074 }] }
+```
+
+- `nombre`: el nombre propio del lugar, si tiene (un hospital, una escuela), y la dirección con el barrio: `"Hospital Bouquet Roldán, Doctor Luis Teodoro Planas 1915, Bouquet Roldán"`.
+- Solo devuelve lugares de Neuquén Capital: se le pide a Nominatim dentro del rectángulo del municipio y, de lo que responde, quedan solo los que su dirección marca como de la ciudad (el centro de Cipolletti cae dentro del rectángulo). Sin resultados, `lugares` viene vacía.
+- Usa el mismo cliente de Nominatim que la dirección de los reportes: una consulta por segundo entre las dos y la misma caché. La app busca al confirmar el texto, no con cada letra.
+- Si Nominatim falla o no responde a tiempo: **503** `GEOCODIFICACION_NO_DISPONIBLE`, con un mensaje que propone marcar el punto en el mapa. Texto de menos de 3 letras: **400**.
 
 ## Reportes
 
@@ -657,7 +715,7 @@ La pantalla de inicio: los mismos incidentes que el mapa, en el mismo orden (del
 | Parámetro | Ejemplo | Qué hace |
 |---|---|---|
 | `limite` | `20` | Cuántos incidentes trae la página, de 1 a 50 (20 por defecto) |
-| `cursor` | `WyIyMDI2LTEw...` | Dónde sigue: el `siguiente` de la página anterior, tal cual. Sin él, trae la primera |
+| `cursor` | `WzE3OTI0OTY4...` | Dónde sigue: el `siguiente` de la página anterior, tal cual. Sin él, trae la primera |
 
 Responde **200**:
 
@@ -683,7 +741,7 @@ Responde **200**:
       "cantidadComentarios": 9
     }
   ],
-  "siguiente": "WyIyMDI2LTEwLTIwIDExOjQ2OjQ2LjM4KzAwIiwxN10"
+  "siguiente": "WzE3OTI0OTY4MDYzODAwMDAsMTdd"
 }
 ```
 
@@ -691,7 +749,7 @@ Responde **200**:
 - La paginación es por cursor y no por número de página: si entra un incidente nuevo mientras alguien scrollea, la página siguiente no repite el último que vio. Para ver los nuevos, se vuelve a pedir sin cursor.
 - `fotos`: hasta 5, las primeras que se cargaron, con la misma regla que la ficha (sin las de reportes desestimados, sumando las de los incidentes unidos). `cantidadFotos` dice cuántas hay en total, para mostrar «+3» en el carrusel.
 - `severidad` es la consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`). `cantidadVecinos` y `direccion` son los de la ficha.
-- `cantidadMeGusta` suma los de todos sus reportes; `cantidadComentarios`, los de sus reportes más los del incidente. Con la misma regla que las fotos: sin reportes desestimados ni eliminados, y sin comentarios eliminados. El detalle de cada uno está en [Social](#social).
+- `cantidadMeGusta` suma los de todos sus reportes; `cantidadComentarios`, los de sus reportes más los del incidente y los de sus unidos. Con la misma regla que las fotos: sin reportes desestimados ni eliminados, y sin comentarios eliminados. El detalle de cada uno está en [Social](#social).
 
 Un `cursor` que no se puede leer, un `limite` fuera de rango o un filtro inválido: **400** `DATOS_INVALIDOS` con `detalles`.
 
@@ -754,8 +812,8 @@ Quién ve cada foto:
 
 | Quién pide | Qué fotos ve |
 |---|---|
-| Cualquiera, sin sesión | Las que se ven en el mapa: las de un reporte **no desestimado** cuyo incidente (o su principal, si se unió a otro) aparece en `GET /api/incidentes`. |
-| El dueño del reporte | Además, todas las de sus reportes, aunque estén desestimados o el incidente ya no esté en el mapa. |
+| Cualquiera, sin sesión | Las que se ven en el mapa: las de un reporte **no desestimado ni eliminado por su autor** cuyo incidente (o su principal, si se unió a otro) aparece en `GET /api/incidentes`. |
+| El dueño del reporte | Además, todas las de sus reportes, aunque estén desestimados o eliminados, o el incidente ya no esté en el mapa. |
 | `OPERADOR` o `ADMINISTRADOR` | Además, todas las de los incidentes de su organismo, en cualquier estado. El organismo es el del área a la que se derivó el incidente o, si todavía no se derivó, el del área de su categoría. Si se unió a otro, manda el principal. Un administrador sin organismo ve solo las del mapa. |
 
 Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA`. Las fotos de los cierres todavía no se sirven (llegan con el cierre, corte 75 %).
@@ -766,11 +824,13 @@ Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA
 - Caché de una hora: `Cache-Control: public, max-age=3600` sin sesión y `private, max-age=3600` con sesión (solo la guarda el navegador de quien la pidió). Todas llevan `Vary: Authorization`.
 
 ## Social
-Likes y comentarios del feed (por ahora solo para leer). Rutas públicas, sin sesión, como el mapa. Lo de cada **reporte** (una foto de un vecino) va aparte de lo del **incidente** (el problema en general).
+Likes y comentarios del feed (por ahora solo para leer). Rutas públicas, sin sesión, como el mapa. Van bajo `/api/social` para no chocar con las del operador: `POST /api/incidentes/:id/comentarios` es la bitácora, no un comentario público. Lo de cada **reporte** (una foto de un vecino) va aparte de lo del **incidente** (el problema en general).
 
-Valen las mismas reglas que en la ficha: un incidente unido a otro responde con el principal; los reportes desestimados o que su autor eliminó no se muestran, y los comentarios eliminados tampoco. Del autor solo se publica el nombre.
+Valen las mismas reglas que en la ficha: un incidente unido a otro responde con el principal; los reportes desestimados o que su autor eliminó no se muestran, y los comentarios eliminados tampoco.
 
-### `GET /api/incidentes/:id/reportes`
+**Del autor no se publica nada que lo identifique**, ni el nombre ni el id. Dentro de cada incidente es `{ "numero": 2, "nombre": "Vecino 2" }`: los vecinos que participan (reportaron una foto visible o comentaron en el incidente, en uno de sus unidos o en una de sus fotos) se numeran por orden de llegada, y si llegaron en el mismo instante, por id. El mismo vecino tiene el mismo número en todo el incidente, así se sigue una conversación; en otro incidente puede tener otro número, así no se puede saber si dos incidentes los reportó la misma persona. Si se unen dos incidentes o se desestima un reporte, la numeración puede correrse.
+
+### `GET /api/social/incidentes/:id/reportes`
 Los reportes que forman el incidente, del más viejo al más nuevo:
 
 ```json
@@ -782,7 +842,7 @@ Los reportes que forman el incidente, del más viejo al más nuevo:
       "incidenteId": 17,
       "descripcion": "Una baldosa rota frente al kiosco",
       "creadoEn": "2026-10-20T11:46:46.388Z",
-      "autor": { "id": 6, "nombre": "Carla Vecina" },
+      "autor": { "numero": 1, "nombre": "Vecino 1" },
       "fotos": [{ "id": 19, "url": "/api/fotos/19" }],
       "cantidadMeGusta": 7,
       "cantidadComentarios": 3
@@ -793,8 +853,8 @@ Los reportes que forman el incidente, del más viejo al más nuevo:
 
 Incidente desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`.
 
-### `GET /api/incidentes/:id/comentarios`
-Los comentarios sobre el incidente en general (no los de sus fotos), del más viejo al más nuevo:
+### `GET /api/social/incidentes/:id/comentarios`
+Los comentarios sobre el incidente en general (no los de sus fotos), también los que se hicieron en un incidente que después se le unió, del más viejo al más nuevo:
 
 ```json
 {
@@ -805,7 +865,7 @@ Los comentarios sobre el incidente en general (no los de sus fotos), del más vi
       "texto": "Hay una escuela a dos cuadras, es urgente.",
       "creadoEn": "2026-10-20T16:46:46.388Z",
       "editadoEn": null,
-      "autor": { "id": 5, "nombre": "Bruno Vecino" }
+      "autor": { "numero": 4, "nombre": "Vecino 4" }
     }
   ]
 }
@@ -813,11 +873,11 @@ Los comentarios sobre el incidente en general (no los de sus fotos), del más vi
 
 `editadoEn` es `null` si nunca se editó. Mismos errores que la anterior.
 
-### `GET /api/reportes/:id/publico`
-Un reporte suelto, con la misma forma que cada elemento de `GET /api/incidentes/:id/reportes`. `incidenteId` es el que ve el público: el principal, si el suyo se unió a otro.
+### `GET /api/social/reportes/:id`
+Un reporte suelto, con la misma forma que cada elemento de `GET /api/social/incidentes/:id/reportes`. `incidenteId` es el que ve el público: el principal, si el suyo se unió a otro. El número del autor es el de ese incidente.
 
-### `GET /api/reportes/:id/comentarios`
-Los comentarios de un reporte, con la misma forma que los del incidente (`{ "comentarios": [...] }`).
+### `GET /api/social/reportes/:id/comentarios`
+Los comentarios de un reporte, con la misma forma que los del incidente (`{ "comentarios": [...] }`) y los números del incidente del reporte.
 
 En las dos: un reporte desestimado, eliminado, de un incidente que no se ve o inexistente responde **404** `REPORTE_NO_ENCONTRADO`. Un id inválido, **400** `DATOS_INVALIDOS`.
 

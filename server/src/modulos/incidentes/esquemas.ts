@@ -74,23 +74,32 @@ const finDe = (texto: string) =>
     : new Date(texto);
 
 /**
- * Dónde sigue el feed: la fecha del primer reporte y el id del último incidente de la página anterior.
- * La fecha viaja como la escribe PostgreSQL (con microsegundos), porque un Date de JavaScript los
- * redondea a milisegundos y la página siguiente podría repetir o saltear un incidente.
+ * Dónde sigue el feed: el primer reporte del último incidente de la página anterior, en microsegundos desde
+ * 1970, y su id. Va en microsegundos porque un Date de JavaScript redondea a milisegundos y la página
+ * siguiente podría repetir o saltear un incidente. Y va como entero, no como texto de fecha, para que un
+ * cursor armado a mano no llegue a la base con algo que PostgreSQL no puede convertir.
  */
 export interface Cursor {
-  fecha: string;
+  microsegundos: number;
   id: number;
 }
 
 export const codificarCursor = (cursor: Cursor) =>
-  Buffer.from(JSON.stringify([cursor.fecha, cursor.id])).toString('base64url');
+  Buffer.from(JSON.stringify([cursor.microsegundos, cursor.id])).toString('base64url');
+
+const MAXIMO_INT = 2_147_483_647;
 
 const cursor = z.string().transform((texto, contexto) => {
   try {
-    const [fecha, id] = JSON.parse(Buffer.from(texto, 'base64url').toString()) as unknown[];
-    if (typeof fecha === 'string' && !Number.isNaN(Date.parse(fecha)) && Number.isInteger(id)) {
-      return { fecha, id: id as number };
+    const [microsegundos, id] = JSON.parse(Buffer.from(texto, 'base64url').toString()) as unknown[];
+    // Un entero seguro de microsegundos son unos 285 años para cada lado de 1970: PostgreSQL lo acepta siempre.
+    if (
+      Number.isSafeInteger(microsegundos) &&
+      Number.isInteger(id) &&
+      (id as number) > 0 &&
+      (id as number) <= MAXIMO_INT
+    ) {
+      return { microsegundos: microsegundos as number, id: id as number };
     }
   } catch {
     // Cae al error de abajo: un cursor que no se puede leer es igual de inválido que uno mal armado.
