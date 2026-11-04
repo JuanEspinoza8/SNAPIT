@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'compartido/rutas/rutas_app.dart';
+import 'compartido/tema/modo_tema.dart';
 import 'compartido/tema/tema_app.dart';
 
 class AppSnapIt extends ConsumerWidget {
@@ -12,7 +13,9 @@ class AppSnapIt extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       title: 'SnapIt',
-      theme: crearTema(),
+      theme: crearTema(PaletaSnapIt.claro),
+      darkTheme: crearTema(PaletaSnapIt.oscuro),
+      themeMode: ref.watch(modoTemaProvider),
       // Los textos propios de Material (el calendario, el botón atrás) en
       // castellano.
       locale: const Locale('es', 'AR'),

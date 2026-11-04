@@ -105,7 +105,9 @@ class Etiqueta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    final colorTexto = tema.colorScheme.onPrimary;
+    // Igual en los dos temas: los colores de estado y gravedad están elegidos
+    // para llevarlo con contraste AA.
+    final colorTexto = tema.extension<ColoresFijos>()!.sobreEstado;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color,
@@ -141,17 +143,18 @@ class MarcaEstado extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final esquema = Theme.of(context).colorScheme;
+    final fijos = Theme.of(context).extension<ColoresFijos>()!;
     return Container(
       width: tamanio,
       height: tamanio,
       decoration: BoxDecoration(
         color: estado.color(context),
         shape: BoxShape.circle,
-        border: Border.all(color: esquema.surface, width: 2),
-        boxShadow: [_sombraMarcador(esquema)],
+        // El mapa es claro en los dos temas: el borde no sigue al tema.
+        border: Border.all(color: fijos.marcadorBorde, width: 2),
+        boxShadow: [_sombraMarcador(fijos)],
       ),
-      child: Icon(estado.icono, size: tamanio * 0.55, color: esquema.onPrimary),
+      child: Icon(estado.icono, size: tamanio * 0.55, color: fijos.sobreEstado),
     );
   }
 }
@@ -165,6 +168,7 @@ class MarcaGrupo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final fijos = tema.extension<ColoresFijos>()!;
     final tamanio = cantidad < 10
         ? 34.0
         : cantidad < 100
@@ -177,8 +181,8 @@ class MarcaGrupo extends StatelessWidget {
       decoration: BoxDecoration(
         color: tema.colorScheme.primary,
         shape: BoxShape.circle,
-        border: Border.all(color: tema.colorScheme.surface, width: 3),
-        boxShadow: [_sombraMarcador(tema.colorScheme)],
+        border: Border.all(color: fijos.marcadorBorde, width: 3),
+        boxShadow: [_sombraMarcador(fijos)],
       ),
       child: Text(
         '$cantidad',
@@ -191,8 +195,5 @@ class MarcaGrupo extends StatelessWidget {
 }
 
 // Una sombra corta, para que el marcador se despegue de las calles del fondo.
-BoxShadow _sombraMarcador(ColorScheme esquema) => BoxShadow(
-  color: esquema.onSurface.withValues(alpha: 0.4),
-  blurRadius: 4,
-  offset: const Offset(0, 1),
-);
+BoxShadow _sombraMarcador(ColoresFijos fijos) =>
+    BoxShadow(color: fijos.velo, blurRadius: 4, offset: const Offset(0, 1));

@@ -29,3 +29,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # El logo del encabezado: el mismo que usa la web (web/src/assets/logo.png).
+  assets:
+    - assets/logo.png

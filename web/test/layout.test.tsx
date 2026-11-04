@@ -61,7 +61,7 @@ describe('layout', () => {
   it('sin sesión muestra el encabezado, el pie, el contenido y el acceso a las cuentas', () => {
     montar('/');
 
-    expect(screen.getByRole('link', { name: 'SnapIt' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'SnapIt, ir al inicio' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
     expect(screen.getByRole('link', { name: 'Ingresar' })).toHaveAttribute('href', '/ingreso');
     expect(screen.getByRole('link', { name: 'Registrarse' })).toHaveAttribute('href', '/registro');

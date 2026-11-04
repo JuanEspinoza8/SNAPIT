@@ -30,7 +30,7 @@ class TarjetaIncidente extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(radioBorde * 1.5),
+        borderRadius: BorderRadius.circular(radioBorde),
         side: BorderSide(color: tema.colorScheme.outline),
       ),
       child: Column(

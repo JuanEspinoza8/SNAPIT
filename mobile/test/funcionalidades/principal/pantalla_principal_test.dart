@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
@@ -140,6 +141,35 @@ void main() {
       expect(find.byType(MapaIncidentes), findsOneWidget);
     });
   }
+
+  testWidgets('arranca en el tema oscuro y desde la cuenta se cambia al claro, '
+      'que queda guardado', (tester) async {
+    await abrirApp(tester, servidorCon());
+    Brightness brillo() =>
+        Theme.of(tester.element(find.byType(PantallaFeed))).brightness;
+    expect(brillo(), Brightness.dark);
+
+    await tester.tap(find.byTooltip('Cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tema oscuro'));
+    await tester.pumpAndSettle();
+
+    expect(brillo(), Brightness.light);
+    expect((await tokensGuardados())['modoTema'], 'claro');
+  });
+
+  testWidgets('recuerda el tema claro de la vez anterior', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({
+      ...sesionGuardada,
+      'modoTema': 'claro',
+    });
+    await abrirApp(tester, servidorCon());
+
+    expect(
+      Theme.of(tester.element(find.byType(PantallaFeed))).brightness,
+      Brightness.light,
+    );
+  });
 
   testWidgets('Salir cierra la sesión y vuelve al ingreso', (tester) async {
     final servidor = servidorCon();
