@@ -38,7 +38,7 @@ export function EtiquetaGravedad({ gravedad }: { gravedad: Gravedad }) {
   const { etiqueta, clase, barras } = GRAVEDADES[gravedad];
   return (
     <span
-      className={`${clase} inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold text-white`}
+      className={`${clase} inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold text-sobre-estado`}
     >
       <Barras llenas={barras} />
       {etiqueta}
@@ -80,7 +80,7 @@ export function Carrusel({
   };
   const restantes = (total ?? fotos.length) - fotos.length;
   const flecha =
-    'absolute top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-1 text-lg text-white hover:bg-black/80 disabled:hidden';
+    'absolute top-1/2 -translate-y-1/2 rounded-md bg-velo px-3 py-1 text-lg text-sobre-velo hover:opacity-90 disabled:hidden';
 
   return (
     <div
@@ -130,14 +130,14 @@ export function Carrusel({
           </button>
           <span
             aria-hidden="true"
-            className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white"
+            className="absolute right-2 top-2 rounded-md bg-velo px-2 py-0.5 text-xs text-sobre-velo"
           >
             {actual + 1}/{fotos.length}
           </span>
         </>
       )}
       {restantes > 0 && actual === fotos.length - 1 && (
-        <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">
+        <span className="absolute bottom-2 left-2 rounded-md bg-velo px-2 py-0.5 text-xs text-sobre-velo">
           {restantes === 1 ? '+1 foto en el detalle' : `+${restantes} fotos en el detalle`}
         </span>
       )}

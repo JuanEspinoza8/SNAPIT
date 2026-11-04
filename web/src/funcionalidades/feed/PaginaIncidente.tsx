@@ -34,7 +34,7 @@ export function PaginaIncidente() {
       {ficha.data && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="flex flex-col gap-6">
-            <article className="overflow-hidden rounded-xl border border-borde bg-superficie-alterna">
+            <article className="overflow-hidden rounded-lg border border-borde bg-superficie-alterna">
               <Carrusel fotos={ficha.data.fotos} descripcion={ficha.data.categoria.nombre} />
               <div className="flex flex-col gap-3 p-4">
                 <h1 className="text-2xl font-semibold">{ficha.data.categoria.nombre}</h1>
@@ -55,7 +55,7 @@ export function PaginaIncidente() {
           </div>
 
           <aside aria-label="Información" className="flex flex-col gap-4">
-            <div className="overflow-hidden rounded-xl border border-borde">
+            <div className="overflow-hidden rounded-lg border border-borde">
               <div className="h-48">
                 <Suspense fallback={<div className="h-full w-full animate-pulse bg-superficie-alterna" />}>
                   <MapaPuntos
@@ -73,7 +73,7 @@ export function PaginaIncidente() {
                 </Suspense>
               </div>
             </div>
-            <div className="rounded-xl border border-borde bg-superficie-alterna p-4">
+            <div className="rounded-lg border border-borde bg-superficie-alterna p-4">
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-texto-secundario">
                 Información
               </h2>
@@ -120,18 +120,18 @@ function FotosDeVecinos({ id }: { id: number }) {
               <Link
                 to={`/reporte/${reporte.id}`}
                 aria-label={`Foto del ${reporte.autor.nombre}, ${reporte.cantidadMeGusta} me gusta, ${reporte.cantidadComentarios} comentarios`}
-                className="group relative block aspect-square overflow-hidden rounded-lg border border-borde bg-superficie-alterna focus-visible:ring-2 focus-visible:ring-primario"
+                className="relative block aspect-square overflow-hidden rounded-lg border border-borde bg-superficie-alterna focus-visible:ring-2 focus-visible:ring-primario"
               >
                 {reporte.fotos[0] && (
                   <img
                     src={urlFoto(reporte.fotos[0].id)}
                     alt=""
                     loading="lazy"
-                    className="h-full w-full object-cover transition group-hover:scale-105"
+                    className="h-full w-full object-cover"
                   />
                 )}
-                {/* Degradé abajo para que el nombre se lea sobre cualquier foto. */}
-                <span className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/80 to-transparent p-2 pt-8 text-xs text-white">
+                {/* Una franja con velo abajo, para que el autor se lea sobre cualquier foto. */}
+                <span className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-velo p-2 text-xs text-sobre-velo">
                   <Avatar autor={reporte.autor} chico />
                   <span className="min-w-0 flex-1 truncate">{reporte.autor.nombre}</span>
                   <span aria-hidden="true">♥ {reporte.cantidadMeGusta}</span>
@@ -148,7 +148,7 @@ function FotosDeVecinos({ id }: { id: number }) {
 function ComentariosDelIncidente({ id }: { id: number }) {
   const comentarios = useComentariosDeIncidente(id);
   return (
-    <div className="rounded-xl border border-borde bg-superficie-alterna p-4">
+    <div className="rounded-lg border border-borde bg-superficie-alterna p-4">
       <SeccionComentarios
         titulo="Comentarios del incidente"
         comentarios={comentarios.data}

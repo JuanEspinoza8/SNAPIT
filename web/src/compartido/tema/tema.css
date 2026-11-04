@@ -18,11 +18,22 @@
   --color-estado-resuelto: #276749;
   --color-estado-desestimado: #4a5568;
 
-  /* Gravedad de un incidente (enum Severidad). Llevan texto blanco, como los estados.
+  /* Gravedad de un incidente (enum Severidad). Llevan texto blanco, como los estados. Moderada no
+     repite el color de «En revisión»: van una al lado de la otra en las tarjetas.
      Mismos valores que ColoresGravedad en mobile/lib/compartido/tema/tema_app.dart */
   --color-gravedad-leve: #3d5a80;
-  --color-gravedad-moderada: #975a16;
+  --color-gravedad-moderada: #c2410c;
   --color-gravedad-grave: #c53030;
+
+  /* Fijos en los dos temas. Mismos valores que ColoresFijos en mobile/lib/compartido/tema/tema_app.dart */
+  /* Texto sobre los estados y las gravedades: con todos da AA. */
+  --color-sobre-estado: #ffffff;
+  /* Lo que va encima de una foto (cuál se ve, «+3 fotos», el autor): se lee sobre cualquier imagen. */
+  --color-velo: rgb(0 0 0 / 0.6);
+  --color-sobre-velo: #ffffff;
+  /* Los marcadores van sobre el mapa, que es claro en los dos temas. */
+  --color-marcador-borde: #ffffff;
+  --color-marcador-trazo: #1a202c;
 
   --font-sans: 'Inter Variable', system-ui, sans-serif;
 
@@ -46,7 +57,7 @@
 /* «Noche neutra», el tema oscuro: mismos valores que PaletaSnapIt.oscuro en
    mobile/lib/compartido/tema/tema_app.dart. Las utilidades de Tailwind leen estas variables, así que
    alcanza con redefinirlas. El azul con texto blanco no llega a AA (3,7:1): lo que va sobre el azul
-   es casi negro (5:1). Los estados y las gravedades no cambian: llevan texto blanco en los dos. */
+   es casi negro (5:1). Los estados, las gravedades y los colores fijos no cambian. */
 :root[data-tema='oscuro'] {
   color-scheme: dark;
   --color-primario: #3b82f6;

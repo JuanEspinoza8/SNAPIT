@@ -24,7 +24,7 @@ export function TarjetaIncidente({ tarjeta, alResaltar }: Props) {
       onMouseLeave={() => alResaltar?.(null)}
       onFocus={() => alResaltar?.(tarjeta.id)}
       onBlur={() => alResaltar?.(null)}
-      className="overflow-hidden rounded-xl border border-borde bg-superficie-alterna"
+      className="overflow-hidden rounded-lg border border-borde bg-superficie-alterna"
     >
       <Carrusel fotos={tarjeta.fotos} total={tarjeta.cantidadFotos} descripcion={tarjeta.categoria.nombre} />
       <Link

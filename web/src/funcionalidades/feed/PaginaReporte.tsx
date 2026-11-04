@@ -33,7 +33,7 @@ export function PaginaReporte() {
       )}
 
       {reporte.data && (
-        <article className="overflow-hidden rounded-xl border border-borde bg-superficie-alterna">
+        <article className="overflow-hidden rounded-lg border border-borde bg-superficie-alterna">
           <header className="flex items-center gap-3 p-4">
             <Avatar autor={reporte.data.autor} />
             <div>

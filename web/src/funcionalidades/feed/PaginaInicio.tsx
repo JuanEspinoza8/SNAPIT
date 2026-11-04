@@ -70,7 +70,7 @@ export function PaginaInicio() {
         )}
 
         {feed.data && tarjetas.length === 0 && (
-          <div className="rounded-xl border border-borde bg-superficie-alterna p-8 text-center">
+          <div className="rounded-lg border border-borde bg-superficie-alterna p-8 text-center">
             <p className="font-semibold">Todavía no hay incidentes</p>
             <p className="text-sm text-texto-secundario">
               Cuando un vecino reporte un problema, va a aparecer acá.
@@ -109,7 +109,7 @@ export function PaginaInicio() {
       {/* Solo en pantalla ancha. Para el lector de pantalla es un extra: la lista ya tiene todo. */}
       {ancha && (
         <aside aria-label="Mapa de los incidentes del inicio">
-          <div className="sticky top-4 h-[calc(100dvh-8rem)] overflow-hidden rounded-xl border border-borde">
+          <div className="sticky top-4 h-[calc(100dvh-8rem)] overflow-hidden rounded-lg border border-borde">
             {puntos.length > 0 && (
               <Suspense fallback={<div className="h-full w-full animate-pulse bg-superficie-alterna" />}>
                 <MapaPuntos

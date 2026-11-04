@@ -19,14 +19,14 @@ body {
   display: inline-block;
   width: 26px;
   height: 26px;
-  border: 3px solid #ffffff; /* El mapa es claro en los dos temas: el borde va blanco siempre. */
+  border: 3px solid var(--color-marcador-borde);
   border-radius: 9999px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--color-marcador-trazo) 40%, transparent);
 }
 /* En revisión: borde punteado, para que no dependa solo del color. */
 .marcador-punto--revision {
   border-style: dashed;
-  border-color: #1a202c; /* Oscuro fijo: va sobre el mapa claro. */
+  border-color: var(--color-marcador-trazo);
 }
 .marcador-punto--chico {
   width: 18px;
@@ -37,13 +37,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 3px solid #ffffff; /* El mapa es claro en los dos temas: el borde va blanco siempre. */
+  border: 3px solid var(--color-marcador-borde);
   border-radius: 9999px;
   background-color: var(--color-primario);
   color: var(--color-sobre-primario);
   font-size: 0.875rem;
   font-weight: 600;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.4);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--color-marcador-trazo) 40%, transparent);
 }
 .marcador-grupo--chico {
   width: 22px;
