@@ -2,6 +2,7 @@ import { type OrigenReporte, Prisma, type Severidad, type TipoVigencia } from '@
 import { prisma } from '../../compartido/prisma.js';
 import { INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
 import type { ResultadoConfianza, Senal } from '../verificacion/calculo.js';
+import { conTareasAlConfirmar } from '../../compartido/despuesDeConfirmar.js';
 
 export function buscarCategoriaActiva(id: number) {
   return prisma.categoria.findFirst({ where: { id, activa: true } });
@@ -44,7 +45,8 @@ export interface SugerenciaDelReporte {
  * en total) se quedan cortos si varios reportes de la misma categoría esperan el bloqueo de la agrupación.
  */
 export function transaccion<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) {
-  return prisma.$transaction(fn, { maxWait: 10_000, timeout: 20_000 });
+  // Lo que se pida con despuesDeConfirmar() adentro (por ejemplo, los avisos) sale recién si se confirma.
+  return conTareasAlConfirmar(() => prisma.$transaction(fn, { maxWait: 10_000, timeout: 20_000 }));
 }
 
 // Las escrituras del alta de un reporte. Las encadena reportes/servicio.ts dentro de la transacción.

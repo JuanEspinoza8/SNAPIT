@@ -904,7 +904,7 @@ Los comentarios de un reporte, con la misma forma que los del incidente (`{ "com
 En las dos: un reporte desestimado, eliminado, de un incidente que no se ve o inexistente responde **404** `REPORTE_NO_ENCONTRADO`. Un id inválido, **400** `DATOS_INVALIDOS`.
 
 ## Avisos al vecino
-Avisos push al celular sobre lo que le importa al vecino (F10), con Firebase Cloud Messaging (FCM). Cada aviso queda guardado en la base y se ve en la lista de la app aunque no haya llegado al celular. Cuándo se crea cada aviso (cambio de estado, cierre, verificación, zona habitual) se define en #115.
+Avisos push al celular sobre lo que le importa al vecino (F10), con Firebase Cloud Messaging (FCM). Cada aviso queda guardado en la base y se ve en la lista de la app aunque no haya llegado al celular.
 
 Un aviso **no se crea** si el usuario apagó todos los avisos (`notificacionesHabilitadas`), si apagó los de la categoría del incidente (`/api/preferencias-notificacion`) o si la cuenta está dada de baja. Si se crea, se manda a sus dispositivos activos:
 - Si FCM lo acepta en al menos uno, se completa `enviadaEn`.
@@ -912,6 +912,19 @@ Un aviso **no se crea** si el usuario apagó todos los avisos (`notificacionesHa
 - Si FCM no responde, o el servidor no tiene `FIREBASE_CREDENCIALES`, el aviso queda guardado con `enviadaEn` en `null`.
 
 El aviso que llega al celular tiene `notificacionId`, `tipo` y, si es de un incidente, `incidenteId` en sus datos, para abrir la ficha al tocarlo.
+
+**Cuándo se avisa** (`server/src/modulos/avisos/disparar.ts`):
+
+| `tipo` | Cuándo | A quién |
+|---|---|---|
+| `CAMBIO_ESTADO` | El incidente cambia de estado: lo deriva o lo desestima un operador, una revisión lo verifica, al unir, separar o deshacer una unión | A quienes lo reportaron y a quienes lo siguen, también en los incidentes unidos a él. Un reporte desestimado o eliminado por su autor no cuenta |
+| `CIERRE` | El incidente queda `RESUELTO` | A quienes lo reportaron. Quienes solo lo siguen reciben el de `CAMBIO_ESTADO` |
+| `VERIFICACION` | Un operador, o la IA desde la cola, verifica o desestima el reporte. También al crearlo, si queda pendiente de revisión («Tu reporte está en verificación») | Al autor del reporte. Verificado al llegar no se avisa: la pantalla de reportar ya lo dice |
+| `NUEVO_EN_ZONA` | Se crea un incidente nuevo (un reporte que no se agrupó con otro) | A los vecinos con una zona habitual activa que lo contiene (`ST_DWithin(centro, ubicacion, radio_metros)`). Si cae en varias zonas del mismo vecino, un solo aviso |
+
+- Nadie recibe dos avisos por el mismo hecho: quien reportó y además sigue el incidente recibe uno, y el autor de un reporte cuya revisión cambió el estado del incidente recibe solo el de verificación.
+- Quien hizo la acción no se avisa a sí mismo: ni el operador que cambió el estado, ni el vecino de su propio reporte o del incidente nuevo en su zona.
+- Los avisos salen **recién cuando se confirma la transacción** del cambio (`compartido/despuesDeConfirmar.ts`): si falla, no sale ninguno. Tampoco demoran la respuesta: se mandan en segundo plano.
 
 ### `POST /api/dispositivos`
 Registra el celular para recibir avisos. Requiere sesión, de cualquier rol. La app lo llama al ingresar y cuando FCM le cambia el token.

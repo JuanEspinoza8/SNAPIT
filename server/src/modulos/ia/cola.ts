@@ -3,13 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { ErrorApp } from '../../compartido/errores.js';
-import { prisma } from '../../compartido/prisma.js';
 import { validar } from '../../compartido/validar.js';
 import { logger } from '../../config/logger.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { listarCategoriasActivas } from '../catalogo/repositorio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import * as verificacion from '../verificacion/repositorio.js';
+import { transaccion } from '../reportes/repositorio.js';
 import { aplicarResultado } from '../verificacion/resultado.js';
 import { clasificarImagen } from './clasificarFoto.js';
 import { costoUsd } from './costos.js';
@@ -250,7 +250,8 @@ async function publicar(
   nivelConfianza: number,
 ): Promise<'PUBLICADO' | 'REVISADO' | 'CERRADO'> {
   try {
-    return await prisma.$transaction(async (tx) => {
+    // Con transaccion(): los avisos al vecino (avisos/disparar.ts) salen recién si se confirma.
+    return await transaccion(async (tx) => {
       const reporte = await verificacion.bloquearReporte(tx, reporteId);
       if (!reporte || reporte.estado !== 'PENDIENTE_REVISION') return 'REVISADO';
       await verificacion.cambiarEstadoReporte(tx, reporteId, 'VERIFICADO');

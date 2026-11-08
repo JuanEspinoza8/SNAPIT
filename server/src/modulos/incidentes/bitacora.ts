@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
+import { avisarCambioDeEstado } from '../avisos/disparar.js';
 
 // La bitácora solo crece (regla 8 del molde): acá se agregan movimientos y se leen, nunca se cambian ni se borran.
 
@@ -16,12 +17,24 @@ const DATOS_MOVIMIENTO = {
   creadoEn: true,
 } satisfies Prisma.MovimientoIncidenteSelect;
 
-/** Agrega un movimiento y lo devuelve como se muestra en la ficha de gestión. */
-export function registrarMovimiento(
+/**
+ * Agrega un movimiento y lo devuelve como se muestra en la ficha de gestión. Si es un cambio de estado, avisa a
+ * quienes reportaron o siguen el incidente cuando se confirme la transacción (avisos/disparar.ts).
+ */
+export async function registrarMovimiento(
   tx: Prisma.TransactionClient,
   movimiento: Prisma.MovimientoIncidenteUncheckedCreateInput,
 ) {
-  return tx.movimientoIncidente.create({ data: movimiento, select: DATOS_MOVIMIENTO });
+  const creado = await tx.movimientoIncidente.create({ data: movimiento, select: DATOS_MOVIMIENTO });
+  if (movimiento.estadoNuevo && movimiento.estadoNuevo !== movimiento.estadoAnterior) {
+    avisarCambioDeEstado(
+      movimiento.incidenteId,
+      movimiento.estadoAnterior ?? null,
+      movimiento.estadoNuevo,
+      movimiento.usuarioId ?? null,
+    );
+  }
+  return creado;
 }
 
 /** Los movimientos del incidente en el orden en que pasaron. */

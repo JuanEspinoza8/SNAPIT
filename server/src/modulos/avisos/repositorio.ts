@@ -1,5 +1,6 @@
 import { type Plataforma, Prisma, type TipoNotificacion } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
+import { REPORTES_VISIBLES_DEL_INCIDENTE } from '../incidentes/repositorio.js';
 import type { Destinatario } from './calculo.js';
 import type { DatosZona } from './esquemas.js';
 
@@ -171,4 +172,55 @@ export async function actualizarZona(usuarioId: number, id: number, datos: Datos
 export async function borrarZona(usuarioId: number, id: number) {
   const { count } = await prisma.zonaHabitual.deleteMany({ where: { id, usuarioId } });
   return count > 0;
+}
+
+// --- A quién avisar (#115) ---
+
+/** De qué se trata el incidente, para el texto del aviso. Undefined si no existe. */
+export async function buscarIncidente(id: number) {
+  const [fila] = await prisma.$queryRaw<{ categoria: string; direccion: string | null }[]>`
+    SELECT c.nombre AS categoria, i.direccion
+    FROM incidente i JOIN categoria c ON c.id = i.categoria_id
+    WHERE i.id = ${id}`;
+  return fila;
+}
+
+/** Quienes reportaron el incidente o uno de los unidos a él, sin los reportes desestimados ni eliminados. */
+export async function quienesReportaron(id: number) {
+  const filas = await prisma.$queryRaw<{ usuarioId: number }[]>`
+    SELECT DISTINCT r.usuario_id AS "usuarioId" ${REPORTES_VISIBLES_DEL_INCIDENTE(id)}`;
+  return filas.map((fila) => fila.usuarioId);
+}
+
+/** Quienes siguen el incidente o uno de los unidos a él (regla 5 del modelo). */
+export async function quienesSiguen(id: number) {
+  const filas = await prisma.$queryRaw<{ usuarioId: number }[]>`
+    SELECT DISTINCT s.usuario_id AS "usuarioId"
+    FROM seguimiento_incidente s
+    JOIN incidente i ON i.id = s.incidente_id
+    WHERE i.id = ${id} OR i.incidente_principal_id = ${id}`;
+  return filas.map((fila) => fila.usuarioId);
+}
+
+/** El autor del reporte y su categoría. Undefined si no existe. */
+export async function buscarReporte(id: number) {
+  const [fila] = await prisma.$queryRaw<{ usuarioId: number; categoria: string }[]>`
+    SELECT r.usuario_id AS "usuarioId", c.nombre AS categoria
+    FROM reporte r JOIN categoria c ON c.id = r.categoria_id
+    WHERE r.id = ${id}`;
+  return fila;
+}
+
+/**
+ * Los vecinos con una zona habitual activa que contiene el incidente, salvo `excepto`. Si el incidente cae en
+ * varias zonas del mismo vecino, una sola (la más vieja), así recibe un solo aviso.
+ */
+export function zonasQueContienen(incidenteId: number, excepto: number) {
+  return prisma.$queryRaw<{ usuarioId: number; zona: string }[]>`
+    SELECT DISTINCT ON (z.usuario_id) z.usuario_id AS "usuarioId", z.nombre AS zona
+    FROM zona_habitual z
+    JOIN incidente i ON i.id = ${incidenteId}
+    WHERE z.activa AND z.usuario_id <> ${excepto}
+      AND ST_DWithin(z.centro, i.ubicacion, z.radio_metros)
+    ORDER BY z.usuario_id, z.creado_en, z.id`;
 }

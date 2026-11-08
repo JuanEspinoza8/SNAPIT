@@ -2,6 +2,7 @@ import type { EstadoIncidente, Prisma } from '@prisma/client';
 import { ErrorApp } from '../../compartido/errores.js';
 import { estadoSegunReportes, severidadConsolidada } from '../agrupacion/calculo.js';
 import { contarReportes, severidadesDeclaradas } from '../agrupacion/repositorio.js';
+import { avisarCambioDeEstado, avisarVerificacion } from '../avisos/disparar.js';
 import * as repositorio from './repositorio.js';
 
 export interface ResultadoVerificacion {
@@ -53,6 +54,10 @@ export async function aplicarResultado(
     );
   }
   const reputacion = await repositorio.sumarAlHistorial(tx, reporte.usuarioId, resultado.decision);
+  // Al autor, si lo decidió un operador o la IA. Verificado al recibirlo, la pantalla de reportar ya se lo dice.
+  if (resultado.operadorId !== null) {
+    avisarVerificacion(resultado.reporteId, id, resultado.decision, resultado.operadorId);
+  }
   if (id === null || anterior === null) return { reputacion, incidente: null };
 
   if (resultado.decision === 'DESESTIMADO') await repositorio.restarReporte(tx, incidentes);
@@ -70,6 +75,15 @@ export async function aplicarResultado(
 
   const comentario = describir(resultado, reporte.nivelConfianza);
   if (nuevo !== anterior) {
+    // Al recibirlo, el que lo cambió es el autor del reporte: no se avisa a sí mismo. En una revisión, el autor
+    // ya recibe el aviso de verificación: no recibe otro por el mismo hecho.
+    avisarCambioDeEstado(
+      id,
+      anterior,
+      nuevo,
+      resultado.operadorId ?? reporte.usuarioId,
+      resultado.operadorId === null ? [] : [reporte.usuarioId],
+    );
     await repositorio.registrarMovimiento(tx, {
       incidenteId: id,
       usuarioId: resultado.operadorId,
