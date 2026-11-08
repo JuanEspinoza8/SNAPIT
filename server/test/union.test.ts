@@ -340,6 +340,50 @@ describe('POST /api/incidentes/:id/union', () => {
   });
 });
 
+describe('revisar mientras se une', () => {
+  it('una revisión que espera a una unión en curso se aplica sobre el principal', async () => {
+    const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z');
+    const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z');
+    // Una unión a medio hacer: los dos incidentes bloqueados y el duplicado ya apunta al principal.
+    let bloqueados!: () => void;
+    const yaBloqueados = new Promise<void>((listo) => (bloqueados = listo));
+    let terminar!: () => void;
+    const union = prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT id FROM incidente WHERE id IN (${principal.incidenteId}, ${duplicado.incidenteId})
+        ORDER BY id FOR UPDATE`;
+      await tx.incidente.update({
+        where: { id: duplicado.incidenteId },
+        data: { incidentePrincipalId: principal.incidenteId },
+      });
+      await tx.incidente.update({
+        where: { id: principal.incidenteId },
+        data: { cantidadReportes: { increment: 1 } },
+      });
+      bloqueados();
+      await new Promise<void>((listo) => (terminar = listo));
+    });
+    await yaBloqueados;
+
+    // La revisión lee al duplicado sin unir y se queda esperando el bloqueo.
+    const revision = request(app)
+      .post(`/api/reportes/${duplicado.id}/revision`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ decision: 'VERIFICADO' })
+      .then((res) => res);
+    await new Promise((listo) => setTimeout(listo, 300));
+    terminar();
+    await union;
+    const res = await revision;
+
+    expect(res.status).toBe(200);
+    expect(res.body.incidente).toEqual({ id: principal.incidenteId, estado: 'VERIFICADO' });
+    // El caso que prohíbe D3: un duplicado verificado unido a un principal sin verificar.
+    expect((await foto(principal.incidenteId)).estado).toBe('VERIFICADO');
+    expect((await foto(duplicado.incidenteId)).estado).toBe('REGISTRADO');
+  });
+});
+
 describe('DELETE /api/incidentes/:id/union', () => {
   it('unir y después deshacer deja los dos incidentes exactamente como estaban', async () => {
     const { principalId, duplicadoId } = await dosIncidentes();
@@ -425,6 +469,52 @@ describe('DELETE /api/incidentes/:id/union', () => {
     expect(res.body.principal.estado).toBe('REGISTRADO');
     expect((await foto(principal.incidenteId)).estado).toBe('REGISTRADO');
     expect((await foto(duplicado.incidenteId)).estado).toBe('VERIFICADO');
+    const vuelta = await prisma.movimientoIncidente.findMany({
+      where: { incidenteId: principal.incidenteId, tipo: 'CAMBIO_ESTADO', estadoNuevo: 'REGISTRADO' },
+    });
+    expect(vuelta).toEqual([
+      expect.objectContaining({ estadoAnterior: 'VERIFICADO', estadoNuevo: 'REGISTRADO', usuarioId: null }),
+    ]);
+  });
+
+  it('si mientras estaban unidos se desestimó el reporte más grave del duplicado, vuelve con la severidad del otro', async () => {
+    const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z');
+    const grave = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z');
+    const leve = await reportar(1, 'LEVE', '2026-10-12T12:00:00Z');
+    expect(leve.incidenteId).toBe(grave.incidenteId);
+    // Uno y uno: ante el empate, manda la más grave.
+    expect((await foto(grave.incidenteId)).severidad).toBe('GRAVE');
+    await unir(grave.incidenteId, { principalId: principal.incidenteId });
+    // Unidos, el desestimado recalcula la severidad del principal, no la del duplicado.
+    await revisar(grave.id, 'DESESTIMADO');
+    expect((await foto(grave.incidenteId)).severidad).toBe('GRAVE');
+
+    const res = await deshacer(grave.incidenteId);
+
+    expect(res.status).toBe(200);
+    expect(await foto(grave.incidenteId)).toMatchObject({ severidad: 'LEVE', cantidadReportes: 1 });
+    expect(res.body.principal).toMatchObject({ severidad: 'LEVE', cantidadReportes: 1 });
+  });
+
+  it('un principal derivado sigue derivado al deshacer: solo el duplicado vuelve a lo suyo', async () => {
+    const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z', categoria, true);
+    const derivacion = await request(app)
+      .post(`/api/incidentes/${principal.incidenteId}/derivacion`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ areaId: area.id });
+    expect(derivacion.status).toBe(200);
+    const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z');
+    await unir(duplicado.incidenteId, { principalId: principal.incidenteId });
+
+    const res = await deshacer(duplicado.incidenteId);
+
+    expect(res.status).toBe(200);
+    expect(res.body.principal).toMatchObject({ estado: 'DERIVADO', cantidadReportes: 1 });
+    expect(await foto(duplicado.incidenteId)).toMatchObject({ estado: 'REGISTRADO', severidad: 'GRAVE' });
+    const cambios = await prisma.movimientoIncidente.findMany({
+      where: { incidenteId: principal.incidenteId, tipo: 'CAMBIO_ESTADO', estadoAnterior: 'DERIVADO' },
+    });
+    expect(cambios).toEqual([]);
   });
 
   it('un incidente que no está unido da 409', async () => {

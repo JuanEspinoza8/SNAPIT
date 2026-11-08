@@ -260,6 +260,32 @@ describe('POST /api/incidentes/:id/estado', () => {
     }
   });
 
+  it('se puede desestimar un incidente en revisión, con sus reportes pendientes', async () => {
+    const id = await incidente(0, true);
+    expect((await leer(id)).estado).toBe('REGISTRADO');
+
+    const res = await cambiarEstado(id, { estado: 'DESESTIMADO', comentario: 'Es una obra programada' });
+
+    expect(res.status).toBe(200);
+    expect((await leer(id)).estado).toBe('DESESTIMADO');
+    const reportes = await prisma.reporte.findMany({
+      where: { incidenteId: id },
+      select: { estadoVerificacion: true },
+    });
+    expect(reportes).toEqual([{ estadoVerificacion: 'PENDIENTE_REVISION' }]);
+  });
+
+  it('un incidente en ejecución no vuelve a pasar a ejecución', async () => {
+    const id = await derivado();
+    await cambiarEstado(id, { estado: 'EN_EJECUCION' });
+
+    const res = await cambiarEstado(id, { estado: 'EN_EJECUCION' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.codigo).toBe('TRANSICION_INVALIDA');
+    expect((await bitacora(id)).filter((m) => m.estadoNuevo === 'EN_EJECUCION')).toHaveLength(1);
+  });
+
   it('un desestimado no sale de su estado', async () => {
     const id = await incidente();
     await cambiarEstado(id, { estado: 'DESESTIMADO', comentario: 'No es un problema de la vía pública' });

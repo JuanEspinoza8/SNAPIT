@@ -73,9 +73,10 @@ export async function iniciarProceso(sesion: UsuarioSesion) {
   }
 
   proceso.total = pendientes.length;
-  proceso.terminado = procesar({ id, organismoId, usuarioId: sesion.id }, pendientes).finally(() =>
-    enCurso.delete(organismoId),
-  );
+  proceso.terminado = procesar({ id, organismoId, usuarioId: sesion.id }, pendientes)
+    // Nadie espera esta promesa: un rechazo sin manejar terminaría el servidor.
+    .catch((error: unknown) => logger.error({ err: error, procesoId: id }, 'Falló el procesamiento con IA'))
+    .finally(() => enCurso.delete(organismoId));
   return { procesoId: id, total: pendientes.length };
 }
 
@@ -93,10 +94,25 @@ interface Contexto {
 type Pendiente = Awaited<ReturnType<typeof verificacion.pendientesParaIa>>[number];
 
 async function procesar(contexto: Contexto, pendientes: Pendiente[]) {
-  const nombres = new Map((await listarCategoriasActivas()).map((c) => [c.id, c.nombre]));
+  let nombres: Map<number, string>;
+  let umbralVerificado: number;
+  try {
+    nombres = new Map((await listarCategoriasActivas()).map((c) => [c.id, c.nombre]));
+    ({ umbralVerificado } = await verificacion.leerParametros());
+  } catch (error) {
+    logger.error({ err: error, procesoId: contexto.id }, 'No se pudo arrancar el procesamiento con IA');
+    for (const reporte of pendientes) {
+      await evento(
+        contexto,
+        reporte.id,
+        'ERROR',
+        'No se pudo arrancar el procesamiento: queda en la cola manual',
+      ).catch(() => {});
+    }
+    return;
+  }
   const nombre = (id: number | undefined) =>
     id === undefined ? '?' : (nombres.get(id) ?? `categoría ${id}`);
-  const { umbralVerificado } = await verificacion.leerParametros();
   for (const reporte of pendientes) {
     try {
       await procesarReporte(contexto, reporte, nombre, umbralVerificado);
@@ -133,6 +149,20 @@ async function procesarReporte(
   nombre: (id?: number) => string,
   umbral: number,
 ) {
+  // La lista se tomó al arrancar: si una persona ya lo decidió, no se paga una clasificación que no se usa.
+  const actual = await verificacion.estadoEnCola(reporte.id);
+  if (actual.estado !== 'PENDIENTE_REVISION' || actual.incidenteCerrado) {
+    await evento(
+      contexto,
+      reporte.id,
+      'REVISION_MANUAL',
+      actual.estado !== 'PENDIENTE_REVISION'
+        ? 'Un operador ya lo revisó: no se consulta a la IA'
+        : 'El incidente ya está cerrado: no se consulta a la IA',
+    );
+    return;
+  }
+
   await evento(contexto, reporte.id, 'EN_PROCESO', 'Clasificando la foto');
   if (!reporte.rutaArchivo) {
     await evento(contexto, reporte.id, 'ERROR', 'El reporte no tiene foto: queda en la cola manual');
@@ -195,37 +225,49 @@ async function procesarReporte(
     return;
   }
 
-  const publicado = await publicar(contexto, reporte.id, reporte.nivelConfianza);
-  // Si un operador lo revisó mientras tanto, no es un error de la IA: lo resolvió una persona.
+  const resultado = await publicar(contexto, reporte.id, reporte.nivelConfianza);
+  // Si mientras tanto lo revisó un operador o se cerró el incidente, no es un error de la IA.
+  const detalles = {
+    PUBLICADO: 'Coincide con lo que eligió el vecino y la verificación lo aprobaba: publicado',
+    REVISADO: 'Un operador lo revisó mientras la IA lo procesaba: queda su decisión',
+    CERRADO: 'El incidente se cerró mientras la IA lo procesaba: no se publica',
+  };
   await evento(
     contexto,
     reporte.id,
-    publicado ? 'PUBLICADO' : 'REVISION_MANUAL',
-    publicado
-      ? 'Coincide con lo que eligió el vecino y la verificación lo aprobaba: publicado'
-      : 'Un operador lo revisó mientras la IA lo procesaba: queda su decisión',
+    resultado === 'PUBLICADO' ? 'PUBLICADO' : 'REVISION_MANUAL',
+    detalles[resultado],
   );
 }
 
 /**
  * Publica el reporte igual que una aprobación manual (#51), pero con la IA como autora en la bitácora.
- * Devuelve false si mientras tanto dejó de estar pendiente (lo revisó un operador).
+ * Si mientras tanto lo revisó un operador o se cerró su incidente, no lo toca.
  */
-function publicar(contexto: Contexto, reporteId: number, nivelConfianza: number) {
-  return prisma.$transaction(async (tx) => {
-    const reporte = await verificacion.bloquearReporte(tx, reporteId);
-    if (!reporte || reporte.estado !== 'PENDIENTE_REVISION') return false;
-    await verificacion.cambiarEstadoReporte(tx, reporteId, 'VERIFICADO');
-    const efecto = await aplicarResultado(tx, {
-      reporteId,
-      decision: 'VERIFICADO',
-      operadorId: contexto.usuarioId,
-      comentario: `coincide con la categoría y la gravedad que eligió el vecino, y la verificación le había dado ${nivelConfianza} de confianza`,
-      porIa: true,
+async function publicar(
+  contexto: Contexto,
+  reporteId: number,
+  nivelConfianza: number,
+): Promise<'PUBLICADO' | 'REVISADO' | 'CERRADO'> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const reporte = await verificacion.bloquearReporte(tx, reporteId);
+      if (!reporte || reporte.estado !== 'PENDIENTE_REVISION') return 'REVISADO';
+      await verificacion.cambiarEstadoReporte(tx, reporteId, 'VERIFICADO');
+      const efecto = await aplicarResultado(tx, {
+        reporteId,
+        decision: 'VERIFICADO',
+        operadorId: contexto.usuarioId,
+        comentario: `coincide con la categoría y la gravedad que eligió el vecino, y la verificación le había dado ${nivelConfianza} de confianza`,
+        porIa: true,
+      });
+      if (efecto.incidente) await avisarCambioIncidente(tx, efecto.incidente.id);
+      return 'PUBLICADO';
     });
-    if (efecto.incidente) await avisarCambioIncidente(tx, efecto.incidente.id);
-    return true;
-  });
+  } catch (error) {
+    if (error instanceof ErrorApp && error.codigo === 'INCIDENTE_CERRADO') return 'CERRADO';
+    throw error;
+  }
 }
 
 const FINALES = new Set(['PUBLICADO', 'REVISION_MANUAL', 'ERROR']);

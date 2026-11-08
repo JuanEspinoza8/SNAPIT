@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { ElementoOsm } from '../src/modulos/red/overpass.js';
+import { type ElementoOsm, leerRespuestaOverpass } from '../src/modulos/red/overpass.js';
 import { armarRed } from '../src/modulos/red/redPeatonal.js';
 import {
   aplicarRelevamiento,
@@ -280,6 +281,7 @@ describe('aplicar el relevamiento a la red', () => {
     expect(tramo(red, 31, 22)).toMatchObject({
       camino: 'relevamiento/P1',
       tipo: 'VEREDA',
+      tieneRampa: true,
       puntos: [
         [lon(31), lat(31)],
         [lon(22), lat(22)],
@@ -287,6 +289,15 @@ describe('aplicar el relevamiento a la red', () => {
     });
     // 11 y 21 ya están unidos por Calle Sur: no se agrega otro tramo.
     expect(red.resumen.conexionesAgregadas).toBe(1);
+  });
+
+  it('una unión por la que no pasa una silla queda sin rampa', () => {
+    const red = aplicarRelevamiento(
+      armarRed(GRILLA),
+      relevamiento({ puntos: [punto('P1', { conectarNodos: [31, 22], sePasaEnSilla: 'no' })] }),
+    );
+
+    expect(tramo(red, 31, 22)).toMatchObject({ camino: 'relevamiento/P1', tieneRampa: false });
   });
 
   it('avisa lo que no encuentra en la red y aplica el resto', () => {
@@ -320,5 +331,35 @@ describe('aplicar el relevamiento a la red', () => {
     );
 
     expect(original).toEqual(copia);
+  });
+});
+
+describe('con los datos reales de la zona piloto', () => {
+  const leer = (archivo: string) =>
+    readFileSync(new URL(`../../db/datos/${archivo}`, import.meta.url), 'utf8');
+  const osm = leerRespuestaOverpass(leer('red-zona-piloto.json'));
+  const red = aplicarRelevamiento(
+    armarRed(osm.elementos),
+    leerRelevamiento(leer('relevamiento-zona-piloto.json')),
+  );
+
+  it('cada esquina, cuadra y punto del relevamiento se ubica en la red', () => {
+    expect(red.resumen.sinUbicar).toEqual([]);
+    expect(red.resumen.conexionesAgregadas).toBe(2);
+  });
+
+  it('la red corregida queda en un solo pedazo', () => {
+    // Los nodos que se cargan son los extremos de los tramos (repositorio.ts): se unen de a pares, sin la base.
+    const padre = new Map<number, number>();
+    const raiz = (id: number): number => {
+      while (padre.get(id) !== id) id = padre.get(id)!;
+      return id;
+    };
+    for (const tramo of red.tramos) {
+      for (const id of [tramo.nodoOrigen, tramo.nodoDestino]) if (!padre.has(id)) padre.set(id, id);
+      padre.set(raiz(tramo.nodoOrigen), raiz(tramo.nodoDestino));
+    }
+
+    expect(new Set([...padre.keys()].map(raiz)).size).toBe(1);
   });
 });

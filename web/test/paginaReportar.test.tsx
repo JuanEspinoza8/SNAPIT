@@ -396,6 +396,112 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
     expect(screen.queryByText(/la IA sugería/)).not.toBeInTheDocument();
   });
 
+  it('la respuesta tardía de la foto anterior no completa nada', async () => {
+    let responderPrimera = () => {};
+    const primeraRespondio = new Promise<void>((listo) => (responderPrimera = listo));
+    let pedidos = 0;
+    servidor.use(
+      http.post('*/api/ia/clasificar-foto', async () => {
+        pedidos += 1;
+        if (pedidos === 1) {
+          await primeraRespondio;
+          return HttpResponse.json(sugerencia);
+        }
+        return HttpResponse.json({ categoriaId: 3, severidad: 'GRAVE', registroIaId: 8 });
+      }),
+    );
+    const usuario = userEvent.setup();
+    renderRuta('/reportar', <PaginaReportar />);
+    await screen.findByRole('option', { name: 'Cordón sin rampa' });
+    await usuario.upload(
+      screen.getByLabelText('Foto'),
+      new File(['foto'], 'pozo.jpg', { type: 'image/jpeg' }),
+    );
+    await screen.findByText('Analizando la foto con IA…');
+    await usuario.upload(
+      screen.getByLabelText('Foto'),
+      new File(['otra'], 'otra.jpg', { type: 'image/jpeg' }),
+    );
+    expect(await screen.findByText(/La IA analizó la foto y completó/)).toBeInTheDocument();
+
+    // Llega la de la primera foto: se descarta.
+    responderPrimera();
+    await new Promise((listo) => setTimeout(listo, 50));
+
+    expect(screen.getByLabelText('Categoría')).toHaveValue('3');
+    expect(screen.getByLabelText('Gravedad')).toHaveValue('GRAVE');
+    expect(screen.getAllByText('Sugerido por la IA')).toHaveLength(2);
+    expect(screen.queryByText(/Luminaria apagada»/)).not.toBeInTheDocument();
+  });
+
+  it('una categoría fuera de la lista no se completa, y no dice «Elegiste otra» si el vecino no eligió', async () => {
+    servidor.use(
+      http.post('*/api/ia/clasificar-foto', () =>
+        HttpResponse.json({ categoriaId: 99, severidad: 'LEVE', registroIaId: 7 }),
+      ),
+    );
+    const usuario = userEvent.setup();
+    renderRuta('/reportar', <PaginaReportar />);
+    await screen.findByRole('option', { name: 'Cordón sin rampa' });
+
+    await usuario.upload(
+      screen.getByLabelText('Foto'),
+      new File(['foto'], 'pozo.jpg', { type: 'image/jpeg' }),
+    );
+
+    // Completó la gravedad, que sí es válida.
+    expect(await screen.findByText(/La IA analizó la foto y completó/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Gravedad')).toHaveValue('LEVE');
+    expect(screen.getByLabelText('Categoría')).toHaveValue('');
+    expect(screen.getAllByText('Sugerido por la IA')).toHaveLength(1);
+    expect(screen.queryByText(/Elegiste otra/)).not.toBeInTheDocument();
+
+    // Si el vecino elige, tampoco: la IA no sugirió ninguna de la lista.
+    await usuario.selectOptions(screen.getByLabelText('Categoría'), '3');
+    expect(screen.queryByText(/Elegiste otra/)).not.toBeInTheDocument();
+  });
+
+  it('una gravedad desconocida se ignora sin romper la pantalla', async () => {
+    servidor.use(
+      http.post('*/api/ia/clasificar-foto', () =>
+        HttpResponse.json({ categoriaId: 4, severidad: 'CATASTROFICA', registroIaId: 7 }),
+      ),
+    );
+    const usuario = userEvent.setup();
+    renderRuta('/reportar', <PaginaReportar />);
+    await screen.findByRole('option', { name: 'Cordón sin rampa' });
+
+    await usuario.upload(
+      screen.getByLabelText('Foto'),
+      new File(['foto'], 'pozo.jpg', { type: 'image/jpeg' }),
+    );
+
+    expect(await screen.findByText(/La IA analizó la foto y completó/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Categoría')).toHaveValue('4');
+    expect(screen.getByLabelText('Gravedad')).toHaveValue('');
+    expect(screen.getAllByText('Sugerido por la IA')).toHaveLength(1);
+  });
+
+  it('si el vecino ya había elegido todo, no dice que la IA completó algo', async () => {
+    servidor.use(http.post('*/api/ia/clasificar-foto', () => HttpResponse.json(sugerencia)));
+    const usuario = userEvent.setup();
+    renderRuta('/reportar', <PaginaReportar />);
+    await screen.findByRole('option', { name: 'Cordón sin rampa' });
+    await usuario.selectOptions(screen.getByLabelText('Categoría'), '3');
+    await usuario.selectOptions(screen.getByLabelText('Gravedad'), 'GRAVE');
+
+    await usuario.upload(
+      screen.getByLabelText('Foto'),
+      new File(['foto'], 'pozo.jpg', { type: 'image/jpeg' }),
+    );
+
+    expect(await screen.findByText('Elegiste otra: la IA sugería «Luminaria apagada»')).toBeInTheDocument();
+    expect(screen.getByText('Elegiste otra: la IA sugería «Leve»')).toBeInTheDocument();
+    expect(screen.queryByText(/completó/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Categoría')).toHaveValue('3');
+    expect(screen.getByLabelText('Gravedad')).toHaveValue('GRAVE');
+  });
+
   it('si envía mientras la IA analiza, corta el pedido y el reporte sale sin sugerencia', async () => {
     servidor.use(
       // No responde nunca: el vecino envía antes.

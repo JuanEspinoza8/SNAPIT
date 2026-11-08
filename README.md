@@ -160,8 +160,9 @@ npm run importar:red -- --sin-conexion  # carga la respuesta guardada, sin usar 
 
 - Trae los caminos que tocan las zonas activas de `zona_piloto`, que carga la semilla. Sin ninguna, no corre.
 - La respuesta queda en `db/datos/red-zona-piloto.json` y se versiona. Si cambiás el polígono de la zona, corré el comando con conexión para bajarla de nuevo.
+- Antes de cargarla aplica las correcciones del relevamiento de la zona piloto (`db/datos/relevamiento-zona-piloto.json`): rampas, superficie y ancho de las cuadras, piso podotáctil de las esquinas, caminos que se quitan y uniones que se agregan. Si el archivo tiene un error, no toca la base y dice qué está mal.
 - Cada corrida reemplaza la red entera, en una sola transacción: con la misma respuesta deja exactamente la misma red, y si algo falla queda la anterior. En la misma transacción vuelve a vincular cada incidente con los tramos que obstruye (`incidente_tramo`).
-- Al terminar muestra cuántos nodos y tramos cargó, en cuántos pedazos quedó la red (componentes conexos, con un link a OSM para ubicar cada uno) y qué caminos descartó y por qué.
+- Al terminar muestra cuántos nodos y tramos cargó, qué corrigió el relevamiento y qué no pudo ubicar, en cuántos pedazos quedó la red (componentes conexos, con un link a OSM para ubicar cada uno) y qué caminos descartó y por qué.
 - Qué caminos entran y cómo se traducen las etiquetas de OSM a columnas: «Red peatonal» en [`docs/calculos.md`](docs/calculos.md).
 - Igual que `importar:puntos`, toma `DATABASE_URL` y `OVERPASS_URL` y no corre dentro del contenedor.
 

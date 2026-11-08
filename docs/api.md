@@ -370,6 +370,7 @@ Busca una dirección o un lugar en Neuquén Capital, para elegir el origen o el 
 - `nombre`: el nombre propio del lugar, si tiene (un hospital, una escuela), y la dirección con el barrio: `"Hospital Bouquet Roldán, Doctor Luis Teodoro Planas 1915, Bouquet Roldán"`.
 - Solo devuelve lugares de Neuquén Capital: se le pide a Nominatim dentro del rectángulo del municipio y, de lo que responde, quedan solo los que su dirección marca como de la ciudad (el centro de Cipolletti cae dentro del rectángulo). Sin resultados, `lugares` viene vacía.
 - Usa el mismo cliente de Nominatim que la dirección de los reportes: una consulta por segundo entre las dos y la misma caché. La app busca al confirmar el texto, no con cada letra.
+- La cola no tiene tope de espera: con varias búsquedas a la vez, cada una espera su turno (con 10 en espera, la última tarda unos 10 s). Lo que está en la caché responde sin esperar.
 - Si Nominatim falla o no responde a tiempo: **503** `GEOCODIFICACION_NO_DISPONIBLE`, con un mensaje que propone marcar el punto en el mapa. Texto de menos de 3 letras: **400**.
 
 ## Reportes
@@ -489,6 +490,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`).
 - `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última clasificación: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
+- No trae los pendientes de un incidente resuelto o desestimado: ya no se revisan (ver «Incidente cerrado» en `docs/calculos.md`). Siguen en `GET /api/reportes`, pendientes.
 - Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.
 
 ### `GET /api/reportes`
@@ -538,6 +540,7 @@ Actualiza la reputación del vecino, el estado del incidente, su cantidad de rep
 | 403 `SIN_PERMISO` | El reporte es de un incidente de otro organismo |
 | 404 `REPORTE_NO_ENCONTRADO` | El reporte no existe |
 | 409 `REPORTE_YA_REVISADO` | Ya no está pendiente: lo revisó otro operador o el sistema lo verificó al recibirlo |
+| 409 `INCIDENTE_CERRADO` | Su incidente (el principal, si se unió a otro) ya está resuelto o desestimado. El reporte queda pendiente y la reputación no cambia |
 
 ### `POST /api/ia/clasificar-foto`
 Sugiere la categoría y la gravedad a partir de la foto (F06), para precargarlas en el formulario de reporte. Requiere sesión de `VECINO`. El vecino siempre tiene la última palabra: puede cambiar lo sugerido.
@@ -600,7 +603,7 @@ Responde **200**:
 El operador procesa con la IA los reportes pendientes de su organismo y sigue el avance en un log (ver "Cola de verificación con IA" en `docs/calculos.md`). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, de un usuario con organismo.
 
 #### `POST /api/ia/procesar-cola`
-Empieza a procesar los pendientes del organismo, del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
+Empieza a procesar los pendientes del organismo (los mismos de `GET /api/reportes/pendientes`, sin los de incidentes cerrados), del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
 
 ```json
 { "procesoId": "5b1c0e4e-8f7a-4c1e-9d3b-2a6f0c9e7d11", "total": 6 }
