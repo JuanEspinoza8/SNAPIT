@@ -629,7 +629,7 @@ Con una escalera en 01 ─ 02, la silla da la vuelta (⛔) y el bastón sigue po
 
 Un incidente en `EN_EJECUCION` se cierra con una foto del después (F09). El sistema compara esa foto con las del antes y decide el resultado (`server/src/modulos/cierre/calculo.ts`).
 
-**Comparación con la IA.** `compararCierre(usuarioId, fotosAntes, fotoDespues)` (`server/src/modulos/ia/compararCierre.ts`) le manda al modelo las fotos del antes y la del después y le pide:
+**Comparación con la IA.** `compararCierre(usuarioId, fotosAntes, fotoDespues)` (`server/src/modulos/ia/compararCierre.ts`) le manda al modelo las fotos del antes (como mucho 4, las primeras: las de los reportes que lo originaron) y la del después, y le pide:
 
 - `veredicto`: `RESUELTO`, `NO_RESUELTO` o `NO_CONCLUYENTE`.
 - `explicacion`: una o dos oraciones con lo que ve.

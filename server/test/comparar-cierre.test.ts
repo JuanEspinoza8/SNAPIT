@@ -1,7 +1,7 @@
 import type { Usuario } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../src/compartido/prisma.js';
-import { compararCierre } from '../src/modulos/ia/compararCierre.js';
+import { compararCierre, MAX_FOTOS_ANTES } from '../src/modulos/ia/compararCierre.js';
 import { crearServicioIa, IaNoDisponible, servicioIa } from '../src/modulos/ia/servicio.js';
 import { crearUsuario } from './apoyo.js';
 import { jpegConExif, png1x1 } from './imagenes.js';
@@ -90,6 +90,26 @@ describe('compararCierre', () => {
     ).toBe(true);
     expect(texto).toContain('2 imágenes son el antes');
     expect(pedidoEnviado().output_config.effort).toBe('low');
+  });
+
+  it(`del antes manda como mucho ${MAX_FOTOS_ANTES} fotos, las primeras`, async () => {
+    fetchSimulado.mockResolvedValueOnce(responder({ veredicto: 'RESUELTO', explicacion: 'Quedó bien.' }));
+    const antes = Array.from({ length: MAX_FOTOS_ANTES + 3 }, () => jpegConExif());
+
+    await compararCierre(operador.id, antes, jpegConExif());
+
+    const contenido = pedidoEnviado().messages[0].content;
+    const imagenes = contenido.filter((bloque: { type: string }) => bloque.type === 'image');
+    const texto = contenido.find((bloque: { type: string }) => bloque.type === 'text').text;
+    // Las del antes más la del después.
+    expect(imagenes).toHaveLength(MAX_FOTOS_ANTES + 1);
+    expect(texto).toContain(`${MAX_FOTOS_ANTES} imágenes son el antes`);
+  });
+
+  it('con una foto del después que no es imagen responde 400 en el campo foto', async () => {
+    await expect(
+      compararCierre(operador.id, [jpegConExif()], Buffer.from('no soy una imagen')),
+    ).rejects.toMatchObject({ status: 400, detalles: [{ campo: 'foto' }] });
   });
 
   it('si la IA responde un veredicto inválido lanza IaNoDisponible y registra el fallo', async () => {
