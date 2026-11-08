@@ -13,4 +13,6 @@ export const esquemaFiltrosBandeja = z.object({
   areaId: z.union([z.literal('todas'), id], { error: 'Tiene que ser el id de un área o "todas"' }).optional(),
   estado: z.enum(ESTADOS_BANDEJA, { error: `Tiene que ser ${ESTADOS_BANDEJA.join(', ')}` }).optional(),
   categoriaId: id.optional(),
+  // Los que tienen un cierre en ese estado (F09): OBSERVADO, para la lista de cierres por confirmar.
+  cierre: z.enum(['OBSERVADO', 'RECHAZADO'], { error: 'Tiene que ser OBSERVADO o RECHAZADO' }).optional(),
 });

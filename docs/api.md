@@ -951,6 +951,7 @@ Lo que el organismo tiene que atender (F08): los incidentes `VERIFICADO`, `DERIV
 | `areaId` | `2` | El área responsable. **Si no viene, la del operador.** `todas` trae todo el organismo. Tiene que ser un área del organismo (puede estar inactiva). Un administrador sin área ve todo el organismo |
 | `estado` | `DERIVADO` | `VERIFICADO`, `DERIVADO` o `EN_EJECUCION` |
 | `categoriaId` | `3` | Una categoría |
+| `cierre` | `OBSERVADO` | Los que tienen un cierre en ese estado: `OBSERVADO` (por confirmar) o `RECHAZADO` |
 
 Responde **200**:
 
@@ -972,12 +973,14 @@ Responde **200**:
         { "factor": "EVIDENCIAS", "valor": 16.16, "detalle": "Lo reportaron 3 veces y lo confirmaron 2 vecinos: +16,2" },
         { "factor": "ANTIGUEDAD", "valor": 3.33, "detalle": "Lleva 10 días sin resolverse: +3,3" },
         { "factor": "CONTEXTO_URBANO", "valor": 15, "detalle": "A 80 m de Escuela N° 123 (escuela): +15" }
-      ]
+      ],
+      "cierre": null
     }
   ]
 }
 ```
 
+- `cierre`: cómo quedó su último intento de cierre (`POST /api/incidentes/:id/cierre`): `OBSERVADO` (espera que otro operador lo confirme), `RECHAZADO` (hay que volver a intentar) o `null` si no tiene. Uno validado ya no está en la bandeja: quedó `RESUELTO`.
 - `area`: el área responsable. Mientras el incidente está `VERIFICADO` es la de su categoría; desde que se deriva, la elegida.
 - `motivos`: el desglose de la prioridad, en el orden en que se calculó (ver «Prioridad del incidente» en `docs/calculos.md`). Si hay prioridad manual, el último es `AJUSTE_MANUAL`.
 - `cantidadReportes`: reportes no desestimados, sumando los de los incidentes unidos.

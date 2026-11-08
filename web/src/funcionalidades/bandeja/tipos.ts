@@ -32,6 +32,8 @@ export interface IncidenteBandeja {
   puntajePrioridad: number;
   prioridadManual: number | null;
   motivos: FactorPrioridad[];
+  /** Cómo quedó su último intento de cierre (F09), o null si no tiene. */
+  cierre: 'OBSERVADO' | 'RECHAZADO' | null;
 }
 
 export interface FiltrosBandeja {
@@ -39,6 +41,8 @@ export interface FiltrosBandeja {
   areaId?: number | 'todas';
   estado?: EstadoBandeja;
   categoriaId?: number;
+  /** Solo los que tienen un cierre esperando confirmación. */
+  cierre?: 'OBSERVADO';
 }
 
 export interface Prioridad {
@@ -106,5 +110,40 @@ export interface FichaGestion {
   prioridad: Prioridad;
   reportes: ReporteGestion[];
   bitacora: Movimiento[];
-  cierre: unknown;
+  cierre: CierreGestion | null;
+}
+
+/**
+ * El resultado de un intento de cierre (F09): VALIDADO resolvió el incidente, RECHAZADO deja volver a intentar y
+ * OBSERVADO espera que otro operador lo confirme.
+ */
+export type ResultadoCierre = 'VALIDADO' | 'OBSERVADO' | 'RECHAZADO';
+
+export interface CierreGestion {
+  id: number;
+  resultadoComparacion: ResultadoCierre | null;
+  /** Null si la foto no traía GPS. */
+  distanciaMetros: number | null;
+  /** Por qué quedó así, en texto. */
+  detalleComparacion: string | null;
+  creadoEn: string;
+  /** Quien hizo el último intento: no puede confirmarlo él mismo. */
+  usuario: Referencia;
+  /** Las fotos del después de cada intento, de la primera a la última. */
+  fotos: { id: number; url: string }[];
+}
+
+/** Lo que responde POST /api/incidentes/:id/cierre. */
+export interface RespuestaCierre {
+  incidente: { id: number; estado: EstadoIncidente };
+  cierre: Pick<CierreGestion, 'id' | 'distanciaMetros' | 'detalleComparacion' | 'fotos'> & {
+    resultadoComparacion: ResultadoCierre;
+  };
+}
+
+/** Lo que responde POST /api/incidentes/:id/cierre/confirmacion. */
+export interface RespuestaConfirmacion {
+  incidente: { id: number; estado: EstadoIncidente };
+  cierre: { id: number; resultadoComparacion: 'VALIDADO' | 'RECHAZADO' };
+  movimiento: Movimiento;
 }

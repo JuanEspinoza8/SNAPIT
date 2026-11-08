@@ -40,8 +40,10 @@ const resuelto = (explicacion = 'El pozo está tapado.') =>
  * Un incidente en ejecución. Por defecto, en el punto del GPS de jpegConExif(): una foto del después con esa
  * imagen queda «en el lugar». Con `lejos`, a unos 1100 m.
  */
-async function enEjecucion({ lejos = false } = {}) {
-  const punto = { lat: EXIF_DE_PRUEBA.latitud + (lejos ? 0.01 : 0), lon: EXIF_DE_PRUEBA.longitud };
+async function enEjecucion({ lejos = false, otraCuadra = false } = {}) {
+  // otraCuadra: a unos 330 m, para que no se agrupe con otro incidente del mismo test.
+  const corrimiento = lejos ? 0.01 : otraCuadra ? 0.003 : 0;
+  const punto = { lat: EXIF_DE_PRUEBA.latitud + corrimiento, lon: EXIF_DE_PRUEBA.longitud };
   const reporte = await reportarEn(punto, { categoriaId: categoria.id });
   vecinos.push(reporte.vecinoId);
   const id = reporte.incidenteId;
@@ -358,5 +360,38 @@ describe('POST /api/incidentes/:id/cierre/confirmacion', () => {
     });
 
     expect((await confirmar(id, { aceptar: true }, crearTokenAcceso(ajeno))).status).toBe(403);
+  });
+});
+
+describe('GET /api/bandeja?cierre=OBSERVADO', () => {
+  it('lista los incidentes con un cierre esperando confirmación, y cada fila dice cómo quedó su cierre', async () => {
+    const observadoId = await enEjecucion();
+    await cerrar(observadoId, jpegSinExif());
+    const rechazadoId = await enEjecucion({ lejos: true });
+    await cerrar(rechazadoId);
+    const sinCierre = await enEjecucion({ otraCuadra: true });
+
+    const bandeja = (consulta: string) =>
+      request(app).get(`/api/bandeja${consulta}`).set('Authorization', `Bearer ${token}`);
+    const porConfirmar = await bandeja('?areaId=todas&cierre=OBSERVADO');
+    const todos = await bandeja('?areaId=todas');
+
+    expect(porConfirmar.status).toBe(200);
+    expect(porConfirmar.body.incidentes.map((i: { id: number }) => i.id)).toEqual([observadoId]);
+    const cierres = Object.fromEntries(
+      todos.body.incidentes.map((i: { id: number; cierre: string | null }) => [i.id, i.cierre]),
+    );
+    expect(cierres).toMatchObject({
+      [observadoId]: 'OBSERVADO',
+      [rechazadoId]: 'RECHAZADO',
+      [sinCierre]: null,
+    });
+  });
+
+  it('un filtro de cierre inválido: 400', async () => {
+    const res = await request(app)
+      .get('/api/bandeja?cierre=VALIDADO')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(400);
   });
 });

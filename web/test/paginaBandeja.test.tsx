@@ -33,6 +33,7 @@ const conAjuste: IncidenteBandeja = {
       detalle: 'Ajuste manual de Juan Pérez (Obra programada): +33,8',
     },
   ],
+  cierre: null,
 };
 const calculado: IncidenteBandeja = {
   ...conAjuste,
@@ -140,6 +141,29 @@ describe('bandeja del operador', () => {
 
     await usuario.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(ubicacion()).toBe('/bandeja');
+  });
+
+  it('cada incidente dice si tiene un cierre por confirmar o rechazado', async () => {
+    respuesta = [
+      { ...conAjuste, estado: 'EN_EJECUCION', cierre: 'OBSERVADO' },
+      { ...calculado, estado: 'EN_EJECUCION', cierre: 'RECHAZADO' },
+    ];
+    montar();
+    const [primera, segunda] = await filas();
+
+    expect(within(primera!).getByText('Cierre por confirmar')).toBeInTheDocument();
+    expect(within(segunda!).getByText('Cierre rechazado')).toBeInTheDocument();
+  });
+
+  it('el filtro de cierres por confirmar queda en la URL y se manda al servidor', async () => {
+    const usuario = userEvent.setup();
+    montar();
+    await filas();
+
+    await usuario.selectOptions(screen.getByLabelText('Cierre'), 'Por confirmar');
+
+    expect(ubicacion()).toBe('/bandeja?cierre=OBSERVADO');
+    await waitFor(() => expect(consultas.at(-1)).toBe('?cierre=OBSERVADO'));
   });
 
   it('un link compartido abre la bandeja con sus filtros y descarta los inválidos', async () => {
