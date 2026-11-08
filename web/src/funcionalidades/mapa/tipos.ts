@@ -21,6 +21,8 @@ export interface FichaIncidente {
   categoria: { id: number; nombre: string };
   estado: EstadoVisible;
   enRevision: boolean;
+  /** La gravedad consolidada: LEVE, MODERADA o GRAVE. */
+  severidad?: 'LEVE' | 'MODERADA' | 'GRAVE';
   primerReporteEn: string;
   cantidadReportes: number;
   cantidadVecinos: number;

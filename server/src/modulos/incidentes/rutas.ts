@@ -4,7 +4,7 @@ import { validar } from '../../compartido/validar.js';
 import { obtenerGestion } from '../bandeja/servicio.js';
 import { fijarPrioridadManual, quitarPrioridadManual } from '../prioridad/ajusteManual.js';
 import { cambiarCategoria } from './categoria.js';
-import { esquemaFiltros, esquemaId } from './esquemas.js';
+import { esquemaFeed, esquemaFiltros, esquemaId } from './esquemas.js';
 import { cambiarEstado, comentarIncidente, derivarIncidente } from './gestion.js';
 import * as servicio from './servicio.js';
 import { deshacerUnion, unirIncidentes } from './union.js';
@@ -14,6 +14,11 @@ export const rutasIncidentes = Router();
 
 rutasIncidentes.get('/', async (req, res) => {
   res.json(await servicio.listar(validar(esquemaFiltros, req.query)));
+});
+
+// La pantalla de inicio: los mismos incidentes del mapa, con fotos y de a páginas. Va antes de /:id.
+rutasIncidentes.get('/feed', async (req, res) => {
+  res.json(await servicio.listarFeed(validar(esquemaFeed, req.query)));
 });
 
 rutasIncidentes.get('/:id', async (req, res) => {

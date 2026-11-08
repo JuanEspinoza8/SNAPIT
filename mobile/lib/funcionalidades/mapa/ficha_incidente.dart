@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/formato/fechas.dart';
 import '../../compartido/red/error_api.dart';
+import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../../config/entorno.dart';
 import 'estados.dart';
@@ -77,6 +79,18 @@ class _Contenido extends StatelessWidget {
             style: secundario,
           ),
         ],
+        const SizedBox(height: Espacio.md),
+        // La hoja es un resumen: el detalle es la ficha completa, la misma
+        // que se abre desde el inicio.
+        OutlinedButton.icon(
+          icon: const Icon(Icons.open_in_full),
+          label: const Text('Ver detalle'),
+          onPressed: () {
+            final rutas = GoRouter.of(context);
+            Navigator.of(context).pop();
+            rutas.push(Rutas.incidente(ficha.id));
+          },
+        ),
         const SizedBox(height: Espacio.lg),
         _Dato('Primer reporte', fechaLarga(ficha.primerReporteEn)),
         _Dato('Vecinos que lo reportaron', '${ficha.cantidadVecinos}'),

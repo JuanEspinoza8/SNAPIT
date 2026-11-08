@@ -238,14 +238,14 @@ function FilaPendiente({
 
 const ETIQUETAS: Record<EstadoFila, { texto: string; clase: string }> = {
   PENDIENTE: { texto: 'Pendiente', clase: 'bg-superficie-alterna text-texto-secundario' },
-  EN_PROCESO: { texto: 'Evaluando con IA…', clase: 'bg-estado-verificado text-sobre-primario animate-pulse' },
-  CLASIFICADO: { texto: 'Clasificado', clase: 'bg-estado-verificado text-sobre-primario' },
-  PUBLICADO_IA: { texto: 'Publicado por la IA', clase: 'bg-estado-resuelto text-sobre-primario' },
-  REVISION_MANUAL: { texto: 'Para revisión manual', clase: 'bg-estado-registrado text-sobre-primario' },
+  EN_PROCESO: { texto: 'Evaluando con IA…', clase: 'bg-estado-verificado text-sobre-estado animate-pulse' },
+  CLASIFICADO: { texto: 'Clasificado', clase: 'bg-estado-verificado text-sobre-estado' },
+  PUBLICADO_IA: { texto: 'Publicado por la IA', clase: 'bg-estado-resuelto text-sobre-estado' },
+  REVISION_MANUAL: { texto: 'Para revisión manual', clase: 'bg-estado-registrado text-sobre-estado' },
   ERROR: { texto: 'Error de la IA', clase: 'bg-peligro text-sobre-primario' },
-  APROBADO: { texto: 'Aprobado a mano', clase: 'bg-estado-resuelto text-sobre-primario' },
-  DESESTIMADO: { texto: 'Desestimado', clase: 'bg-estado-desestimado text-sobre-primario' },
-  RESUELTO: { texto: 'Resuelto', clase: 'bg-estado-desestimado text-sobre-primario' },
+  APROBADO: { texto: 'Aprobado a mano', clase: 'bg-estado-resuelto text-sobre-estado' },
+  DESESTIMADO: { texto: 'Desestimado', clase: 'bg-estado-desestimado text-sobre-estado' },
+  RESUELTO: { texto: 'Resuelto', clase: 'bg-estado-desestimado text-sobre-estado' },
 };
 
 function Etiqueta({ estado }: { estado: EstadoFila }) {

@@ -2,7 +2,7 @@
 
 Modelo relacional entregado el 19/09/2026. Grupo Full Stack F.C.
 
-**29 tablas · 226 columnas · 50 claves foraneas · 18 tipos enumerados**
+**31 tablas · 239 columnas · 55 claves foraneas · 18 tipos enumerados**
 
 Claves: `PK` primaria · `FK` foranea · `U` valor unico · `PK,FK` parte de una clave primaria compuesta que ademas es foranea.
 
@@ -186,6 +186,7 @@ Lo que informa un vecino: una foto, una ubicación y una descripción.
 | `registrado_en` | `timestamptz` |  | no | Momento en que el vecino lo cargó, aunque fuera sin señal. |
 | `sincronizado_en` | `timestamptz` |  | si | Momento en que llegó al servidor. |
 | `creado_en` | `timestamptz` |  | no | Fecha de alta del registro. |
+| `eliminado_en` | `timestamptz` |  | si | Baja lógica: si está informado, su autor lo eliminó y ya no se muestra. |
 
 ### `fotografia`
 
@@ -231,6 +232,32 @@ El “a mí también me pasa”: un vecino adhiere a un incidente ya cargado sin
 | `incidente_id` | `int` | FK | no | Incidente confirmado. |
 | `usuario_id` | `int` | FK | no | Vecino que confirma. |
 | `creado_en` | `timestamptz` |  | no | Cuándo confirmó. |
+
+### `me_gusta_reporte`
+
+El «me gusta» de un usuario a un reporte. La clave única (reporte, usuario) impide dar dos.
+
+| Atributo | Tipo | Clave | Nulo | Descripcion |
+|---|---|---|---|---|
+| `id` | `serial` | PK | no | Identificador interno. |
+| `reporte_id` | `int` | FK | no | Reporte que le gustó. |
+| `usuario_id` | `int` | FK | no | Usuario que dio el me gusta. |
+| `creado_en` | `timestamptz` |  | no | Cuándo lo dio. |
+
+### `comentario`
+
+Comentario público de un usuario. Pertenece a un reporte o a un incidente, nunca a los dos.
+
+| Atributo | Tipo | Clave | Nulo | Descripcion |
+|---|---|---|---|---|
+| `id` | `serial` | PK | no | Identificador interno. |
+| `usuario_id` | `int` | FK | no | Autor del comentario. |
+| `reporte_id` | `int` | FK | si | Reporte comentado. |
+| `incidente_id` | `int` | FK | si | Incidente comentado. |
+| `texto` | `text` |  | no | Lo que escribió, de 1 a 1000 caracteres. |
+| `creado_en` | `timestamptz` |  | no | Fecha del comentario. |
+| `editado_en` | `timestamptz` |  | si | Última vez que su autor lo editó. |
+| `eliminado_en` | `timestamptz` |  | si | Baja lógica: lo eliminó su autor o un operador por ofensivo. |
 
 ## GESTIÓN DEL ORGANISMO
 
@@ -476,8 +503,8 @@ Cada paso que dio la IA con cada reporte al procesar la cola de verificación: e
 
 1. Modelado tentativo: la estructura definitiva de nodo_peatonal y tramo_peatonal depende del formato que genere la importación de la red peatonal desde OpenStreetMap. Las columnas indicadas son una aproximación inicial; el resto del modelo no se ve afectado.
 2. Toda columna de ubicación usa el tipo geography de PostGIS con SRID 4326 e índice GIST.
-3. fotografia pertenece a un reporte o a un cierre: lleva una restricción CHECK que obliga a que exactamente uno de los dos campos esté informado.
-4. Claves únicas compuestas: (incidente_id, usuario_id) en confirmacion_incidente y en seguimiento_incidente; (categoria_id, perfil_movilidad_id) en categoria_perfil.
+3. fotografia pertenece a un reporte o a un cierre, y comentario a un reporte o a un incidente: cada una lleva una restricción CHECK que obliga a que exactamente uno de los dos campos esté informado.
+4. Claves únicas compuestas: (incidente_id, usuario_id) en confirmacion_incidente y en seguimiento_incidente; (reporte_id, usuario_id) en me_gusta_reporte; (categoria_id, perfil_movilidad_id) en categoria_perfil.
 5. El cálculo de recorridos se resuelve con pgRouting sobre una vista de tramo_peatonal que expone las columnas source, target, cost y reverse_cost que la extensión requiere.
 6. zona_piloto, punto_interes y parametro_sistema no tienen claves foráneas de manera deliberada: las dos primeras se vinculan con el resto del modelo por consulta espacial (ST_DWithin, ST_Contains) y la tercera por clave de configuración.
 7. Denormalización deliberada: incidente.cantidad_reportes y los contadores de usuario (reputacion, reportes_confirmados, reportes_desestimados) se recalculan al registrar o desestimar un reporte. Se almacenan para no recorrer toda la tabla de reportes cada vez que se ordena la bandeja de trabajo o se evalúa la confianza de un vecino.

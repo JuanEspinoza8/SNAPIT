@@ -161,6 +161,8 @@ Cada reporte nuevo se suma al incidente que más se le parece, o abre uno nuevo 
 
 **Candidatos:** incidentes de la **misma categoría**, a no más de `radio_m` metros, no resueltos ni desestimados, no caducados ni vencidos, no unidos a otro, y con algún reporte válido que llegó en los últimos `ventana_dias` días. "Reportes del incidente" son siempre los no desestimados del incidente y de los que se le unieron (`REPORTES_DEL_INCIDENTE`, en `incidentes/repositorio.ts`): de ahí salen el último reporte, la foto más parecida y la severidad consolidada.
 
+**Reportes eliminados por su autor** (`reporte.eliminado_en`, #125): no se muestran (ficha, feed, lo social y la foto sin sesión, con `REPORTES_VISIBLES_DEL_INCIDENTE`), pero por ahora **siguen contando** en la agrupación, en `cantidad_reportes`, en la prioridad y en la reputación. Todavía no hay forma de eliminar un reporte: qué deja de contar al eliminarlo (y si se puede eliminar uno desestimado o el único de un incidente) se decide con esa issue. Mientras tanto, un incidente puede decir más reportes de los que muestra.
+
 **Puntaje** de cada candidato, de 0 a 1:
 
 ```math
@@ -324,6 +326,9 @@ Cada factor guarda un texto que se entiende sin conocer la fórmula. Los número
 | `ruteo.radio_obstruccion_m` | entero | 15 | Distancia (m) alrededor de un incidente dentro de la cual los tramos quedan afectados |
 | `ruteo.distancia_max_al_nodo_m` | entero | 100 | Distancia máxima (m) para acercar el origen o el destino al nodo más cercano de la red |
 | `ruteo.velocidad_m_por_min` | decimal | 50 | Velocidad al caminar, para estimar el tiempo del recorrido |
+| `ruteo.pendiente_max_porcentaje` | decimal | 8 | Pendiente (%) desde la que un tramo cuenta como empinado, subiendo o bajando |
+| `ruteo.ancho_min_m` | decimal | 0,9 | Ancho (m) por debajo del cual un tramo cuenta como angosto |
+| `ruteo.<regla>.perfil_<id>` | factor | según la tabla | Cuánto pesa cada atributo del tramo para cada perfil: 24 claves, en «Atributos del tramo por perfil» |
 
 ## Cálculos
 
@@ -539,7 +544,17 @@ Si un atributo o un incidente lo bloquea para ese perfil, el recorrido no pasa p
 
 - **Superficie sin pavimentar:** `unpaved`, `dirt`, `earth`, `ground`, `gravel`, `fine_gravel`, `grass`, `sand` y `mud`, de OSM. El relevamiento usa `dirt`, `gravel`, `grass` y `unpaved`.
 - Un dato que falta (pendiente, ancho o superficie en null) no aplica ninguna regla. La rampa no puede faltar: la columna es `NOT NULL DEFAULT false`.
-- Los factores, los bloqueos y los dos umbrales (8 % y 0,9 m) van en `parametro_sistema`, como los del resto de los cálculos: el administrador los ajusta sin tocar el código (F16). Las claves se definen en #104. Un perfil nuevo no tiene reglas hasta que se le cargan.
+- Los factores, los bloqueos y los dos umbrales (8 % y 0,9 m) van en `parametro_sistema`, como los del resto de los cálculos: el administrador los ajusta sin tocar el código (F16). Un perfil nuevo no tiene reglas hasta que se le cargan.
+- **Claves** (#104): una por regla y por perfil, `ruteo.<regla>.perfil_<id>`, de tipo `factor`. El valor es un número mayor que 0 o `intransitable`, como en la matriz de incidentes; «—» se guarda como `1.0`, para que el administrador vea la regla y la pueda activar. Va el id del perfil y no su nombre, así la regla sigue valiendo si se lo renombra. La semilla carga las 24 con los valores de la tabla. Un valor que no es ni un número mayor que 0 ni `intransitable` no se aplica y queda un aviso en el log.
+
+| Regla | `<regla>` |
+|---|---|
+| Escalera | `escalera` |
+| Sin rampa | `sin_rampa` |
+| Pendiente de más de `ruteo.pendiente_max_porcentaje` | `pendiente` |
+| Superficie sin pavimentar | `sin_pavimentar` |
+| Ancho de menos de `ruteo.ancho_min_m` | `angosto` |
+| Cruce sin semáforo sonoro ni piso podotáctil | `cruce_sin_senal` |
 - Son valores de partida, como los de la matriz de incidentes: se revisan con los datos de la prueba piloto.
 
 **Por qué «sin rampa» encarece y no bloquea.** El incidente «Cordón sin rampa» sí bloquea a la silla, porque alguien lo vio. El atributo no puede: `tiene_rampa = false` junta las cuadras sin rampa con las que nadie relevó, porque la columna no tiene «sin dato». En la red de la zona, si las cuadras sin rampa fueran intransitables para la silla, la red quedaría partida en 11 pedazos y el más grande tendría 38 de los 208 nodos: casi cualquier recorrido daría «No hay un recorrido transitable». Con ×3, la silla prefiere las cuadras con rampa confirmada y sigue llegando.
@@ -555,7 +570,7 @@ Si un atributo o un incidente lo bloquea para ese perfil, el recorrido no pasa p
 | Ancho de menos de 0,9 m | 0: 106 tramos tienen ancho, de 1 a 3 m |
 | Cruce sin semáforo sonoro ni piso podotáctil | Los 24 cruces. Hay 9 semáforos y ninguno es sonoro; los 3 nodos con piso podotáctil no son extremos de un cruce |
 
-Hoy pesan sobre todo la rampa y la superficie. Las reglas de escalera, pendiente, ancho y semáforo se prueban sobre la grilla de los tests, que tiene una escalera, una pendiente del 5 % y un semáforo sonoro, y empiezan a pesar en cuanto se releve más o OSM sume esos datos.
+Hoy pesan sobre todo la rampa y la superficie. Las otras reglas se prueban con los tests: todas en los del cálculo (`recorridos-calculo.test.ts`) y la escalera y la rampa también en los del recorrido, sobre una grilla de prueba («Recorrido accesible», abajo). Empiezan a pesar en cuanto se releve más o OSM sume esos datos.
 
 **Lo que no se usa.** Lo que el relevamiento anotó sin columna: si pasa una silla de ruedas (los criterios no coinciden entre quienes relevaron), los escalones entre frentes y la pendiente fuerte, que es «sí» o «no», sin porcentaje.
 
@@ -568,6 +583,47 @@ Hoy pesan sobre todo la rampa y la superficie. Las reglas de escalera, pendiente
 - Bloquear a la silla y al coche en las cuadras sin rampa: con el dato que falta, deja la red en pedazos (arriba).
 - Usar para los tramos sin rampa la fila de «Cordón sin rampa» de la matriz de incidentes: tiene el mismo bloqueo, y no hay categorías para la escalera, la pendiente ni el semáforo.
 - Una issue aparte para aplicarlos: el costo del recorrido se arma en #104, así que van ahí y se prueban con el recorrido real.
+
+### Recorrido accesible
+
+`GET /api/recorridos` (#104, `server/src/modulos/recorridos/`) busca el camino a pie más conveniente entre dos puntos para un perfil de movilidad. La fórmula del costo de cada tramo es una función pura (`costoDelTramo`, en `calculo.ts`) y el camino lo busca pgRouting.
+
+**Pasos.**
+
+1. **Zona.** El origen y el destino tienen que estar dentro de alguna zona piloto activa (`ST_Covers`). Si no: 422 `FUERA_DE_ZONA`, que dice cuál de los dos quedó afuera.
+2. **Esquina más cercana.** Cada punto se acerca al nodo de la red más cercano (`<->` sobre el índice GIST), a no más de `ruteo.distancia_max_al_nodo_m` metros. Si no hay ninguno: 422 `SIN_RED_CERCA`. Si los dos caen en el mismo nodo: 422 `MISMO_PUNTO`.
+3. **Costo de cada tramo para el perfil.** Para cada tramo de `red_peatonal`:
+
+   > costo = `costo_base` × (factores de sus atributos para el perfil) × (`factor_penalizacion` de sus incidentes vigentes para el perfil)
+
+   Si un atributo o un incidente es intransitable para el perfil, el costo es −1 y pgRouting no pasa por ese tramo. Los atributos son los de «Atributos del tramo por perfil», arriba. Los incidentes son los de `incidente_tramo` («Vínculo entre incidentes y tramos»), con el efecto de su categoría en `categoria_perfil`.
+4. **Camino.** `pgr_dijkstra` busca el de menor costo entre los dos nodos. Los costos van a una tabla temporal de la transacción: así la consulta que recibe pgRouting es un texto fijo y ningún dato se arma dentro de ella. Si no hay camino: 422 «No hay un recorrido transitable».
+5. **Respuesta.** La traza se arma uniendo los tramos en el orden en que se caminan; si un tramo se recorre del destino al origen, se da vuelta. La distancia es la suma de `longitud_metros`, en metros enteros: el costo decide el camino, pero lo que se camina son metros. El tiempo es esa distancia sobre `ruteo.velocidad_m_por_min`, redondeado hacia arriba.
+
+**Qué incidentes cuentan.** Los que se ven en el mapa (no desestimados, no caducados, no unidos a otro y, si son temporales, con la vigencia sin vencer aunque la tarea diaria todavía no los haya marcado) que además no estén resueltos. Uno pendiente de revisión (`REGISTRADO`) cuenta: el obstáculo puede estar ahí, y es más seguro esquivarlo. Un incidente de una categoría que no tiene fila en `categoria_perfil` para el perfil no le cambia el costo.
+
+**Ejemplo, en la grilla de los tests** (`server/test/recorridos.test.ts`): cuadras de unos 100 m, todas con rampa, y una vereda rota en la cuadra 10 ─ 20.
+
+```
+02 ── 12 ── 22
+│     │     │
+01 ── 11 ── 21
+│     │     │
+00 ── 10 ── 20
+```
+
+| Perfil, de 00 a 20 | Costo por 10 ─ 20 | Costo dando la vuelta | Recorrido |
+|---|---|---|---|
+| Silla de ruedas | ⛔ (vereda rota) | 400 | Da la vuelta por la fila 1: 400 m |
+| Coche de bebé | 100 + 100 × 2,5 = 350 | 400 | Sigue derecho: 200 m |
+
+Con una escalera en 01 ─ 02, la silla da la vuelta (⛔) y el bastón sigue por la escalera (100 + 100 × 2 = 300, menos que 400). Con las dos cuadras de la columna 2 sin rampa, de 20 a 22 la silla prefiere las cuadras con rampa (100 × 3 + 100 × 3 = 600 contra 400) y el bastón no (150 + 150 = 300). Si todas las cuadras son sin rampa, la silla igual llega por la más corta: sin rampa encarece, no bloquea.
+
+**Límites conocidos.**
+
+- La traza va de esquina a esquina: el tramo entre el punto elegido y la esquina más cercana (hasta 100 m) no se dibuja ni se suma.
+- Un incidente a menos de 15 m de una esquina obstruye todas las cuadras que llegan a ella («Vínculo entre incidentes y tramos»): si es intransitable para el perfil, le cierra la esquina entera.
+- Cada pedido lee la red entera de la base (273 tramos en la zona piloto). Alcanza para la zona; para toda la ciudad (A01) habría que filtrar por cercanía.
 
 ### Cierre del incidente
 

@@ -22,6 +22,22 @@ String fechaLarga(DateTime instante) {
       '${argentina.year}';
 }
 
+/// Cuánto pasó desde [instante], como en una red social: «hace 5 min»,
+/// «ayer», «hace 3 días». Pasada una semana, la fecha larga. [ahora] es para
+/// los tests.
+String haceCuanto(DateTime instante, {DateTime? ahora}) {
+  final diferencia = (ahora ?? DateTime.now()).difference(instante);
+  if (diferencia.inMinutes < 1) return 'hace un momento';
+  if (diferencia.inHours < 1) return 'hace ${diferencia.inMinutes} min';
+  if (diferencia.inDays < 1) {
+    final horas = diferencia.inHours;
+    return horas == 1 ? 'hace 1 hora' : 'hace $horas horas';
+  }
+  if (diferencia.inDays == 1) return 'ayer';
+  if (diferencia.inDays < 7) return 'hace ${diferencia.inDays} días';
+  return fechaLarga(instante);
+}
+
 /// Un día elegido en el calendario: «6/10/2026».
 String fechaCorta(DateTime dia) => '${dia.day}/${dia.month}/${dia.year}';
 

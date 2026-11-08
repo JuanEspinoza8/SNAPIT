@@ -3,24 +3,50 @@ import { useSesionPerdida } from '../red/clienteContexto.js';
 import { useSesion } from '../sesion/sesionContexto.js';
 import { esAdministrador, esOperador, esVecino } from '../sesion/usuario.js';
 import type { Usuario } from '../sesion/usuario.js';
+import { useTema } from '../tema/tema.js';
+import logo from '../../assets/logo.png';
 
-// El mapa es público (F03): está en el menú de todos los roles y también sin sesión.
+// El inicio (el feed) y el mapa son públicos: están en el menú de todos los roles y también sin sesión.
+const INICIO = { ruta: '/', texto: 'Inicio' };
 const MAPA = { ruta: '/mapa', texto: 'Mapa' };
 
 function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
   if (esVecino(usuario)) {
-    return [MAPA, { ruta: '/reportar', texto: 'Reportar' }, { ruta: '/mis-reportes', texto: 'Mis reportes' }];
+    return [
+      INICIO,
+      MAPA,
+      { ruta: '/reportar', texto: 'Reportar' },
+      { ruta: '/mis-reportes', texto: 'Mis reportes' },
+    ];
   }
   if (esOperador(usuario)) {
     return [
+      INICIO,
       MAPA,
       { ruta: '/bandeja', texto: 'Bandeja' },
       { ruta: '/revision', texto: 'Revisión' },
       { ruta: '/incidentes', texto: 'Incidentes' },
     ];
   }
-  if (esAdministrador(usuario)) return [MAPA, { ruta: '/administracion', texto: 'Administración' }];
-  return [MAPA];
+  if (esAdministrador(usuario)) return [INICIO, MAPA, { ruta: '/administracion', texto: 'Administración' }];
+  return [INICIO, MAPA];
+}
+
+/** Pasa del tema oscuro al claro y al revés. Dice a cuál lleva, no en cuál está. */
+function BotonTema() {
+  const { tema, alternar } = useTema();
+  const otro = tema === 'oscuro' ? 'claro' : 'oscuro';
+  return (
+    <button
+      type="button"
+      onClick={alternar}
+      aria-label={`Usar el tema ${otro}`}
+      title={`Usar el tema ${otro}`}
+      className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
+    >
+      <span aria-hidden="true">{tema === 'oscuro' ? '☀' : '☾'}</span>
+    </button>
+  );
 }
 
 // Todo el ancho de la pantalla, hasta 1536 px. Los formularios de la cuenta tienen su propio límite (max-w-md).
@@ -37,8 +63,9 @@ export function Layout() {
         <div
           className={`mx-auto flex w-full ${ANCHO} flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3`}
         >
-          <Link to="/" className="text-xl font-semibold text-primario">
-            SnapIt
+          <Link to="/" className="rounded-md focus-visible:outline-2 focus-visible:outline-primario">
+            {/* El logo ya trae su fondo negro: se lee igual en el tema claro y en el oscuro. */}
+            <img src={logo} alt="SnapIt, ir al inicio" className="h-9 w-auto" />
           </Link>
 
           {estado === 'conSesion' ? (
@@ -48,6 +75,8 @@ export function Layout() {
                 <NavLink
                   key={seccion.ruta}
                   to={seccion.ruta}
+                  // Sin `end`, «Inicio» (/) quedaría marcado en todas las páginas.
+                  end={seccion.ruta === '/'}
                   className={({ isActive }) =>
                     `whitespace-nowrap rounded-md px-3 py-2 text-sm ${
                       isActive
@@ -59,6 +88,7 @@ export function Layout() {
                   {seccion.texto}
                 </NavLink>
               ))}
+              <BotonTema />
               <button
                 type="button"
                 onClick={() => void salir()}
@@ -71,11 +101,18 @@ export function Layout() {
             estado === 'sinSesion' && (
               <nav className="flex flex-wrap items-center gap-1">
                 <Link
+                  to={INICIO.ruta}
+                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
+                >
+                  {INICIO.texto}
+                </Link>
+                <Link
                   to={MAPA.ruta}
                   className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
                 >
                   {MAPA.texto}
                 </Link>
+                <BotonTema />
                 <Link
                   to="/ingreso"
                   className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"

@@ -55,8 +55,9 @@ function enviarSinEsperar(correo: Correo, usuarioId: number) {
 
 /** Los datos del usuario que se le devuelven al cliente. Nunca incluye el hash de la clave. */
 export function usuarioPublico(usuario: Usuario) {
-  const { id, email, nombre, rol, organismoId, areaId } = usuario;
-  return { id, email, nombre, rol, organismoId, areaId };
+  const { id, email, nombre, rol, organismoId, areaId, perfilMovilidadId } = usuario;
+  // perfilMovilidadId: el perfil que la app elige de entrada para calcular un recorrido (F11).
+  return { id, email, nombre, rol, organismoId, areaId, perfilMovilidadId };
 }
 
 async function abrirSesion(usuario: Usuario) {

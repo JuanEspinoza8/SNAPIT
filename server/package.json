@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "semilla": "tsx src/semilla/index.ts",
+    "semilla:social": "tsx src/semilla/social.ts",
     "importar:puntos": "tsx scripts/importarPuntos.ts",
     "importar:red": "tsx scripts/importarRed.ts",
     "vincular:incidentes": "tsx scripts/vincularIncidentes.ts",

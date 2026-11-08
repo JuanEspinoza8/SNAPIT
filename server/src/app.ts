@@ -6,13 +6,16 @@ import { rutasAdmin } from './modulos/admin/rutas.js';
 import { rutasAuth } from './modulos/auth/rutas.js';
 import { rutasBandeja } from './modulos/bandeja/rutas.js';
 import { rutasCatalogo } from './modulos/catalogo/rutas.js';
+import { rutasGeocodificacion } from './modulos/geocodificacion/rutas.js';
 import { rutasIa } from './modulos/ia/rutas.js';
 import { alCambiarIncidente } from './modulos/incidentes/eventos.js';
 import { rutasIncidentes } from './modulos/incidentes/rutas.js';
 import { recalcularPrioridad } from './modulos/prioridad/servicio.js';
+import { rutasRecorridos } from './modulos/recorridos/rutas.js';
 import { rutasRed } from './modulos/red/rutas.js';
 import { rutasFotos, rutasReportes } from './modulos/reportes/rutas.js';
 import { rutasSalud } from './modulos/salud/rutas.js';
+import { rutasSocial } from './modulos/social/rutas.js';
 
 // Va acá y no en index.ts: los tests usan la app y tienen que ver la prioridad recalculada.
 alCambiarIncidente(recalcularPrioridad);
@@ -30,11 +33,14 @@ app.use('/api/auth', rutasAuth);
 app.use('/api/admin', rutasAdmin);
 app.use('/api', rutasCatalogo);
 app.use('/api', rutasRed);
+app.use('/api/social', rutasSocial);
 app.use('/api/reportes', rutasReportes);
 app.use('/api/fotos', rutasFotos);
 app.use('/api/incidentes', rutasIncidentes);
 app.use('/api/bandeja', rutasBandeja);
 app.use('/api/ia', rutasIa);
+app.use('/api/recorridos', rutasRecorridos);
+app.use('/api/geocodificacion', rutasGeocodificacion);
 
 app.use(rutaNoEncontrada);
 app.use(manejarErrores);

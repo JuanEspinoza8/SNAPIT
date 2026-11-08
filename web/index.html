@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="SnapIt: reportes ciudadanos sobre la vía pública." />
     <title>SnapIt</title>
+    <!-- El tema se fija antes de dibujar, para que el oscuro no arranque con un destello blanco.
+         Misma clave que src/compartido/tema/tema.ts. -->
+    <script>
+      try {
+        document.documentElement.dataset.tema =
+          localStorage.getItem('snapit.tema') === 'claro' ? 'claro' : 'oscuro';
+      } catch {
+        document.documentElement.dataset.tema = 'oscuro';
+      }
+    </script>
   </head>
   <body>
     <div id="raiz"></div>

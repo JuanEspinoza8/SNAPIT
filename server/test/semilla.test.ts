@@ -6,6 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/compartido/prisma.js';
+import { claveRegla, REGLAS_TRAMO } from '../src/modulos/recorridos/calculo.js';
 import { leerZonasPiloto } from '../src/modulos/red/zonaPiloto.js';
 import { cargarSemilla } from '../src/semilla/cargarSemilla.js';
 import {
@@ -41,6 +42,10 @@ async function leerSemilla() {
     where: { clave: { in: PARAMETROS.map((p) => p.clave) } },
     orderBy: { clave: 'asc' },
   });
+  const atributos = await prisma.parametroSistema.findMany({
+    where: { clave: { in: perfiles.flatMap((p) => REGLAS_TRAMO.map((regla) => claveRegla(regla, p.id))) } },
+    orderBy: { clave: 'asc' },
+  });
   const usuarios = await prisma.usuario.findMany({
     where: { email: { in: USUARIOS_PRUEBA.map((u) => u.email) } },
     orderBy: { id: 'asc' },
@@ -51,10 +56,10 @@ async function leerSemilla() {
   >`
     SELECT id, nombre, activa, ST_AsText(geometria) AS geometria, ST_IsValid(geometria::geometry) AS valida
     FROM zona_piloto WHERE nombre = ANY(${nombresZonas}::text[]) ORDER BY id`;
-  return { organismos, categorias, perfiles, matriz, parametros, usuarios, zonas };
+  return { organismos, categorias, perfiles, matriz, parametros, atributos, usuarios, zonas };
 }
 
-// Cada carga hace unas 60 consultas y compite por la base con el resto de los tests en paralelo.
+// Cada carga hace unas 90 consultas y compite por la base con el resto de los tests en paralelo.
 describe('semilla', { timeout: 60_000 }, () => {
   it('correrla dos veces deja exactamente los mismos datos', async () => {
     await cargarSemilla(prisma, { usuariosPrueba: true });
@@ -69,10 +74,28 @@ describe('semilla', { timeout: 60_000 }, () => {
     expect(primera.perfiles).toHaveLength(PERFILES.length);
     expect(primera.matriz).toHaveLength(CATEGORIAS.length * PERFILES.length);
     expect(primera.parametros).toHaveLength(PARAMETROS.length);
+    expect(primera.atributos).toHaveLength(REGLAS_TRAMO.length * PERFILES.length);
     expect(primera.usuarios).toHaveLength(USUARIOS_PRUEBA.length);
     expect(primera.zonas).toMatchObject([
       { nombre: 'Bouquet Roldán y La Sirena', activa: true, valida: true },
     ]);
+  });
+
+  it('carga las reglas de los atributos del tramo con el id de cada perfil', async () => {
+    const totales = await cargarSemilla(prisma, { usuariosPrueba: true });
+
+    expect(totales.atributosTramo).toBe(REGLAS_TRAMO.length * PERFILES.length);
+    const silla = await prisma.perfilMovilidad.findUniqueOrThrow({ where: { nombre: 'Silla de ruedas' } });
+    const baston = await prisma.perfilMovilidad.findUniqueOrThrow({ where: { nombre: 'Bastón o andador' } });
+    const leer = (clave: string) => prisma.parametroSistema.findUnique({ where: { clave } });
+    expect(await leer(claveRegla('escalera', silla.id))).toMatchObject({
+      valor: 'intransitable',
+      tipo: 'factor',
+    });
+    expect(await leer(claveRegla('escalera', baston.id))).toMatchObject({ valor: '2.0' });
+    expect(await leer(claveRegla('sin_rampa', silla.id))).toMatchObject({ valor: '3.0' });
+    // «—» en la tabla: va con 1, para que el administrador vea la regla.
+    expect(await leer(claveRegla('cruce_sin_senal', silla.id))).toMatchObject({ valor: '1.0' });
   });
 
   it('los usuarios de prueba quedan confirmados y pueden ingresar', async () => {

@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import type { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { claveRegla, type ReglaTramo } from '../modulos/recorridos/calculo.js';
 import { leerZonasPiloto } from '../modulos/red/zonaPiloto.js';
 import {
   AREAS,
   ARCHIVO_ZONAS_PILOTO,
+  ATRIBUTOS_TRAMO_PERFIL,
   CATEGORIAS,
   CLAVE_USUARIOS_PRUEBA,
   MATRIZ_CATEGORIA_PERFIL,
@@ -41,7 +43,7 @@ export async function cargarSemilla(
   const hashClavePrueba = await bcrypt.hash(CLAVE_USUARIOS_PRUEBA, 10);
   const zonasPiloto = await leerArchivoZonas(archivoZonasPiloto);
 
-  // Son unas 60 consultas seguidas: se amplían los tiempos por defecto de Prisma (2 s para empezar, 5 s en total).
+  // Son unas 90 consultas seguidas: se amplían los tiempos por defecto de Prisma (2 s para empezar, 5 s en total).
   return prisma.$transaction(
     async (tx) => {
       // organismo y area no tienen nombre único en el modelo: se busca primero y después se crea o actualiza.
@@ -113,6 +115,21 @@ export async function cargarSemilla(
         });
       }
 
+      // La clave lleva el id del perfil y no su nombre: así sigue valiendo si el administrador lo renombra.
+      let atributosTramo = 0;
+      for (const [regla, { describe, efectos }] of Object.entries(ATRIBUTOS_TRAMO_PERFIL)) {
+        for (const [perfil, efecto] of Object.entries(efectos)) {
+          const clave = claveRegla(regla as ReglaTramo, perfiles.get(perfil)!);
+          const datos = {
+            valor: efecto === 'intransitable' ? efecto : efecto.toFixed(1),
+            tipo: 'factor',
+            descripcion: `Cuánto le cuesta a ${perfil} pasar por ${describe}: un número que multiplica el costo del tramo (1 no lo cambia) o «intransitable» para que el recorrido lo evite`,
+          };
+          await tx.parametroSistema.upsert({ where: { clave }, create: { clave, ...datos }, update: datos });
+          atributosTramo++;
+        }
+      }
+
       // zona_piloto no tiene nombre único en el modelo y la geometría no la escribe Prisma: SQL a mano.
       for (const { nombre, geometria } of zonasPiloto) {
         const geojson = JSON.stringify(geometria);
@@ -164,6 +181,7 @@ export async function cargarSemilla(
         perfiles: perfiles.size,
         matriz: categorias.size * perfiles.size,
         parametros: PARAMETROS.length,
+        atributosTramo,
         zonasPiloto: zonasPiloto.length,
         usuarios: usuariosPrueba ? USUARIOS_PRUEBA.length : 0,
       };

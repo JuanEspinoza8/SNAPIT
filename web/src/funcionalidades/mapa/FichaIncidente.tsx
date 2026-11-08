@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { apiUrl } from '../../config/entorno.js';
@@ -62,6 +63,13 @@ export function FichaIncidente({ id, alCerrar }: Props) {
               Todavía no se verificó: puede cambiar de categoría o descartarse.
             </p>
           )}
+          {/* El panel es un resumen: la ficha completa es el detalle, la misma que se abre desde el inicio. */}
+          <Link
+            to={`/incidente/${ficha.id}`}
+            className="self-start rounded-md border border-borde px-3 py-2 text-sm font-semibold text-primario hover:bg-superficie-alterna"
+          >
+            Ver detalle
+          </Link>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
             <dt className="text-texto-secundario">Primer reporte</dt>
             <dd>{fecha.format(new Date(ficha.primerReporteEn))}</dd>

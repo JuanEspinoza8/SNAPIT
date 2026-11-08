@@ -69,7 +69,8 @@ describe('página de ingreso', () => {
     await userEvent.type(screen.getByLabelText('Clave'), 'una-clave');
     await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
 
-    expect(await screen.findByText('Mapa')).toBeInTheDocument();
+    // El vecino entra al inicio (el feed), como en la app.
+    expect(await screen.findByText('Inicio')).toBeInTheDocument();
     expect(localStorage.getItem('snapit:tokenAcceso')).toBe('acceso-simulado');
     expect(localStorage.getItem('snapit:tokenRenovacion')).toBe('renovacion-simulada');
   });

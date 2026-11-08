@@ -101,6 +101,14 @@ async function completar(usuario: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('cargar un reporte desde la web', () => {
+  it('avisa que la foto y la descripción se publican sin el nombre', () => {
+    renderRuta('/reportar', <PaginaReportar />);
+
+    expect(screen.getByLabelText('Descripción (opcional)')).toHaveAccessibleDescription(
+      'La foto y la descripción se ven en el inicio, sin tu nombre.',
+    );
+  });
+
   it('no envía sin foto ni sin punto, y marca lo que falta', async () => {
     const usuario = userEvent.setup();
     renderRuta('/reportar', <PaginaReportar />);

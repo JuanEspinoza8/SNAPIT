@@ -259,7 +259,7 @@ describe('al cambiar de sesión en la misma pestaña', () => {
               <Routes>
                 <Route path="/mis-reportes" element={<MisReportesConSalir />} />
                 <Route path="/ingreso" element={<PaginaIngreso />} />
-                <Route path="/mapa" element={<Link to="/mis-reportes">Mis reportes</Link>} />
+                <Route path="/" element={<Link to="/mis-reportes">Mis reportes</Link>} />
               </Routes>
             </MemoryRouter>
           </ProveedorSesion>

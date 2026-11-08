@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
 import { SIN_BARRIO } from '../geocodificacion/calculo.js';
-import type { Filtros } from './esquemas.js';
+import type { Filtros, PedidoFeed } from './esquemas.js';
 
 /**
  * Lo que se ve en el mapa público: ni desestimados, ni caducados, ni los unidos a otro incidente.
@@ -36,7 +36,8 @@ export interface PuntoMapa {
   cantidadReportes: number;
 }
 
-export function listarVisibles(filtros: Filtros) {
+// Lo que pueden filtrar el mapa y el feed, siempre sobre lo visible.
+function condicionesDe(filtros: Filtros) {
   const condiciones = [INCIDENTE_VISIBLE];
   if (filtros.categoriaId) condiciones.push(Prisma.sql`i.categoria_id = ${filtros.categoriaId}`);
   if (filtros.estado) condiciones.push(Prisma.sql`i.estado = ${filtros.estado}::estado_incidente`);
@@ -52,7 +53,11 @@ export function listarVisibles(filtros: Filtros) {
       Prisma.sql`i.ubicacion && ${rectangulo}::geography AND ST_Intersects(i.ubicacion::geometry, ${rectangulo})`,
     );
   }
+  return condiciones;
+}
 
+export function listarVisibles(filtros: Filtros) {
+  const condiciones = condicionesDe(filtros);
   return prisma.$queryRaw<PuntoMapa[]>`
     SELECT i.id,
            ST_Y(i.ubicacion::geometry) AS lat,
@@ -69,12 +74,37 @@ export function listarVisibles(filtros: Filtros) {
     ORDER BY i.primer_reporte_en DESC, i.id DESC`;
 }
 
-export function buscarPrincipal(id: number) {
-  return prisma.incidente.findUnique({ where: { id }, select: { id: true, incidentePrincipalId: true } });
+/** Cuántas fotos trae cada tarjeta del feed: alcanzan para el carrusel, el resto se ve en la ficha. */
+export const FOTOS_POR_TARJETA = 5;
+
+export interface TarjetaFeed extends PuntoMapa {
+  severidad: string;
+  direccion: string | null;
+  resueltoEn: Date | null;
+  cursorMicrosegundos: bigint;
+  cantidadVecinos: bigint;
+  fotoIds: number[];
+  cantidadFotos: bigint;
+  cantidadMeGusta: bigint;
+  cantidadComentarios: bigint;
 }
 
-export async function buscarVisible(id: number) {
-  const [incidente] = await prisma.$queryRaw<(PuntoMapa & { direccion: string | null })[]>`
+/**
+ * Una página del feed, del más nuevo al más viejo, con el mismo orden que el mapa. Pagina por cursor
+ * (fecha del primer reporte e id) y no por desplazamiento: si entra un incidente nuevo mientras alguien
+ * scrollea, la página siguiente no repite el último. Trae uno de más para saber si hay otra página.
+ */
+export function listarFeed(pedido: PedidoFeed) {
+  const condiciones = condicionesDe(pedido);
+  if (pedido.cursor) {
+    condiciones.push(
+      Prisma.sql`(i.primer_reporte_en, i.id) <
+        (to_timestamp(0) + ${pedido.cursor.microsegundos}::bigint * interval '1 microsecond', ${pedido.cursor.id}::int)`,
+    );
+  }
+  const reportes = REPORTES_VISIBLES_DEL_INCIDENTE(Prisma.sql`i.id`);
+
+  return prisma.$queryRaw<TarjetaFeed[]>`
     SELECT i.id,
            ST_Y(i.ubicacion::geometry) AS lat,
            ST_X(i.ubicacion::geometry) AS lon,
@@ -82,6 +112,65 @@ export async function buscarVisible(id: number) {
            c.nombre AS "categoriaNombre",
            i.estado::text AS estado,
            i.estado = 'REGISTRADO' AS "enRevision",
+           i.severidad::text AS severidad,
+           i.primer_reporte_en AS "primerReporteEn",
+           (extract(epoch FROM i.primer_reporte_en) * 1000000)::bigint AS "cursorMicrosegundos",
+           i.cantidad_reportes AS "cantidadReportes",
+           i.direccion,
+           i.resuelto_en AS "resueltoEn",
+           vecinos.cantidad AS "cantidadVecinos",
+           coalesce(fotos.ids, '{}') AS "fotoIds",
+           fotos.total AS "cantidadFotos",
+           likes.total AS "cantidadMeGusta",
+           comentarios.total AS "cantidadComentarios"
+    FROM incidente i
+    JOIN categoria c ON c.id = i.categoria_id
+    CROSS JOIN LATERAL (SELECT count(DISTINCT r.usuario_id) AS cantidad ${reportes}) vecinos
+    CROSS JOIN LATERAL (
+      SELECT (array_agg(f.id ORDER BY f.id))[1:${FOTOS_POR_TARJETA}] AS ids, count(*) AS total
+      FROM fotografia f
+      JOIN (SELECT r.id ${reportes}) validos ON validos.id = f.reporte_id
+    ) fotos
+    -- Lo social suma todos sus reportes: el de cada foto se ve en el detalle.
+    CROSS JOIN LATERAL (
+      SELECT count(*) AS total
+      FROM me_gusta_reporte m
+      JOIN (SELECT r.id ${reportes}) validos ON validos.id = m.reporte_id
+    ) likes
+    -- Los de sus fotos más los del incidente y de los unidos. Dos cuentas por separado, cada una por su
+    -- índice: juntas en un OR, la base recorría toda la tabla comentario por cada tarjeta.
+    CROSS JOIN LATERAL (
+      SELECT (
+        SELECT count(*)
+        FROM comentario c
+        JOIN (SELECT r.id ${reportes}) validos ON validos.id = c.reporte_id
+        WHERE c.eliminado_en IS NULL
+      ) + (
+        SELECT count(*)
+        FROM comentario c
+        JOIN incidente comentado ON comentado.id = c.incidente_id
+        WHERE (comentado.id = i.id OR comentado.incidente_principal_id = i.id) AND c.eliminado_en IS NULL
+      ) AS total
+    ) comentarios
+    WHERE ${Prisma.join(condiciones, ' AND ')}
+    ORDER BY i.primer_reporte_en DESC, i.id DESC
+    LIMIT ${pedido.limite + 1}`;
+}
+
+export function buscarPrincipal(id: number) {
+  return prisma.incidente.findUnique({ where: { id }, select: { id: true, incidentePrincipalId: true } });
+}
+
+export async function buscarVisible(id: number) {
+  const [incidente] = await prisma.$queryRaw<(PuntoMapa & { severidad: string; direccion: string | null })[]>`
+    SELECT i.id,
+           ST_Y(i.ubicacion::geometry) AS lat,
+           ST_X(i.ubicacion::geometry) AS lon,
+           i.categoria_id AS "categoriaId",
+           c.nombre AS "categoriaNombre",
+           i.estado::text AS estado,
+           i.estado = 'REGISTRADO' AS "enRevision",
+           i.severidad::text AS severidad,
            i.primer_reporte_en AS "primerReporteEn",
            i.cantidad_reportes AS "cantidadReportes",
            i.direccion
@@ -92,9 +181,11 @@ export async function buscarVisible(id: number) {
 }
 
 /**
- * Reportes válidos del incidente y de los que se le unieron: de ahí salen los vecinos y las fotos, y en la
- * agrupación la severidad, el último reporte y la foto más parecida. Alcanza con un nivel: un incidente que
- * tiene unidos no se puede unir a otro, así que no hay cadenas. Los reportes desestimados no cuentan.
+ * Reportes válidos del incidente y de los que se le unieron: de ahí salen, en la agrupación, la severidad, el
+ * último reporte y la foto más parecida. Alcanza con un nivel: un incidente que tiene unidos no se puede unir a
+ * otro, así que no hay cadenas. Los reportes desestimados no cuentan. Los que su autor eliminó sí: qué cambia en
+ * los cálculos al eliminar se decide con la issue de eliminar (docs/calculos.md). Para mostrar, se usa
+ * REPORTES_VISIBLES_DEL_INCIDENTE.
  * `id` puede ser un número o una columna de la consulta de afuera (por ejemplo, Prisma.sql`i.id`); los
  * reportes quedan con el alias `r`.
  */
@@ -104,10 +195,18 @@ export const REPORTES_DEL_INCIDENTE = (id: number | Prisma.Sql) => Prisma.sql`
   WHERE (del_incidente.id = ${id} OR del_incidente.incidente_principal_id = ${id})
     AND r.estado_verificacion <> 'DESESTIMADO'`;
 
+/**
+ * Los reportes que ve el público: los de REPORTES_DEL_INCIDENTE menos los que su autor eliminó. De acá salen las
+ * fotos, los vecinos y lo social de la ficha y del feed.
+ */
+export const REPORTES_VISIBLES_DEL_INCIDENTE = (id: number | Prisma.Sql) => Prisma.sql`
+  ${REPORTES_DEL_INCIDENTE(id)}
+    AND r.eliminado_en IS NULL`;
+
 export async function contarVecinos(id: number) {
   // count() de PostgreSQL llega como bigint: se pasa a número para el JSON.
   const [fila] = await prisma.$queryRaw<{ cantidad: bigint }[]>`
-    SELECT count(DISTINCT r.usuario_id) AS cantidad ${REPORTES_DEL_INCIDENTE(id)}`;
+    SELECT count(DISTINCT r.usuario_id) AS cantidad ${REPORTES_VISIBLES_DEL_INCIDENTE(id)}`;
   return Number(fila?.cantidad ?? 0);
 }
 
@@ -115,6 +214,6 @@ export function listarFotos(id: number) {
   return prisma.$queryRaw<{ id: number }[]>`
     SELECT f.id
     FROM fotografia f
-    JOIN (SELECT r.id ${REPORTES_DEL_INCIDENTE(id)}) validos ON validos.id = f.reporte_id
+    JOIN (SELECT r.id ${REPORTES_VISIBLES_DEL_INCIDENTE(id)}) validos ON validos.id = f.reporte_id
     ORDER BY f.id`;
 }

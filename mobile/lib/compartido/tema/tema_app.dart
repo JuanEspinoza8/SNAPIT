@@ -1,16 +1,64 @@
 import 'package:flutter/material.dart';
 
 /// Paleta del sistema de diseño. Las pantallas no usan estos valores
-/// directamente: leen `Theme.of(context)`.
-abstract final class ColoresSnapIt {
-  static const primario = Color(0xFF1F5E7A);
-  static const sobrePrimario = Color(0xFFFFFFFF);
-  static const superficie = Color(0xFFFFFFFF);
-  static const superficieAlterna = Color(0xFFF6F7F9);
-  static const borde = Color(0xFFD9DEE5);
-  static const texto = Color(0xFF1A202C);
-  static const textoSecundario = Color(0xFF5A6474);
-  static const peligro = Color(0xFFB42318);
+/// directamente: leen `Theme.of(context)`, así funcionan con las dos.
+@immutable
+class PaletaSnapIt {
+  const PaletaSnapIt({
+    required this.brillo,
+    required this.primario,
+    required this.sobrePrimario,
+    required this.superficie,
+    required this.superficieAlterna,
+    required this.borde,
+    required this.texto,
+    required this.textoSecundario,
+    required this.peligro,
+    required this.sobrePeligro,
+  });
+
+  /// La original: fondo blanco y azul petróleo.
+  static const claro = PaletaSnapIt(
+    brillo: Brightness.light,
+    primario: Color(0xFF1F5E7A),
+    sobrePrimario: Color(0xFFFFFFFF),
+    superficie: Color(0xFFFFFFFF),
+    superficieAlterna: Color(0xFFF6F7F9),
+    borde: Color(0xFFD9DEE5),
+    texto: Color(0xFF1A202C),
+    textoSecundario: Color(0xFF5A6474),
+    peligro: Color(0xFFB42318),
+    sobrePeligro: Color(0xFFFFFFFF),
+  );
+
+  /// «Noche neutra»: gris carbón con acento azul. El azul con texto blanco
+  /// encima no llega a AA (3,7:1), así que lo que va sobre el azul es casi
+  /// negro (5:1). El texto secundario sobre las tarjetas da 6,7:1.
+  static const oscuro = PaletaSnapIt(
+    brillo: Brightness.dark,
+    primario: Color(0xFF3B82F6),
+    sobrePrimario: Color(0xFF0B1220),
+    superficie: Color(0xFF0F1115),
+    superficieAlterna: Color(0xFF181B21),
+    borde: Color(0xFF2A2F38),
+    texto: Color(0xFFE6E8EB),
+    textoSecundario: Color(0xFF9AA3AE),
+    peligro: Color(0xFFF87171),
+    sobrePeligro: Color(0xFF1A0505),
+  );
+
+  final Brightness brillo;
+  final Color primario;
+  final Color sobrePrimario;
+  final Color superficie;
+
+  /// Tarjetas, campos y todo lo que se apoya sobre el fondo.
+  final Color superficieAlterna;
+  final Color borde;
+  final Color texto;
+  final Color textoSecundario;
+  final Color peligro;
+  final Color sobrePeligro;
 }
 
 /// Escala de espaciado, en múltiplos de 4.
@@ -91,25 +139,126 @@ class ColoresEstado extends ThemeExtension<ColoresEstado> {
   }
 }
 
-ThemeData crearTema() {
-  const esquema = ColorScheme(
-    brightness: Brightness.light,
-    primary: ColoresSnapIt.primario,
-    onPrimary: ColoresSnapIt.sobrePrimario,
-    secondary: ColoresSnapIt.primario,
-    onSecondary: ColoresSnapIt.sobrePrimario,
-    error: ColoresSnapIt.peligro,
-    onError: ColoresSnapIt.sobrePrimario,
-    surface: ColoresSnapIt.superficie,
-    onSurface: ColoresSnapIt.texto,
-    onSurfaceVariant: ColoresSnapIt.textoSecundario,
-    surfaceContainerLowest: ColoresSnapIt.superficie,
-    surfaceContainerLow: ColoresSnapIt.superficieAlterna,
-    surfaceContainer: ColoresSnapIt.superficieAlterna,
-    surfaceContainerHigh: ColoresSnapIt.superficieAlterna,
-    surfaceContainerHighest: ColoresSnapIt.superficieAlterna,
-    outline: ColoresSnapIt.borde,
-    outlineVariant: ColoresSnapIt.borde,
+/// Colores de la gravedad de un incidente (`severidad` en la base). Todos
+/// llevan [ColoresFijos.sobreEstado] encima con contraste AA. Moderada no
+/// repite el color de «En revisión»: van una al lado de la otra en las
+/// tarjetas. Se leen con `Theme.of(context).extension<ColoresGravedad>()!`.
+@immutable
+class ColoresGravedad extends ThemeExtension<ColoresGravedad> {
+  const ColoresGravedad({
+    required this.leve,
+    required this.moderada,
+    required this.grave,
+  });
+
+  static const claro = ColoresGravedad(
+    leve: Color(0xFF3D5A80),
+    moderada: Color(0xFFC2410C),
+    grave: Color(0xFFC53030),
+  );
+
+  final Color leve;
+  final Color moderada;
+  final Color grave;
+
+  @override
+  ColoresGravedad copyWith({Color? leve, Color? moderada, Color? grave}) {
+    return ColoresGravedad(
+      leve: leve ?? this.leve,
+      moderada: moderada ?? this.moderada,
+      grave: grave ?? this.grave,
+    );
+  }
+
+  @override
+  ColoresGravedad lerp(ColoresGravedad? other, double t) {
+    if (other == null) return this;
+    return ColoresGravedad(
+      leve: Color.lerp(leve, other.leve, t)!,
+      moderada: Color.lerp(moderada, other.moderada, t)!,
+      grave: Color.lerp(grave, other.grave, t)!,
+    );
+  }
+}
+
+/// Colores que no cambian con el tema. Mismos valores que en la web
+/// (`web/src/compartido/tema/tema.css`). Se leen con
+/// `Theme.of(context).extension<ColoresFijos>()!`.
+@immutable
+class ColoresFijos extends ThemeExtension<ColoresFijos> {
+  const ColoresFijos({
+    required this.sobreEstado,
+    required this.velo,
+    required this.sobreVelo,
+    required this.marcadorBorde,
+  });
+
+  static const valores = ColoresFijos(
+    sobreEstado: Color(0xFFFFFFFF),
+    velo: Color(0x99000000),
+    sobreVelo: Color(0xFFFFFFFF),
+    marcadorBorde: Color(0xFFFFFFFF),
+  );
+
+  /// Texto e íconos sobre los estados y las gravedades: con todos da AA.
+  final Color sobreEstado;
+
+  /// Fondo de lo que va encima de una foto (cuál se ve, «+3 fotos», el
+  /// autor): se lee sobre cualquier imagen.
+  final Color velo;
+  final Color sobreVelo;
+
+  /// Borde de los marcadores: el mapa es claro en los dos temas.
+  final Color marcadorBorde;
+
+  @override
+  ColoresFijos copyWith({
+    Color? sobreEstado,
+    Color? velo,
+    Color? sobreVelo,
+    Color? marcadorBorde,
+  }) {
+    return ColoresFijos(
+      sobreEstado: sobreEstado ?? this.sobreEstado,
+      velo: velo ?? this.velo,
+      sobreVelo: sobreVelo ?? this.sobreVelo,
+      marcadorBorde: marcadorBorde ?? this.marcadorBorde,
+    );
+  }
+
+  @override
+  ColoresFijos lerp(ColoresFijos? other, double t) {
+    if (other == null) return this;
+    return ColoresFijos(
+      sobreEstado: Color.lerp(sobreEstado, other.sobreEstado, t)!,
+      velo: Color.lerp(velo, other.velo, t)!,
+      sobreVelo: Color.lerp(sobreVelo, other.sobreVelo, t)!,
+      marcadorBorde: Color.lerp(marcadorBorde, other.marcadorBorde, t)!,
+    );
+  }
+}
+
+/// El tema de la app con la paleta [p]: [PaletaSnapIt.claro] u
+/// [PaletaSnapIt.oscuro].
+ThemeData crearTema([PaletaSnapIt p = PaletaSnapIt.claro]) {
+  final esquema = ColorScheme(
+    brightness: p.brillo,
+    primary: p.primario,
+    onPrimary: p.sobrePrimario,
+    secondary: p.primario,
+    onSecondary: p.sobrePrimario,
+    error: p.peligro,
+    onError: p.sobrePeligro,
+    surface: p.superficie,
+    onSurface: p.texto,
+    onSurfaceVariant: p.textoSecundario,
+    surfaceContainerLowest: p.superficie,
+    surfaceContainerLow: p.superficieAlterna,
+    surfaceContainer: p.superficieAlterna,
+    surfaceContainerHigh: p.superficieAlterna,
+    surfaceContainerHighest: p.superficieAlterna,
+    outline: p.borde,
+    outlineVariant: p.borde,
     surfaceTint: Colors.transparent,
   );
 
@@ -131,21 +280,24 @@ ThemeData crearTema() {
     borderRadius: BorderRadius.circular(radioBorde),
   );
   const tamanioBoton = Size(altoTactil, altoTactil);
+  final borde = BorderSide(color: p.borde);
 
   return ThemeData(
     colorScheme: esquema,
-    textTheme: textos.apply(
-      bodyColor: ColoresSnapIt.texto,
-      displayColor: ColoresSnapIt.texto,
-    ),
-    scaffoldBackgroundColor: ColoresSnapIt.superficie,
+    textTheme: textos.apply(bodyColor: p.texto, displayColor: p.texto),
+    scaffoldBackgroundColor: p.superficie,
     materialTapTargetSize: MaterialTapTargetSize.padded,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: ColoresSnapIt.superficie,
-      foregroundColor: ColoresSnapIt.texto,
+    appBarTheme: AppBarTheme(
+      backgroundColor: p.superficie,
+      foregroundColor: p.texto,
       elevation: 0,
       scrolledUnderElevation: 0,
-      shape: Border(bottom: BorderSide(color: ColoresSnapIt.borde)),
+      shape: Border(bottom: borde),
+    ),
+    // La barra de abajo, del mismo tono que las tarjetas: se despega del
+    // fondo sin sombra.
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: p.superficieAlterna,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(minimumSize: tamanioBoton, shape: forma),
@@ -154,7 +306,7 @@ ThemeData crearTema() {
       style: OutlinedButton.styleFrom(
         minimumSize: tamanioBoton,
         shape: forma,
-        side: const BorderSide(color: ColoresSnapIt.borde),
+        side: borde,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -164,28 +316,34 @@ ThemeData crearTema() {
       floatingLabelBehavior: FloatingLabelBehavior.always,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radioBorde),
-        borderSide: const BorderSide(color: ColoresSnapIt.borde),
+        borderSide: borde,
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radioBorde),
-        borderSide: const BorderSide(color: ColoresSnapIt.borde),
+        borderSide: borde,
       ),
     ),
+    // Al revés del fondo: en el claro, oscuro; en el oscuro, claro.
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: ColoresSnapIt.texto,
-      contentTextStyle: textos.bodyMedium?.copyWith(
-        color: ColoresSnapIt.sobrePrimario,
-      ),
+      backgroundColor: p.texto,
+      contentTextStyle: textos.bodyMedium?.copyWith(color: p.superficie),
       shape: forma,
     ),
     // Material 3 redondea la hoja a 28; el sistema de diseño usa 8.
-    bottomSheetTheme: const BottomSheetThemeData(
-      shape: RoundedRectangleBorder(
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: p.superficieAlterna,
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(radioBorde)),
       ),
     ),
-    dividerTheme: const DividerThemeData(color: ColoresSnapIt.borde),
-    extensions: const [ColoresEstado.claro],
+    dividerTheme: DividerThemeData(color: p.borde),
+    // Los estados y las gravedades llevan texto blanco en los dos temas: sus
+    // colores ya están elegidos para eso.
+    extensions: const [
+      ColoresEstado.claro,
+      ColoresGravedad.claro,
+      ColoresFijos.valores,
+    ],
   );
 }

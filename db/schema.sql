@@ -589,6 +589,7 @@ CREATE TABLE reporte (
     registrado_en                timestamptz NOT NULL DEFAULT now(),
     sincronizado_en              timestamptz,
     creado_en                    timestamptz NOT NULL DEFAULT now(),
+    eliminado_en                 timestamptz,
     CONSTRAINT reporte_pk PRIMARY KEY (id),
     CONSTRAINT reporte_incidente_id_fk FOREIGN KEY (incidente_id) REFERENCES incidente (id) ON DELETE SET NULL,
     CONSTRAINT reporte_usuario_id_fk FOREIGN KEY (usuario_id) REFERENCES usuario (id) ON DELETE RESTRICT,
@@ -616,6 +617,7 @@ COMMENT ON COLUMN reporte.registro_ia_id IS 'Llamada al modelo que generó la su
 COMMENT ON COLUMN reporte.registrado_en IS 'Momento en que el vecino lo cargó, aunque fuera sin señal.';
 COMMENT ON COLUMN reporte.sincronizado_en IS 'Momento en que llegó al servidor.';
 COMMENT ON COLUMN reporte.creado_en IS 'Fecha de alta del registro.';
+COMMENT ON COLUMN reporte.eliminado_en IS 'Baja lógica: si está informado, su autor lo eliminó y ya no se muestra.';
 
 -- [REPORTES, INCIDENTES Y EVIDENCIA]  Cada indicio, a favor o en contra, que usó el sistema para decidir si confía en un reporte.
 CREATE TABLE senal_verificacion (
@@ -731,6 +733,50 @@ COMMENT ON COLUMN evento_verificacion_ia.tokens_entrada IS 'Tokens de entrada qu
 COMMENT ON COLUMN evento_verificacion_ia.tokens_salida IS 'Tokens de salida que usó la clasificación, para calcular su costo.';
 COMMENT ON COLUMN evento_verificacion_ia.creado_en IS 'Fecha del paso.';
 
+-- [REPORTES, INCIDENTES Y EVIDENCIA]  El «me gusta» de un usuario a un reporte. La clave única (reporte, usuario) impide dar dos.
+CREATE TABLE me_gusta_reporte (
+    id                           serial,
+    reporte_id                   int NOT NULL,
+    usuario_id                   int NOT NULL,
+    creado_en                    timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT me_gusta_reporte_pk PRIMARY KEY (id),
+    CONSTRAINT me_gusta_reporte_reporte_id_fk FOREIGN KEY (reporte_id) REFERENCES reporte (id) ON DELETE CASCADE,
+    CONSTRAINT me_gusta_reporte_usuario_id_fk FOREIGN KEY (usuario_id) REFERENCES usuario (id) ON DELETE CASCADE,
+    CONSTRAINT me_gusta_unico UNIQUE (reporte_id, usuario_id)
+);
+COMMENT ON TABLE me_gusta_reporte IS 'El «me gusta» de un usuario a un reporte. La clave única (reporte, usuario) impide dar dos.';
+COMMENT ON COLUMN me_gusta_reporte.id IS 'Identificador interno.';
+COMMENT ON COLUMN me_gusta_reporte.reporte_id IS 'Reporte que le gustó.';
+COMMENT ON COLUMN me_gusta_reporte.usuario_id IS 'Usuario que dio el me gusta.';
+COMMENT ON COLUMN me_gusta_reporte.creado_en IS 'Cuándo lo dio.';
+
+-- [REPORTES, INCIDENTES Y EVIDENCIA]  Comentario público de un usuario. Pertenece a un reporte o a un incidente, nunca a los dos.
+CREATE TABLE comentario (
+    id                           serial,
+    usuario_id                   int NOT NULL,
+    reporte_id                   int,
+    incidente_id                 int,
+    texto                        text NOT NULL,
+    creado_en                    timestamptz NOT NULL DEFAULT now(),
+    editado_en                   timestamptz,
+    eliminado_en                 timestamptz,
+    CONSTRAINT comentario_pk PRIMARY KEY (id),
+    CONSTRAINT comentario_usuario_id_fk FOREIGN KEY (usuario_id) REFERENCES usuario (id) ON DELETE RESTRICT,
+    CONSTRAINT comentario_reporte_id_fk FOREIGN KEY (reporte_id) REFERENCES reporte (id) ON DELETE CASCADE,
+    CONSTRAINT comentario_incidente_id_fk FOREIGN KEY (incidente_id) REFERENCES incidente (id) ON DELETE CASCADE,
+    CONSTRAINT comentario_duenio_unico CHECK ((reporte_id IS NOT NULL)::int + (incidente_id IS NOT NULL)::int = 1),
+    CONSTRAINT comentario_texto_largo CHECK (char_length(texto) BETWEEN 1 AND 1000)
+);
+COMMENT ON TABLE comentario IS 'Comentario público de un usuario. Pertenece a un reporte o a un incidente, nunca a los dos.';
+COMMENT ON COLUMN comentario.id IS 'Identificador interno.';
+COMMENT ON COLUMN comentario.usuario_id IS 'Autor del comentario.';
+COMMENT ON COLUMN comentario.reporte_id IS 'Reporte comentado.';
+COMMENT ON COLUMN comentario.incidente_id IS 'Incidente comentado.';
+COMMENT ON COLUMN comentario.texto IS 'Lo que escribió, de 1 a 1000 caracteres.';
+COMMENT ON COLUMN comentario.creado_en IS 'Fecha del comentario.';
+COMMENT ON COLUMN comentario.editado_en IS 'Última vez que su autor lo editó.';
+COMMENT ON COLUMN comentario.eliminado_en IS 'Baja lógica: lo eliminó su autor o un operador por ofensivo.';
+
 -- ==========================================================================
 -- INDICES
 -- ==========================================================================
@@ -754,6 +800,8 @@ CREATE INDEX notificacion_usuario_id_ix ON notificacion (usuario_id);
 CREATE INDEX incidente_tramo_tramo_peatonal_id_ix ON incidente_tramo (tramo_peatonal_id);
 CREATE INDEX registro_ia_creado_en_ix ON registro_ia (creado_en);
 CREATE INDEX evento_verificacion_ia_proceso_id_ix ON evento_verificacion_ia (proceso_id);
+CREATE INDEX comentario_reporte_id_ix ON comentario (reporte_id);
+CREATE INDEX comentario_incidente_id_ix ON comentario (incidente_id);
 
 -- ==========================================================================
 -- VISTA PARA pgRouting

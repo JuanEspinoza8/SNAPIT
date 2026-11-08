@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { Cargando } from './Cargando.js';
 import { Layout } from './Layout.js';
 import { PaginaSalud } from '../../funcionalidades/salud/paginaSalud.js';
@@ -10,6 +10,9 @@ import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuper
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
 import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
 import { PaginaMisReportes } from '../../funcionalidades/misReportes/paginaMisReportes.js';
+import { PaginaIncidente } from '../../funcionalidades/feed/PaginaIncidente.js';
+import { PaginaInicio } from '../../funcionalidades/feed/PaginaInicio.js';
+import { PaginaReporte } from '../../funcionalidades/feed/PaginaReporte.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
 
 // El mapa trae Leaflet, que es pesado: se baja recién cuando alguien abre /mapa.
@@ -50,7 +53,11 @@ export const rutas: RouteObject[] = [
     path: '/',
     element: <Layout />,
     children: [
-      { index: true, element: <Navigate to="/mapa" replace /> },
+      // El inicio es el feed: público como el mapa, con o sin sesión. El detalle de cada incidente y de cada
+      // foto también. Leaflet (el mapa chico) se baja recién cuando hace falta.
+      { index: true, element: <PaginaInicio /> },
+      { path: 'incidente/:id', element: <PaginaIncidente /> },
+      { path: 'reporte/:id', element: <PaginaReporte /> },
       { path: 'salud', element: <PaginaSalud /> },
       {
         path: 'ingreso',
