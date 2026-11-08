@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { z } from 'zod';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { analizarFoto } from '../../compartido/analisisFoto.js';
 import { ErrorApp } from '../../compartido/errores.js';
@@ -181,4 +182,102 @@ export async function cerrarIncidente(
     await almacenFotos.borrar(rutaArchivo).catch(() => {});
     throw error;
   }
+}
+
+const esquemaConfirmacion = z
+  .object({
+    aceptar: z.boolean({ error: 'Tiene que ser true o false' }),
+    comentario: z
+      .string({ error: 'Tiene que ser un texto' })
+      .trim()
+      .max(1000, { error: 'Tiene que tener hasta 1000 caracteres' })
+      .optional()
+      .transform((texto) => texto || null),
+  })
+  // Quien cerró tiene que saber qué corregir para volver a intentar.
+  .refine(({ aceptar, comentario }) => aceptar || comentario !== null, {
+    error: 'Es obligatorio para rechazar',
+    path: ['comentario'],
+  });
+
+/**
+ * Otro operador del organismo confirma o rechaza un cierre observado (F09): el que la foto o la IA no pudieron
+ * decidir. Lo que vio un operador lo tiene que confirmar otro; un administrador puede confirmar cualquiera.
+ * - Aceptar: el cierre queda VALIDADO y el incidente pasa a RESUELTO.
+ * - Rechazar (con motivo): el cierre queda RECHAZADO y el incidente sigue en ejecución, listo para otro intento.
+ */
+export async function confirmarCierre(sesion: UsuarioSesion, parametros: unknown, cuerpo: unknown) {
+  const { id } = validar(esquemaId, parametros);
+  const { aceptar, comentario } = validar(esquemaConfirmacion, cuerpo ?? {});
+
+  return transaccion(async (tx) => {
+    const incidente = await repositorio.leerIncidente(tx, id, { bloquear: true });
+    if (!incidente) throw new ErrorApp(404, 'INCIDENTE_NO_ENCONTRADO', 'El incidente no existe');
+    if (incidente.organismoId !== sesion.organismoId) {
+      throw new ErrorApp(403, 'SIN_PERMISO', 'El incidente es de otro organismo');
+    }
+    const cierre = await tx.cierreIncidente.findUnique({
+      where: { incidenteId: id },
+      select: { id: true, usuarioId: true, resultadoComparacion: true },
+    });
+    // Mientras está observado el incidente sigue en ejecución: si no, otro lo cambió (por ejemplo, lo desestimó).
+    if (!cierre || cierre.resultadoComparacion !== 'OBSERVADO' || incidente.estado !== 'EN_EJECUCION') {
+      throw new ErrorApp(
+        409,
+        'CIERRE_NO_OBSERVADO',
+        'El incidente no tiene un cierre esperando confirmación',
+      );
+    }
+    if (cierre.usuarioId === sesion.id && sesion.rol !== 'ADMINISTRADOR') {
+      throw new ErrorApp(
+        403,
+        'SIN_PERMISO',
+        'El cierre lo tiene que confirmar otro operador, no quien lo hizo',
+      );
+    }
+
+    const nota = comentario ? `: ${comentario}` : '';
+    let movimiento;
+    // EN_EJECUCION → RESUELTO es la transición del cierre (incidentes/calculo.ts).
+    if (aceptar) {
+      const ahora = new Date();
+      await tx.cierreIncidente.update({
+        where: { id: cierre.id },
+        data: { resultadoComparacion: 'VALIDADO' },
+      });
+      await tx.incidente.update({
+        where: { id },
+        data: { estado: 'RESUELTO', resueltoEn: ahora, actualizadoEn: ahora },
+      });
+      movimiento = await registrarMovimiento(tx, {
+        incidenteId: id,
+        usuarioId: sesion.id,
+        tipo: 'CAMBIO_ESTADO',
+        estadoAnterior: 'EN_EJECUCION',
+        estadoNuevo: 'RESUELTO',
+        comentario: `Cierre observado confirmado${nota}`,
+      });
+    } else {
+      await tx.cierreIncidente.update({
+        where: { id: cierre.id },
+        data: { resultadoComparacion: 'RECHAZADO' },
+      });
+      movimiento = await registrarMovimiento(tx, {
+        incidenteId: id,
+        usuarioId: sesion.id,
+        tipo: 'COMENTARIO',
+        comentario: `Cierre observado rechazado${nota}`,
+      });
+    }
+    await avisarCambioIncidente(tx, id);
+
+    return {
+      incidente: { id, estado: aceptar ? ('RESUELTO' as const) : incidente.estado },
+      cierre: {
+        id: cierre.id,
+        resultadoComparacion: aceptar ? ('VALIDADO' as const) : ('RECHAZADO' as const),
+      },
+      movimiento,
+    };
+  });
 }

@@ -244,3 +244,119 @@ describe('POST /api/incidentes/:id/cierre', () => {
     ]);
   });
 });
+
+describe('POST /api/incidentes/:id/cierre/confirmacion', () => {
+  /** Un incidente con un cierre observado (foto sin GPS) por `operador`, y otro operador del organismo. */
+  async function observado() {
+    const id = await enEjecucion();
+    const cierre = await cerrar(id, jpegSinExif());
+    expect(cierre.body.cierre.resultadoComparacion).toBe('OBSERVADO');
+    const otro = await crearUsuario({ rol: 'OPERADOR', organismoId: area.organismoId, areaId: area.id });
+    return { id, cierreId: cierre.body.cierre.id as number, otroToken: crearTokenAcceso(otro) };
+  }
+
+  const confirmar = (id: number, cuerpo: object, conToken: string) =>
+    request(app)
+      .post(`/api/incidentes/${id}/cierre/confirmacion`)
+      .set('Authorization', `Bearer ${conToken}`)
+      .send(cuerpo);
+
+  it('otro operador lo acepta: el cierre queda validado y el incidente resuelto', async () => {
+    const { id, cierreId, otroToken } = await observado();
+
+    const res = await confirmar(id, { aceptar: true, comentario: 'Pasé y está tapado' }, otroToken);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      incidente: { id, estado: 'RESUELTO' },
+      cierre: { id: cierreId, resultadoComparacion: 'VALIDADO' },
+      movimiento: {
+        tipo: 'CAMBIO_ESTADO',
+        estadoNuevo: 'RESUELTO',
+        comentario: 'Cierre observado confirmado: Pasé y está tapado',
+      },
+    });
+    expect(await incidente(id)).toMatchObject({ estado: 'RESUELTO', resueltoEn: expect.any(Date) });
+    // Ya resuelto, la foto del después se publica.
+    expect((await request(app).get(`/api/incidentes/${id}`)).body.fotoCierre).not.toBeNull();
+  });
+
+  it('otro operador lo rechaza con un motivo: el incidente sigue en ejecución y se puede volver a cerrar', async () => {
+    const { id, cierreId, otroToken } = await observado();
+
+    const res = await confirmar(
+      id,
+      { aceptar: false, comentario: 'La foto no muestra la esquina' },
+      otroToken,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      incidente: { id, estado: 'EN_EJECUCION' },
+      cierre: { id: cierreId, resultadoComparacion: 'RECHAZADO' },
+      movimiento: {
+        tipo: 'COMENTARIO',
+        comentario: 'Cierre observado rechazado: La foto no muestra la esquina',
+      },
+    });
+    resuelto();
+    const reintento = await cerrar(id);
+    expect(reintento.status).toBe(201);
+    expect(reintento.body.cierre).toMatchObject({ id: cierreId, resultadoComparacion: 'VALIDADO' });
+  });
+
+  it('para rechazar hace falta el motivo', async () => {
+    const { id, otroToken } = await observado();
+
+    const res = await confirmar(id, { aceptar: false }, otroToken);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles).toEqual([
+      { campo: 'comentario', mensaje: 'Es obligatorio para rechazar' },
+    ]);
+  });
+
+  it('el mismo operador que cerró no puede confirmarlo: 403', async () => {
+    const { id } = await observado();
+
+    const res = await confirmar(id, { aceptar: true }, token);
+
+    expect(res.status).toBe(403);
+    expect(await incidente(id)).toMatchObject({ estado: 'EN_EJECUCION' });
+  });
+
+  it('un administrador del organismo sí puede confirmar', async () => {
+    const { id } = await observado();
+    const admin = await crearUsuario({ rol: 'ADMINISTRADOR', organismoId: area.organismoId });
+
+    const res = await confirmar(id, { aceptar: true }, crearTokenAcceso(admin));
+
+    expect(res.status).toBe(200);
+    expect(res.body.incidente.estado).toBe('RESUELTO');
+  });
+
+  it('solo se confirma un cierre observado: 409', async () => {
+    const { id, otroToken } = await observado();
+    await confirmar(id, { aceptar: true }, otroToken);
+    const sinCierre = await enEjecucion();
+
+    const yaResuelto = await confirmar(id, { aceptar: true }, otroToken);
+    const nuncaCerrado = await confirmar(sinCierre, { aceptar: true }, otroToken);
+
+    expect(yaResuelto.status).toBe(409);
+    expect(yaResuelto.body.error.codigo).toBe('CIERRE_NO_OBSERVADO');
+    expect(nuncaCerrado.status).toBe(409);
+  });
+
+  it('un operador de otro organismo no puede confirmarlo: 403', async () => {
+    const { id } = await observado();
+    const otro = await crearOrganismoDePrueba();
+    const ajeno = await crearUsuario({
+      rol: 'OPERADOR',
+      organismoId: otro.area.organismoId,
+      areaId: otro.area.id,
+    });
+
+    expect((await confirmar(id, { aceptar: true }, crearTokenAcceso(ajeno))).status).toBe(403);
+  });
+});
