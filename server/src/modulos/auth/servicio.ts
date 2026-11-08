@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { type Correo, enviarCorreo } from '../../compartido/correo.js';
 import { ErrorApp } from '../../compartido/errores.js';
 import { logger } from '../../config/logger.js';
+import { desactivarDispositivos } from '../avisos/repositorio.js';
 import { correoConfirmacion, correoRecuperacion } from './correos.js';
 import * as repositorio from './repositorio.js';
 import {
@@ -55,9 +56,11 @@ function enviarSinEsperar(correo: Correo, usuarioId: number) {
 
 /** Los datos del usuario que se le devuelven al cliente. Nunca incluye el hash de la clave. */
 export function usuarioPublico(usuario: Usuario) {
-  const { id, email, nombre, rol, organismoId, areaId, perfilMovilidadId } = usuario;
+  const { id, email, nombre, rol, organismoId, areaId, perfilMovilidadId, notificacionesHabilitadas } =
+    usuario;
   // perfilMovilidadId: el perfil que la app elige de entrada para calcular un recorrido (F11).
-  return { id, email, nombre, rol, organismoId, areaId, perfilMovilidadId };
+  // notificacionesHabilitadas: el interruptor general de avisos (F10).
+  return { id, email, nombre, rol, organismoId, areaId, perfilMovilidadId, notificacionesHabilitadas };
 }
 
 async function abrirSesion(usuario: Usuario) {
@@ -149,9 +152,13 @@ export async function renovar(tokenRenovacion: string) {
   };
 }
 
-/** Cierra la sesión. Responde igual aunque el token no exista, para no dar pistas. */
-export async function salir(tokenRenovacion: string) {
-  await repositorio.cerrarSesionPorHash(hashToken(tokenRenovacion), new Date());
+/**
+ * Cierra la sesión. Responde igual aunque el token no exista, para no dar pistas. Con tokenPush, ese celular
+ * deja de recibir los avisos de esta cuenta (F10); solo con una sesión válida, así nadie apaga uno ajeno.
+ */
+export async function salir(tokenRenovacion: string, tokenPush?: string) {
+  const usuarioId = await repositorio.cerrarSesionPorHash(hashToken(tokenRenovacion), new Date());
+  if (usuarioId !== null && tokenPush) await desactivarDispositivos(usuarioId, [tokenPush]);
 }
 
 export async function obtenerUsuarioActual(id: number) {
