@@ -186,6 +186,29 @@ export async function buscarFotoPermitida(id: number, pedido: PedidoFoto) {
   return foto;
 }
 
+/**
+ * Una foto del cierre de un incidente (F09). El público ve solo la que lo cerró (la última) y recién cuando
+ * quedó RESUELTO: los intentos rechazados u observados no se publican. El operador del organismo ve todas.
+ */
+export async function buscarFotoDeCierrePermitida(id: number, pedido: PedidoFoto) {
+  const permisos = [
+    Prisma.sql`(i.estado = 'RESUELTO' AND ${INCIDENTE_VISIBLE}
+                AND f.id = (SELECT max(ultima.id) FROM fotografia ultima WHERE ultima.cierre_id = ci.id))`,
+  ];
+  if (pedido.organismoId !== null) permisos.push(Prisma.sql`a.organismo_id = ${pedido.organismoId}`);
+
+  const [foto] = await prisma.$queryRaw<{ rutaArchivo: string }[]>`
+    SELECT f.ruta_archivo AS "rutaArchivo"
+    FROM fotografia f
+    JOIN cierre_incidente ci ON ci.id = f.cierre_id
+    JOIN incidente i ON i.id = ci.incidente_id
+    JOIN categoria c ON c.id = i.categoria_id
+    JOIN area a ON a.id = coalesce(i.area_id, c.area_id)
+    WHERE f.id = ${id}
+      AND (${Prisma.join(permisos, ' OR ')})`;
+  return foto;
+}
+
 export interface FilaMiReporte {
   id: number;
   registradoEn: Date;

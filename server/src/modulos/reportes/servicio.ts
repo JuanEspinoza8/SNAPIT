@@ -290,15 +290,19 @@ export async function listarMisReportes(usuarioId: number) {
 
 /**
  * Sin sesión, solo las fotos del mapa. Con sesión, además, las de los reportes propios y, para
- * operadores y administradores, las de los incidentes de su organismo.
+ * operadores y administradores, las de los incidentes de su organismo. Lo mismo con las del cierre
+ * (buscarFotoDeCierrePermitida).
  */
 export async function buscarArchivoFoto(id: number, usuario: UsuarioSesion | null) {
   const gestiona = usuario?.rol === 'OPERADOR' || usuario?.rol === 'ADMINISTRADOR';
-  const foto = await repositorio.buscarFotoPermitida(id, {
+  const pedido = {
     usuarioId: usuario?.id ?? null,
     // Un administrador sin organismo no gestiona incidentes: ve solo las del mapa.
     organismoId: gestiona ? usuario.organismoId : null,
-  });
+  };
+  const foto =
+    (await repositorio.buscarFotoPermitida(id, pedido)) ??
+    (await repositorio.buscarFotoDeCierrePermitida(id, pedido));
   // Una foto que no puede ver responde igual que una que no existe: no se revela cuál es cuál.
   if (!foto) throw new ErrorApp(404, 'FOTO_NO_ENCONTRADA', 'La foto no existe');
   return almacenFotos.ubicacion(foto.rutaArchivo);

@@ -210,6 +210,17 @@ export async function contarVecinos(id: number) {
   return Number(fila?.cantidad ?? 0);
 }
 
+/** La foto que cerró el incidente (la última del cierre), si quedó RESUELTO. */
+export async function buscarFotoCierre(id: number) {
+  const [fila] = await prisma.$queryRaw<{ id: number | null }[]>`
+    SELECT max(f.id) AS id
+    FROM fotografia f
+    JOIN cierre_incidente ci ON ci.id = f.cierre_id
+    JOIN incidente i ON i.id = ci.incidente_id
+    WHERE ci.incidente_id = ${id} AND i.estado = 'RESUELTO'`;
+  return fila?.id ?? null;
+}
+
 export function listarFotos(id: number) {
   return prisma.$queryRaw<{ id: number }[]>`
     SELECT f.id
