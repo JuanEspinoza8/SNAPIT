@@ -635,3 +635,29 @@ Con una escalera en 01 ─ 02, la silla da la vuelta (⛔) y el bastón sigue po
 - El punto se acerca al nodo más cercano aunque sea la punta suelta de un camino que termina sin tocar otro (OSM tiene 7 a menos de 15 m de otro nodo, casi todas sendas que terminan contra una calle). Desde ahí el recorrido puede dar un rodeo hasta la esquina conectada. Las que se confirmen en el relevamiento se unen con `conectarNodos`, como P-06 y P-10 («Relevamiento de la zona piloto»).
 - Un incidente a menos de 15 m de una esquina obstruye todas las cuadras que llegan a ella («Vínculo entre incidentes y tramos»): si es intransitable para el perfil, le cierra la esquina entera.
 - Cada pedido lee la red entera de la base (273 tramos en la zona piloto). Alcanza para la zona; para toda la ciudad (A01) habría que filtrar por cercanía.
+
+### Cierre del incidente
+
+Un incidente en `EN_EJECUCION` se cierra con una foto del después (F09). El sistema compara esa foto con las del antes y decide el resultado (`server/src/modulos/cierre/calculo.ts`).
+
+**Comparación con la IA.** `compararCierre(usuarioId, fotosAntes, fotoDespues)` (`server/src/modulos/ia/compararCierre.ts`) le manda al modelo las fotos del antes (como mucho 4, las primeras: las de los reportes que lo originaron) y la del después, y le pide:
+
+- `veredicto`: `RESUELTO`, `NO_RESUELTO` o `NO_CONCLUYENTE`.
+- `explicacion`: una o dos oraciones con lo que ve.
+
+El intento queda en `registro_ia` con `tipo = COMPARACION_CIERRE`. Si la IA no responde, el cierre se decide sin veredicto (ver abajo). La IA **no** decide el resultado final: solo dice si le parece resuelto.
+
+**Decisión.** `decidirCierre(distancia, veredicto, parametros)` combina la distancia entre la foto del después y el punto del incidente con el veredicto. La primera regla que se cumple decide:
+
+| Orden | Condición | Resultado |
+|---|---|---|
+| 1 | La foto del después no trae GPS (`distancia = null`) | `OBSERVADO` |
+| 2 | `distancia > cierre.distancia_max_m` | `RECHAZADO` |
+| 3 | La IA no respondió (`veredicto = null`) | `OBSERVADO` |
+| 4 | `veredicto = RESUELTO` | `VALIDADO` |
+| 5 | `veredicto = NO_RESUELTO` | `RECHAZADO` |
+| 6 | `veredicto = NO_CONCLUYENTE` | `OBSERVADO` |
+
+La distancia justo en el límite **no** rechaza: se rechaza solo si es mayor que `cierre.distancia_max_m`. El valor de partida es 50 m (arriba, «Cierre, vigencia y recorridos»).
+
+`VALIDADO`, `OBSERVADO` y `RECHAZADO` son el enum `ResultadoComparacion` que se guarda en `cierre_incidente.resultado_comparacion`. El endpoint que registra el cierre es la #108; esta parte solo calcula el resultado.
