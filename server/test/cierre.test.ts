@@ -252,8 +252,11 @@ describe('POST /api/incidentes/:id/cierre/confirmacion', () => {
     const cierre = await cerrar(id, jpegSinExif());
     expect(cierre.body.cierre.resultadoComparacion).toBe('OBSERVADO');
     const otro = await crearUsuario({ rol: 'OPERADOR', organismoId: area.organismoId, areaId: area.id });
-    return { id, cierreId: cierre.body.cierre.id as number, otroToken: crearTokenAcceso(otro) };
+    return { id, cierreId: cierre.body.cierre.id as number, otro, otroToken: crearTokenAcceso(otro) };
   }
+
+  const detalle = async (cierreId: number) =>
+    (await prisma.cierreIncidente.findUniqueOrThrow({ where: { id: cierreId } })).detalleComparacion;
 
   const confirmar = (id: number, cuerpo: object, conToken: string) =>
     request(app)
@@ -262,7 +265,7 @@ describe('POST /api/incidentes/:id/cierre/confirmacion', () => {
       .send(cuerpo);
 
   it('otro operador lo acepta: el cierre queda validado y el incidente resuelto', async () => {
-    const { id, cierreId, otroToken } = await observado();
+    const { id, cierreId, otro, otroToken } = await observado();
 
     const res = await confirmar(id, { aceptar: true, comentario: 'Pasé y está tapado' }, otroToken);
 
@@ -277,12 +280,14 @@ describe('POST /api/incidentes/:id/cierre/confirmacion', () => {
       },
     });
     expect(await incidente(id)).toMatchObject({ estado: 'RESUELTO', resueltoEn: expect.any(Date) });
+    // El detalle ya no dice que espera confirmación: dice quién lo confirmó.
+    expect(await detalle(cierreId)).toBe(`Lo confirmó ${otro.nombre}: Pasé y está tapado`);
     // Ya resuelto, la foto del después se publica.
     expect((await request(app).get(`/api/incidentes/${id}`)).body.fotoCierre).not.toBeNull();
   });
 
   it('otro operador lo rechaza con un motivo: el incidente sigue en ejecución y se puede volver a cerrar', async () => {
-    const { id, cierreId, otroToken } = await observado();
+    const { id, cierreId, otro, otroToken } = await observado();
 
     const res = await confirmar(
       id,
@@ -299,6 +304,8 @@ describe('POST /api/incidentes/:id/cierre/confirmacion', () => {
         comentario: 'Cierre observado rechazado: La foto no muestra la esquina',
       },
     });
+    // Quien cerró ve en la ficha por qué se rechazó.
+    expect(await detalle(cierreId)).toBe(`Lo rechazó ${otro.nombre}: La foto no muestra la esquina`);
     resuelto();
     const reintento = await cerrar(id);
     expect(reintento.status).toBe(201);
@@ -325,27 +332,56 @@ describe('POST /api/incidentes/:id/cierre/confirmacion', () => {
     expect(await incidente(id)).toMatchObject({ estado: 'EN_EJECUCION' });
   });
 
-  it('un administrador del organismo sí puede confirmar', async () => {
-    const { id } = await observado();
+  it('un administrador del organismo puede confirmar el cierre de un operador', async () => {
+    const { id, cierreId } = await observado();
     const admin = await crearUsuario({ rol: 'ADMINISTRADOR', organismoId: area.organismoId });
 
     const res = await confirmar(id, { aceptar: true }, crearTokenAcceso(admin));
 
     expect(res.status).toBe(200);
     expect(res.body.incidente.estado).toBe('RESUELTO');
+    expect(await detalle(cierreId)).toBe(`Lo confirmó ${admin.nombre}.`);
+  });
+
+  it('un administrador tampoco confirma su propio cierre: 403', async () => {
+    const id = await enEjecucion();
+    const admin = await crearUsuario({ rol: 'ADMINISTRADOR', organismoId: area.organismoId });
+    const tokenAdmin = crearTokenAcceso(admin);
+    expect((await cerrar(id, jpegSinExif(), tokenAdmin)).body.cierre.resultadoComparacion).toBe('OBSERVADO');
+
+    const res = await confirmar(id, { aceptar: true }, tokenAdmin);
+
+    expect(res.status).toBe(403);
+    expect(await incidente(id)).toMatchObject({ estado: 'EN_EJECUCION' });
   });
 
   it('solo se confirma un cierre observado: 409', async () => {
     const { id, otroToken } = await observado();
     await confirmar(id, { aceptar: true }, otroToken);
-    const sinCierre = await enEjecucion();
+    const rechazado = await observado();
+    await confirmar(rechazado.id, { aceptar: false, comentario: 'No se ve' }, rechazado.otroToken);
+    // Lejos: si no, se agrupa con el rechazado, que sigue en ejecución.
+    const sinCierre = await enEjecucion({ lejos: true });
 
     const yaResuelto = await confirmar(id, { aceptar: true }, otroToken);
+    const yaRechazado = await confirmar(rechazado.id, { aceptar: true }, rechazado.otroToken);
     const nuncaCerrado = await confirmar(sinCierre, { aceptar: true }, otroToken);
 
     expect(yaResuelto.status).toBe(409);
     expect(yaResuelto.body.error.codigo).toBe('CIERRE_NO_OBSERVADO');
+    expect(yaRechazado.body.error.codigo).toBe('CIERRE_NO_OBSERVADO');
     expect(nuncaCerrado.status).toBe(409);
+  });
+
+  it('un incidente que caducó mientras esperaba no se confirma: 409', async () => {
+    const { id, otroToken } = await observado();
+    await prisma.incidente.update({ where: { id }, data: { caducadoEn: new Date() } });
+
+    const res = await confirmar(id, { aceptar: true }, otroToken);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.codigo).toBe('INCIDENTE_CADUCADO');
+    expect(await incidente(id)).toMatchObject({ estado: 'EN_EJECUCION' });
   });
 
   it('un operador de otro organismo no puede confirmarlo: 403', async () => {

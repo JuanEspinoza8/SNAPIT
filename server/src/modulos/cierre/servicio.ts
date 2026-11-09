@@ -201,10 +201,11 @@ const esquemaConfirmacion = z
   });
 
 /**
- * Otro operador del organismo confirma o rechaza un cierre observado (F09): el que la foto o la IA no pudieron
- * decidir. Lo que vio un operador lo tiene que confirmar otro; un administrador puede confirmar cualquiera.
+ * Otra persona del organismo (operador o administrador) confirma o rechaza un cierre observado (F09): el que la
+ * foto o la IA no pudieron decidir. Nadie confirma su propio cierre, ni un administrador (decisión del 09/11).
  * - Aceptar: el cierre queda VALIDADO y el incidente pasa a RESUELTO.
  * - Rechazar (con motivo): el cierre queda RECHAZADO y el incidente sigue en ejecución, listo para otro intento.
+ * En los dos casos detalle_comparacion pasa a decir quién lo decidió y por qué: es lo que muestra la ficha.
  */
 export async function confirmarCierre(sesion: UsuarioSesion, parametros: unknown, cuerpo: unknown) {
   const { id } = validar(esquemaId, parametros);
@@ -215,6 +216,13 @@ export async function confirmarCierre(sesion: UsuarioSesion, parametros: unknown
     if (!incidente) throw new ErrorApp(404, 'INCIDENTE_NO_ENCONTRADO', 'El incidente no existe');
     if (incidente.organismoId !== sesion.organismoId) {
       throw new ErrorApp(403, 'SIN_PERMISO', 'El incidente es de otro organismo');
+    }
+    // Lo mismo que para cerrarlo (exigirCerrable): se trabaja sobre el principal y mientras siga vigente.
+    if (incidente.unido) {
+      throw new ErrorApp(409, 'INCIDENTE_UNIDO', 'El incidente está unido a otro: se gestiona el principal');
+    }
+    if (incidente.caducado) {
+      throw new ErrorApp(409, 'INCIDENTE_CADUCADO', 'El incidente caducó: ya no está vigente');
     }
     const cierre = await tx.cierreIncidente.findUnique({
       where: { incidenteId: id },
@@ -228,23 +236,25 @@ export async function confirmarCierre(sesion: UsuarioSesion, parametros: unknown
         'El incidente no tiene un cierre esperando confirmación',
       );
     }
-    if (cierre.usuarioId === sesion.id && sesion.rol !== 'ADMINISTRADOR') {
+    if (cierre.usuarioId === sesion.id) {
       throw new ErrorApp(
         403,
         'SIN_PERMISO',
-        'El cierre lo tiene que confirmar otro operador, no quien lo hizo',
+        'El cierre lo tiene que confirmar otra persona del organismo, no quien lo hizo',
       );
     }
 
     const nota = comentario ? `: ${comentario}` : '';
     let movimiento;
-    // EN_EJECUCION → RESUELTO es la transición del cierre (incidentes/calculo.ts).
     if (aceptar) {
+      if (!transicionValida(incidente.estado, 'RESUELTO', 'CIERRE')) {
+        throw new ErrorApp(
+          409,
+          'TRANSICION_INVALIDA',
+          `Un incidente ${incidente.estado} no puede pasar a RESUELTO`,
+        );
+      }
       const ahora = new Date();
-      await tx.cierreIncidente.update({
-        where: { id: cierre.id },
-        data: { resultadoComparacion: 'VALIDADO' },
-      });
       await tx.incidente.update({
         where: { id },
         data: { estado: 'RESUELTO', resueltoEn: ahora, actualizadoEn: ahora },
@@ -253,15 +263,11 @@ export async function confirmarCierre(sesion: UsuarioSesion, parametros: unknown
         incidenteId: id,
         usuarioId: sesion.id,
         tipo: 'CAMBIO_ESTADO',
-        estadoAnterior: 'EN_EJECUCION',
+        estadoAnterior: incidente.estado,
         estadoNuevo: 'RESUELTO',
         comentario: `Cierre observado confirmado${nota}`,
       });
     } else {
-      await tx.cierreIncidente.update({
-        where: { id: cierre.id },
-        data: { resultadoComparacion: 'RECHAZADO' },
-      });
       movimiento = await registrarMovimiento(tx, {
         incidenteId: id,
         usuarioId: sesion.id,
@@ -269,6 +275,14 @@ export async function confirmarCierre(sesion: UsuarioSesion, parametros: unknown
         comentario: `Cierre observado rechazado${nota}`,
       });
     }
+    // El detalle anterior decía que esperaba confirmación: ahora dice quién lo decidió y por qué.
+    const quien = movimiento.usuario?.nombre ?? 'Otro operador';
+    await tx.cierreIncidente.update({
+      where: { id: cierre.id },
+      data: aceptar
+        ? { resultadoComparacion: 'VALIDADO', detalleComparacion: `Lo confirmó ${quien}${nota || '.'}` }
+        : { resultadoComparacion: 'RECHAZADO', detalleComparacion: `Lo rechazó ${quien}${nota}` },
+    });
     await avisarCambioIncidente(tx, id);
 
     return {

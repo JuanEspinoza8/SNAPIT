@@ -1286,7 +1286,7 @@ Responde **201**:
 | 409 `INCIDENTE_UNIDO` / `INCIDENTE_CADUCADO` | Está unido a otro (se cierra el principal) o caducó |
 
 ### `POST /api/incidentes/:id/cierre/confirmacion`
-Confirma o rechaza un cierre `OBSERVADO`: el que la foto o la IA no pudieron decidir (F09). Lo que vio un operador lo tiene que confirmar **otro** operador del organismo; un `ADMINISTRADOR` del organismo puede confirmar cualquiera.
+Confirma o rechaza un cierre `OBSERVADO`: el que la foto o la IA no pudieron decidir (F09). Lo confirma **otra persona** del organismo, `OPERADOR` o `ADMINISTRADOR`: nadie confirma su propio cierre, tampoco un administrador.
 
 ```json
 { "aceptar": false, "comentario": "La foto no muestra la esquina" }
@@ -1299,15 +1299,17 @@ Confirma o rechaza un cierre `OBSERVADO`: el que la foto o la IA no pudieron dec
 
 - **Aceptar**: el cierre queda `VALIDADO` y el incidente pasa a `RESUELTO` (movimiento `CAMBIO_ESTADO`). Su foto del después se publica en la ficha.
 - **Rechazar**: el cierre queda `RECHAZADO` y el incidente sigue `EN_EJECUCION` (movimiento `COMENTARIO`). Se puede volver a cerrar: el intento nuevo corrige el mismo cierre.
+- En los dos casos, `detalleComparacion` del cierre pasa a decir quién lo decidió y por qué: «Lo confirmó Ana Pérez.», «Lo confirmó Ana Pérez: pasé y está tapado» o «Lo rechazó Ana Pérez: la foto no muestra la esquina». Es lo que muestra la ficha de gestión.
 
 Responde **200** con `{ "incidente": { "id", "estado" }, "cierre": { "id", "resultadoComparacion" }, "movimiento" }`.
 
 | Error | Cuándo |
 |---|---|
 | 400 `DATOS_INVALIDOS` | Falta `aceptar`, o el motivo para rechazar |
-| 403 `SIN_PERMISO` | El incidente es de otro organismo, o quien confirma es el operador que cerró |
+| 403 `SIN_PERMISO` | El incidente es de otro organismo, o quien confirma es quien cerró |
 | 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
 | 409 `CIERRE_NO_OBSERVADO` | El incidente no tiene un cierre observado esperando confirmación |
+| 409 `INCIDENTE_UNIDO` / `INCIDENTE_CADUCADO` | Está unido a otro o caducó mientras esperaba |
 
 ### `PUT /api/incidentes/:id/categoria`
 Corrige la categoría de un incidente abierto (F06), también si está en revisión. La categoría que eligió el vecino en cada reporte no cambia. Queda un movimiento `COMENTARIO` con el antes y el después («Categoría cambiada de Pozo en la calzada a Vereda rota»), y se recalcula la prioridad. Si el incidente todavía no se derivó, pasa al área de la categoría nueva. La vigencia no cambia.
