@@ -91,6 +91,8 @@ class FichaIncidente {
     required this.cantidadVecinos,
     required this.direccion,
     required this.fotoIds,
+    this.fotoCierreId,
+    this.resueltoEn,
   });
 
   factory FichaIncidente.desdeJson(Map<String, dynamic> json) => FichaIncidente(
@@ -110,6 +112,14 @@ class FichaIncidente {
     fotoIds: [
       for (final foto in json['fotos'] as List) (foto as Map)['id'] as int,
     ],
+    fotoCierreId: switch (json['fotoCierre']) {
+      final Map foto => foto['id'] as int,
+      _ => null,
+    },
+    resueltoEn: switch (json['resueltoEn']) {
+      final String valor => DateTime.parse(valor),
+      _ => null,
+    },
   );
 
   final int id;
@@ -128,6 +138,13 @@ class FichaIncidente {
   /// La app pide cada foto a `fotos/<id>` sobre su URL base, que ya termina
   /// en `/api`.
   final List<int> fotoIds;
+
+  /// La foto del después (F09), la que cerró el incidente. Null mientras no
+  /// esté resuelto: los intentos rechazados u observados no se publican.
+  final int? fotoCierreId;
+
+  /// Null mientras no esté resuelto.
+  final DateTime? resueltoEn;
 }
 
 class Categoria {
