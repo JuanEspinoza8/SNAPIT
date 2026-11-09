@@ -14,6 +14,7 @@ import '../../compartido/sesion/usuario.dart';
 import '../../compartido/tema/modo_tema.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../avisos/avisos.dart';
+import '../avisos/avisos_pospuestos.dart';
 import '../avisos/modelos.dart';
 import '../avisos/repositorio_avisos.dart';
 import '../avisos/servicio_push.dart';
@@ -40,6 +41,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   StreamSubscription<String>? _tokensPush;
   StreamSubscription<MensajePush>? _avisosRecibidos;
   StreamSubscription<MensajePush>? _avisosAbiertos;
+  late final AppLifecycleListener _ciclo;
 
   // Todas menos Inicio se arman recién la primera vez que se abren. El mapa y
   // Reportar piden la ubicación al aparecer: armados de entrada, el permiso
@@ -52,6 +54,14 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _iniciarAvisos());
+    // Un aviso que llega con la app en segundo plano lo muestra Android y la
+    // app no se entera: al volver, se pide la lista de nuevo para que el
+    // contador no quede viejo.
+    _ciclo = AppLifecycleListener(
+      onResume: () {
+        if (mounted && _esVecino) ref.invalidate(avisosProvider);
+      },
+    );
   }
 
   @override
@@ -59,26 +69,32 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     _tokensPush?.cancel();
     _avisosRecibidos?.cancel();
     _avisosAbiertos?.cancel();
+    _ciclo.dispose();
     super.dispose();
   }
+
+  // Los avisos (F10) son solo para vecinos: a un operador o a un
+  // administrador nunca le llega uno.
+  bool get _esVecino => ref.read(sesionProvider).value?.rol == Rol.vecino;
 
   /// Registra este celular para recibir avisos, lo vuelve a registrar cada
   /// vez que FCM renueva el token y queda atento a los avisos que llegan o
   /// que el usuario toca.
   Future<void> _iniciarAvisos() async {
-    if (!mounted) return;
+    if (!mounted || !_esVecino) return;
     final push = ref.read(servicioPushProvider);
     _avisosRecibidos = push.recibidos.listen(_mostrarAviso);
     _avisosAbiertos = push.abiertos.listen(_abrirAviso);
     _tokensPush = push.tokensRenovados.listen((_) => _registrarTokenPush());
 
-    // El aviso que abrió la app desde cero, si lo hubo.
+    // Primero el aviso que abrió la app desde cero, si lo hubo: registrar el
+    // celular espera al servidor y, con mala señal, demoraría la ficha.
     final inicial = await push.mensajeInicial();
     if (!mounted) return;
+    if (inicial != null) _abrirAviso(inicial);
     await _pedirPermisoAvisos();
     if (!mounted) return;
     await _registrarTokenPush();
-    if (inicial != null) _abrirAviso(inicial);
   }
 
   /// Con la app abierta el sistema no muestra la notificación: se muestra acá
@@ -135,10 +151,13 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   }
 
   /// En Android 13 o superior, explica para qué son los avisos antes de
-  /// disparar el pedido de permiso del sistema.
+  /// disparar el pedido de permiso del sistema. Si el vecino dijo «Ahora no»,
+  /// no se le vuelve a preguntar al abrir la app.
   Future<void> _pedirPermisoAvisos() async {
     final push = ref.read(servicioPushProvider);
+    final pospuestos = ref.read(avisosPospuestosProvider);
     if (await push.estadoPermiso() != EstadoPermiso.noDeterminado) return;
+    if (await pospuestos.leer()) return;
     if (!mounted) return;
 
     final activar = await showDialog<bool>(
@@ -162,7 +181,11 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         ],
       ),
     );
-    if (activar == true) await push.pedirPermiso();
+    if (activar == true) {
+      await push.pedirPermiso();
+    } else if (activar == false) {
+      await pospuestos.guardar();
+    }
   }
 
   Future<void> _registrarTokenPush() async {
@@ -216,7 +239,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     final esVecino = usuario.rol == Rol.vecino;
     final secciones = esVecino ? _seccionesVecino : _seccionesOrganismo;
     final seccion = secciones[_seccion];
-    final noLeidos = ref.watch(avisosNoLeidosProvider);
+    final noLeidos = esVecino ? ref.watch(avisosNoLeidosProvider) : 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -233,20 +256,21 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
               )
             : Text(seccion.titulo),
         actions: [
-          IconButton(
-            tooltip: noLeidos > 0 ? 'Avisos ($noLeidos sin leer)' : 'Avisos',
-            icon: Badge(
-              isLabelVisible: noLeidos > 0,
-              label: Text(noLeidos > 99 ? '99+' : '$noLeidos'),
-              child: const Icon(Icons.notifications_outlined),
+          if (esVecino)
+            IconButton(
+              tooltip: noLeidos > 0 ? 'Avisos ($noLeidos sin leer)' : 'Avisos',
+              icon: Badge(
+                isLabelVisible: noLeidos > 0,
+                label: Text(noLeidos > 99 ? '99+' : '$noLeidos'),
+                child: const Icon(Icons.notifications_outlined),
+              ),
+              onPressed: () {
+                // Al abrir la lista conviene traer lo último, no lo que se
+                // cargó cuando arrancó la app.
+                ref.invalidate(avisosProvider);
+                context.push(Rutas.avisos);
+              },
             ),
-            onPressed: () {
-              // Al abrir la lista conviene traer lo último, no lo que se cargó
-              // cuando arrancó la app.
-              ref.invalidate(avisosProvider);
-              context.push(Rutas.avisos);
-            },
-          ),
           IconButton(
             tooltip: 'Cuenta',
             icon: const Icon(Icons.account_circle_outlined),

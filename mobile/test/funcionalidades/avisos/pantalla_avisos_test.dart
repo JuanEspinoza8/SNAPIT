@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snapit/funcionalidades/avisos/modelos.dart';
 import 'package:snapit/funcionalidades/avisos/pantalla_avisos.dart';
@@ -123,6 +127,47 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(push.permisosPedidos, 0);
+    expect((await tokensGuardados())['avisosPospuestos'], 'si');
+  });
+
+  testWidgets('después de «Ahora no» no vuelve a preguntar al abrir la app', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({
+      ...sesionGuardada,
+      'avisosPospuestos': 'si',
+    });
+    final push = ServicioPushFalso(
+      permiso: EstadoPermiso.noDeterminado,
+      tokenPush: 'token-1',
+    );
+    final servidor = servidorConAvisos();
+    await abrirApp(tester, servidor, servicioPush: push);
+
+    expect(find.text('Activá los avisos'), findsNothing);
+    expect(push.permisosPedidos, 0);
+    // El celular se registra igual: los avisos quedan en la lista.
+    expect(servidor.cantidad('/dispositivos'), 1);
+  });
+
+  testWidgets('al operador no se le piden los avisos ni ve la campana', (
+    tester,
+  ) async {
+    final push = ServicioPushFalso(
+      permiso: EstadoPermiso.noDeterminado,
+      tokenPush: 'token-1',
+    );
+    final servidor = servidorConAvisos();
+    final responder = servidor.responder;
+    servidor.responder = (pedido) => pedido.path == '/auth/yo'
+        ? json(200, {'usuario': usuarioJson(rol: 'OPERADOR')})
+        : responder(pedido);
+    await abrirApp(tester, servidor, servicioPush: push);
+
+    expect(find.text('Activá los avisos'), findsNothing);
+    expect(find.byTooltip('Avisos'), findsNothing);
+    expect(servidor.cantidad('/dispositivos'), 0);
+    expect(servidor.cantidad('/notificaciones'), 0);
   });
 
   testWidgets('registra el token al ingresar, cuando FCM lo renueva y lo da '
@@ -156,6 +201,21 @@ void main() {
       'tokenPush': 'token-2',
     });
     expect(await tokensGuardados(), isEmpty);
+  });
+
+  testWidgets('sin token de avisos, al salir no lo manda', (tester) async {
+    final servidor = servidorConAvisos();
+    await abrirApp(tester, servidor);
+
+    await tester.tap(find.byTooltip('Cuenta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Salir'));
+    await tester.pumpAndSettle();
+
+    // Con `null` o `""` el servidor respondería 400 y no cerraría la sesión.
+    expect(pedido(servidor, '/auth/salir'), {
+      'tokenRenovacion': 'renovacion-1',
+    });
   });
 
   testWidgets('un aviso con la app abierta se muestra y abre la ficha', (
@@ -201,6 +261,58 @@ void main() {
 
     expect(find.byType(PantallaIncidente), findsOneWidget);
     expect(servidor.cantidad('/notificaciones/31/leida'), 1);
+  });
+
+  testWidgets('el aviso que abrió la app no espera el registro del celular', (
+    tester,
+  ) async {
+    final push = ServicioPushFalso(tokenPush: 'token-1')
+      ..inicial = const MensajePush(notificacionId: 31, incidenteId: 9);
+    final servidor = servidorConAvisos();
+    final responder = servidor.responder;
+    // Mala señal: el servidor nunca contesta el registro.
+    servidor.responder = (pedido) => pedido.path == '/dispositivos'
+        ? Completer<ResponseBody>().future
+        : responder(pedido);
+    await abrirApp(tester, servidor, servicioPush: push);
+
+    expect(find.byType(PantallaIncidente), findsOneWidget);
+  });
+
+  testWidgets('un aviso tocado con la app en segundo plano abre la ficha', (
+    tester,
+  ) async {
+    final push = ServicioPushFalso();
+    final servidor = servidorConAvisos();
+    await abrirApp(tester, servidor, servicioPush: push);
+
+    push.abrir(const MensajePush(notificacionId: 31, incidenteId: 9));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PantallaIncidente), findsOneWidget);
+    expect(servidor.cantidad('/notificaciones/31/leida'), 1);
+  });
+
+  testWidgets('al volver a la app se vuelve a pedir la lista', (tester) async {
+    final servidor = servidorConAvisos([avisoJson(31)]);
+    await abrirApp(tester, servidor);
+    final pedidos = servidor.cantidad('/notificaciones');
+
+    // Un aviso llegó con la app en segundo plano y el vecino vuelve sin
+    // tocarlo.
+    for (final estado in [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(estado);
+    }
+    await tester.pumpAndSettle();
+
+    expect(servidor.cantidad('/notificaciones'), pedidos + 1);
   });
 
   testWidgets('un aviso sin incidente abre la lista', (tester) async {
