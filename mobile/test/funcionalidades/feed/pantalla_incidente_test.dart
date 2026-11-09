@@ -30,25 +30,34 @@ Map<String, Object?> fichaJson({Object? fotoCierre, String? resueltoEn}) => {
   'resueltoEn': resueltoEn,
 };
 
-ServidorFalso servidorCon(Map<String, Object?> ficha) =>
-    ServidorFalso((RequestOptions pedido) {
-      switch (pedido.path) {
-        case '/auth/yo':
-          return json(200, {'usuario': usuarioJson()});
-        case '/incidentes':
-          return json(200, {'incidentes': <Object>[]});
-        case '/incidentes/feed':
-          return json(200, {'incidentes': <Object>[], 'siguiente': null});
-        case '/incidentes/3':
-          return json(200, ficha);
-        case '/social/incidentes/3/reportes':
-          return json(200, {'reportes': <Object>[]});
-        case '/social/incidentes/3/comentarios':
-          return json(200, {'comentarios': <Object>[]});
-        default:
-          return errorApi(404, 'RUTA_NO_ENCONTRADA', 'No existe');
-      }
-    });
+ServidorFalso servidorCon(Map<String, Object?> ficha, {String rol = 'VECINO'}) {
+  var siguiendo = false;
+  return ServidorFalso((RequestOptions pedido) {
+    switch (pedido.path) {
+      case '/auth/yo':
+        return json(200, {'usuario': usuarioJson(rol: rol)});
+      case '/incidentes':
+        return json(200, {'incidentes': <Object>[]});
+      case '/incidentes/feed':
+        return json(200, {'incidentes': <Object>[], 'siguiente': null});
+      case '/incidentes/3':
+        return json(200, ficha);
+      case '/incidentes/3/seguimiento':
+        if (pedido.method == 'GET') {
+          return json(200, {'siguiendo': siguiendo});
+        }
+        if (pedido.method == 'POST') siguiendo = true;
+        if (pedido.method == 'DELETE') siguiendo = false;
+        return json(204, '');
+      case '/social/incidentes/3/reportes':
+        return json(200, {'reportes': <Object>[]});
+      case '/social/incidentes/3/comentarios':
+        return json(200, {'comentarios': <Object>[]});
+      default:
+        return errorApi(404, 'RUTA_NO_ENCONTRADA', 'No existe');
+    }
+  });
+}
 
 void main() {
   setUp(guardarSesion);
@@ -255,5 +264,46 @@ void main() {
       await tester.pumpAndSettle();
       expect(servidor.cantidad('/incidentes/3'), 2);
     });
+  });
+
+  testWidgets('el vecino sigue y deja de seguir el incidente', (tester) async {
+    final servidor = servidorCon(fichaJson());
+    await abrirFicha(tester, servidor);
+
+    expect(find.text('Seguir'), findsOneWidget);
+
+    await tester.tap(find.text('Seguir'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dejar de seguir'), findsOneWidget);
+    expect(
+      servidor.pedidos.any(
+        (p) => p.metodo == 'POST' && p.ruta == '/incidentes/3/seguimiento',
+      ),
+      isTrue,
+    );
+
+    await tester.tap(find.text('Dejar de seguir'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seguir'), findsOneWidget);
+    expect(
+      servidor.pedidos.any(
+        (p) => p.metodo == 'DELETE' && p.ruta == '/incidentes/3/seguimiento',
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('el operador no ve el botón de seguir', (tester) async {
+    final servidor = servidorCon(fichaJson(), rol: 'OPERADOR');
+    await abrirFicha(tester, servidor);
+
+    expect(find.text('Seguir'), findsNothing);
+    expect(find.text('Dejar de seguir'), findsNothing);
+    expect(
+      servidor.pedidos.where((p) => p.ruta == '/incidentes/3/seguimiento'),
+      isEmpty,
+    );
   });
 }

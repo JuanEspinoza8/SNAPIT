@@ -16,6 +16,7 @@ class Usuario {
     required this.nombre,
     required this.rol,
     this.perfilMovilidadId,
+    this.notificacionesHabilitadas = true,
   });
 
   factory Usuario.desdeJson(Map<String, dynamic> json) {
@@ -27,6 +28,8 @@ class Usuario {
       nombre: json['nombre'] as String,
       rol: rol,
       perfilMovilidadId: json['perfilMovilidadId'] as int?,
+      notificacionesHabilitadas:
+          json['notificacionesHabilitadas'] as bool? ?? true,
     );
   }
 
@@ -37,6 +40,9 @@ class Usuario {
 
   /// El perfil con el que arranca el recorrido accesible. Null si no eligió.
   final int? perfilMovilidadId;
+
+  /// Interruptor general de avisos (F10). Arranca encendido.
+  final bool notificacionesHabilitadas;
 
   static const _roles = {
     'VECINO': Rol.vecino,

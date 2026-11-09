@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../compartido/red/error_api.dart';
 import '../../compartido/sesion/sesion.dart';
 import 'modelos.dart';
 import 'repositorio_avisos.dart';
@@ -51,3 +52,53 @@ final avisosNoLeidosProvider = Provider<int>((ref) {
   final avisos = ref.watch(avisosProvider).value;
   return avisos?.where((aviso) => !aviso.leida).length ?? 0;
 });
+
+/// Si el vecino sigue ese incidente.
+final seguimientoProvider = FutureProvider.autoDispose.family<bool, int>(
+  (ref, incidenteId) => ref.watch(repositorioAvisosProvider).sigue(incidenteId),
+);
+
+/// Las zonas del vecino. Se vuelven a pedir cada vez que se abre la pantalla.
+final zonasHabitualesProvider = FutureProvider.autoDispose<List<ZonaHabitual>>(
+  (ref) => ref.watch(repositorioAvisosProvider).zonas(),
+);
+
+/// Las categorías de avisos, con actualización optimista.
+final preferenciasProvider =
+    AsyncNotifierProvider.autoDispose<
+      PreferenciasNotifier,
+      List<PreferenciaCategoria>
+    >(PreferenciasNotifier.new);
+
+class PreferenciasNotifier extends AsyncNotifier<List<PreferenciaCategoria>> {
+  @override
+  Future<List<PreferenciaCategoria>> build() =>
+      ref.watch(repositorioAvisosProvider).preferencias();
+
+  Future<void> cambiar(int categoriaId, bool habilitada) async {
+    final antes = state.value;
+    if (antes == null) return;
+
+    state = AsyncData([
+      for (final preferencia in antes)
+        preferencia.categoriaId == categoriaId
+            ? preferencia.copyWith(habilitada: habilitada)
+            : preferencia,
+    ]);
+
+    try {
+      final guardadas = await ref
+          .read(repositorioAvisosProvider)
+          .guardarPreferencias([
+            PreferenciaCategoria(
+              categoriaId: categoriaId,
+              habilitada: habilitada,
+            ),
+          ]);
+      if (ref.mounted) state = AsyncData(guardadas);
+    } on ErrorApi {
+      if (ref.mounted) state = AsyncData(antes);
+      rethrow;
+    }
+  }
+}

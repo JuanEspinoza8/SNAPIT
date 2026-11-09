@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../funcionalidades/avisos/modelos.dart';
+import '../../funcionalidades/avisos/pantalla_ajustes_avisos.dart';
 import '../../funcionalidades/avisos/pantalla_avisos.dart';
+import '../../funcionalidades/avisos/pantalla_zona_habitual.dart';
 import '../../funcionalidades/cuenta/pantalla_arranque.dart';
 import '../../funcionalidades/cuenta/pantalla_ingreso.dart';
 import '../../funcionalidades/cuenta/pantalla_recuperar_clave.dart';
@@ -24,7 +27,17 @@ abstract final class Rutas {
   static const recuperarClave = '/recuperar-clave';
   static const mapa = '/mapa';
   static const principal = '/';
+
+  /// La lista de avisos del vecino.
   static const avisos = '/avisos';
+
+  /// Qué avisos recibe: el interruptor general, las categorías y las zonas
+  /// habituales.
+  static const ajustesAvisos = '/avisos/ajustes';
+
+  /// Editor de una zona. Recibe una `ZonaHabitual` en `extra` para editar,
+  /// o nada para crear una nueva.
+  static const zonaHabitual = '/avisos/zona';
 
   /// Recibe en `extra` el punto actual (o un `PedidoPunto`, con los textos
   /// de la pantalla) y devuelve el elegido al volver.
@@ -75,6 +88,19 @@ final rutasProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const PantallaPrincipal(),
       ),
       GoRoute(path: Rutas.avisos, builder: (_, _) => const PantallaAvisos()),
+      GoRoute(
+        path: Rutas.ajustesAvisos,
+        builder: (_, _) => const PantallaAjustesAvisos(),
+      ),
+      GoRoute(
+        path: Rutas.zonaHabitual,
+        builder: (_, estado) => PantallaZonaHabitual(
+          zona: switch (estado.extra) {
+            final ZonaHabitual zona => zona,
+            _ => null,
+          },
+        ),
+      ),
       GoRoute(
         path: '/incidente/:id',
         builder: (_, estado) =>
