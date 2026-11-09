@@ -6,6 +6,7 @@ import '../../compartido/errores/aviso_error.dart';
 import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/red/error_api.dart';
 import '../../compartido/rutas/rutas_app.dart';
+import '../../compartido/sesion/repositorio_auth.dart';
 import '../../compartido/sesion/sesion.dart';
 import '../../compartido/sesion/usuario.dart';
 import '../../compartido/tema/tema_app.dart';
@@ -98,7 +99,7 @@ class _InterruptorGeneralState extends ConsumerState<_InterruptorGeneral> {
     setState(() => _guardando = true);
     try {
       final usuario = await ref
-          .read(repositorioAvisosProvider)
+          .read(repositorioAuthProvider)
           .actualizarNotificaciones(habilitadas);
       ref.read(sesionProvider.notifier).actualizarUsuario(usuario);
     } catch (error) {

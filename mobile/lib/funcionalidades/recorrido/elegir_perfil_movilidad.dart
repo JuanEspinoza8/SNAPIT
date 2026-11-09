@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/red/error_api.dart';
+import '../../compartido/sesion/repositorio_auth.dart';
 import '../../compartido/sesion/sesion.dart';
 import '../../compartido/tema/tema_app.dart';
-import '../avisos/repositorio_avisos.dart';
 import 'modelos.dart';
 import 'repositorio_recorrido.dart';
 
@@ -119,7 +119,7 @@ class _DialogoPerfilMovilidadState
 
     try {
       final usuario = await ref
-          .read(repositorioAvisosProvider)
+          .read(repositorioAuthProvider)
           .actualizarPerfilMovilidad(nuevo);
       ref.read(sesionProvider.notifier).actualizarUsuario(usuario);
       if (mounted) Navigator.of(context).pop();

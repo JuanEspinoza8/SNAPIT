@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../compartido/red/cliente_api.dart';
 import '../../compartido/red/error_api.dart';
-import '../../compartido/sesion/usuario.dart';
 import 'modelos.dart';
 
 final repositorioAvisosProvider = Provider<RepositorioAvisos>(
@@ -12,7 +11,8 @@ final repositorioAvisosProvider = Provider<RepositorioAvisos>(
 
 /// Las rutas de avisos (docs/api.md, sección «Avisos al vecino»): el
 /// celular, la lista, el seguimiento, las zonas y las preferencias. Todas
-/// piden sesión. Todo error sale como [ErrorApi].
+/// piden sesión. El interruptor general va con el usuario, en
+/// `RepositorioAuth`. Todo error sale como [ErrorApi].
 class RepositorioAvisos {
   RepositorioAvisos(this._dio);
 
@@ -111,23 +111,6 @@ class RepositorioAvisos {
         PreferenciaCategoria.desdeJson(preferencia as Map<String, dynamic>),
     ];
   });
-
-  Future<Usuario> actualizarNotificaciones(bool habilitadas) =>
-      actualizarYo({'notificacionesHabilitadas': habilitadas});
-
-  Future<Usuario> actualizarPerfilMovilidad(int? perfilId) =>
-      actualizarYo({'perfilMovilidadId': perfilId});
-
-  Future<Usuario> actualizarYo(Map<String, Object?> cambios) =>
-      _pedir(() async {
-        final respuesta = await _dio.patch<Map<String, dynamic>>(
-          '/usuarios/yo',
-          data: cambios,
-        );
-        return Usuario.desdeJson(
-          respuesta.data!['usuario'] as Map<String, dynamic>,
-        );
-      });
 
   Future<T> _pedir<T>(Future<T> Function() pedido) async {
     try {
