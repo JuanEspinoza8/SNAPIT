@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snapit/funcionalidades/avisos/modelos.dart';
+import 'package:snapit/funcionalidades/avisos/pantalla_ajustes_avisos.dart';
 import 'package:snapit/funcionalidades/avisos/pantalla_avisos.dart';
 import 'package:snapit/funcionalidades/avisos/servicio_push.dart';
 import 'package:snapit/funcionalidades/feed/pantalla_incidente.dart';
@@ -346,5 +347,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(servidor.cantidad('/notificaciones'), greaterThan(pedidos));
+  });
+
+  testWidgets('desde la lista se llega a elegir qué avisos recibir', (
+    tester,
+  ) async {
+    final servidor = servidorConAvisos([avisoJson(31)]);
+    final responder = servidor.responder;
+    servidor.responder = (pedido) => switch (pedido.path) {
+      '/categorias' => json(200, {'categorias': <Object>[]}),
+      '/preferencias-notificacion' => json(200, {'preferencias': <Object>[]}),
+      '/zonas-habituales' => json(200, {'zonas': <Object>[]}),
+      _ => responder(pedido),
+    };
+    await abrirApp(tester, servidor);
+
+    await tester.tap(find.byTooltip('Avisos (1 sin leer)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Elegir qué avisos recibir'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PantallaAjustesAvisos), findsOneWidget);
   });
 }

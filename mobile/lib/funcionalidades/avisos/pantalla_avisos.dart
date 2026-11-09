@@ -20,7 +20,16 @@ class PantallaAvisos extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final avisos = ref.watch(avisosProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Avisos')),
+      appBar: AppBar(
+        title: const Text('Avisos'),
+        actions: [
+          IconButton(
+            tooltip: 'Elegir qué avisos recibir',
+            icon: const Icon(Icons.tune),
+            onPressed: () => context.push(Rutas.ajustesAvisos),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: switch (avisos) {
           AsyncData(:final value) => RefreshIndicator(
