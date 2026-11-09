@@ -314,6 +314,7 @@ lib/
 - Al ingresar, y cada vez que FCM renueva el token, la app hace `POST /api/dispositivos` con `{ tokenPush, plataforma: "ANDROID" }`. Al salir, manda el mismo `tokenPush` en `POST /api/auth/salir` para dar de baja el celular. El servidor espera el token de FCM (`getToken`), no el id de instalación.
 - En Android 13 o superior se explica para qué son los avisos y recién ahí se pide el permiso del sistema. El servidor no manda un canal propio: se usa el de por defecto.
 - Los avisos llegan con la app abierta (se muestran dentro de la app), en segundo plano o cerrada (los muestra Android). Tocar uno abre la ficha del incidente; si no es de un incidente, abre la lista. La lista sale de `GET /api/notificaciones` y se marca leída con `POST /api/notificaciones/:id/leida`.
+- Qué avisos recibe cada vecino se elige en «Avisos y zonas» (desde la cuenta o desde la lista): el interruptor general, las categorías y las zonas habituales, con el centro y el radio en el mapa. Ahí también se ve si el teléfono tiene los avisos apagados. El botón «Seguir» está en la ficha del incidente, y el perfil de movilidad por defecto, en la cuenta.
 - Para probar sin el servidor: correr la app en un celular real con la configuración de Firebase y, en la consola, *Messaging › Crear campaña › Enviar mensaje de prueba* con el token del celular. En modo debug el token queda en el log con el nombre `avisos`.
 
 ### Mapa
