@@ -197,7 +197,7 @@ function FilaBandeja({ incidente, desde }: { incidente: IncidenteBandeja; desde:
         </p>
         {manual !== null && (
           <p className="mt-1 text-xs text-texto-secundario">
-            <span className="rounded border border-primario px-1 font-semibold text-primario">Manual</span>{' '}
+            <span className="rounded-md border border-primario px-1 font-semibold text-primario">Manual</span>{' '}
             calculada {numero.format(incidente.puntajePrioridad)}
           </p>
         )}
@@ -225,7 +225,7 @@ function FilaBandeja({ incidente, desde }: { incidente: IncidenteBandeja; desde:
       </td>
       <td className="px-3 py-3 text-right text-texto">{incidente.cantidadReportes}</td>
       <td className="px-3 py-3">
-        <ul className="flex flex-col gap-0.5 text-texto">
+        <ul className="flex flex-col gap-1 text-texto">
           {motivos.map((motivo) => (
             <li key={motivo.factor}>
               {motivo.detalle ?? `${motivo.factor}: ${numero.format(motivo.valor)}`}

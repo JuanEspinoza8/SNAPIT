@@ -1,5 +1,7 @@
 /** Formas que devuelven GET /api/reportes/pendientes y POST /api/reportes/:id/revision (docs/api.md). */
 
+import type { EstadoVerificacion } from '../../compartido/formato/verificacion.js';
+
 // La única decisión posible del operador: verificar o desestimar.
 export type DecisionRevision = 'VERIFICADO' | 'DESESTIMADO';
 
@@ -39,7 +41,7 @@ export interface ReportePendiente {
   propuestaIa: PropuestaIa | null;
 }
 
-export type EstadoVerificacion = 'PENDIENTE_REVISION' | 'VERIFICADO' | 'DESESTIMADO';
+export type { EstadoVerificacion };
 
 /** Un reporte del organismo en cualquier estado (GET /api/reportes). */
 export interface ReporteDelOrganismo extends ReportePendiente {

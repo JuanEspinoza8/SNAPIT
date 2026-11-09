@@ -54,7 +54,7 @@ describe('guardas de rutas', () => {
   it('sin sesión, una sección manda al ingreso', async () => {
     montarRuta(
       '/bandeja',
-      <RutaProtegida rol="OPERADOR">
+      <RutaProtegida roles={['OPERADOR']}>
         <SeccionEnConstruccion titulo="Bandeja" />
       </RutaProtegida>,
     );
@@ -67,7 +67,7 @@ describe('guardas de rutas', () => {
     sembrarSesion('VECINO');
     montarRuta(
       '/bandeja',
-      <RutaProtegida rol="OPERADOR">
+      <RutaProtegida roles={['OPERADOR']}>
         <SeccionEnConstruccion titulo="Bandeja" />
       </RutaProtegida>,
     );
@@ -80,12 +80,29 @@ describe('guardas de rutas', () => {
     sembrarSesion('OPERADOR');
     montarRuta(
       '/bandeja',
-      <RutaProtegida rol="OPERADOR">
+      <RutaProtegida roles={['OPERADOR']}>
         <SeccionEnConstruccion titulo="Bandeja" />
       </RutaProtegida>,
     );
 
     expect(await screen.findByRole('heading', { name: 'Bandeja' })).toBeInTheDocument();
+  });
+
+  it('con varios roles entra cualquiera de ellos; los demás vuelven a su inicio', async () => {
+    const bandeja = (
+      <RutaProtegida roles={['OPERADOR', 'ADMINISTRADOR']}>
+        <SeccionEnConstruccion titulo="Bandeja" />
+      </RutaProtegida>
+    );
+    sembrarSesion('ADMINISTRADOR');
+    const { unmount } = montarRuta('/bandeja', bandeja);
+    expect(await screen.findByRole('heading', { name: 'Bandeja' })).toBeInTheDocument();
+    unmount();
+
+    sembrarSesion('VECINO');
+    montarRuta('/bandeja', bandeja);
+    expect(await screen.findByText('Inicio')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Bandeja' })).not.toBeInTheDocument();
   });
 
   it('un usuario logueado no ve el formulario de registro', async () => {
@@ -124,7 +141,7 @@ describe('guardas de rutas', () => {
     );
     montarRuta(
       '/bandeja',
-      <RutaProtegida rol="OPERADOR">
+      <RutaProtegida roles={['OPERADOR']}>
         <SeccionEnConstruccion titulo="Bandeja" />
       </RutaProtegida>,
     );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
-import { Modal } from '../revision/Modal.js';
+import { Modal } from '../../compartido/componentes/Modal.js';
 import { BotonEnviar, CampoTexto, Confirmacion, ErrorDelServidor } from './AccionesFicha.js';
 import { fechaHora } from './formato.js';
 import type { FichaGestion, ResultadoCierre } from './tipos.js';

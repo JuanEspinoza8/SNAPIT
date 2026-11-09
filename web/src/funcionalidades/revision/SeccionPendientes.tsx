@@ -1,15 +1,17 @@
-import { useState } from 'react';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
+import { ESTADOS_VERIFICACION } from '../../compartido/formato/verificacion.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { estadoDeFila, type Decision, type EstadoFila, type Fila } from './estadoFila.js';
-import type { ProcesoCola, ReportePendiente, Severidad } from './tipos.js';
+import { severidadEnTexto, type ProcesoCola, type ReportePendiente } from './tipos.js';
 import type { useRevision } from './useRevision.js';
 
 interface Props {
   consulta: ReturnType<typeof useRevision>['pendientes'];
+  /** Los pendientes y los que se resolvieron desde esta pantalla, que siguen a la vista hasta limpiarlos. */
+  filas: ReportePendiente[];
   /** El procesamiento lanzado desde esta pantalla: sus pasos se muestran en cada fila. */
   proceso: ProcesoCola | undefined;
   enCurso: boolean;
@@ -29,16 +31,7 @@ interface Props {
  * las que se resuelven (por la IA o a mano) se quedan en la lista hasta «Limpiar resueltos».
  */
 export function SeccionPendientes(props: Props) {
-  const { consulta, proceso, enCurso, decisiones } = props;
-  // Las filas se acumulan: un reporte que deja de estar pendiente sigue a la vista con su estado final.
-  // Se ajustan al llegar una lista nueva, durante el render (el patrón de React para derivar de una prop).
-  const [filas, setFilas] = useState<ReportePendiente[]>([]);
-  const [listaVista, setListaVista] = useState<ReportePendiente[] | undefined>(undefined);
-  if (consulta.data !== listaVista) {
-    setListaVista(consulta.data);
-    if (consulta.data) setFilas(sumar(filas, consulta.data));
-  }
-
+  const { consulta, filas, proceso, enCurso, decisiones } = props;
   const pendientesAhora = new Set(consulta.data?.map((reporte) => reporte.id) ?? []);
   const estados = filas.map((reporte) => ({
     reporte,
@@ -52,25 +45,21 @@ export function SeccionPendientes(props: Props) {
   const porDecidir = estados.filter(({ fila }) => !fila.resuelta).length;
   const resueltas = estados.length - porDecidir;
 
-  function limpiar() {
-    setFilas(consulta.data ?? []);
-    props.alLimpiar();
-  }
-
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-borde bg-superficie p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-semibold text-texto">Pendientes de aprobación</h2>
           <p className="text-xs text-texto-secundario">
-            Revisalos uno por uno, o procesalos con la IA: publica los que coinciden con lo que eligió el
-            vecino y deja el resto para revisión manual.
+            Revisalos uno por uno, o procesalos con la IA: publica solo los que coinciden con lo que eligió el
+            vecino y además tienen la confianza que pide la verificación. Al resto le deja su propuesta y el
+            motivo, para que lo decidas vos.
           </p>
         </div>
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={limpiar}
+            onClick={props.alLimpiar}
             disabled={enCurso || resueltas === 0}
             className="rounded-md border border-borde px-3 py-2 text-sm font-semibold text-texto hover:bg-superficie-alterna disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -122,10 +111,7 @@ function BarraProgreso({ hechos, total }: { hechos: number; total: number }) {
   return (
     <div className="flex items-center gap-3 text-xs text-texto-secundario">
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-superficie-alterna">
-        <div
-          className="h-full rounded-full bg-estado-verificado transition-all"
-          style={{ width: `${porcentaje}%` }}
-        />
+        <div className="h-full rounded-full bg-texto-secundario" style={{ width: `${porcentaje}%` }} />
       </div>
       <span>
         La IA revisó {hechos} de {total}
@@ -161,18 +147,18 @@ function FilaPendiente({
 
   return (
     <li
-      className={`flex gap-3 rounded-md border p-2 transition-colors ${
-        enProceso ? 'border-estado-verificado' : 'border-borde'
-      } ${fila.resuelta ? 'bg-superficie-alterna' : ''}`}
+      className={`flex gap-3 rounded-md border p-2 ${enProceso ? 'border-texto-secundario' : 'border-borde'} ${
+        fila.resuelta ? 'bg-superficie-alterna' : ''
+      }`}
     >
       {foto ? (
         <FotoConSesion
           fotoId={foto.id}
-          className={`h-20 w-28 shrink-0 rounded object-cover ${fila.resuelta ? 'opacity-70' : ''}`}
-          siFalla={<span className="h-20 w-28 shrink-0 rounded bg-superficie-alterna" />}
+          className={`h-20 w-28 shrink-0 rounded-md object-cover ${fila.resuelta ? 'opacity-70' : ''}`}
+          siFalla={<span className="h-20 w-28 shrink-0 rounded-md bg-superficie-alterna" />}
         />
       ) : (
-        <span className="h-20 w-28 shrink-0 rounded bg-superficie-alterna" />
+        <span className="h-20 w-28 shrink-0 rounded-md bg-superficie-alterna" />
       )}
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -180,7 +166,7 @@ function FilaPendiente({
           #{reporte.id} · {reporte.categoria.nombre}
         </p>
         <p className="text-xs text-texto-secundario">
-          {GRAVEDADES[reporte.severidadDeclarada]} · confianza {reporte.nivelConfianza} ·{' '}
+          {severidadEnTexto[reporte.severidadDeclarada]} · confianza {reporte.nivelConfianza} ·{' '}
           {reporte.direccion ?? 'dirección pendiente'}
         </p>
         {reporte.descripcion && <p className="line-clamp-1 text-xs text-texto">{reporte.descripcion}</p>}
@@ -189,11 +175,9 @@ function FilaPendiente({
             <span className="text-texto-secundario">IA: </span>
             <span className="text-texto">
               {nombrePropuesta ?? '—'}
-              {propuesta.severidad ? ` · ${GRAVEDADES[propuesta.severidad]}` : ''}
+              {propuesta.severidad ? ` · ${severidadEnTexto[propuesta.severidad]}` : ''}
             </span>{' '}
-            <span className={`font-semibold ${coincide ? 'text-estado-resuelto' : 'text-estado-registrado'}`}>
-              {coincide ? '✓ coincide' : '≠ no coincide'}
-            </span>
+            <span className="font-semibold text-texto">{coincide ? 'Coincide' : 'No coincide'}</span>
             {propuesta.explicacion && (
               <span className="block truncate text-texto-secundario" title={propuesta.explicacion}>
                 {propuesta.explicacion}
@@ -201,8 +185,9 @@ function FilaPendiente({
             )}
           </p>
         )}
-        {fila.estado === 'ERROR' && fila.detalle && (
-          <p className="truncate text-xs text-peligro" title={fila.detalle}>
+        {/* Por qué la IA no lo publicó: que coincida no alcanza si la confianza no llega al umbral. */}
+        {(fila.estado === 'REVISION_MANUAL' || fila.estado === 'ERROR') && fila.detalle && (
+          <p className={`text-xs ${fila.estado === 'ERROR' ? 'text-peligro' : 'text-texto-secundario'}`}>
             {fila.detalle}
           </p>
         )}
@@ -219,7 +204,7 @@ function FilaPendiente({
             onClick={alRevisar}
             className="text-sm font-semibold text-primario hover:opacity-80"
           >
-            Revisar →
+            Revisar
           </button>
         )}
         {(fila.estado === 'PUBLICADO_IA' || fila.estado === 'APROBADO') && fila.incidenteId !== null && (
@@ -236,30 +221,28 @@ function FilaPendiente({
   );
 }
 
-const ETIQUETAS: Record<EstadoFila, { texto: string; clase: string }> = {
-  PENDIENTE: { texto: 'Pendiente', clase: 'bg-superficie-alterna text-texto-secundario' },
-  EN_PROCESO: { texto: 'Evaluando con IA…', clase: 'bg-estado-verificado text-sobre-estado animate-pulse' },
-  CLASIFICADO: { texto: 'Clasificado', clase: 'bg-estado-verificado text-sobre-estado' },
-  PUBLICADO_IA: { texto: 'Publicado por la IA', clase: 'bg-estado-resuelto text-sobre-estado' },
-  REVISION_MANUAL: { texto: 'Para revisión manual', clase: 'bg-estado-registrado text-sobre-estado' },
-  ERROR: { texto: 'Error de la IA', clase: 'bg-peligro text-sobre-primario' },
-  APROBADO: { texto: 'Aprobado a mano', clase: 'bg-estado-resuelto text-sobre-estado' },
-  DESESTIMADO: { texto: 'Desestimado', clase: 'bg-estado-desestimado text-sobre-estado' },
-  RESUELTO: { texto: 'Resuelto', clase: 'bg-estado-desestimado text-sobre-estado' },
+// Con colores neutros: el texto dice en qué está (decisión del 04/11). Los colores de los estados quedan para
+// los incidentes, en el mapa y la bandeja.
+const ETIQUETAS: Record<EstadoFila, string> = {
+  PENDIENTE: ESTADOS_VERIFICACION.PENDIENTE_REVISION,
+  EN_PROCESO: 'Evaluando con IA…',
+  CLASIFICADO: 'Clasificado',
+  PUBLICADO_IA: 'Publicado por la IA',
+  REVISION_MANUAL: 'Para revisión manual',
+  ERROR: 'Error de la IA',
+  APROBADO: 'Aprobado a mano',
+  DESESTIMADO: ESTADOS_VERIFICACION.DESESTIMADO,
+  RESUELTO: 'Resuelto',
 };
 
 function Etiqueta({ estado }: { estado: EstadoFila }) {
-  const { texto, clase } = ETIQUETAS[estado];
+  const clase =
+    estado === 'ERROR'
+      ? 'border-peligro bg-peligro text-sobre-primario'
+      : 'border-borde bg-superficie-alterna text-texto';
   return (
-    <span className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold ${clase}`}>{texto}</span>
+    <span className={`whitespace-nowrap rounded-md border px-2 py-1 text-xs font-semibold ${clase}`}>
+      {ETIQUETAS[estado]}
+    </span>
   );
-}
-
-const GRAVEDADES: Record<Severidad, string> = { LEVE: 'Leve', MODERADA: 'Moderada', GRAVE: 'Grave' };
-
-/** Las filas que ya estaban, actualizadas con la lista nueva y con los pendientes que llegaron, en orden. */
-function sumar(actuales: ReportePendiente[], nuevos: ReportePendiente[]) {
-  const porId = new Map(actuales.map((fila) => [fila.id, fila]));
-  for (const reporte of nuevos) porId.set(reporte.id, reporte);
-  return [...porId.values()].sort((a, b) => a.registradoEn.localeCompare(b.registradoEn) || a.id - b.id);
 }

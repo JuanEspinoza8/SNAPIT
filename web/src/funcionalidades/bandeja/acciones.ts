@@ -1,5 +1,5 @@
 import type { Usuario } from '../../compartido/sesion/usuario.js';
-import type { EstadoIncidente, FichaGestion } from './tipos.js';
+import type { EstadoIncidente, FichaGestion, Referencia } from './tipos.js';
 
 export interface AccionesValidas {
   derivar: boolean;
@@ -13,7 +13,7 @@ export interface AccionesValidas {
 
 type DatosFicha = Pick<
   FichaGestion,
-  'estado' | 'incidentePrincipalId' | 'caducadoEn' | 'vigenteHasta' | 'prioridad'
+  'estado' | 'area' | 'incidentePrincipalId' | 'caducadoEn' | 'vigenteHasta' | 'prioridad'
 >;
 
 const CERRADOS: EstadoIncidente[] = ['RESUELTO', 'DESESTIMADO'];
@@ -24,16 +24,25 @@ export function estaCaducado(ficha: Pick<FichaGestion, 'caducadoEn' | 'vigenteHa
   return ficha.caducadoEn !== null || (ficha.vigenteHasta !== null && new Date(ficha.vigenteHasta) <= ahora);
 }
 
+/** A qué áreas se puede derivar: un derivado ya está en la suya, así que re-derivarlo es elegir otra. */
+export function areasParaDerivar(ficha: Pick<FichaGestion, 'estado' | 'area'>, areas: Referencia[]) {
+  return areas.filter((area) => ficha.estado !== 'DERIVADO' || area.id !== ficha.area.id);
+}
+
 /**
  * Qué puede hacer el operador con el incidente, con las mismas reglas que el servidor (docs/api.md y
  * «Transiciones de estado del incidente» en docs/calculos.md). Así la ficha solo ofrece lo que se va a aceptar.
+ * `areas` son las del organismo: sin otra área a la que mandarlo, derivar no se ofrece.
  */
-export function accionesValidas(ficha: DatosFicha, ahora = new Date()): AccionesValidas {
+export function accionesValidas(ficha: DatosFicha, areas: Referencia[], ahora = new Date()): AccionesValidas {
   // Unido a otro o caducado: se gestiona el principal, o ya no hay nada que gestionar.
   const gestionable = ficha.incidentePrincipalId === null && !estaCaducado(ficha, ahora);
   const abierto = gestionable && !CERRADOS.includes(ficha.estado);
   return {
-    derivar: gestionable && (ficha.estado === 'VERIFICADO' || ficha.estado === 'DERIVADO'),
+    derivar:
+      gestionable &&
+      (ficha.estado === 'VERIFICADO' || ficha.estado === 'DERIVADO') &&
+      areasParaDerivar(ficha, areas).length > 0,
     pasarAEjecucion: gestionable && ficha.estado === 'DERIVADO',
     // El operador puede desestimar desde cualquier estado abierto, también en revisión.
     desestimar: abierto,

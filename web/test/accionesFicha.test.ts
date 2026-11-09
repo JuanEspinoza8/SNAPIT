@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   accionesValidas,
+  areasParaDerivar,
   estaCaducado,
   motivoSinGestion,
   puedeCerrar,
@@ -13,12 +14,15 @@ import type {
 } from '../src/funcionalidades/bandeja/tipos.js';
 
 const AHORA = new Date('2026-10-27T12:00:00Z');
+const BACHEO = { id: 1, nombre: 'Bacheo' };
+const AREAS = [BACHEO, { id: 2, nombre: 'Veredas' }];
 
 type Datos = Parameters<typeof accionesValidas>[0];
 
 function ficha(estado: EstadoIncidente, cambios: Partial<Datos> = {}): Datos {
   return {
     estado,
+    area: BACHEO,
     incidentePrincipalId: null,
     caducadoEn: null,
     vigenteHasta: null,
@@ -40,7 +44,7 @@ const conAjuste = (estado: EstadoIncidente): Datos =>
 
 /** Los nombres de las acciones que se ofrecen, sin comentar (que siempre está). */
 const ofrecidas = (datos: Datos, ahora = AHORA) =>
-  Object.entries(accionesValidas(datos, ahora))
+  Object.entries(accionesValidas(datos, AREAS, ahora))
     .filter(([nombre, valida]) => valida && nombre !== 'comentar')
     .map(([nombre]) => nombre);
 
@@ -74,15 +78,36 @@ describe('acciones válidas según el estado del incidente', () => {
 
   it.each<EstadoIncidente>(['RESUELTO', 'DESESTIMADO'])('%s es final: solo se puede comentar', (estado) => {
     expect(ofrecidas(conAjuste(estado))).toEqual([]);
-    expect(accionesValidas(ficha(estado), AHORA).comentar).toBe(true);
+    expect(accionesValidas(ficha(estado), AREAS, AHORA).comentar).toBe(true);
   });
 
   it('quitar el ajuste se ofrece solo si hay uno, aunque el incidente haya vuelto a en revisión', () => {
-    expect(accionesValidas(ficha('VERIFICADO'), AHORA).quitarPrioridad).toBe(false);
-    expect(accionesValidas(conAjuste('VERIFICADO'), AHORA).quitarPrioridad).toBe(true);
-    expect(accionesValidas(conAjuste('REGISTRADO'), AHORA)).toMatchObject({
+    expect(accionesValidas(ficha('VERIFICADO'), AREAS, AHORA).quitarPrioridad).toBe(false);
+    expect(accionesValidas(conAjuste('VERIFICADO'), AREAS, AHORA).quitarPrioridad).toBe(true);
+    expect(accionesValidas(conAjuste('REGISTRADO'), AREAS, AHORA)).toMatchObject({
       quitarPrioridad: true,
       fijarPrioridad: false,
+    });
+  });
+});
+
+describe('derivar necesita un área a la cual mandarlo', () => {
+  it('un derivado no se ofrece a su misma área: con una sola en el organismo, no hay a dónde re-derivarlo', () => {
+    expect(areasParaDerivar(ficha('DERIVADO'), AREAS)).toEqual([{ id: 2, nombre: 'Veredas' }]);
+    expect(accionesValidas(ficha('DERIVADO'), [BACHEO], AHORA).derivar).toBe(false);
+    expect(accionesValidas(ficha('DERIVADO'), AREAS, AHORA).derivar).toBe(true);
+  });
+
+  it('un verificado todavía no está en ninguna: con una sola área ya se puede derivar', () => {
+    expect(areasParaDerivar(ficha('VERIFICADO'), [BACHEO])).toEqual([BACHEO]);
+    expect(accionesValidas(ficha('VERIFICADO'), [BACHEO], AHORA).derivar).toBe(true);
+  });
+
+  it('sin las áreas (no llegaron las categorías), no se ofrece derivar', () => {
+    expect(accionesValidas(ficha('VERIFICADO'), [], AHORA).derivar).toBe(false);
+    expect(accionesValidas(ficha('DERIVADO'), [], AHORA)).toMatchObject({
+      derivar: false,
+      pasarAEjecucion: true,
     });
   });
 });
@@ -91,7 +116,7 @@ describe('incidentes que no se gestionan', () => {
   it('unido a otro: solo se comenta, se gestiona el principal', () => {
     const unido = { ...conAjuste('DERIVADO'), incidentePrincipalId: 9 };
     expect(ofrecidas(unido)).toEqual([]);
-    expect(accionesValidas(unido, AHORA).comentar).toBe(true);
+    expect(accionesValidas(unido, AREAS, AHORA).comentar).toBe(true);
     expect(motivoSinGestion(unido, AHORA)).toBe('Está unido al incidente #9: se gestiona desde ese.');
   });
 

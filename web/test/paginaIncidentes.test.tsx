@@ -10,7 +10,13 @@ import { renderRuta } from './apoyo.js';
 function reporte(
   id: number,
   incidente: { id: number; propioId?: number },
-  datos: { lat?: number; categoria?: string; registradoEn?: string; estado?: string } = {},
+  datos: {
+    lat?: number;
+    categoria?: string;
+    registradoEn?: string;
+    estado?: string;
+    verificacion?: ReporteDelOrganismo['estadoVerificacion'];
+  } = {},
 ): ReporteDelOrganismo {
   return {
     id,
@@ -33,7 +39,7 @@ function reporte(
     },
     vecino: { reputacion: 50, reportesConfirmados: 0, reportesDesestimados: 0 },
     propuestaIa: null,
-    estadoVerificacion: 'VERIFICADO',
+    estadoVerificacion: datos.verificacion ?? 'VERIFICADO',
     publicadoPorIaEn: null,
   };
 }
@@ -106,6 +112,45 @@ describe('corregir la agrupación de incidentes (F05)', () => {
     expect(within(principal).getByText('#20')).toBeInTheDocument();
     expect(within(principal).getByText('Reporte #3 · Grave')).toBeInTheDocument();
     expect(screen.queryByText(/^#20 ·/)).not.toBeInTheDocument();
+  });
+
+  it('los estados se leen con el mismo nombre que en la bandeja y la ficha', async () => {
+    servidor.use(
+      http.get('*/api/reportes', () =>
+        HttpResponse.json({
+          reportes: [
+            reporte(1, { id: 10 }, { estado: 'EN_EJECUCION' }),
+            reporte(2, { id: 10 }, { estado: 'EN_EJECUCION', verificacion: 'PENDIENTE_REVISION' }),
+          ],
+        }),
+      ),
+    );
+    renderRuta('/incidentes', <PaginaIncidentes />);
+
+    const incidente = await tarjeta(10);
+    expect(within(incidente).getByText(/· En ejecución ·/)).toBeInTheDocument();
+    expect(within(incidente).getByText(/· Verificado$/)).toBeInTheDocument();
+    expect(within(incidente).getByText(/· Pendiente de revisión$/)).toBeInTheDocument();
+  });
+
+  it('no ofrece separar si al incidente no le queda otro reporte propio válido (D6)', async () => {
+    // El 10 tiene un reporte válido y uno desestimado, y el 20 unido: ni el desestimado ni los del unido cuentan.
+    servidor.use(
+      http.get('*/api/reportes', () =>
+        HttpResponse.json({
+          reportes: [
+            reporte(1, { id: 10 }),
+            reporte(2, { id: 10 }, { verificacion: 'DESESTIMADO' }),
+            reporte(3, { id: 10, propioId: 20 }),
+          ],
+        }),
+      ),
+    );
+    renderRuta('/incidentes', <PaginaIncidentes />);
+
+    const principal = await tarjeta(10);
+    expect(within(principal).getByText('Reporte #1 · Grave')).toBeInTheDocument();
+    expect(within(principal).queryByRole('button', { name: 'Separar' })).not.toBeInTheDocument();
   });
 
   it('separa un reporte con su comentario', async () => {

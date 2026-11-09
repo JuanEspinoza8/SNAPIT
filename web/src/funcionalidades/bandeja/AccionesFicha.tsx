@@ -3,7 +3,8 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { CampoSelecto } from '../../compartido/componentes/CampoSelecto.js';
 import type { Categoria } from '../../compartido/catalogo/categorias.js';
 import { aErrorApi } from '../../compartido/red/error.js';
-import { Modal } from '../revision/Modal.js';
+import { Modal } from '../../compartido/componentes/Modal.js';
+import { areasParaDerivar } from './acciones.js';
 import { numero } from './formato.js';
 import type { FichaGestion, Referencia } from './tipos.js';
 import type { useAccionesFicha } from './useGestion.js';
@@ -20,6 +21,10 @@ interface PropsDialogo<M> {
 const MAX_TEXTO = 1000;
 const MAX_PRIORIDAD = 9999.99;
 
+// El borde de un campo con error ya es rojo: al enfocarlo se engrosa, para que el foco se siga viendo.
+export const CON_ERROR = 'border-peligro focus:ring-2 focus:ring-peligro';
+export const SIN_ERROR = 'border-borde focus:border-primario';
+
 export function DialogoDerivar({
   ficha,
   areas,
@@ -27,8 +32,8 @@ export function DialogoDerivar({
   alTerminar,
   alCerrar,
 }: PropsDialogo<Acciones['derivar']> & { areas: Referencia[] }) {
-  // Derivado ya está en su área: re-derivar es elegir otra. Verificado todavía no se derivó a ninguna.
-  const opciones = areas.filter((area) => ficha.estado !== 'DERIVADO' || area.id !== ficha.area.id);
+  // Verificado todavía no se derivó a ninguna área; derivado ya está en la suya y se elige otra.
+  const opciones = areasParaDerivar(ficha, areas);
   const [areaId, setAreaId] = useState('');
   const [comentario, setComentario] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -294,7 +299,7 @@ export function DialogoPrioridad({
             }}
             onBlur={() => setErrores((previos) => ({ ...previos, valor: errorValor() }))}
             className={`w-full rounded-md border bg-superficie px-3 py-2 text-texto focus:outline-none ${
-              errores.valor ? 'border-peligro' : 'border-borde focus:border-primario'
+              errores.valor ? CON_ERROR : SIN_ERROR
             }`}
           />
           {errores.valor && <p className="text-sm text-peligro">{errores.valor}</p>}
@@ -363,7 +368,7 @@ export function CampoTexto(props: {
         onChange={(evento) => props.alCambiar(evento.target.value)}
         onBlur={props.alSalir}
         className={`w-full rounded-md border bg-superficie px-3 py-2 text-sm text-texto focus:outline-none disabled:opacity-60 ${
-          props.error ? 'border-peligro' : 'border-borde focus:border-primario'
+          props.error ? CON_ERROR : SIN_ERROR
         }`}
       />
       {props.error && <p className="text-sm text-peligro">{props.error}</p>}
@@ -409,7 +414,9 @@ export function Confirmacion(props: {
     <div
       role="group"
       aria-label="Confirmar"
-      className="flex flex-col gap-2 rounded-md border border-peligro bg-superficie-alterna p-3"
+      className={`flex flex-col gap-2 rounded-md border bg-superficie-alterna p-3 ${
+        props.peligrosa ? 'border-peligro' : 'border-borde'
+      }`}
     >
       <p className="text-sm font-semibold text-texto">{props.pregunta}</p>
       <div className="flex justify-end gap-2">

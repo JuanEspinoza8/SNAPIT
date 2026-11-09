@@ -71,13 +71,16 @@ function Ficha({ id }: { id: number }) {
 
 function Contenido({ ficha }: { ficha: FichaGestion }) {
   const acciones = useAccionesFicha(ficha.id);
+  const { usuario } = useSesion();
   const { areas, categorias } = useAreas();
   const [dialogo, setDialogo] = useState<Dialogo>(null);
-  const { usuario } = useSesion();
-  const validas = accionesValidas(ficha);
+  const validas = accionesValidas(ficha, areas);
   const sinGestion = motivoSinGestion(ficha);
   const cerrable = puedeCerrar(ficha);
   const confirmable = puedeConfirmarCierre(ficha, usuario);
+  // Derivar y cambiar la categoría eligen de las áreas y las categorías: sin ellas, no se ofrecen.
+  const conCatalogo = categorias.isSuccess;
+  const errorCatalogo = categorias.isError ? aErrorApi(categorias.error) : null;
 
   const abrir = (cual: Exclude<Dialogo, null>) => {
     // Un error de la vez anterior no tiene que aparecer al volver a abrir.
@@ -141,7 +144,7 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
           <BotonAccion alElegir={() => abrir('ejecucion')}>Pasar a ejecución…</BotonAccion>
         )}
         {cerrable && <BotonAccion alElegir={() => abrir('cerrar')}>Cerrar con foto…</BotonAccion>}
-        {validas.cambiarCategoria && (
+        {validas.cambiarCategoria && conCatalogo && (
           <BotonAccion alElegir={() => abrir('categoria')}>Cambiar la categoría…</BotonAccion>
         )}
         {validas.desestimar && (
@@ -149,11 +152,25 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
             Desestimar…
           </BotonAccion>
         )}
-        {/* Unir y separar quedaron en su propia pestaña (#69): la ficha no los repite. */}
-        <Link to="/incidentes" className="px-3 py-2 text-sm font-semibold text-primario hover:underline">
-          Unir o separar en Incidentes
-        </Link>
+        {/* Unir y separar quedaron en su propia pestaña (#69), que es solo del operador: la ficha no los repite. */}
+        {usuario?.rol === 'OPERADOR' && (
+          <Link to="/incidentes" className="px-3 py-2 text-sm font-semibold text-primario hover:underline">
+            Unir o separar en Incidentes
+          </Link>
+        )}
       </div>
+      {errorCatalogo && validas.cambiarCategoria && (
+        <AvisoError
+          error={
+            new ErrorApi(
+              `${errorCatalogo.mensaje} Sin las áreas y las categorías no se puede derivar ni cambiar la categoría.`,
+              errorCatalogo.codigo,
+            )
+          }
+          alReintentar={() => void categorias.refetch()}
+          reintentando={categorias.isFetching}
+        />
+      )}
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <ReportesFicha incidenteId={ficha.id} reportes={ficha.reportes} />

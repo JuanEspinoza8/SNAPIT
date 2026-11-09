@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
+import { listarCategoriasActivas } from '../src/modulos/catalogo/repositorio.js';
 import { clasificarImagen, type Clasificacion } from '../src/modulos/ia/clasificarFoto.js';
 import { esperarProceso } from '../src/modulos/ia/cola.js';
 import { IaNoDisponible } from '../src/modulos/ia/servicio.js';
@@ -24,6 +25,12 @@ vi.mock('../src/modulos/verificacion/repositorio.js', async (original) => ({
   ...(await original<typeof import('../src/modulos/verificacion/repositorio.js')>()),
   modoDemostracion: vi.fn(async () => false),
 }));
+
+// Para simular que la base falla justo al arrancar el procesamiento.
+vi.mock('../src/modulos/catalogo/repositorio.js', async (original) => {
+  const real = await original<typeof import('../src/modulos/catalogo/repositorio.js')>();
+  return { ...real, listarCategoriasActivas: vi.fn(real.listarCategoriasActivas) };
+});
 
 const clasificar = vi.mocked(clasificarImagen);
 
@@ -274,6 +281,79 @@ describe('POST /api/ia/procesar-cola', () => {
     expect(log.resumen.errores).toBe(0);
     const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
     expect(guardado.estadoVerificacion).toBe('DESESTIMADO');
+  });
+
+  it('si un operador lo revisó antes de que le llegue el turno, no se consulta a la IA', async () => {
+    const primero = await reportar('GRAVE', 1);
+    const segundo = await reportar('GRAVE', 2);
+    clasificar.mockImplementation(async () => {
+      await prisma.reporte.update({ where: { id: segundo.id }, data: { estadoVerificacion: 'VERIFICADO' } });
+      return respuesta(categoria.id, 'LEVE');
+    });
+
+    const log = await procesarYEsperar();
+
+    expect(clasificar).toHaveBeenCalledOnce();
+    expect(estadosDe(log, primero.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
+    expect(estadosDe(log, segundo.id)).toEqual(['REVISION_MANUAL']);
+    expect(log.eventos.at(-1).detalle).toBe('Un operador ya lo revisó: no se consulta a la IA');
+    expect(log.resumen.costoUsd).toBeGreaterThan(0);
+  });
+
+  it('los pendientes de un incidente cerrado no entran en la cola', async () => {
+    const reporte = await reportar('GRAVE', 1);
+    await prisma.incidente.update({ where: { id: reporte.incidenteId }, data: { estado: 'DESESTIMADO' } });
+
+    const res = await procesar();
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.codigo).toBe('COLA_VACIA');
+  });
+
+  it('si el incidente se cierra mientras la cola corre, no clasifica ni publica sus pendientes', async () => {
+    const antes = await reportar('GRAVE', 1);
+    const despues = await reportar('GRAVE', 2);
+    clasificar.mockImplementation(async () => {
+      // Al clasificar el primero se cierran los dos: el primero ya está clasificado y el segundo, en espera.
+      await prisma.incidente.updateMany({
+        where: { id: { in: [antes.incidenteId, despues.incidenteId] } },
+        data: { estado: 'DESESTIMADO' },
+      });
+      return respuesta(categoria.id, 'GRAVE');
+    });
+
+    const log = await procesarYEsperar();
+
+    expect(clasificar).toHaveBeenCalledOnce();
+    expect(estadosDe(log, antes.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
+    expect(estadosDe(log, despues.id)).toEqual(['REVISION_MANUAL']);
+    const detalles = log.eventos
+      .filter((e: { estado: string }) => e.estado === 'REVISION_MANUAL')
+      .map((e: { detalle: string }) => e.detalle);
+    expect(detalles).toEqual([
+      'El incidente se cerró mientras la IA lo procesaba: no se publica',
+      'El incidente ya está cerrado: no se consulta a la IA',
+    ]);
+    const guardados = await prisma.reporte.findMany({
+      where: { id: { in: [antes.id, despues.id] } },
+      select: { estadoVerificacion: true },
+    });
+    expect(guardados).toEqual([
+      { estadoVerificacion: 'PENDIENTE_REVISION' },
+      { estadoVerificacion: 'PENDIENTE_REVISION' },
+    ]);
+  });
+
+  it('si la base falla al arrancar, deja un error por reporte y el servidor sigue', async () => {
+    const reporte = await reportar('GRAVE', 1);
+    vi.mocked(listarCategoriasActivas).mockRejectedValueOnce(new Error('Se cortó la conexión'));
+
+    const log = await procesarYEsperar();
+
+    expect(clasificar).not.toHaveBeenCalled();
+    expect(estadosDe(log, reporte.id)).toEqual(['ERROR']);
+    expect(log.eventos[0].detalle).toBe('No se pudo arrancar el procesamiento: queda en la cola manual');
+    expect(log.enCurso).toBe(false);
   });
 
   it('el resumen cuenta cómo terminó cada reporte, el tiempo medio y el costo', async () => {

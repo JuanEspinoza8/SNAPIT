@@ -87,6 +87,26 @@ describe('rutas de la aplicación', () => {
     expect(screen.queryByRole('heading', { name: 'Alta de operadores' })).not.toBeInTheDocument();
   });
 
+  it('un administrador abre la bandeja, como deja el servidor', async () => {
+    servidor.use(
+      http.get('*/api/bandeja', () => HttpResponse.json({ incidentes: [] })),
+      http.get('*/api/categorias', () => HttpResponse.json({ categorias: [] })),
+    );
+    abrir('/bandeja', 'ADMINISTRADOR');
+
+    expect(await screen.findByRole('heading', { name: 'Bandeja' })).toBeInTheDocument();
+  });
+
+  it('la revisión sigue siendo solo del operador: el administrador vuelve a la administración', async () => {
+    servidor.use(
+      http.get('*/api/admin/organismos', () => HttpResponse.json({ organismos: [] })),
+      http.get('*/api/admin/usuarios', () => HttpResponse.json({ usuarios: [] })),
+    );
+    abrir('/revision', 'ADMINISTRADOR');
+
+    expect(await screen.findByRole('heading', { name: 'Alta de operadores' })).toBeInTheDocument();
+  });
+
   it('un administrador abre la administración', async () => {
     servidor.use(
       http.get('*/api/admin/organismos', () => HttpResponse.json({ organismos: [] })),

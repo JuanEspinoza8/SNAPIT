@@ -267,7 +267,10 @@ describe('ficha del incidente para el operador', () => {
 
     const desglose = screen.getByRole('list', { name: 'Desglose de la prioridad' });
     expect(within(desglose).getByText('Gravedad grave en Pozo en la calzada: +60')).toBeInTheDocument();
-    expect(within(desglose).getByText('+15')).toBeInTheDocument();
+    expect(within(desglose).getByText('A 80 m de Escuela N° 123 (escuela): +15')).toBeInTheDocument();
+    // El detalle ya termina con el número: no se repite en otra columna.
+    expect(within(desglose).queryByText('+15')).not.toBeInTheDocument();
+    expect(within(desglose).queryByText('+60')).not.toBeInTheDocument();
     expect(screen.getByText('94,49')).toBeInTheDocument();
 
     expect(within(bitacora()).getByText('Sistema', { exact: false })).toBeInTheDocument();
@@ -278,7 +281,40 @@ describe('ficha del incidente para el operador', () => {
   it('verificado: ofrece derivar, cambiar la categoría, desestimar y fijar la prioridad', async () => {
     montar();
     await titulo();
-    expect(acciones()).toEqual(['Derivar…', 'Cambiar la categoría…', 'Desestimar…', 'Fijar a mano…']);
+    // Derivar y cambiar la categoría aparecen cuando llegan las áreas y las categorías.
+    await waitFor(() =>
+      expect(acciones()).toEqual(['Derivar…', 'Cambiar la categoría…', 'Desestimar…', 'Fijar a mano…']),
+    );
+  });
+
+  it('al operador le ofrece ir a Incidentes para unir o separar', async () => {
+    montar();
+
+    expect(await screen.findByRole('link', { name: 'Unir o separar en Incidentes' })).toHaveAttribute(
+      'href',
+      '/incidentes',
+    );
+  });
+
+  it('al administrador no, porque Incidentes es solo del operador', async () => {
+    servidor.use(
+      http.get('*/api/auth/yo', () =>
+        HttpResponse.json({
+          usuario: {
+            ...operador,
+            email: 'admin@ejemplo.com',
+            rol: 'ADMINISTRADOR',
+            organismoId: 1,
+            areaId: null,
+          },
+        }),
+      ),
+    );
+    montar();
+    await titulo();
+    await waitFor(() => expect(acciones()).toContain('Desestimar…'));
+
+    expect(screen.queryByRole('link', { name: 'Unir o separar en Incidentes' })).not.toBeInTheDocument();
   });
 
   it('derivado y con ajuste: suma pasar a ejecución y quitar el ajuste', async () => {
@@ -293,14 +329,61 @@ describe('ficha del incidente para el operador', () => {
     });
     montar();
     await titulo();
-    expect(acciones()).toEqual([
-      'Derivar…',
-      'Pasar a ejecución…',
-      'Cambiar la categoría…',
-      'Desestimar…',
-      'Quitar el ajuste',
-    ]);
+    await waitFor(() =>
+      expect(acciones()).toEqual([
+        'Derivar…',
+        'Pasar a ejecución…',
+        'Cambiar la categoría…',
+        'Desestimar…',
+        'Quitar el ajuste',
+      ]),
+    );
     expect(screen.getByRole('button', { name: 'Cambiar el ajuste…' })).toBeInTheDocument();
+  });
+
+  it('derivado en un organismo con una sola área: no ofrece derivar, porque no hay otra', async () => {
+    servidor.use(http.get('*/api/categorias', () => HttpResponse.json({ categorias: [categorias[0]] })));
+    ficha = fichaBase({ estado: 'DERIVADO' });
+    montar();
+    await titulo();
+
+    await waitFor(() =>
+      expect(acciones()).toEqual([
+        'Pasar a ejecución…',
+        'Cambiar la categoría…',
+        'Desestimar…',
+        'Fijar a mano…',
+      ]),
+    );
+  });
+
+  it('si no llegan las áreas y las categorías, lo dice y deja reintentar', async () => {
+    servidor.use(
+      http.get(
+        '*/api/categorias',
+        () =>
+          HttpResponse.json(
+            { error: { codigo: 'ERROR_INTERNO', mensaje: 'Falló el servidor.' } },
+            { status: 500 },
+          ),
+        { once: true },
+      ),
+    );
+    const usuario = userEvent.setup();
+    montar();
+    await titulo();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Falló el servidor. Sin las áreas y las categorías no se puede derivar ni cambiar la categoría.',
+    );
+    expect(acciones()).toEqual(['Desestimar…', 'Fijar a mano…']);
+
+    await usuario.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+    await waitFor(() =>
+      expect(acciones()).toEqual(['Derivar…', 'Cambiar la categoría…', 'Desestimar…', 'Fijar a mano…']),
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('unido a otro: no ofrece acciones, explica por qué y lleva al principal', async () => {
@@ -400,7 +483,7 @@ describe('ficha del incidente para el operador', () => {
     montar();
     await titulo();
 
-    await usuario.click(screen.getByRole('button', { name: 'Derivar…' }));
+    await usuario.click(await screen.findByRole('button', { name: 'Derivar…' }));
     let dialogo = screen.getByRole('dialog');
     await usuario.selectOptions(within(dialogo).getByLabelText('Área'), 'Bacheo');
     await usuario.click(within(dialogo).getByRole('button', { name: 'Derivar' }));
@@ -455,7 +538,7 @@ describe('ficha del incidente para el operador', () => {
     montar();
     await titulo();
 
-    await usuario.click(screen.getByRole('button', { name: 'Cambiar la categoría…' }));
+    await usuario.click(await screen.findByRole('button', { name: 'Cambiar la categoría…' }));
     const dialogo = screen.getByRole('dialog');
     // La actual no se ofrece.
     expect(within(dialogo).queryByRole('option', { name: /Pozo en la calzada/ })).not.toBeInTheDocument();

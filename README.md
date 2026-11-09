@@ -118,6 +118,15 @@ Por ahora la IA es Claude, por la API de Anthropic: lo decidió el grupo en luga
 
 Cada consulta, salga bien o mal, queda en `registro_ia`. Los tests simulan la API: no hace falta clave y no se gasta.
 
+### Avisos push
+
+Los avisos al celular (F10) salen por Firebase Cloud Messaging, con `firebase-admin` (`src/modulos/avisos/fcm.ts`). Hace falta el archivo de la cuenta de servicio del proyecto de Firebase: en la consola, *Configuración del proyecto › Cuentas de servicio › Generar nueva clave privada*.
+
+1. Guardalo como `server/secretos/firebase.json`. La carpeta no se versiona.
+2. En el `.env`: `FIREBASE_CREDENCIALES=secretos/firebase.json`. La ruta es relativa a `server/`, y la misma sirve en Docker, que monta esa carpeta de solo lectura.
+
+Sin el archivo el servidor arranca igual: los avisos se guardan y se ven en la lista de la app, pero no llegan al celular (queda un aviso en el log). Los tests simulan FCM.
+
 ### Puntos de interés
 
 Estar cerca de una escuela, un centro de salud, una parada o un edificio público suma prioridad (F07). Esos lugares se cargan en `punto_interes` desde OpenStreetMap, con [Overpass](https://overpass-api.de/), dentro del límite del Municipio de Neuquén:
@@ -151,8 +160,9 @@ npm run importar:red -- --sin-conexion  # carga la respuesta guardada, sin usar 
 
 - Trae los caminos que tocan las zonas activas de `zona_piloto`, que carga la semilla. Sin ninguna, no corre.
 - La respuesta queda en `db/datos/red-zona-piloto.json` y se versiona. Si cambiás el polígono de la zona, corré el comando con conexión para bajarla de nuevo.
+- Antes de cargarla aplica las correcciones del relevamiento de la zona piloto (`db/datos/relevamiento-zona-piloto.json`): rampas, superficie y ancho de las cuadras, piso podotáctil de las esquinas, caminos que se quitan y uniones que se agregan. Si el archivo tiene un error, no toca la base y dice qué está mal.
 - Cada corrida reemplaza la red entera, en una sola transacción: con la misma respuesta deja exactamente la misma red, y si algo falla queda la anterior. En la misma transacción vuelve a vincular cada incidente con los tramos que obstruye (`incidente_tramo`).
-- Al terminar muestra cuántos nodos y tramos cargó, en cuántos pedazos quedó la red (componentes conexos, con un link a OSM para ubicar cada uno) y qué caminos descartó y por qué.
+- Al terminar muestra cuántos nodos y tramos cargó, qué corrigió el relevamiento y qué no pudo ubicar, en cuántos pedazos quedó la red (componentes conexos, con un link a OSM para ubicar cada uno) y qué caminos descartó y por qué.
 - Qué caminos entran y cómo se traducen las etiquetas de OSM a columnas: «Red peatonal» en [`docs/calculos.md`](docs/calculos.md).
 - Igual que `importar:puntos`, toma `DATABASE_URL` y `OVERPASS_URL` y no corre dentro del contenedor.
 

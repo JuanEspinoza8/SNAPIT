@@ -91,10 +91,10 @@ Indica si el servidor está activo y si llega a la base de datos. Siempre respon
 Lo devuelven el registro, el ingreso, la renovación, `/yo` y la administración de usuarios. Nunca incluye la clave.
 
 ```json
-{ "id": 7, "email": "ana@ejemplo.com", "nombre": "Ana", "rol": "VECINO", "organismoId": null, "areaId": null, "perfilMovilidadId": null }
+{ "id": 7, "email": "ana@ejemplo.com", "nombre": "Ana", "rol": "VECINO", "organismoId": null, "areaId": null, "perfilMovilidadId": null, "notificacionesHabilitadas": true }
 ```
 
-`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` viene informado en los operadores y, si se le asignó uno, en los administradores. `areaId`, solo en los operadores. `perfilMovilidadId` es el perfil con el que la app arranca el [recorrido accesible](#get-apirecorridos); null mientras el usuario no eligió uno.
+`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` viene informado en los operadores y, si se le asignó uno, en los administradores. `areaId`, solo en los operadores. `perfilMovilidadId` es el perfil con el que la app arranca el [recorrido accesible](#get-apirecorridos); null mientras el usuario no eligió uno. `notificacionesHabilitadas` es el interruptor general de los [avisos](#avisos-al-vecino); arranca en `true`. Los dos se cambian con [`PATCH /api/usuarios/yo`](#patch-apiusuariosyo).
 
 ### `POST /api/auth/registro`
 Crea una cuenta de vecino. Pública.
@@ -152,13 +152,32 @@ Responde **200** con lo mismo que el ingreso: `tokenAcceso`, un `tokenRenovacion
 Pública. Cierra la sesión de este dispositivo.
 
 ```json
-{ "tokenRenovacion": "Qm9..." }
+{ "tokenRenovacion": "Qm9...", "tokenPush": "fMx3...:APA91b..." }
 ```
+
+`tokenPush` es opcional: el token de avisos del celular (el mismo de [`POST /api/dispositivos`](#post-apidispositivos)). Si viene, ese dispositivo deja de recibir los avisos de esta cuenta. Solo se da de baja si `tokenRenovacion` era una sesión abierta y el dispositivo es de esa cuenta; si no, no pasa nada. Como usa el token de renovación, funciona aunque el de acceso haya vencido.
 
 Responde **204** sin cuerpo, aunque el token no exista. El cliente igual borra los dos tokens.
 
 ### `GET /api/auth/yo`
 Requiere sesión. Responde **200** con `{ "usuario": { ... } }`, leído de la base en ese momento.
+
+### `PATCH /api/usuarios/yo`
+El usuario cambia su interruptor general de avisos (F10) o su perfil de movilidad por defecto (F11). Requiere sesión, de cualquier rol. Se manda al menos uno de los dos campos:
+
+```json
+{ "notificacionesHabilitadas": false, "perfilMovilidadId": 2 }
+```
+
+- `notificacionesHabilitadas`: con `false` no se crea ningún aviso, ni siquiera en la lista de la app.
+- `perfilMovilidadId`: un perfil activo de `GET /api/perfiles-movilidad`, o `null` para no tener ninguno.
+
+Responde **200** con `{ "usuario": { ... } }`, ya cambiado.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | No vino ningún campo, alguno tiene otro tipo, o el perfil no existe o está dado de baja |
+| 401 `TOKEN_INVALIDO` | La cuenta se dio de baja |
 
 ### Links de los correos
 Los correos llevan un link a la web, armado con la variable `URL_WEB`:
@@ -351,6 +370,7 @@ Busca una dirección o un lugar en Neuquén Capital, para elegir el origen o el 
 - `nombre`: el nombre propio del lugar, si tiene (un hospital, una escuela), y la dirección con el barrio: `"Hospital Bouquet Roldán, Doctor Luis Teodoro Planas 1915, Bouquet Roldán"`.
 - Solo devuelve lugares de Neuquén Capital: se le pide a Nominatim dentro del rectángulo del municipio y, de lo que responde, quedan solo los que su dirección marca como de la ciudad (el centro de Cipolletti cae dentro del rectángulo). Sin resultados, `lugares` viene vacía.
 - Usa el mismo cliente de Nominatim que la dirección de los reportes: una consulta por segundo entre las dos y la misma caché. La app busca al confirmar el texto, no con cada letra.
+- La cola no tiene tope de espera: con varias búsquedas a la vez, cada una espera su turno (con 10 en espera, la última tarda unos 10 s). Lo que está en la caché responde sin esperar.
 - Si Nominatim falla o no responde a tiempo: **503** `GEOCODIFICACION_NO_DISPONIBLE`, con un mensaje que propone marcar el punto en el mapa. Texto de menos de 3 letras: **400**.
 
 ## Reportes
@@ -470,6 +490,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`).
 - `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última clasificación: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
+- No trae los pendientes de un incidente resuelto o desestimado: ya no se revisan (ver «Incidente cerrado» en `docs/calculos.md`). Siguen en `GET /api/reportes`, pendientes.
 - Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.
 
 ### `GET /api/reportes`
@@ -519,6 +540,7 @@ Actualiza la reputación del vecino, el estado del incidente, su cantidad de rep
 | 403 `SIN_PERMISO` | El reporte es de un incidente de otro organismo |
 | 404 `REPORTE_NO_ENCONTRADO` | El reporte no existe |
 | 409 `REPORTE_YA_REVISADO` | Ya no está pendiente: lo revisó otro operador o el sistema lo verificó al recibirlo |
+| 409 `INCIDENTE_CERRADO` | Su incidente (el principal, si se unió a otro) ya está resuelto o desestimado. El reporte queda pendiente y la reputación no cambia |
 
 ### `POST /api/ia/clasificar-foto`
 Sugiere la categoría y la gravedad a partir de la foto (F06), para precargarlas en el formulario de reporte. Requiere sesión de `VECINO`. El vecino siempre tiene la última palabra: puede cambiar lo sugerido.
@@ -581,7 +603,7 @@ Responde **200**:
 El operador procesa con la IA los reportes pendientes de su organismo y sigue el avance en un log (ver "Cola de verificación con IA" en `docs/calculos.md`). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, de un usuario con organismo.
 
 #### `POST /api/ia/procesar-cola`
-Empieza a procesar los pendientes del organismo, del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
+Empieza a procesar los pendientes del organismo (los mismos de `GET /api/reportes/pendientes`, sin los de incidentes cerrados), del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
 
 ```json
 { "procesoId": "5b1c0e4e-8f7a-4c1e-9d3b-2a6f0c9e7d11", "total": 6 }
@@ -884,6 +906,96 @@ Un reporte suelto, con la misma forma que cada elemento de `GET /api/social/inci
 Los comentarios de un reporte, con la misma forma que los del incidente (`{ "comentarios": [...] }`) y los números del incidente del reporte.
 
 En las dos: un reporte desestimado, eliminado, de un incidente que no se ve o inexistente responde **404** `REPORTE_NO_ENCONTRADO`. Un id inválido, **400** `DATOS_INVALIDOS`.
+
+## Avisos al vecino
+Avisos push al celular sobre lo que le importa al vecino (F10), con Firebase Cloud Messaging (FCM). Cada aviso queda guardado en la base y se ve en la lista de la app aunque no haya llegado al celular. Cuándo se crea cada aviso (cambio de estado, cierre, verificación, zona habitual) se define en #115.
+
+Un aviso **no se crea** si el usuario apagó todos los avisos (`notificacionesHabilitadas`), si apagó los de la categoría del incidente (`/api/preferencias-notificacion`) o si la cuenta está dada de baja. Si se crea, se manda a sus dispositivos activos:
+- Si FCM lo acepta en al menos uno, se completa `enviadaEn`.
+- Si FCM dice que un token ya no sirve (la app se desinstaló, el token venció o no es válido), ese dispositivo queda inactivo y no se le vuelve a mandar nada. Otras fallas (FCM caído, límite de envíos) no lo desactivan.
+- Si FCM no responde, o el servidor no tiene `FIREBASE_CREDENCIALES`, el aviso queda guardado con `enviadaEn` en `null`.
+
+El aviso que llega al celular tiene `notificacionId`, `tipo` y, si es de un incidente, `incidenteId` en sus datos, para abrir la ficha al tocarlo.
+
+### `POST /api/dispositivos`
+Registra el celular para recibir avisos. Requiere sesión, de cualquier rol. La app lo llama al ingresar y cuando FCM le cambia el token.
+
+```json
+{ "tokenPush": "fMx3...:APA91b...", "plataforma": "ANDROID" }
+```
+
+- `tokenPush`: el token que entrega `firebase_messaging` (hasta 255 caracteres).
+- `plataforma`: `ANDROID` o `WEB`.
+
+Responde **204**. Si el token ya estaba registrado (otra cuenta en el mismo celular, o la misma que vuelve a ingresar), pasa a esta cuenta y vuelve a quedar activo: no se duplica. Con datos inválidos, **400** `DATOS_INVALIDOS`.
+
+### `GET /api/notificaciones`
+Los avisos del usuario, del más nuevo al más viejo, hasta 100. Requiere sesión.
+
+```json
+{
+  "notificaciones": [
+    {
+      "id": 31,
+      "tipo": "CAMBIO_ESTADO",
+      "incidenteId": 9,
+      "titulo": "Tu reporte avanzó",
+      "cuerpo": "El pozo de Lago Huechulafquen pasó a En ejecución",
+      "creadoEn": "2026-11-04T13:10:00.000Z",
+      "enviadaEn": "2026-11-04T13:10:01.000Z",
+      "leidaEn": null
+    }
+  ]
+}
+```
+
+- `tipo`: `CAMBIO_ESTADO`, `NUEVO_EN_ZONA`, `CIERRE` o `VERIFICACION`.
+- `incidenteId`: `null` si el aviso no es de un incidente.
+- `enviadaEn`: `null` si no llegó a ningún celular. `leidaEn`: `null` si no se leyó.
+
+### `POST /api/notificaciones/:id/leida`
+Marca el aviso como leído. Requiere sesión. Responde **204**. Si ya estaba leído, conserva la primera hora de lectura. Un aviso de otro usuario o inexistente: **404** `NOTIFICACION_NO_ENCONTRADA`.
+
+### `POST` · `DELETE` · `GET /api/incidentes/:id/seguimiento`
+Seguir un incidente para enterarse de sus cambios, dejar de seguirlo y saber si se lo sigue (el botón «Seguir» de la ficha). Requieren sesión de `VECINO`. Igual que la ficha, pedir un incidente unido a otro es pedir el principal.
+
+- `POST`: lo sigue. Responde **204**, también si ya lo seguía (no se duplica). Un incidente desestimado, caducado o inexistente: **404** `INCIDENTE_NO_ENCONTRADO`, como su ficha.
+- `DELETE`: deja de seguirlo, incluido lo que seguía en un incidente que después se le unió. Responde **204**, también si no lo seguía o si el incidente ya no está en el mapa. Inexistente: **404**.
+- `GET`: responde **200** con `{ "siguiendo": true }`. Cuenta también lo que sigue en los incidentes que se le unieron. Inexistente: **404**.
+
+### `/api/zonas-habituales`
+Las zonas de las que el vecino quiere enterarse cuando aparece un incidente nuevo. Requieren sesión de `VECINO`. Cada vecino ve y cambia solo las suyas: la zona de otro responde **404** `ZONA_NO_ENCONTRADA`, igual que una inexistente.
+
+Una zona:
+
+```json
+{ "id": 4, "nombre": "Casa", "lat": -38.9516, "lon": -68.0591, "radioMetros": 300, "activa": true, "creadoEn": "2026-11-04T13:10:00.000Z" }
+```
+
+- `nombre`: hasta 80 caracteres.
+- `lat` y `lon`: el centro.
+- `radioMetros`: un entero mayor que 0.
+- `activa`: con `false` la zona queda guardada pero no genera avisos.
+
+| Ruta | Qué hace | Responde |
+|---|---|---|
+| `GET /api/zonas-habituales` | Lista las zonas, de la más vieja a la más nueva | **200** `{ "zonas": [ ... ] }` |
+| `POST /api/zonas-habituales` | Crea una: `{ nombre, lat, lon, radioMetros, activa? }`. Sin `activa`, arranca activa | **201** con la zona |
+| `PUT /api/zonas-habituales/:id` | La reemplaza: se mandan los cinco campos, `activa` incluido | **200** con la zona |
+| `DELETE /api/zonas-habituales/:id` | La borra | **204** |
+
+Con datos inválidos (por ejemplo, un radio de 0 o negativo): **400** `DATOS_INVALIDOS`.
+
+### `GET` · `PUT /api/preferencias-notificacion`
+De qué categorías quiere avisos el vecino. Requieren sesión de `VECINO`.
+
+`GET` responde **200** con una fila por cada categoría activa, en el orden de `GET /api/categorias`. Una categoría que el vecino nunca tocó viene habilitada:
+
+```json
+{ "preferencias": [{ "categoriaId": 3, "habilitada": false }, { "categoriaId": 1, "habilitada": true }] }
+```
+
+`PUT` cambia solo las categorías que se mandan, con el mismo formato; las demás quedan como estaban. Responde **200** con la lista completa, como el `GET`. Una categoría inexistente, inactiva o repetida: **400** `DATOS_INVALIDOS`, y no se guarda ninguna.
 
 ## Prioridad
 
