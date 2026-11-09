@@ -5,9 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:snapit/app.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
+import 'package:snapit/funcionalidades/avisos/servicio_push.dart';
 import 'package:snapit/funcionalidades/mapa/ubicacion.dart';
 import 'package:snapit/funcionalidades/reportar/selector_foto.dart';
 
+import 'push_falso.dart';
 import 'servidor_falso.dart';
 
 /// Tokens de una sesión abierta en una ejecución anterior de la app.
@@ -90,16 +92,23 @@ class SelectorFotoFalso implements SelectorFoto {
 
 /// Los providers reales de la app; solo la red se reemplaza por [servidor],
 /// la ubicación por [ubicacion] (por defecto, sin permiso) y, si se pasa, la
-/// cámara y la galería por [selectorFoto].
+/// cámara y la galería por [selectorFoto]. Los avisos push usan
+/// [servicioPush] (por defecto, uno falso que no pide permiso).
 ProviderContainer contenedorDePrueba(
   ServidorFalso servidor, {
   ServicioUbicacion? ubicacion,
   SelectorFoto? selectorFoto,
+  ServicioPushFalso? servicioPush,
 }) {
+  final push = servicioPush ?? ServicioPushFalso();
   final contenedor = ProviderContainer(
     retry: (_, _) => null,
     overrides: [
       ubicacionProvider.overrideWithValue(ubicacion ?? UbicacionFalsa()),
+      servicioPushProvider.overrideWith((ref) {
+        ref.onDispose(push.cerrar);
+        return push;
+      }),
       if (selectorFoto != null)
         selectorFotoProvider.overrideWithValue(selectorFoto),
     ],
@@ -116,11 +125,13 @@ Future<ProviderContainer> abrirApp(
   ServidorFalso servidor, {
   ServicioUbicacion? ubicacion,
   SelectorFoto? selectorFoto,
+  ServicioPushFalso? servicioPush,
 }) async {
   final contenedor = contenedorDePrueba(
     servidor,
     ubicacion: ubicacion,
     selectorFoto: selectorFoto,
+    servicioPush: servicioPush,
   );
   await tester.pumpWidget(
     UncontrolledProviderScope(container: contenedor, child: const AppSnapIt()),

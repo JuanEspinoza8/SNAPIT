@@ -50,12 +50,14 @@ class Sesion extends AsyncNotifier<Usuario?> {
   Future<void> salir() async {
     final repositorio = _repositorio;
     final tokenRenovacion = await _almacen.leerTokenRenovacion();
+    // El aviso de este celular también se da de baja en el servidor.
+    final tokenPush = await _almacen.leerTokenPush();
     await _almacen.borrar();
     state = const AsyncData(null);
     if (tokenRenovacion == null) return;
     unawaited(
       repositorio
-          .salir(tokenRenovacion)
+          .salir(tokenRenovacion, tokenPush: tokenPush)
           .catchError(
             (Object e) => developer.log(
               'No se pudo cerrar la sesión en el servidor',
