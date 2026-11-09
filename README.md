@@ -308,7 +308,7 @@ lib/
 ### Avisos push
 
 - La app usa `firebase_messaging` contra el proyecto de Firebase del servidor (el mismo de [`docs/api.md`](docs/api.md#avisos-al-vecino)). No se crea otro proyecto y no hace falta SHA-1.
-- Para configurar una máquina, pedile a quien administra el proyecto el `google-services.json` y guardalo en `mobile/android/app/google-services.json`. Ese archivo es propio de cada máquina: no se versiona. En el repo queda `mobile/android/app/google-services.json.example` con la forma que tiene.
+- El `google-services.json` de la app es el mismo para todos: se baja de la consola de Firebase (Configuración del proyecto › la app de Android) con una cuenta de Editor y se guarda en `mobile/android/app/google-services.json`. No se versiona. En el repo queda `mobile/android/app/google-services.json.example` con la forma que tiene. Lo que es de cada uno es la clave del servidor (`FIREBASE_CREDENCIALES`).
 - No se usa `flutterfire configure`: la app toma la configuración de Android de `google-services.json`. Si igual se corre, hay que elegir el proyecto existente, y `lib/firebase_options.dart` tampoco se versiona (está en el `.gitignore`).
 - Sin el archivo la app compila y funciona igual: Firebase no inicializa, los avisos quedan guardados en el servidor y se ven en la lista, pero no llegan al celular. Por eso la CI no necesita el archivo real.
 - Al ingresar, y cada vez que FCM renueva el token, la app hace `POST /api/dispositivos` con `{ tokenPush, plataforma: "ANDROID" }`. Al salir, manda el mismo `tokenPush` en `POST /api/auth/salir` para dar de baja el celular. El servidor espera el token de FCM (`getToken`), no el id de instalación.
