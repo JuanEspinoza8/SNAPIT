@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Avisos push (F10): configuración de Firebase, propia de cada máquina.
+# El proyecto es uno solo (no crear otro); el archivo real se pide a quien lo
+# administra. El `.example` muestra la forma y sí se versiona.
+/android/app/google-services.json
+/lib/firebase_options.dart

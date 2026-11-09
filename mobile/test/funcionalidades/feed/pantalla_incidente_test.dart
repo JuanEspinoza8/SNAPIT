@@ -205,4 +205,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('1 de 2'), findsOneWidget);
   });
+
+  group('si no se puede ver la ficha', () {
+    ServidorFalso servidorConError(int status, String codigo, String mensaje) =>
+        ServidorFalso(
+          (RequestOptions pedido) => switch (pedido.path) {
+            '/auth/yo' => json(200, {'usuario': usuarioJson()}),
+            '/incidentes/feed' => json(200, {
+              'incidentes': <Object>[],
+              'siguiente': null,
+            }),
+            '/incidentes/3' => errorApi(status, codigo, mensaje),
+            _ => errorApi(404, 'RUTA_NO_ENCONTRADA', 'No existe'),
+          },
+        );
+
+    testWidgets('un incidente que ya no está lo dice, sin reintentar', (
+      tester,
+    ) async {
+      // Por ejemplo, al tocar el aviso de un incidente que se desestimó.
+      await abrirFicha(
+        tester,
+        servidorConError(
+          404,
+          'INCIDENTE_NO_ENCONTRADO',
+          'El incidente no existe',
+        ),
+      );
+
+      expect(
+        find.text('Este incidente ya no está en el mapa.'),
+        findsOneWidget,
+      );
+      expect(find.text('Reintentar'), findsNothing);
+    });
+
+    testWidgets('otro error muestra el mensaje y deja reintentar', (
+      tester,
+    ) async {
+      final servidor = servidorConError(
+        500,
+        'ERROR_INTERNO',
+        'Ocurrió un error en el servidor',
+      );
+      await abrirFicha(tester, servidor);
+
+      expect(find.text('Ocurrió un error en el servidor'), findsOneWidget);
+      await tester.tap(find.text('Reintentar'));
+      await tester.pumpAndSettle();
+      expect(servidor.cantidad('/incidentes/3'), 2);
+    });
+  });
 }

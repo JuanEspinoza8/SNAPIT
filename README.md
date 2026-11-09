@@ -288,6 +288,7 @@ lib/
     mapa/            fondo de OpenStreetMap que usan todos los mapas
   funcionalidades/
     cuenta/          arranque, ingreso, registro y «Olvidé mi clave»
+    avisos/          avisos push: servicio de FCM, lista y detalle
     principal/       pantalla con el menú según el rol
     mapa/            mapa público: agrupación, filtros, ficha y ubicación
     reportar/        cargar un reporte: borrador, foto, punto y envío
@@ -303,6 +304,17 @@ lib/
   ```bash
   curl -X POST http://localhost:3000/api/auth/confirmar-correo -H "Content-Type: application/json" -d '{"token":"<token del enlace>"}'
   ```
+
+### Avisos push
+
+- La app usa `firebase_messaging` contra el proyecto de Firebase del servidor (el mismo de [`docs/api.md`](docs/api.md#avisos-al-vecino)). No se crea otro proyecto y no hace falta SHA-1.
+- El `google-services.json` de la app es el mismo para todos: se baja de la consola de Firebase (Configuración del proyecto › la app de Android) con una cuenta de Editor y se guarda en `mobile/android/app/google-services.json`. No se versiona. En el repo queda `mobile/android/app/google-services.json.example` con la forma que tiene. Lo que es de cada uno es la clave del servidor (`FIREBASE_CREDENCIALES`).
+- No se usa `flutterfire configure`: la app toma la configuración de Android de `google-services.json`. Si igual se corre, hay que elegir el proyecto existente, y `lib/firebase_options.dart` tampoco se versiona (está en el `.gitignore`).
+- Sin el archivo la app compila y funciona igual: Firebase no inicializa, los avisos quedan guardados en el servidor y se ven en la lista, pero no llegan al celular. Por eso la CI no necesita el archivo real.
+- Al ingresar, y cada vez que FCM renueva el token, la app hace `POST /api/dispositivos` con `{ tokenPush, plataforma: "ANDROID" }`. Al salir, manda el mismo `tokenPush` en `POST /api/auth/salir` para dar de baja el celular. El servidor espera el token de FCM (`getToken`), no el id de instalación.
+- En Android 13 o superior se explica para qué son los avisos y recién ahí se pide el permiso del sistema. El servidor no manda un canal propio: se usa el de por defecto.
+- Los avisos llegan con la app abierta (se muestran dentro de la app), en segundo plano o cerrada (los muestra Android). Tocar uno abre la ficha del incidente; si no es de un incidente, abre la lista. La lista sale de `GET /api/notificaciones` y se marca leída con `POST /api/notificaciones/:id/leida`.
+- Para probar sin el servidor: correr la app en un celular real con la configuración de Firebase y, en la consola, *Messaging › Crear campaña › Enviar mensaje de prueba* con el token del celular. En modo debug el token queda en el log con el nombre `avisos`.
 
 ### Mapa
 

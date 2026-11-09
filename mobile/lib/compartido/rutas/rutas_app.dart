@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../funcionalidades/avisos/pantalla_avisos.dart';
 import '../../funcionalidades/cuenta/pantalla_arranque.dart';
 import '../../funcionalidades/cuenta/pantalla_ingreso.dart';
 import '../../funcionalidades/cuenta/pantalla_recuperar_clave.dart';
@@ -23,6 +24,7 @@ abstract final class Rutas {
   static const recuperarClave = '/recuperar-clave';
   static const mapa = '/mapa';
   static const principal = '/';
+  static const avisos = '/avisos';
 
   /// Recibe en `extra` el punto actual (o un `PedidoPunto`, con los textos
   /// de la pantalla) y devuelve el elegido al volver.
@@ -72,6 +74,7 @@ final rutasProvider = Provider<GoRouter>((ref) {
         path: Rutas.principal,
         builder: (_, _) => const PantallaPrincipal(),
       ),
+      GoRoute(path: Rutas.avisos, builder: (_, _) => const PantallaAvisos()),
       GoRoute(
         path: '/incidente/:id',
         builder: (_, estado) =>

@@ -75,11 +75,11 @@ class RepositorioAuth {
     );
   }
 
-  Future<void> salir(String tokenRenovacion) {
+  Future<void> salir(String tokenRenovacion, {String? tokenPush}) {
     return _pedir(
       () => _dio.post<void>(
         '/auth/salir',
-        data: {'tokenRenovacion': tokenRenovacion},
+        data: {'tokenRenovacion': tokenRenovacion, 'tokenPush': ?tokenPush},
         options: _sinSesion,
       ),
     );

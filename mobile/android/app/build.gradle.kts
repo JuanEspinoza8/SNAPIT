@@ -4,6 +4,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Avisos push (F10): el proyecto de Firebase se configura con google-services.json.
+// El archivo no se versiona (ver .gitignore). Sin él, la app compila igual y los
+// avisos quedan desactivados; la CI no necesita el archivo real.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "ar.edu.uncoma.fi.snapit"
     compileSdk = flutter.compileSdkVersion
