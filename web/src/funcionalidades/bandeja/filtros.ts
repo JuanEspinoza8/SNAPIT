@@ -24,6 +24,7 @@ export function leerFiltros(parametros: URLSearchParams): FiltrosBandeja {
   if (estado && ESTADOS_BANDEJA.includes(estado)) filtros.estado = estado;
   const categoriaId = leerId(parametros.get('categoriaId'));
   if (categoriaId !== undefined) filtros.categoriaId = categoriaId;
+  if (parametros.get('cierre') === 'OBSERVADO') filtros.cierre = 'OBSERVADO';
   return filtros;
 }
 
@@ -33,5 +34,6 @@ export function aParametros(filtros: FiltrosBandeja): URLSearchParams {
   if (filtros.areaId !== undefined) parametros.set('areaId', String(filtros.areaId));
   if (filtros.estado) parametros.set('estado', filtros.estado);
   if (filtros.categoriaId !== undefined) parametros.set('categoriaId', String(filtros.categoriaId));
+  if (filtros.cierre) parametros.set('cierre', filtros.cierre);
   return parametros;
 }

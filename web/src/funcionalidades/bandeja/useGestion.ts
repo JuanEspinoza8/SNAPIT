@@ -106,5 +106,27 @@ export function useAccionesFicha(id: number) {
     onError: alFallar,
   });
 
-  return { derivar, cambiarEstado, comentar, cambiarCategoria, fijarPrioridad, quitarPrioridad };
+  // El cierre (F09). La ficha se vuelve a pedir: trae el cierre con sus fotos y el movimiento de la bitácora.
+  const cerrar = useMutation({
+    mutationFn: (foto: File) => repositorio.cerrar(id, foto),
+    onSuccess: ({ incidente }) => aplicar({ estado: incidente.estado }),
+    onError: alFallar,
+  });
+  const confirmarCierre = useMutation({
+    mutationFn: ({ aceptar, comentario }: { aceptar: boolean; comentario: string }) =>
+      repositorio.confirmarCierre(id, aceptar, comentario),
+    onSuccess: ({ incidente, movimiento }) => aplicar({ estado: incidente.estado }, movimiento),
+    onError: alFallar,
+  });
+
+  return {
+    derivar,
+    cambiarEstado,
+    comentar,
+    cambiarCategoria,
+    fijarPrioridad,
+    quitarPrioridad,
+    cerrar,
+    confirmarCierre,
+  };
 }

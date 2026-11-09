@@ -103,6 +103,7 @@ describe('GET /api/bandeja', () => {
         { factor: 'ANTIGUEDAD', valor: 0, detalle: 'Lleva menos de un día sin resolverse: +0' },
         { factor: 'CONTEXTO_URBANO', valor: 0, detalle: expect.stringContaining('+0') },
       ],
+      cierre: null,
     });
 
     const ajuste = await request(app)
