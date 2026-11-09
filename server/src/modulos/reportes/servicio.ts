@@ -7,6 +7,7 @@ import { logger } from '../../config/logger.js';
 import { elegirIncidente, type ParametrosAgrupacion, severidadConsolidada } from '../agrupacion/calculo.js';
 import * as agrupacion from '../agrupacion/repositorio.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
+import { avisarNuevoEnZona, avisarReporteEnVerificacion } from '../avisos/disparar.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import { vincularIncidente } from '../red/repositorio.js';
@@ -234,6 +235,7 @@ function guardarReporte(alta: {
       });
       // Si cae en la zona piloto, desde ya cambia los recorridos (F11).
       await vincularIncidente(tx, incidenteId);
+      avisarNuevoEnZona(incidenteId, reporte.usuarioId);
     }
 
     const guardado = await repositorio.insertarReporte(tx, { ...reporte, incidenteId });
@@ -252,6 +254,9 @@ function guardarReporte(alta: {
         operadorId: null,
         comentario: null,
       });
+    }
+    if (guardado.estadoVerificacion === 'PENDIENTE_REVISION') {
+      avisarReporteEnVerificacion(guardado.id, incidenteId);
     }
     await avisarCambioIncidente(tx, incidenteId);
 

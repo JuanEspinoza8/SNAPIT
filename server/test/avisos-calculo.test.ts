@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { debeAvisar, resumirEnvio } from '../src/modulos/avisos/calculo.js';
+import {
+  debeAvisar,
+  destinatariosDelCambio,
+  queYDonde,
+  resumirEnvio,
+  textoCambioEstado,
+} from '../src/modulos/avisos/calculo.js';
 
 describe('resumirEnvio', () => {
   it('cuenta los aceptados', () => {
@@ -62,5 +68,63 @@ describe('debeAvisar', () => {
 
   it('no avisa a una cuenta dada de baja', () => {
     expect(debeAvisar({ ...habilitado, dadoDeBaja: true })).toBe(false);
+  });
+});
+
+describe('destinatariosDelCambio', () => {
+  const ordenar = (lista: { usuarioId: number; tipo: string }[]) =>
+    [...lista].sort((a, b) => a.usuarioId - b.usuarioId);
+
+  it('avisa a quienes reportaron y a quienes siguen, una sola vez cada uno', () => {
+    // El 2 reportó dos veces y además lo sigue.
+    const lista = destinatariosDelCambio({
+      reportaron: [1, 2, 2],
+      siguen: [2, 3],
+      actorId: null,
+      nuevo: 'DERIVADO',
+    });
+    expect(ordenar(lista)).toEqual([
+      { usuarioId: 1, tipo: 'CAMBIO_ESTADO' },
+      { usuarioId: 2, tipo: 'CAMBIO_ESTADO' },
+      { usuarioId: 3, tipo: 'CAMBIO_ESTADO' },
+    ]);
+  });
+
+  it('al resolverse, quienes lo reportaron reciben el cierre y quienes solo lo siguen, el cambio de estado', () => {
+    const lista = destinatariosDelCambio({
+      reportaron: [1, 2],
+      siguen: [2, 3],
+      actorId: null,
+      nuevo: 'RESUELTO',
+    });
+    expect(ordenar(lista)).toEqual([
+      { usuarioId: 1, tipo: 'CIERRE' },
+      { usuarioId: 2, tipo: 'CIERRE' },
+      { usuarioId: 3, tipo: 'CAMBIO_ESTADO' },
+    ]);
+  });
+
+  it('quien hizo el cambio y quien ya recibió otro aviso por el mismo hecho no se avisan', () => {
+    const lista = destinatariosDelCambio({
+      reportaron: [1, 2],
+      siguen: [3],
+      actorId: 3,
+      nuevo: 'VERIFICADO',
+      yaAvisados: [1],
+    });
+    expect(lista).toEqual([{ usuarioId: 2, tipo: 'CAMBIO_ESTADO' }]);
+  });
+});
+
+describe('textos de los avisos', () => {
+  it('dicen qué problema es, dónde y en qué estado quedó', () => {
+    const problema = queYDonde('Pozo en la calzada', 'Lanín 120, Villa Ceferino');
+    expect(textoCambioEstado('CAMBIO_ESTADO', problema, 'EN_EJECUCION').cuerpo).toBe(
+      '«Pozo en la calzada» en Lanín 120, Villa Ceferino pasó a en ejecución.',
+    );
+    expect(textoCambioEstado('CIERRE', queYDonde('Vereda rota', null), 'RESUELTO')).toEqual({
+      titulo: 'Se resolvió un problema que reportaste',
+      cuerpo: '«Vereda rota» quedó resuelto. Mirá el antes y el después en su ficha.',
+    });
   });
 });
