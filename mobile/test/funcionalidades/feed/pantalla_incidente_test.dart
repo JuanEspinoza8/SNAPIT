@@ -306,4 +306,32 @@ void main() {
       isEmpty,
     );
   });
+
+  testWidgets('si no se sabe si lo sigue, lo dice y deja reintentar', (
+    tester,
+  ) async {
+    final servidor = servidorCon(fichaJson());
+    final responder = servidor.responder;
+    var fallar = true;
+    servidor.responder = (pedido) {
+      if (pedido.path == '/incidentes/3/seguimiento' && fallar) {
+        fallar = false;
+        return errorApi(
+          500,
+          'ERROR_INTERNO',
+          'Ocurrió un error en el servidor',
+        );
+      }
+      return responder(pedido);
+    };
+    await abrirFicha(tester, servidor);
+
+    expect(find.text('No se pudo saber si lo seguís.'), findsOneWidget);
+    expect(find.text('Seguir'), findsNothing);
+
+    await tester.tap(find.text('Reintentar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Seguir'), findsOneWidget);
+  });
 }

@@ -195,6 +195,27 @@ class _BotonSeguirState extends ConsumerState<_BotonSeguir> {
   @override
   Widget build(BuildContext context) {
     final seguimiento = ref.watch(seguimientoProvider(widget.incidenteId));
+    // Sin saber si lo sigue, el botón podría decir lo contrario de lo que
+    // pasa: mejor decirlo y dejar que vuelva a preguntar.
+    if (seguimiento.hasError && !seguimiento.isLoading) {
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              'No se pudo saber si lo seguís.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () =>
+                ref.invalidate(seguimientoProvider(widget.incidenteId)),
+            child: const Text('Reintentar'),
+          ),
+        ],
+      );
+    }
     final siguiendo = seguimiento.value ?? false;
     final ocupado = seguimiento.isLoading || _enviando;
 
