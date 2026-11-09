@@ -661,3 +661,5 @@ El intento queda en `registro_ia` con `tipo = COMPARACION_CIERRE`. Si la IA no r
 La distancia justo en el límite **no** rechaza: se rechaza solo si es mayor que `cierre.distancia_max_m`. El valor de partida es 50 m (arriba, «Cierre, vigencia y recorridos»).
 
 `VALIDADO`, `OBSERVADO` y `RECHAZADO` son el enum `ResultadoComparacion` que se guarda en `cierre_incidente.resultado_comparacion`. El endpoint que registra el cierre es la #108; esta parte solo calcula el resultado.
+
+**Explicación.** `explicarCierre(resultado, datos, parametros)` arma el texto de `cierre_incidente.detalle_comparacion`: por qué quedó así (sin GPS, la distancia y el máximo, por qué no se pudo comparar, o lo que concluyó la IA con su explicación). Repite el orden de `decidirCierre` (decisión del 08/11); un test recorre las combinaciones de distancia y veredicto y comprueba que el texto coincida con el resultado. La distancia se muestra en metros enteros, redondeada para arriba: una foto a 50,01 m dice «51 m», así un cierre rechazado nunca dice estar dentro del máximo.

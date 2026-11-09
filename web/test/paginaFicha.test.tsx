@@ -3,8 +3,14 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { fotosDelAntes } from '../src/funcionalidades/bandeja/CierreFicha.js';
 import { PaginaFicha } from '../src/funcionalidades/bandeja/paginaFicha.js';
-import type { FichaGestion, Movimiento } from '../src/funcionalidades/bandeja/tipos.js';
+import type {
+  CierreGestion,
+  FichaGestion,
+  Movimiento,
+  ResultadoCierre,
+} from '../src/funcionalidades/bandeja/tipos.js';
 import { renderConSesion } from './apoyo.js';
 
 const operador = { id: 3, nombre: 'Operador de Bacheo' };
@@ -585,5 +591,236 @@ describe('ficha del incidente para el operador', () => {
   it('un id que no es un número no pide nada', async () => {
     renderConSesion('/bandeja/abc', { '/bandeja/:id': <PaginaFicha /> });
     expect(await screen.findByRole('alert')).toHaveTextContent('El incidente no existe');
+  });
+});
+
+describe('cierre con la foto del después', () => {
+  const cierre = (
+    resultado: ResultadoCierre,
+    quienCerro = { id: 9, nombre: 'Operadora de Veredas' },
+  ): CierreGestion => ({
+    id: 4,
+    resultadoComparacion: resultado,
+    distanciaMetros: resultado === 'OBSERVADO' ? null : 12,
+    detalleComparacion:
+      resultado === 'OBSERVADO'
+        ? 'La foto no trae la ubicación donde se sacó: no se puede comprobar que sea del mismo lugar.'
+        : 'La foto es del lugar (a 12 m). La comparación con el antes dice que está resuelto.',
+    creadoEn: '2026-10-27T11:00:00.000Z',
+    usuario: quienCerro,
+    fotos: [{ id: 50, url: '/api/fotos/50' }],
+  });
+
+  /** El servidor responde al cierre con `resultado` y deja la ficha como quedaría. */
+  function responderCierre(resultado: ResultadoCierre, detalle: string) {
+    servidor.use(
+      http.post('*/api/incidentes/:id/cierre', ({ request }) => {
+        // El cuerpo es multipart: en jsdom leerlo no termina nunca, así que solo se anota la ruta.
+        pedidos.push({ metodo: request.method, ruta: new URL(request.url).pathname, cuerpo: null });
+        const estado = resultado === 'VALIDADO' ? 'RESUELTO' : 'EN_EJECUCION';
+        const nuevo = { ...cierre(resultado, operador), detalleComparacion: detalle };
+        ficha = { ...ficha, estado, cierre: nuevo };
+        return HttpResponse.json(
+          { incidente: { id: 7, estado }, cierre: { ...nuevo, resultadoComparacion: resultado } },
+          { status: 201 },
+        );
+      }),
+    );
+  }
+
+  const subirFoto = async (usuario: ReturnType<typeof userEvent.setup>) => {
+    await usuario.click(screen.getByRole('button', { name: 'Cerrar con foto…' }));
+    const dialogo = screen.getByRole('dialog', { name: 'Cerrar el incidente #7' });
+    await usuario.upload(
+      within(dialogo).getByLabelText('Foto del después'),
+      new File(['foto'], 'despues.jpg', { type: 'image/jpeg' }),
+    );
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Enviar la foto' }));
+    return dialogo;
+  };
+
+  it('solo en ejecución se ofrece cerrar con foto', async () => {
+    ficha = fichaBase({ estado: 'DERIVADO' });
+    montar();
+    await titulo();
+    expect(screen.queryByRole('button', { name: 'Cerrar con foto…' })).not.toBeInTheDocument();
+  });
+
+  it('un cierre rechazado explica por qué y deja probar con otra foto', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION' });
+    responderCierre('RECHAZADO', 'La foto se sacó a 1112 m del incidente, y el máximo es 50 m.');
+    const usuario = userEvent.setup();
+    montar();
+    await titulo();
+
+    const dialogo = await subirFoto(usuario);
+
+    expect(await within(dialogo).findByText('El cierre no se aceptó')).toBeInTheDocument();
+    expect(within(dialogo).getByText(/a 1112 m del incidente/)).toBeInTheDocument();
+    expect(pedidos).toEqual([{ metodo: 'POST', ruta: '/api/incidentes/7/cierre', cuerpo: null }]);
+
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Probar con otra foto' }));
+    expect(within(dialogo).getByLabelText('Foto del después')).toBeInTheDocument();
+  });
+
+  it('un cierre validado resuelve el incidente', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION' });
+    responderCierre('VALIDADO', 'La foto es del lugar (a 12 m). Está resuelto.');
+    const usuario = userEvent.setup();
+    montar();
+    await titulo();
+
+    const dialogo = await subirFoto(usuario);
+    expect(await within(dialogo).findByText('Incidente resuelto')).toBeInTheDocument();
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Listo' }));
+
+    expect(await screen.findByText('Está resuelto.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cerrar con foto…' })).not.toBeInTheDocument();
+  });
+
+  it('pedir enviar sin elegir la foto lo marca y no manda nada', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION' });
+    const usuario = userEvent.setup();
+    montar();
+    await titulo();
+
+    await usuario.click(screen.getByRole('button', { name: 'Cerrar con foto…' }));
+    const dialogo = screen.getByRole('dialog');
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Enviar la foto' }));
+
+    expect(within(dialogo).getByText('Elegí la foto del después')).toBeInTheDocument();
+    expect(pedidos).toEqual([]);
+  });
+
+  it('una foto de más de 20 MB se rechaza al elegirla, como al reportar', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION' });
+    const usuario = userEvent.setup();
+    montar();
+    await titulo();
+    const pesada = new File(['foto'], 'despues.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(pesada, 'size', { value: 21 * 1024 * 1024 });
+
+    await usuario.click(screen.getByRole('button', { name: 'Cerrar con foto…' }));
+    const dialogo = screen.getByRole('dialog');
+    await usuario.upload(within(dialogo).getByLabelText('Foto del después'), pesada);
+
+    expect(within(dialogo).getByText('Pesa demasiado: elegí una foto de hasta 20 MB')).toBeInTheDocument();
+    // La foto no quedó elegida: enviar pide elegir otra y no manda nada.
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Enviar la foto' }));
+    expect(within(dialogo).getByText('Elegí la foto del después')).toBeInTheDocument();
+    expect(pedidos).toEqual([]);
+  });
+
+  it('muestra el antes y el después lado a lado, con el resultado y su explicación', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION', cierre: cierre('OBSERVADO') });
+    montar();
+
+    const seccion = (await screen.findByRole('heading', { name: 'Cierre' })).closest('section')!;
+    expect(within(seccion).getByText('Por confirmar')).toBeInTheDocument();
+    expect(within(seccion).getByText(/no trae la ubicación donde se sacó/)).toBeInTheDocument();
+    expect(within(seccion).getByText('Antes')).toBeInTheDocument();
+    expect(within(seccion).getByText('Después')).toBeInTheDocument();
+    // La foto del antes (la del reporte verificado) y la del después, con la sesión del operador.
+    await waitFor(() =>
+      expect(fotosPedidas.map((foto) => foto.id)).toEqual(expect.arrayContaining(['12', '50'])),
+    );
+  });
+
+  it('otro operador confirma un cierre observado, con una confirmación antes de mandarlo', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION', cierre: cierre('OBSERVADO') });
+    servidor.use(
+      http.post('*/api/incidentes/:id/cierre/confirmacion', async ({ request }) => {
+        await anotar(request);
+        const nuevo = agregarMovimiento({
+          tipo: 'CAMBIO_ESTADO',
+          estadoAnterior: 'EN_EJECUCION',
+          estadoNuevo: 'RESUELTO',
+          comentario: 'Cierre observado confirmado',
+        });
+        ficha = {
+          ...ficha,
+          estado: 'RESUELTO',
+          cierre: { ...ficha.cierre!, resultadoComparacion: 'VALIDADO' },
+        };
+        return HttpResponse.json({
+          incidente: { id: 7, estado: 'RESUELTO' },
+          cierre: { id: 4, resultadoComparacion: 'VALIDADO' },
+          movimiento: nuevo,
+        });
+      }),
+    );
+    const usuario = userEvent.setup();
+    montar();
+
+    await usuario.click(await screen.findByRole('button', { name: 'Confirmar el cierre…' }));
+    const dialogo = screen.getByRole('dialog', { name: 'Confirmar el cierre del #7' });
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Confirmar el cierre' }));
+    expect(pedidos).toEqual([]);
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Sí, resolver' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(pedidos).toEqual([
+      { metodo: 'POST', ruta: '/api/incidentes/7/cierre/confirmacion', cuerpo: { aceptar: true } },
+    ]);
+    expect(within(bitacora()).getByText('Cierre observado confirmado')).toBeInTheDocument();
+  });
+
+  it('rechazar un cierre observado pide el motivo', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION', cierre: cierre('OBSERVADO') });
+    const usuario = userEvent.setup();
+    montar();
+
+    await usuario.click(await screen.findByRole('button', { name: 'Rechazar el cierre…' }));
+    const dialogo = screen.getByRole('dialog', { name: 'Rechazar el cierre del #7' });
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Rechazar el cierre' }));
+
+    expect(within(dialogo).getByText('Escribí el motivo')).toBeInTheDocument();
+    expect(pedidos).toEqual([]);
+  });
+
+  it('quien cerró no ve cómo confirmar su propio cierre: espera a otro operador', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION', cierre: cierre('OBSERVADO', operador) });
+    montar();
+
+    expect(await screen.findByText(/Espera que otro operador del organismo/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirmar el cierre…' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cerrar con foto…' })).not.toBeInTheDocument();
+  });
+
+  it('un cierre que rechazó otro operador dice por qué y deja volver a cerrar', async () => {
+    ficha = fichaBase({
+      estado: 'EN_EJECUCION',
+      cierre: {
+        ...cierre('RECHAZADO', operador),
+        detalleComparacion: 'Lo rechazó Ana Pérez: la foto no muestra la esquina',
+      },
+    });
+    montar();
+
+    const seccion = (await screen.findByRole('heading', { name: 'Cierre' })).closest('section')!;
+    expect(within(seccion).getByText('Rechazado')).toBeInTheDocument();
+    expect(
+      within(seccion).getByText('Lo rechazó Ana Pérez: la foto no muestra la esquina'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cerrar con foto…' })).toBeInTheDocument();
+  });
+
+  it('el antes son las mismas fotos que comparó la IA: las de los reportes que cuentan, hasta 4', () => {
+    const reporte = (id: number, fotos: number[], estadoVerificacion = 'VERIFICADO') =>
+      ({
+        ...fichaBase().reportes[0]!,
+        id,
+        estadoVerificacion,
+        fotos: fotos.map((f) => ({ id: f, url: `/api/fotos/${f}` })),
+      }) as FichaGestion['reportes'][number];
+
+    const antes = fotosDelAntes([
+      reporte(2, [30, 31]),
+      reporte(1, [10]),
+      reporte(3, [20], 'DESESTIMADO'),
+      reporte(4, [40, 41]),
+    ]);
+
+    expect(antes.map((foto) => foto.id)).toEqual([10, 30, 31, 40]);
   });
 });

@@ -5,6 +5,7 @@ import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Campo } from '../../compartido/componentes/Campo.js';
 import { CampoSelecto } from '../../compartido/componentes/CampoSelecto.js';
+import { problemaConLaFoto, TIPOS_FOTO } from '../../compartido/foto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
 import type { EstadoNavegacionMapa } from '../mapa/tipos.js';
@@ -38,13 +39,6 @@ const CAMPOS_API: Record<string, keyof Errores> = {
   lat: 'ubicacion',
   lon: 'ubicacion',
 };
-
-// Las que acepta el servidor. Cualquier otra la rechazaría recién al enviar.
-const TIPOS_FOTO = ['image/jpeg', 'image/png'];
-
-// El tope de nginx en la demo (client_max_body_size de nginx.conf): más pesada, ni llega al servidor.
-// El límite del servidor (FOTO_MAX_MB) es menor y lo avisa él, debajo de la foto.
-const PESO_MAXIMO_MB = 20;
 
 const SEVERIDADES: { valor: Severidad; etiqueta: string }[] = [
   { valor: 'LEVE', etiqueta: 'Leve' },
@@ -116,13 +110,7 @@ export function PaginaReportar() {
 
   function alElegirFoto(evento: ChangeEvent<HTMLInputElement>) {
     const archivo = evento.target.files?.[0] ?? null;
-    const problema = !archivo
-      ? null
-      : !TIPOS_FOTO.includes(archivo.type)
-        ? 'Tiene que ser una foto JPG o PNG'
-        : archivo.size > PESO_MAXIMO_MB * 1024 * 1024
-          ? `Pesa demasiado: elegí una foto de hasta ${PESO_MAXIMO_MB} MB`
-          : null;
+    const problema = archivo ? problemaConLaFoto(archivo) : null;
     olvidarSugerencia();
     if (problema) {
       evento.target.value = '';
@@ -236,7 +224,7 @@ export function PaginaReportar() {
             id="foto"
             etiqueta="Foto"
             type="file"
-            accept="image/jpeg,image/png"
+            accept={TIPOS_FOTO.join(',')}
             onChange={alElegirFoto}
             error={errores.foto}
           />

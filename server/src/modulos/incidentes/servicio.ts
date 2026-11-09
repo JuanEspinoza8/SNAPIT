@@ -61,9 +61,10 @@ export async function obtenerFicha(id: number) {
   const incidente = await buscarVisible(id);
   const principalId = incidente.id;
 
-  const [cantidadVecinos, fotos] = await Promise.all([
+  const [cantidadVecinos, fotos, fotoCierre] = await Promise.all([
     repositorio.contarVecinos(principalId),
     repositorio.listarFotos(principalId),
+    repositorio.buscarFotoCierre(principalId),
   ]);
 
   const { categoriaId, categoriaNombre, ...datos } = incidente;
@@ -72,5 +73,7 @@ export async function obtenerFicha(id: number) {
     categoria: { id: categoriaId, nombre: categoriaNombre },
     cantidadVecinos,
     fotos: fotos.map(({ id: fotoId }) => urlFoto(fotoId)),
+    // El después (F09): la foto que cerró el incidente, para mostrarla junto a las del antes.
+    fotoCierre: fotoCierre === null ? null : urlFoto(fotoCierre),
   };
 }

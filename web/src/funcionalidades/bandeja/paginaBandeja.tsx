@@ -78,6 +78,15 @@ export function PaginaBandeja() {
             </option>
           ))}
         </Filtro>
+        <Filtro
+          id="filtro-cierre"
+          etiqueta="Cierre"
+          valor={filtros.cierre ?? ''}
+          alCambiar={(valor) => filtrar({ cierre: valor === 'OBSERVADO' ? 'OBSERVADO' : undefined })}
+        >
+          <option value="">Todos</option>
+          <option value="OBSERVADO">Por confirmar</option>
+        </Filtro>
         {hayFiltros && (
           <button
             type="button"
@@ -206,6 +215,13 @@ function FilaBandeja({ incidente, desde }: { incidente: IncidenteBandeja; desde:
       </td>
       <td className="px-3 py-3">
         <EtiquetaEstadoIncidente estado={incidente.estado} />
+        {incidente.cierre && (
+          <p
+            className={`mt-1 text-xs font-semibold ${incidente.cierre === 'RECHAZADO' ? 'text-peligro' : 'text-texto'}`}
+          >
+            {incidente.cierre === 'OBSERVADO' ? 'Cierre por confirmar' : 'Cierre rechazado'}
+          </p>
+        )}
       </td>
       <td className="px-3 py-3 text-right text-texto">{incidente.cantidadReportes}</td>
       <td className="px-3 py-3">

@@ -423,6 +423,8 @@ describe('GET /api/incidentes/:id', () => {
       cantidadVecinos: 2,
       direccion: null,
       fotos: [foto1, foto2, foto3].map((f) => ({ id: f.id, url: `/api/fotos/${f.id}` })),
+      // Sin cierre: no hay foto del después (F09).
+      fotoCierre: null,
     });
   });
 

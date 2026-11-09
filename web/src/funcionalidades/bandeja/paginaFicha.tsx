@@ -5,7 +5,7 @@ import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { aErrorApi, ErrorApi } from '../../compartido/red/error.js';
 import { useSesion } from '../../compartido/sesion/sesionContexto.js';
 import { severidadEnTexto } from '../revision/tipos.js';
-import { accionesValidas, motivoSinGestion } from './acciones.js';
+import { accionesValidas, motivoSinGestion, puedeCerrar, puedeConfirmarCierre } from './acciones.js';
 import {
   BotonAccion,
   DialogoCategoria,
@@ -14,6 +14,7 @@ import {
   DialogoPrioridad,
 } from './AccionesFicha.js';
 import { Bitacora } from './Bitacora.js';
+import { DialogoCierre, DialogoConfirmarCierre, SeccionCierre } from './CierreFicha.js';
 import { DesglosePrioridad } from './DesglosePrioridad.js';
 import { ESTADOS_INCIDENTE, EtiquetaEstadoIncidente } from './EtiquetaEstadoIncidente.js';
 import { fechaHora } from './formato.js';
@@ -21,7 +22,16 @@ import { ReportesFicha } from './ReportesFicha.js';
 import type { FichaGestion } from './tipos.js';
 import { useAccionesFicha, useAreas, useFicha } from './useGestion.js';
 
-type Dialogo = 'derivar' | 'ejecucion' | 'desestimar' | 'categoria' | 'prioridad' | null;
+type Dialogo =
+  | 'derivar'
+  | 'ejecucion'
+  | 'desestimar'
+  | 'categoria'
+  | 'prioridad'
+  | 'cerrar'
+  | 'aceptarCierre'
+  | 'rechazarCierre'
+  | null;
 
 /** F06, F07 y F08: todo lo que el operador necesita para decidir y actuar sobre un incidente. */
 export function PaginaFicha() {
@@ -66,6 +76,8 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
   const [dialogo, setDialogo] = useState<Dialogo>(null);
   const validas = accionesValidas(ficha, areas);
   const sinGestion = motivoSinGestion(ficha);
+  const cerrable = puedeCerrar(ficha);
+  const confirmable = puedeConfirmarCierre(ficha, usuario);
   // Derivar y cambiar la categoría eligen de las áreas y las categorías: sin ellas, no se ofrecen.
   const conCatalogo = categorias.isSuccess;
   const errorCatalogo = categorias.isError ? aErrorApi(categorias.error) : null;
@@ -76,6 +88,8 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
     acciones.cambiarEstado.reset();
     acciones.cambiarCategoria.reset();
     acciones.fijarPrioridad.reset();
+    acciones.cerrar.reset();
+    acciones.confirmarCierre.reset();
     setDialogo(cual);
   };
   const cerrar = () => setDialogo(null);
@@ -129,6 +143,7 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
         {validas.pasarAEjecucion && (
           <BotonAccion alElegir={() => abrir('ejecucion')}>Pasar a ejecución…</BotonAccion>
         )}
+        {cerrable && <BotonAccion alElegir={() => abrir('cerrar')}>Cerrar con foto…</BotonAccion>}
         {validas.cambiarCategoria && conCatalogo && (
           <BotonAccion alElegir={() => abrir('categoria')}>Cambiar la categoría…</BotonAccion>
         )}
@@ -160,6 +175,12 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <ReportesFicha incidenteId={ficha.id} reportes={ficha.reportes} />
         <div className="flex flex-col gap-4">
+          <SeccionCierre
+            ficha={ficha}
+            puedeConfirmar={confirmable}
+            alAceptar={() => abrir('aceptarCierre')}
+            alRechazar={() => abrir('rechazarCierre')}
+          />
           <DesglosePrioridad
             prioridad={ficha.prioridad}
             puedeFijar={validas.fijarPrioridad}
@@ -209,6 +230,16 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
           ficha={ficha}
           categorias={categorias.data ?? []}
           mutacion={acciones.cambiarCategoria}
+          alTerminar={cerrar}
+          alCerrar={cerrar}
+        />
+      )}
+      {dialogo === 'cerrar' && <DialogoCierre ficha={ficha} mutacion={acciones.cerrar} alCerrar={cerrar} />}
+      {(dialogo === 'aceptarCierre' || dialogo === 'rechazarCierre') && (
+        <DialogoConfirmarCierre
+          ficha={ficha}
+          aceptar={dialogo === 'aceptarCierre'}
+          mutacion={acciones.confirmarCierre}
           alTerminar={cerrar}
           alCerrar={cerrar}
         />
