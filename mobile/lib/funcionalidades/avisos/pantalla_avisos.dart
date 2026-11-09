@@ -8,6 +8,7 @@ import '../../compartido/formato/fechas.dart';
 import '../../compartido/red/error_api.dart';
 import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/tema/tema_app.dart';
+import '../mapa/repositorio_mapa.dart';
 import 'avisos.dart';
 import 'modelos.dart';
 
@@ -130,7 +131,11 @@ class _FilaAviso extends ConsumerWidget {
       if (context.mounted) mostrarError(context, error);
     }
     if (aviso.incidenteId case final id?) {
-      if (context.mounted) context.push(Rutas.incidente(id));
+      if (!context.mounted) return;
+      // La ficha puede haber quedado guardada de antes: el aviso es de un
+      // cambio, así que se pide de nuevo.
+      ref.invalidate(fichaProvider(id));
+      context.push(Rutas.incidente(id));
     }
   }
 }

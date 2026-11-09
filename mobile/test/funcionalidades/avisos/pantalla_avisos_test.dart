@@ -347,4 +347,48 @@ void main() {
 
     expect(servidor.cantidad('/notificaciones'), greaterThan(pedidos));
   });
+
+  testWidgets('el aviso que abre la app y llega también como tocado se abre '
+      'una sola vez', (tester) async {
+    const aviso = MensajePush(notificacionId: 31, incidenteId: 9);
+    final push = ServicioPushFalso()..inicial = aviso;
+    final servidor = servidorConAvisos();
+    await abrirApp(tester, servidor, servicioPush: push);
+
+    // Así lo entrega FCM al abrir la app cerrada desde la notificación.
+    push.abrir(aviso);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PantallaIncidente, skipOffstage: false), findsOneWidget);
+    expect(servidor.cantidad('/notificaciones/31/leida'), 1);
+  });
+
+  testWidgets(
+    'un aviso de un incidente con la ficha abierta la vuelve a pedir',
+    (tester) async {
+      final push = ServicioPushFalso();
+      final servidor = servidorConAvisos();
+      await abrirApp(tester, servidor, servicioPush: push);
+
+      push.abrir(const MensajePush(notificacionId: 31, incidenteId: 9));
+      await tester.pumpAndSettle();
+      expect(servidor.cantidad('/incidentes/9'), 1);
+
+      // Llega otro cambio del mismo incidente con su ficha a la vista.
+      push.recibir(
+        const MensajePush(
+          notificacionId: 32,
+          incidenteId: 9,
+          titulo: 'Cambió el estado de un incidente',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(servidor.cantidad('/incidentes/9'), 2);
+
+      // Y al tocar «Ver», la ficha nueva tampoco usa la guardada.
+      await tester.tap(find.text('Ver'));
+      await tester.pumpAndSettle();
+      expect(servidor.cantidad('/incidentes/9'), 3);
+    },
+  );
 }
