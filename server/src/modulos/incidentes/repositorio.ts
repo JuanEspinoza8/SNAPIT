@@ -162,7 +162,9 @@ export function buscarPrincipal(id: number) {
 }
 
 export async function buscarVisible(id: number) {
-  const [incidente] = await prisma.$queryRaw<(PuntoMapa & { severidad: string; direccion: string | null })[]>`
+  const [incidente] = await prisma.$queryRaw<
+    (PuntoMapa & { severidad: string; direccion: string | null; resueltoEn: Date | null })[]
+  >`
     SELECT i.id,
            ST_Y(i.ubicacion::geometry) AS lat,
            ST_X(i.ubicacion::geometry) AS lon,
@@ -173,7 +175,8 @@ export async function buscarVisible(id: number) {
            i.severidad::text AS severidad,
            i.primer_reporte_en AS "primerReporteEn",
            i.cantidad_reportes AS "cantidadReportes",
-           i.direccion
+           i.direccion,
+           i.resuelto_en AS "resueltoEn"
     FROM incidente i
     JOIN categoria c ON c.id = i.categoria_id
     WHERE i.id = ${id} AND ${INCIDENTE_VISIBLE}`;

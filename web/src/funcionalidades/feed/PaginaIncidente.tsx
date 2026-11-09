@@ -35,7 +35,16 @@ export function PaginaIncidente() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="flex flex-col gap-6">
             <article className="overflow-hidden rounded-lg border border-borde bg-superficie-alterna">
-              <Carrusel fotos={ficha.data.fotos} descripcion={ficha.data.categoria.nombre} />
+              {ficha.data.fotoCierre ? (
+                <AntesYDespues
+                  fotos={ficha.data.fotos}
+                  despues={ficha.data.fotoCierre}
+                  descripcion={ficha.data.categoria.nombre}
+                  resueltoEn={ficha.data.resueltoEn}
+                />
+              ) : (
+                <Carrusel fotos={ficha.data.fotos} descripcion={ficha.data.categoria.nombre} />
+              )}
               <div className="flex flex-col gap-3 p-4">
                 <h1 className="text-2xl font-semibold">{ficha.data.categoria.nombre}</h1>
                 <div className="flex flex-wrap gap-2">
@@ -92,12 +101,55 @@ export function PaginaIncidente() {
                   <dt className="text-texto-secundario">Vecinos que lo reportaron</dt>
                   <dd>{ficha.data.cantidadVecinos}</dd>
                 </div>
+                {ficha.data.resueltoEn && (
+                  <div>
+                    <dt className="text-texto-secundario">Resuelto</dt>
+                    <dd>{formatearFecha(ficha.data.resueltoEn)}</dd>
+                  </div>
+                )}
               </dl>
             </div>
           </aside>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Un incidente resuelto (F09): las fotos de los reportes (el antes) y la que lo cerró (el después), lado a lado
+ * en pantalla ancha y una sobre la otra en el celular.
+ */
+function AntesYDespues({
+  fotos,
+  despues,
+  descripcion,
+  resueltoEn,
+}: {
+  fotos: { id: number; url: string }[];
+  despues: { id: number; url: string };
+  descripcion: string;
+  resueltoEn: string | null;
+}) {
+  return (
+    <section aria-label="Antes y después" className="grid gap-px bg-borde sm:grid-cols-2">
+      <figure className="flex flex-col bg-superficie-alterna">
+        <figcaption className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-texto-secundario">
+          Antes
+        </figcaption>
+        <Carrusel fotos={fotos} descripcion={`${descripcion}, antes`} />
+      </figure>
+      <figure className="flex flex-col bg-superficie-alterna">
+        <figcaption className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-texto-secundario">
+          Después{resueltoEn ? ` · resuelto el ${formatearFecha(resueltoEn)}` : ''}
+        </figcaption>
+        <img
+          src={urlFoto(despues.id)}
+          alt={`${descripcion}, después: cómo quedó al resolverse`}
+          className="aspect-[4/3] w-full object-cover"
+        />
+      </figure>
+    </section>
   );
 }
 

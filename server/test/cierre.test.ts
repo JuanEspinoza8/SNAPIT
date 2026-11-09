@@ -104,6 +104,7 @@ describe('POST /api/incidentes/:id/cierre', () => {
     const ficha = await request(app).get(`/api/incidentes/${id}`);
     expect(ficha.status).toBe(200);
     expect(ficha.body.fotoCierre).toEqual({ id: fotoId, url: `/api/fotos/${fotoId}` });
+    expect(ficha.body.resueltoEn).toEqual(expect.any(String));
     expect((await request(app).get(`/api/fotos/${fotoId}`)).status).toBe(200);
   });
 

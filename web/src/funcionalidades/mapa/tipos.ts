@@ -28,6 +28,10 @@ export interface FichaIncidente {
   cantidadVecinos: number;
   direccion: string | null;
   fotos: { id: number; url: string }[];
+  /** El después (F09): la foto que cerró el incidente. Null mientras no esté resuelto. */
+  fotoCierre: { id: number; url: string } | null;
+  /** Cuándo se resolvió, o null. */
+  resueltoEn: string | null;
 }
 
 export interface FiltrosMapa {

@@ -716,13 +716,15 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   "cantidadVecinos": 1,
   "direccion": "Lago Huechulafquen, Villa Ceferino",
   "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
-  "fotoCierre": null
+  "fotoCierre": null,
+  "resueltoEn": null
 }
 ```
 
 - `severidad`: la gravedad consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`).
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
 - `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` ya incluye `/api`: la web la usa tal cual (pasa por el proxy); la app, que tiene la base terminada en `/api`, arma `fotos/<id>` sobre esa base.
+- `resueltoEn`: cuándo se resolvió (F09); `null` mientras no esté `RESUELTO`.
 - `fotoCierre`: la foto del después (F09), la que cerró el incidente, para mostrarla junto a `fotos` (el antes). `null` mientras el incidente no esté `RESUELTO`: los intentos de cierre rechazados u observados no se publican.
 - `direccion`: `"<calle> <altura>, <barrio>"`, según Nominatim (OpenStreetMap), del primer reporte del incidente. El barrio es lo que está después de la última coma. Si falta algo:
   - Sin altura (en Neuquén es lo más común): `"Lago Huechulafquen, Villa Ceferino"`.
