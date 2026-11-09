@@ -91,8 +91,9 @@ class _FilaAviso extends ConsumerWidget {
                   children: [
                     Text(
                       aviso.titulo,
+                      // Sin leer, el peso del título; leído, el del texto.
                       style: tema.textTheme.titleMedium?.copyWith(
-                        fontWeight: noLeido ? FontWeight.w700 : FontWeight.w600,
+                        fontWeight: noLeido ? null : FontWeight.w400,
                         color: noLeido ? null : secundario,
                       ),
                     ),
