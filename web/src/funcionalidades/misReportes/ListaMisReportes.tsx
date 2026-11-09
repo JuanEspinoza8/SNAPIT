@@ -7,15 +7,16 @@ import { FichaIncidente } from '../mapa/FichaIncidente.js';
 import { FilaReporte } from './FilaReporte.js';
 import { useMisReportes } from './useMisReportes.js';
 
-/** Los reportes del vecino con su estado; si toca uno, abre la ficha en la misma página. */
-export function PaginaMisReportes() {
+/**
+ * Los reportes del vecino de la sesión, del más nuevo al más viejo; si toca uno, abre la ficha al lado. Están en
+ * su perfil (PaginaPerfil).
+ */
+export function ListaMisReportes() {
   const { data, isPending, isError, error, refetch, isFetching } = useMisReportes();
   const [seleccion, setSeleccion] = useState<number | null>(null);
 
   return (
-    <section className="flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-texto">Mis reportes</h1>
-
+    <>
       {isPending && <Cargando />}
 
       {isError && (
@@ -34,7 +35,7 @@ export function PaginaMisReportes() {
           {seleccion !== null && <FichaIncidente id={seleccion} alCerrar={() => setSeleccion(null)} />}
         </div>
       )}
-    </section>
+    </>
   );
 }
 

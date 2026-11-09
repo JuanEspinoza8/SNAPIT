@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } fro
 import { useNavigate } from 'react-router-dom';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
+import { BotonReportar } from '../../compartido/componentes/BotonReportar.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { useFeed } from './consultas.js';
 import { TarjetaIncidente } from './TarjetaIncidente.js';
@@ -57,7 +58,10 @@ export function PaginaInicio() {
   return (
     <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,36rem)_1fr]">
       <section aria-label="Incidentes de la ciudad" className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Inicio</h1>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-2xl font-semibold">Inicio</h1>
+          <BotonReportar />
+        </div>
 
         {feed.isPending && <Cargando filas={6} />}
 

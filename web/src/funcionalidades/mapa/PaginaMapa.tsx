@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
+import { BotonReportar } from '../../compartido/componentes/BotonReportar.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { useIncidentes } from './consultas.js';
 import { ESTADOS, ORDEN_ESTADOS } from './estados.js';
@@ -33,11 +34,14 @@ export function PaginaMapa() {
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-semibold text-texto">Mapa</h1>
-        <p className="text-sm text-texto-secundario" aria-live="polite">
-          {incidentes.data
-            ? `${incidentes.data.length} ${incidentes.data.length === 1 ? 'incidente' : 'incidentes'} en esta zona`
-            : 'Cargando…'}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-texto-secundario" aria-live="polite">
+            {incidentes.data
+              ? `${incidentes.data.length} ${incidentes.data.length === 1 ? 'incidente' : 'incidentes'} en esta zona`
+              : 'Cargando…'}
+          </p>
+          <BotonReportar />
+        </div>
       </div>
 
       <FiltrosMapa filtros={filtros} categorias={categorias.data ?? []} alCambiar={setFiltros} />

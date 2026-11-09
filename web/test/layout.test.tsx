@@ -75,7 +75,9 @@ describe('layout', () => {
     expect(await screen.findByText('Nombre')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
     expect(screen.getByRole('link', { name: 'Reportar' })).toHaveAttribute('href', '/reportar');
-    expect(screen.getByRole('link', { name: 'Mis reportes' })).toHaveAttribute('href', '/mis-reportes');
+    // El perfil, con el nombre del usuario, en el lugar de «Mis reportes» (que quedó dentro del perfil).
+    expect(screen.getByRole('link', { name: 'Nombre' })).toHaveAttribute('href', '/perfil');
+    expect(screen.queryByRole('link', { name: 'Mis reportes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Bandeja' })).not.toBeInTheDocument();
   });
 

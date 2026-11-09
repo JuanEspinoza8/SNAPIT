@@ -14,7 +14,7 @@ interface Props {
   alAbrirFicha: (id: number) => void;
 }
 
-/** Una fila de «Mis reportes»: foto, categoría, fecha y estado. Si hay ficha, toda la fila la abre. */
+/** Un reporte del vecino en su perfil: foto, categoría, fecha y estado. Si hay ficha, toda la fila la abre. */
 export function FilaReporte({ reporte, alAbrirFicha }: Props) {
   const incidenteId = reporte.incidente?.id;
 

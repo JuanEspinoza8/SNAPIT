@@ -9,15 +9,13 @@ import logo from '../../assets/logo.png';
 // El inicio (el feed) y el mapa son públicos: están en el menú de todos los roles y también sin sesión.
 const INICIO = { ruta: '/', texto: 'Inicio' };
 const MAPA = { ruta: '/mapa', texto: 'Mapa' };
+// El perfil propio, con el nombre del usuario: todos los roles con sesión. Para el vecino reemplaza a «Mis reportes»
+// (sus reportes están ahí).
+const perfil = (usuario: Usuario) => ({ ruta: '/perfil', texto: usuario.nombre });
 
 function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
   if (esVecino(usuario)) {
-    return [
-      INICIO,
-      MAPA,
-      { ruta: '/reportar', texto: 'Reportar' },
-      { ruta: '/mis-reportes', texto: 'Mis reportes' },
-    ];
+    return [INICIO, MAPA, { ruta: '/reportar', texto: 'Reportar' }, perfil(usuario)];
   }
   if (esOperador(usuario)) {
     return [
@@ -26,6 +24,7 @@ function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
       { ruta: '/bandeja', texto: 'Bandeja' },
       { ruta: '/revision', texto: 'Revisión' },
       { ruta: '/incidentes', texto: 'Incidentes' },
+      perfil(usuario),
     ];
   }
   if (esAdministrador(usuario)) {
@@ -34,6 +33,7 @@ function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
       MAPA,
       { ruta: '/bandeja', texto: 'Bandeja' },
       { ruta: '/administracion', texto: 'Administración' },
+      perfil(usuario),
     ];
   }
   return [INICIO, MAPA];
@@ -77,7 +77,6 @@ export function Layout() {
 
           {estado === 'conSesion' ? (
             <nav className="flex flex-wrap items-center gap-1">
-              <span className="hidden pr-2 text-sm text-texto-secundario sm:inline">{usuario?.nombre}</span>
               {secciones.map((seccion) => (
                 <NavLink
                   key={seccion.ruta}

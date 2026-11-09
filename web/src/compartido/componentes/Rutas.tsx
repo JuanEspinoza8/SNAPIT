@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
 import { Cargando } from './Cargando.js';
 import { Layout } from './Layout.js';
 import { PaginaSalud } from '../../funcionalidades/salud/paginaSalud.js';
@@ -9,8 +9,8 @@ import { PaginaConfirmarCorreo } from '../../funcionalidades/cuenta/paginaConfir
 import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuperarClave.js';
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
 import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
-import { PaginaMisReportes } from '../../funcionalidades/misReportes/paginaMisReportes.js';
 import { PaginaIncidente } from '../../funcionalidades/feed/PaginaIncidente.js';
+import { PaginaPerfil } from '../../funcionalidades/perfil/PaginaPerfil.js';
 import { PaginaInicio } from '../../funcionalidades/feed/PaginaInicio.js';
 import { PaginaReporte } from '../../funcionalidades/feed/PaginaReporte.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
@@ -118,14 +118,17 @@ export const rutas: RouteObject[] = [
           </RutaProtegida>
         ),
       },
+      // El perfil propio (cualquier rol con sesión): sus datos y, si es vecino, sus reportes.
       {
-        path: 'mis-reportes',
+        path: 'perfil',
         element: (
-          <RutaProtegida roles={['VECINO']}>
-            <PaginaMisReportes />
+          <RutaProtegida>
+            <PaginaPerfil />
           </RutaProtegida>
         ),
       },
+      // «Mis reportes» quedó dentro del perfil: un link viejo lleva ahí.
+      { path: 'mis-reportes', element: <Navigate to="/perfil" replace /> },
       // Los incidentes del organismo por prioridad (#67) y la ficha de cada uno con sus acciones (#68). El
       // administrador también entra, como deja el servidor (#64).
       {
