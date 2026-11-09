@@ -33,20 +33,9 @@ class PantallaIncidente extends ConsumerWidget {
       body: SafeArea(
         child: switch (ficha) {
           AsyncData(:final value) => _Contenido(value),
-          AsyncError(:final error) when !ficha.isLoading => Padding(
-            padding: const EdgeInsets.all(Espacio.lg),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                MensajeError(ErrorApi.desde(error).mensaje),
-                const SizedBox(height: Espacio.lg),
-                OutlinedButton(
-                  onPressed: () => ref.invalidate(fichaProvider(id)),
-                  child: const Text('Reintentar'),
-                ),
-              ],
-            ),
+          AsyncError(:final error) when !ficha.isLoading => _ErrorFicha(
+            ErrorApi.desde(error),
+            alReintentar: () => ref.invalidate(fichaProvider(id)),
           ),
           _ => const Center(
             child: CircularProgressIndicator(
@@ -54,6 +43,39 @@ class PantallaIncidente extends ConsumerWidget {
             ),
           ),
         },
+      ),
+    );
+  }
+}
+
+/// Un incidente desestimado o vencido ya no tiene ficha. Desde un aviso viejo
+/// se llega igual, y reintentar no lo trae de vuelta.
+class _ErrorFicha extends StatelessWidget {
+  const _ErrorFicha(this.error, {required this.alReintentar});
+
+  final ErrorApi error;
+  final VoidCallback alReintentar;
+
+  @override
+  Widget build(BuildContext context) {
+    final noEsta = error.codigo == 'INCIDENTE_NO_ENCONTRADO';
+    return Padding(
+      padding: const EdgeInsets.all(Espacio.lg),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MensajeError(
+            noEsta ? 'Este incidente ya no está en el mapa.' : error.mensaje,
+          ),
+          if (!noEsta) ...[
+            const SizedBox(height: Espacio.lg),
+            OutlinedButton(
+              onPressed: alReintentar,
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ],
       ),
     );
   }
