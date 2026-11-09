@@ -15,6 +15,7 @@ import '../mapa/repositorio_mapa.dart';
 import 'avisos.dart';
 import 'modelos.dart';
 import 'repositorio_avisos.dart';
+import 'servicio_push.dart';
 
 /// Qué avisos recibe el vecino: el interruptor general, las categorías y sus
 /// zonas habituales.
@@ -51,6 +52,7 @@ class PantallaAjustesAvisos extends ConsumerWidget {
           padding: const EdgeInsets.all(Espacio.lg),
           children: [
             _InterruptorGeneral(usuario),
+            const _PermisoTelefono(),
             const SizedBox(height: Espacio.xl),
             const _Categorias(),
             const SizedBox(height: Espacio.xl),
@@ -107,6 +109,43 @@ class _InterruptorGeneralState extends ConsumerState<_InterruptorGeneral> {
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
+  }
+}
+
+/// Si el teléfono no deja mostrar los avisos, lo dice. Si todavía no se pidió
+/// el permiso (por ejemplo, después de «Ahora no»), deja pedirlo desde acá.
+class _PermisoTelefono extends ConsumerWidget {
+  const _PermisoTelefono();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return switch (ref.watch(estadoPermisoProvider).value) {
+      EstadoPermiso.noDeterminado => ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.notifications_off_outlined),
+        title: const Text('El teléfono todavía no muestra los avisos'),
+        subtitle: const Text('Mientras tanto, quedan en la lista de avisos.'),
+        trailing: TextButton(
+          onPressed: () => _activar(ref),
+          child: const Text('Activar'),
+        ),
+      ),
+      EstadoPermiso.denegado => const ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.notifications_off_outlined),
+        title: Text('Los avisos están apagados en el teléfono'),
+        subtitle: Text(
+          'Se activan en los ajustes de Android: Aplicaciones › SnapIt › '
+          'Notificaciones.',
+        ),
+      ),
+      _ => const SizedBox.shrink(),
+    };
+  }
+
+  Future<void> _activar(WidgetRef ref) async {
+    await ref.read(servicioPushProvider).pedirPermiso();
+    ref.invalidate(estadoPermisoProvider);
   }
 }
 
@@ -310,6 +349,10 @@ class _FilaZonaState extends ConsumerState<_FilaZona> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Borrar'),
           ),

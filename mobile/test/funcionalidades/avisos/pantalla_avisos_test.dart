@@ -106,7 +106,7 @@ void main() {
 
     expect(find.text('Activá los avisos'), findsOneWidget);
     expect(
-      find.textContaining('Podés desactivarlos cuando quieras'),
+      find.textContaining('desde «Avisos y zonas», en tu cuenta'),
       findsOneWidget,
     );
     expect(push.permisosPedidos, 0);

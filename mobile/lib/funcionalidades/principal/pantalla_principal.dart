@@ -167,8 +167,8 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         title: const Text('Activá los avisos'),
         content: const Text(
           'Así te enteramos cuando avanza un reporte, se cierra un incidente '
-          'o aparece uno nuevo en tus zonas. Podés desactivarlos cuando '
-          'quieras desde los ajustes del teléfono.',
+          'o aparece uno nuevo en tus zonas. Los podés activar o apagar '
+          'cuando quieras desde «Avisos y zonas», en tu cuenta.',
         ),
         actions: [
           TextButton(

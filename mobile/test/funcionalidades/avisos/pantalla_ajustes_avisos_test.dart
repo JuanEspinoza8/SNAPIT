@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snapit/compartido/rutas/rutas_app.dart';
 import 'package:snapit/funcionalidades/avisos/pantalla_ajustes_avisos.dart';
+import 'package:snapit/funcionalidades/avisos/servicio_push.dart';
 
 import '../../apoyo/app_de_prueba.dart';
 import '../../apoyo/avisos.dart';
+import '../../apoyo/push_falso.dart';
 import '../../apoyo/servidor_falso.dart';
 
 void main() {
@@ -13,12 +16,17 @@ void main() {
   // Un celular de 360 × 780.
   Future<void> abrirAjustes(
     WidgetTester tester,
-    ServidorAvisos servidor,
-  ) async {
+    ServidorAvisos servidor, {
+    ServicioPushFalso? servicioPush,
+  }) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    final contenedor = await abrirApp(tester, servidor.servidor);
+    final contenedor = await abrirApp(
+      tester,
+      servidor.servidor,
+      servicioPush: servicioPush,
+    );
     contenedor.read(rutasProvider).push(Rutas.ajustesAvisos);
     await tester.pumpAndSettle();
     expect(find.byType(PantallaAjustesAvisos), findsOneWidget);
@@ -253,5 +261,62 @@ void main() {
     );
     expect(find.byType(SwitchListTile), findsNothing);
     expect(servidor.pedidosZonas, 0);
+  });
+
+  testWidgets('el botón que confirma el borrado es de peligro', (tester) async {
+    await abrirAjustes(tester, ServidorAvisos(zonas: [zonaAvisosJson()]));
+
+    await tocar(tester, find.byTooltip('Borrar Casa'));
+
+    final boton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Borrar'),
+    );
+    final contexto = tester.element(find.text('Borrar zona'));
+    expect(
+      boton.style?.backgroundColor?.resolve({}),
+      Theme.of(contexto).colorScheme.error,
+    );
+  });
+
+  group('el permiso del teléfono', () {
+    testWidgets('con el permiso dado no dice nada', (tester) async {
+      await abrirAjustes(tester, ServidorAvisos());
+
+      expect(find.textContaining('el teléfono'), findsNothing);
+    });
+
+    testWidgets('después de «Ahora no» deja activarlo desde acá', (
+      tester,
+    ) async {
+      FlutterSecureStorage.setMockInitialValues({
+        ...sesionGuardada,
+        'avisosPospuestos': 'si',
+      });
+      final push = ServicioPushFalso(permiso: EstadoPermiso.noDeterminado);
+      await abrirAjustes(tester, ServidorAvisos(), servicioPush: push);
+
+      expect(
+        find.text('El teléfono todavía no muestra los avisos'),
+        findsOneWidget,
+      );
+      await tocar(tester, find.text('Activar'));
+
+      expect(push.permisosPedidos, 1);
+      expect(
+        find.text('El teléfono todavía no muestra los avisos'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('negado, explica dónde activarlo', (tester) async {
+      final push = ServicioPushFalso(permiso: EstadoPermiso.denegado);
+      await abrirAjustes(tester, ServidorAvisos(), servicioPush: push);
+
+      expect(
+        find.text('Los avisos están apagados en el teléfono'),
+        findsOneWidget,
+      );
+      expect(find.text('Activar'), findsNothing);
+    });
   });
 }
