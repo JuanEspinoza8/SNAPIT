@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:snapit/compartido/rutas/rutas_app.dart';
 import 'package:snapit/funcionalidades/avisos/modelos.dart';
 import 'package:snapit/funcionalidades/avisos/pantalla_zona_habitual.dart';
@@ -213,5 +214,41 @@ void main() {
       'radioMetros': 1500,
       'activa': true,
     });
+  });
+
+  testWidgets('el círculo sigue al radio y entra entero en el mapa', (
+    tester,
+  ) async {
+    await abrirZona(tester, ServidorAvisos());
+
+    await tester.drag(find.byType(Slider), const Offset(200, 0));
+    await tester.pumpAndSettle();
+
+    final radio = tester.widget<Slider>(find.byType(Slider)).value;
+    expect(radio, greaterThan(1000));
+    final circulo = tester
+        .widget<CircleLayer>(find.byType(CircleLayer))
+        .circles
+        .singleWhere((circulo) => circulo.useRadiusInMeter);
+    expect(circulo.radius, radio);
+
+    // Los cuatro puntos del borde se ven en el mapa.
+    final camara = MapCamera.of(tester.element(find.byType(CircleLayer)));
+    const distancia = Distance();
+    for (final rumbo in [0, 90, 180, 270]) {
+      final borde = distancia.offset(circulo.point, radio, rumbo);
+      expect(camara.visibleBounds.contains(borde), isTrue, reason: '$rumbo°');
+    }
+  });
+
+  testWidgets('el nombre se valida al salir del campo', (tester) async {
+    await abrirZona(tester, ServidorAvisos());
+
+    await tester.tap(find.byType(TextFormField));
+    await tester.pump();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Poné un nombre.'), findsOneWidget);
   });
 }

@@ -36,7 +36,6 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
   var _guardando = false;
   var _mapaListo = false;
   var _eligioCentro = false;
-  LatLng? _ubicacionPendiente;
 
   bool get _editando => widget.zona != null;
 
@@ -81,7 +80,8 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
                   options: MapOptions(
                     initialCenter: _centro,
                     initialZoom: _zoom,
-                    minZoom: 12,
+                    // Con 11 entra entera una zona de 5 km de radio.
+                    minZoom: 11,
                     maxZoom: 19,
                     interactionOptions: const InteractionOptions(
                       flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
@@ -93,6 +93,7 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
                         _centro = punto;
                         _eligioCentro = true;
                       });
+                      _encuadrar();
                     },
                   ),
                   children: [
@@ -139,6 +140,7 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
                     const SizedBox(height: Espacio.md),
                     TextFormField(
                       controller: _nombre,
+                      autovalidateMode: AutovalidateMode.onUnfocus,
                       maxLength: 80,
                       textCapitalization: TextCapitalization.sentences,
                       textInputAction: TextInputAction.done,
@@ -161,8 +163,10 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
                             max: _radioMax,
                             divisions: ((_radioMax - _radioMin) / 100).round(),
                             label: '${_radio.round()} m',
-                            onChanged: (valor) =>
-                                setState(() => _radio = valor),
+                            onChanged: (valor) {
+                              setState(() => _radio = valor);
+                              _encuadrar();
+                            },
                           ),
                         ),
                         SizedBox(
@@ -202,14 +206,24 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
 
   void _alEstarListo() {
     _mapaListo = true;
-    _moverAUbicacionPendiente();
+    _encuadrar();
   }
 
-  void _moverAUbicacionPendiente() {
-    final punto = _ubicacionPendiente;
-    if (!_mapaListo || punto == null) return;
-    _ubicacionPendiente = null;
-    _controlador.move(punto, _zoom);
+  /// Acomoda el mapa para que el círculo entre entero, con margen: así el
+  /// borde se ve mientras se ajusta el radio o se mueve el centro.
+  void _encuadrar() {
+    if (!_mapaListo) return;
+    const distancia = Distance();
+    _controlador.fitCamera(
+      CameraFit.coordinates(
+        coordinates: [
+          for (final rumbo in const [0, 90, 180, 270])
+            distancia.offset(_centro, _radio, rumbo),
+        ],
+        padding: const EdgeInsets.all(Espacio.xl),
+        maxZoom: 17,
+      ),
+    );
   }
 
   Future<void> _usarUbicacion({bool avisar = true}) async {
@@ -230,8 +244,7 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
     if (!avisar && _eligioCentro) return;
 
     setState(() => _centro = punto);
-    _ubicacionPendiente = punto;
-    _moverAUbicacionPendiente();
+    _encuadrar();
   }
 
   Future<void> _guardar() async {
