@@ -140,7 +140,7 @@ describe('revisión de reportes de baja confianza', () => {
 
     const primera = await fila('#12 · Cordón sin rampa');
     expect(within(primera).getByText(/Moderada · confianza 40/)).toBeInTheDocument();
-    expect(within(primera).getByText('Pendiente')).toBeInTheDocument();
+    expect(within(primera).getByText('Pendiente de revisión')).toBeInTheDocument();
     expect(await fila('#15 · Pozo en la calzada')).toBeInTheDocument();
   });
 
@@ -170,6 +170,22 @@ describe('revisión de reportes de baja confianza', () => {
     expect(within(detalle).getByText('-40')).toBeInTheDocument();
     expect(within(detalle).getByText(/Reputación/)).toHaveTextContent('Reputación 50 de 100');
     expect(within(detalle).getByTestId('mapa-chico')).toHaveTextContent('-38.9531,-68.0478');
+  });
+
+  it('la reputación del vecino se lee con coma decimal', async () => {
+    const usuario = userEvent.setup();
+    // El servidor la manda como número (numeric de la base): 66.67.
+    pendientes = [
+      pendiente({
+        senales: [],
+        vecino: { reputacion: 66.67, reportesConfirmados: 2, reportesDesestimados: 1 },
+      }),
+    ];
+    abrir();
+
+    const detalle = await abrirDetalle(usuario);
+
+    expect(within(detalle).getByText(/Reputación/)).toHaveTextContent('Reputación 66,67 de 100');
   });
 
   it('si la IA ya lo derivó, el detalle dice qué propuso y por qué no coincide', async () => {
@@ -315,21 +331,125 @@ describe('revisión de reportes de baja confianza', () => {
 
     const publicada = await fila('#12 · Cordón sin rampa');
     expect(await within(publicada).findByText('Publicado por la IA')).toBeInTheDocument();
-    expect(within(publicada).getByText('✓ coincide')).toBeInTheDocument();
+    expect(within(publicada).getByText('Coincide')).toBeInTheDocument();
     const derivada = await fila('#15 · Pozo en la calzada');
     expect(within(derivada).getByText('Para revisión manual')).toBeInTheDocument();
-    expect(within(derivada).getByText('≠ no coincide')).toBeInTheDocument();
+    expect(within(derivada).getByText('No coincide')).toBeInTheDocument();
+    // El motivo de la IA se lee en la fila, sin ir al historial.
+    expect(within(derivada).getByText('No coincide con lo que eligió el vecino')).toBeInTheDocument();
     expect(within(derivada).getByRole('button', { name: /Revisar/ })).toBeInTheDocument();
 
-    // El resumen aclara en cuántos publicados la IA coincidió con su propia sugerencia.
+    // El resumen aclara en cuántos publicados la IA coincidió con su propia sugerencia, con coma decimal.
     await usuario.click(screen.getByRole('button', { name: /Procesamiento con IA/ }));
     expect(await screen.findByText('1 con la sugerencia aceptada')).toBeInTheDocument();
+    expect(screen.getByText('3,0 s')).toBeInTheDocument();
+    expect(screen.getByText('US$ 0,0004')).toBeInTheDocument();
     await usuario.click(screen.getByRole('button', { name: /Pendientes de aprobación/ }));
+
+    // Al volver, el publicado sigue a la vista aunque el servidor ya no lo tenga pendiente.
+    expect(within(await fila('#12 · Cordón sin rampa')).getByText('Publicado por la IA')).toBeInTheDocument();
+    expect(pendientes.map((reporte) => reporte.id)).toEqual([15]);
 
     // Limpiar saca el publicado; el derivado sigue esperando a una persona.
     await usuario.click(screen.getByRole('button', { name: /Limpiar resueltos/ }));
     expect(screen.queryByText('#12 · Cordón sin rampa')).not.toBeInTheDocument();
     expect(screen.getByText('#15 · Pozo en la calzada')).toBeInTheDocument();
+  });
+
+  it('si coincide pero la confianza no llega al umbral, dice por qué quedó para revisión', async () => {
+    const usuario = userEvent.setup();
+    const motivo =
+      'Coincide con lo que eligió el vecino, pero la verificación le dio 40 de confianza y hacen falta 60: ' +
+      'queda para revisión manual';
+    const coincidente = {
+      categoriaId: 3,
+      severidad: 'MODERADA' as const,
+      explicacion: 'Se ve una rampa rota',
+    };
+    pendientes = [pendiente({ propuestaIa: { ...coincidente, creadoEn: '2026-10-20T16:00:05.000Z' } })];
+    const reporte = {
+      id: 12,
+      categoria: { id: 3, nombre: 'Cordón sin rampa' },
+      severidadDeclarada: 'MODERADA' as const,
+      foto: null,
+      incidenteId: 9,
+    };
+    eventosIa = [
+      {
+        id: 1,
+        creadoEn: '2026-10-20T16:00:01.000Z',
+        estado: 'EN_PROCESO',
+        detalle: null,
+        reporte,
+        propuesta: null,
+      },
+      {
+        id: 2,
+        creadoEn: '2026-10-20T16:00:05.000Z',
+        estado: 'CLASIFICADO',
+        detalle: null,
+        reporte,
+        propuesta: { registroIaId: 1, ...coincidente },
+      },
+      {
+        id: 3,
+        creadoEn: '2026-10-20T16:00:05.000Z',
+        estado: 'REVISION_MANUAL',
+        detalle: motivo,
+        reporte,
+        propuesta: null,
+      },
+    ];
+    abrir();
+    await fila('#12 · Cordón sin rampa');
+
+    await usuario.click(screen.getByRole('button', { name: /Procesar con IA/ }));
+
+    const derivada = await fila('#12 · Cordón sin rampa');
+    expect(await within(derivada).findByText('Para revisión manual')).toBeInTheDocument();
+    expect(within(derivada).getByText('Coincide')).toBeInTheDocument();
+    expect(within(derivada).getByText(motivo)).toBeInTheDocument();
+
+    // El detalle no dice solo «coincide»: explica por qué sigue pendiente.
+    const detalle = await abrirDetalle(usuario);
+    expect(
+      within(detalle).getByText(
+        /Coincide con el vecino, pero la confianza no llega a la que pide la verificación/,
+      ),
+    ).toBeInTheDocument();
+    await usuario.click(within(detalle).getByRole('button', { name: 'Cerrar' }));
+
+    // La propuesta se decide por el último paso, no por la coincidencia.
+    await usuario.click(screen.getByRole('button', { name: /Procesamiento con IA/ }));
+    await usuario.click(await screen.findByRole('button', { name: 'ver propuesta' }));
+    const propuesta = screen.getByRole('dialog', { name: /Propuesta de la IA/ });
+    expect(within(propuesta).getByText('Coincide con lo que eligió el vecino.')).toBeInTheDocument();
+    expect(within(propuesta).getByText('Quedó para revisión manual.')).toBeInTheDocument();
+    expect(within(propuesta).getByText(motivo)).toBeInTheDocument();
+    expect(within(propuesta).queryByText(/la IA lo publica/i)).not.toBeInTheDocument();
+  });
+
+  it('si no puede traer el procesamiento con IA, lo dice y deja reintentar', async () => {
+    const usuario = userEvent.setup();
+    servidor.use(
+      http.get(
+        '*/api/ia/procesos',
+        () =>
+          HttpResponse.json(
+            { error: { codigo: 'ERROR_INTERNO', mensaje: 'Falló el servidor' } },
+            { status: 500 },
+          ),
+        { once: true },
+      ),
+    );
+    abrir();
+
+    await usuario.click(await screen.findByRole('button', { name: /Procesamiento con IA/ }));
+
+    expect(await screen.findByText('Falló el servidor')).toBeInTheDocument();
+    expect(screen.queryByText(/Todavía no se procesó la cola/)).not.toBeInTheDocument();
+    await usuario.click(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(await screen.findByText(/Todavía no se procesó la cola/)).toBeInTheDocument();
   });
 
   it('sin pendientes, lo dice', async () => {
@@ -384,12 +504,17 @@ describe('todos los reportes', () => {
     const usuario = userEvent.setup();
     await abrirTodos(usuario);
 
-    expect(
-      within(await fila('#30 · Pozo en la calzada')).getByText('Publicado por la IA'),
-    ).toBeInTheDocument();
-    expect(within(await fila('#29 · Cordón sin rampa')).getByText('Publicado')).toBeInTheDocument();
+    // «Verificado», como en la ficha y en incidentes; lo que hizo la IA se cuenta aparte.
+    const deLaIa = await fila('#30 · Pozo en la calzada');
+    expect(within(deLaIa).getByText('Verificado')).toBeInTheDocument();
+    expect(within(deLaIa).getByText(/^Publicado por la IA el/)).toBeInTheDocument();
+    const aMano = await fila('#29 · Cordón sin rampa');
+    expect(within(aMano).getByText('Verificado')).toBeInTheDocument();
+    expect(within(aMano).queryByText(/Publicado/)).not.toBeInTheDocument();
     expect(within(await fila('#28 · Vereda rota')).getByText('Desestimado')).toBeInTheDocument();
-    expect(within(await fila('#12 · Cordón sin rampa')).getByText('Pendiente')).toBeInTheDocument();
+    expect(
+      within(await fila('#12 · Cordón sin rampa')).getByText('Pendiente de revisión'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Todos los reportes/ })).toHaveTextContent('4');
   });
 
@@ -397,13 +522,19 @@ describe('todos los reportes', () => {
     const usuario = userEvent.setup();
     await abrirTodos(usuario);
     await fila('#30 · Pozo en la calzada');
+    const filtros = screen.getByRole('group', { name: 'Filtrar por estado' });
 
-    expect(screen.getByRole('tab', { name: /Publicados/ })).toHaveTextContent('(2)');
-    await usuario.click(screen.getByRole('tab', { name: /Publicados/ }));
+    expect(within(filtros).getByRole('button', { name: /Verificados/ })).toHaveTextContent('(2)');
+    await usuario.click(within(filtros).getByRole('button', { name: /Verificados/ }));
+    expect(within(filtros).getByRole('button', { name: /Verificados/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(within(filtros).getByRole('button', { name: /Todos/ })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByText('#30 · Pozo en la calzada')).toBeInTheDocument();
     expect(screen.queryByText('#28 · Vereda rota')).not.toBeInTheDocument();
 
-    await usuario.click(screen.getByRole('tab', { name: /Todos/ }));
+    await usuario.click(within(filtros).getByRole('button', { name: /Todos/ }));
     await usuario.selectOptions(screen.getByRole('combobox', { name: /Categoría/ }), 'Vereda rota');
     expect(screen.getByText('#28 · Vereda rota')).toBeInTheDocument();
     expect(screen.queryByText('#30 · Pozo en la calzada')).not.toBeInTheDocument();

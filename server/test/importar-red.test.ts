@@ -311,7 +311,8 @@ describe('aplicar el relevamiento al importar', () => {
       nodos: 14,
       tramos: 19,
       porTipo: { VEREDA: 16, CRUCE: 1, ESCALERA: 0, SENDA: 2 },
-      conRampa: 2,
+      // Las dos de la cuadra relevada y la unión, por la que pasa una silla.
+      conRampa: 3,
       conPisoPodotactil: 0,
     });
     // La vereda suelta quedó unida al resto.
@@ -323,7 +324,7 @@ describe('aplicar el relevamiento al importar', () => {
     expect(await tramoEntre(esquina(0, 0), esquina(0, 1))).toMatchObject([
       { rampa: false, superficie: 'unpaved', ancho: null, pendiente: 5 },
     ]);
-    expect(await tramoEntre(BASE + 209, esquina(2, 1))).toMatchObject([{ tipo: 'VEREDA' }]);
+    expect(await tramoEntre(BASE + 209, esquina(2, 1))).toMatchObject([{ tipo: 'VEREDA', rampa: true }]);
   });
 
   it('correrlo dos veces deja la misma red corregida', async () => {

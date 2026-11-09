@@ -1,21 +1,34 @@
 import { Fragment, useState } from 'react';
+import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
+import { aErrorApi } from '../../compartido/red/error.js';
 import { agruparPorReporte, type ReporteProcesado } from './agrupar.js';
-import type { EstadoEvento, EventoCola, ProcesoCola, Severidad } from './tipos.js';
+import {
+  severidadEnTexto,
+  type EstadoEvento,
+  type EventoCola,
+  type ProcesoCola,
+  type Severidad,
+} from './tipos.js';
 
+/** La propuesta se abre con el último paso del reporte: es el que dice si la IA lo publicó o no, y por qué. */
 export type Seleccion =
-  { tipo: 'propuesta'; evento: EventoCola } | { tipo: 'ficha'; incidenteId: number } | null;
+  | { tipo: 'propuesta'; evento: EventoCola; ultimo: EventoCola }
+  | { tipo: 'ficha'; incidenteId: number }
+  | null;
 
 interface Props {
   proceso: ProcesoCola | undefined;
   cargando: boolean;
+  error: unknown;
+  alReintentar: () => void;
   alElegir: (seleccion: Seleccion) => void;
 }
 
 /** El procesamiento con IA como tabla: una fila por reporte, con su historial de estados desplegable. */
-export function TablaProceso({ proceso, cargando, alElegir }: Props) {
+export function TablaProceso({ proceso, cargando, error, alReintentar, alElegir }: Props) {
   const categorias = useCategorias();
   const nombreCategoria = (id: number | null) =>
     id === null ? null : (categorias.data?.find((c) => c.id === id)?.nombre ?? `Categoría ${id}`);
@@ -45,7 +58,8 @@ export function TablaProceso({ proceso, cargando, alElegir }: Props) {
       </div>
 
       {cargando && <Cargando />}
-      {!proceso && !cargando && (
+      {error != null && <AvisoError error={aErrorApi(error)} alReintentar={alReintentar} />}
+      {!proceso && !cargando && error == null && (
         <p className="text-sm text-texto-secundario">
           Todavía no se procesó la cola. Apretá «Procesar con IA» para verlo en vivo.
         </p>
@@ -57,7 +71,6 @@ export function TablaProceso({ proceso, cargando, alElegir }: Props) {
             <table className="w-full min-w-[44rem] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-borde text-xs uppercase tracking-wide text-texto-secundario">
-                  <th className="w-8 py-2" aria-label="Historial" />
                   <th className="py-2 pr-3">Reporte</th>
                   <th className="py-2 pr-3">El vecino eligió</th>
                   <th className="py-2 pr-3">La IA propone</th>
@@ -112,27 +125,16 @@ function FilaReporte({
 
   return (
     <tr className={`border-b border-borde align-middle ${abierto ? 'bg-superficie-alterna' : ''}`}>
-      <td className="py-2">
-        <button
-          type="button"
-          onClick={alAlternar}
-          aria-expanded={abierto}
-          aria-label={`${abierto ? 'Ocultar' : 'Ver'} el historial del reporte #${reporte.id}`}
-          className="flex h-6 w-6 items-center justify-center rounded text-texto-secundario hover:bg-superficie-alterna"
-        >
-          <span className={`inline-block transition-transform ${abierto ? 'rotate-90' : ''}`}>▸</span>
-        </button>
-      </td>
       <td className="py-2 pr-3">
         <div className="flex items-center gap-2">
           {reporte.foto ? (
             <FotoConSesion
               fotoId={reporte.foto.id}
-              className="h-10 w-14 shrink-0 rounded object-cover"
-              siFalla={<span className="h-10 w-14 shrink-0 rounded bg-superficie-alterna" />}
+              className="h-10 w-14 shrink-0 rounded-md object-cover"
+              siFalla={<span className="h-10 w-14 shrink-0 rounded-md bg-superficie-alterna" />}
             />
           ) : (
-            <span className="h-10 w-14 shrink-0 rounded bg-superficie-alterna" />
+            <span className="h-10 w-14 shrink-0 rounded-md bg-superficie-alterna" />
           )}
           <span className="font-semibold text-texto">#{reporte.id}</span>
         </div>
@@ -147,11 +149,7 @@ function FilaReporte({
               categoria={nombreCategoria(propuesta.categoriaId)}
               severidad={propuesta.severidad}
             />
-            <span
-              className={`text-xs font-semibold ${coincide ? 'text-estado-resuelto' : 'text-estado-registrado'}`}
-            >
-              {coincide ? '✓ coincide' : '≠ no coincide'}
-            </span>
+            <span className="text-xs font-semibold text-texto">{coincide ? 'Coincide' : 'No coincide'}</span>
           </div>
         ) : (
           <span className="text-texto-secundario">—</span>
@@ -160,14 +158,25 @@ function FilaReporte({
       <td className="py-2 pr-3">
         <EtiquetaEstado estado={fila.estado} />
       </td>
-      <td className="py-2 pr-3 font-mono text-xs text-texto-secundario">{hora(fila.ultimoEvento)}</td>
+      <td className="py-2 pr-3 text-xs text-texto-secundario">{hora(fila.ultimoEvento)}</td>
       <td className="py-2 text-right">
         <div className="flex justify-end gap-3 whitespace-nowrap">
+          <button
+            type="button"
+            className={enlace}
+            onClick={alAlternar}
+            aria-expanded={abierto}
+            aria-label={`${abierto ? 'Ocultar' : 'Ver'} historial del reporte #${reporte.id}`}
+          >
+            {abierto ? 'ocultar historial' : 'ver historial'}
+          </button>
           {clasificado && (
             <button
               type="button"
               className={enlace}
-              onClick={() => alElegir({ tipo: 'propuesta', evento: clasificado })}
+              onClick={() =>
+                alElegir({ tipo: 'propuesta', evento: clasificado, ultimo: fila.eventos.at(-1)! })
+              }
             >
               ver propuesta
             </button>
@@ -191,13 +200,12 @@ function FilaReporte({
 function Historial({ eventos }: { eventos: EventoCola[] }) {
   return (
     <tr className="border-b border-borde bg-superficie-alterna">
-      <td />
       <td colSpan={6} className="pb-3 pr-3">
         <ol className="relative ml-2 flex flex-col gap-2 border-l-2 border-borde pl-4">
           {eventos.map((evento) => (
-            <li key={evento.id} className="flex flex-col gap-0.5">
+            <li key={evento.id} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs text-texto-secundario">{hora(evento.creadoEn)}</span>
+                <span className="text-xs text-texto-secundario">{hora(evento.creadoEn)}</span>
                 <EtiquetaEstado estado={evento.estado} />
               </div>
               {evento.detalle && <p className="text-xs text-texto-secundario">{evento.detalle}</p>}
@@ -209,31 +217,38 @@ function Historial({ eventos }: { eventos: EventoCola[] }) {
   );
 }
 
-const ETIQUETAS: Record<EstadoEvento, { texto: string; clase: string }> = {
-  EN_PROCESO: { texto: 'En proceso', clase: 'bg-superficie-alterna text-texto-secundario animate-pulse' },
-  CLASIFICADO: { texto: 'Clasificado', clase: 'bg-estado-verificado text-sobre-estado' },
-  PUBLICADO: { texto: 'Publicado', clase: 'bg-estado-resuelto text-sobre-estado' },
-  REVISION_MANUAL: { texto: 'Revisión manual', clase: 'bg-estado-registrado text-sobre-estado' },
-  ERROR: { texto: 'Error', clase: 'bg-peligro text-sobre-primario' },
+// Con colores neutros, como en «Pendientes de aprobación»: el texto dice en qué está.
+const ETIQUETAS: Record<EstadoEvento, string> = {
+  EN_PROCESO: 'En proceso',
+  CLASIFICADO: 'Clasificado',
+  PUBLICADO: 'Publicado por la IA',
+  REVISION_MANUAL: 'Revisión manual',
+  ERROR: 'Error',
 };
 
 function EtiquetaEstado({ estado }: { estado: EstadoEvento }) {
-  const { texto, clase } = ETIQUETAS[estado];
+  const clase =
+    estado === 'ERROR'
+      ? 'border-peligro bg-peligro text-sobre-primario'
+      : 'border-borde bg-superficie-alterna text-texto';
   return (
-    <span className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold ${clase}`}>{texto}</span>
+    <span className={`whitespace-nowrap rounded-md border px-2 py-1 text-xs font-semibold ${clase}`}>
+      {ETIQUETAS[estado]}
+    </span>
   );
 }
-
-const GRAVEDADES: Record<Severidad, string> = { LEVE: 'Leve', MODERADA: 'Moderada', GRAVE: 'Grave' };
 
 function Clasificacion({ categoria, severidad }: { categoria: string | null; severidad: Severidad | null }) {
   return (
     <div className="flex flex-col">
       <span className="text-texto">{categoria ?? '—'}</span>
-      {severidad && <span className="text-xs text-texto-secundario">{GRAVEDADES[severidad]}</span>}
+      {severidad && <span className="text-xs text-texto-secundario">{severidadEnTexto[severidad]}</span>}
     </div>
   );
 }
+
+const decimales = (valor: number, cantidad: number) =>
+  valor.toLocaleString('es-AR', { minimumFractionDigits: cantidad, maximumFractionDigits: cantidad });
 
 function Resumen({ proceso }: { proceso: ProcesoCola }) {
   const r = proceso.resumen;
@@ -247,8 +262,8 @@ function Resumen({ proceso }: { proceso: ProcesoCola }) {
     ],
     ['A revisión', String(r.derivados)],
     ['Errores', String(r.errores)],
-    ['Tiempo medio', r.tiempoMedioMs === null ? '—' : `${(r.tiempoMedioMs / 1000).toFixed(1)} s`],
-    ['Costo', r.costoUsd === null ? '—' : `US$ ${r.costoUsd.toFixed(4)}`],
+    ['Tiempo medio', r.tiempoMedioMs === null ? '—' : `${decimales(r.tiempoMedioMs / 1000, 1)} s`],
+    ['Costo', r.costoUsd === null ? '—' : `US$ ${decimales(r.costoUsd, 4)}`],
   ];
   return (
     <dl className="grid grid-cols-3 gap-2 rounded-md bg-superficie-alterna p-3 text-center sm:grid-cols-6">

@@ -44,6 +44,12 @@ const esquema = z.object({
   IA_MODELO: z.string().min(1).default('claude-haiku-5-5'),
   // Lo máximo que se espera una consulta, contando el reintento ante errores pasajeros.
   IA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  // Archivo de la cuenta de servicio de Firebase, relativo a donde se corre el servidor. Sin él el servidor
+  // arranca igual: los avisos se guardan y se listan, pero no salen al celular.
+  FIREBASE_CREDENCIALES: z
+    .string()
+    .optional()
+    .transform((ruta) => (ruta ? path.resolve(ruta) : undefined)),
 });
 
 const resultado = esquema.safeParse(process.env);

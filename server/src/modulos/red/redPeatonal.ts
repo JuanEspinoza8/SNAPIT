@@ -20,6 +20,9 @@ export const TIPOS_CAMINO = [...CAMINOS, ...CALLES];
 const SERVICIOS_EXCLUIDOS = ['parking_aisle', 'driveway', 'drive-through'];
 const PEATON_PERMITIDO = ['yes', 'designated', 'permissive'];
 const CON_RAMPA = ['lowered', 'flush'];
+// Calles peatonales y de convivencia: se caminan a nivel, sin cordón que bajar. Para el perfil, "con rampa"
+// es "se pasa sin escalón" (E8, decisión del 04/11). Los footway que no son cruces quedan para decidir.
+const SIN_CORDON = ['pedestrian', 'living_street'];
 const SEMAFORO_SONORO = ['yes', 'walk', 'locate'];
 const PISO_PODOTACTIL = ['yes', 'contrasted', 'primitive'];
 
@@ -226,7 +229,9 @@ function armarTramo(
     nodoDestino: nodos.at(-1)!,
     puntos: puntos.map(({ lon, lat }) => [lon, lat]),
     tipo: tipoDe(etiquetas, esCalle),
-    tieneRampa: etiquetasConCordon.some((t) => CON_RAMPA.includes(t.kerb ?? '')),
+    tieneRampa:
+      SIN_CORDON.includes(etiquetas.highway ?? '') ||
+      etiquetasConCordon.some((t) => CON_RAMPA.includes(t.kerb ?? '')),
     pendientePorcentaje: leerPendiente(etiquetas.incline),
     // En una calle, el ancho y la superficie son los de la calzada, no los de la vereda.
     anchoEstimado: esCalle ? null : leerAncho(etiquetas.width),

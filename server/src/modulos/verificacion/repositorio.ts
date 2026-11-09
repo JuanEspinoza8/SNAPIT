@@ -95,6 +95,10 @@ const DEL_ORGANISMO = Prisma.sql`
   JOIN categoria c ON c.id = coalesce(i.categoria_id, r.categoria_id)
   JOIN area a ON a.id = coalesce(i.area_id, c.area_id)`;
 
+// Un pendiente de un incidente resuelto o desestimado ya no se revisa (409 INCIDENTE_CERRADO en resultado.ts):
+// no se lista para revisar ni entra en la cola de la IA.
+const INCIDENTE_ABIERTO = Prisma.sql`(i.id IS NULL OR i.estado NOT IN ('RESUELTO', 'DESESTIMADO'))`;
+
 export interface FilaPendiente {
   id: number;
   registradoEn: Date;
@@ -135,6 +139,7 @@ export interface FiltrosReportes {
   /** Los pendientes se revisan del más viejo al más nuevo; el listado general muestra primero lo último. */
   orden: 'viejos' | 'nuevos';
   limite: number;
+  soloIncidentesAbiertos?: boolean;
 }
 
 /**
@@ -162,12 +167,30 @@ export function pendientesParaIa(organismoId: number) {
     ${DEL_ORGANISMO}
     WHERE r.estado_verificacion = 'PENDIENTE_REVISION'
       AND a.organismo_id = ${organismoId}
+      AND ${INCIDENTE_ABIERTO}
     ORDER BY r.registrado_en, r.id`;
 }
 
-/** Los reportes pendientes de revisión de los incidentes del organismo, del más viejo al más nuevo. */
+/** En qué quedó el reporte y si su incidente se cerró: la cola lo mira antes de pagar la clasificación. */
+export async function estadoEnCola(id: number) {
+  const [fila] = await prisma.$queryRaw<{ estado: EstadoVerificacion; incidenteCerrado: boolean }[]>`
+    SELECT r.estado_verificacion::text AS estado, NOT ${INCIDENTE_ABIERTO} AS "incidenteCerrado"
+    FROM reporte r
+    LEFT JOIN incidente propio ON propio.id = r.incidente_id
+    LEFT JOIN incidente i ON i.id = coalesce(propio.incidente_principal_id, propio.id)
+    WHERE r.id = ${id}`;
+  if (!fila) throw new Error(`No existe el reporte ${id}`);
+  return fila;
+}
+
+/** Los reportes que esperan revisión en los incidentes abiertos del organismo, del más viejo al más nuevo. */
 export function listarPendientes(organismoId: number) {
-  return listarDelOrganismo(organismoId, { estado: 'PENDIENTE_REVISION', orden: 'viejos', limite: 1000 });
+  return listarDelOrganismo(organismoId, {
+    estado: 'PENDIENTE_REVISION',
+    orden: 'viejos',
+    limite: 1000,
+    soloIncidentesAbiertos: true,
+  });
 }
 
 /** Los reportes de los incidentes del organismo, con todo lo que hace falta para revisarlos o consultarlos. */
@@ -177,6 +200,7 @@ export function listarDelOrganismo(organismoId: number, filtros: FiltrosReportes
     condiciones.push(Prisma.sql`r.estado_verificacion = ${filtros.estado}::estado_verificacion`);
   }
   if (filtros.categoriaId) condiciones.push(Prisma.sql`r.categoria_id = ${filtros.categoriaId}`);
+  if (filtros.soloIncidentesAbiertos) condiciones.push(INCIDENTE_ABIERTO);
   const orden =
     filtros.orden === 'viejos'
       ? Prisma.sql`r.registrado_en, r.id`

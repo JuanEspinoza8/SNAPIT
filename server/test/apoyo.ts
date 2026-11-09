@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { RolUsuario, Severidad } from '@prisma/client';
+import type { EstadoIncidente, RolUsuario, Severidad } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { app } from '../src/app.js';
@@ -77,6 +77,25 @@ export async function crearOrganismoDePrueba(pesoSeveridadBase = '1.00') {
     data: { nombre: `Categoría ${randomUUID()}`, areaId: area.id, pesoSeveridadBase },
   });
   return { organismo, area, categoria };
+}
+
+/**
+ * Un incidente sin reportes, insertado directo en la base, lejos de Neuquén (0, 0) para no cruzarse con los de
+ * otros tests. Se borra con prisma.incidente.deleteMany; sus seguimientos y avisos se van con él.
+ */
+export async function crearIncidente(
+  categoriaId: number,
+  {
+    estado = 'VERIFICADO',
+    principalId = null,
+  }: { estado?: EstadoIncidente; principalId?: number | null } = {},
+) {
+  const [fila] = await prisma.$queryRaw<{ id: number }[]>`
+    INSERT INTO incidente (categoria_id, estado, ubicacion, incidente_principal_id)
+    VALUES (${categoriaId}, ${estado}::estado_incidente, ST_SetSRID(ST_MakePoint(0, 0), 4326)::geography,
+            ${principalId})
+    RETURNING id`;
+  return fila!.id;
 }
 
 /**
