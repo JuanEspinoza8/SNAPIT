@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { Modal } from '../../compartido/componentes/Modal.js';
+import { problemaConLaFoto, TIPOS_FOTO } from '../../compartido/foto.js';
 import { BotonEnviar, CampoTexto, Confirmacion, ErrorDelServidor } from './AccionesFicha.js';
 import { fechaHora } from './formato.js';
 import type { FichaGestion, ResultadoCierre } from './tipos.js';
@@ -8,8 +9,20 @@ import type { useAccionesFicha } from './useGestion.js';
 
 type Acciones = ReturnType<typeof useAccionesFicha>;
 
-// Las que acepta el servidor (POST /api/incidentes/:id/cierre).
-const TIPOS_FOTO = ['image/jpeg', 'image/png'];
+// Cuántas fotos del antes compara la IA (MAX_FOTOS_ANTES en server/src/modulos/ia/compararCierre.ts).
+const MAX_FOTOS_ANTES = 4;
+
+/**
+ * Las fotos del antes que comparó la IA, igual que el servidor (fotosDelAntes): las de los reportes no
+ * desestimados, del incidente y de sus unidos, de la más vieja a la más nueva, como mucho MAX_FOTOS_ANTES.
+ */
+export function fotosDelAntes(reportes: FichaGestion['reportes']) {
+  return reportes
+    .filter((reporte) => reporte.estadoVerificacion !== 'DESESTIMADO')
+    .flatMap((reporte) => reporte.fotos)
+    .sort((a, b) => a.id - b.id)
+    .slice(0, MAX_FOTOS_ANTES);
+}
 
 const RESULTADOS: Record<ResultadoCierre, { etiqueta: string; clase: string }> = {
   VALIDADO: { etiqueta: 'Validado', clase: 'border-primario text-primario' },
@@ -57,11 +70,7 @@ export function SeccionCierre({
 }) {
   const cierre = ficha.cierre;
   if (!cierre) return null;
-  // El antes: la primera foto de cada reporte que cuenta (no desestimado), como las que comparó la IA.
-  const antes = ficha.reportes
-    .filter((reporte) => reporte.estadoVerificacion !== 'DESESTIMADO')
-    .flatMap((reporte) => reporte.fotos.slice(0, 1))
-    .slice(0, 2);
+  const antes = fotosDelAntes(ficha.reportes);
   const despues = cierre.fotos.at(-1);
   const anteriores = cierre.fotos.slice(0, -1);
 
@@ -81,14 +90,19 @@ export function SeccionCierre({
         {cierre.usuario.nombre}, {fechaHora(cierre.creadoEn)} ·{' '}
         {cierre.distanciaMetros === null
           ? 'La foto no trae ubicación'
-          : `A ${Math.round(cierre.distanciaMetros)} m del incidente`}
+          : `A ${Math.ceil(cierre.distanciaMetros)} m del incidente`}
       </p>
 
       <div className="grid grid-cols-2 gap-3">
         <figure className="flex flex-col gap-1">
           <figcaption className="text-xs font-semibold text-texto-secundario">Antes</figcaption>
           {antes.length > 0 ? (
-            antes.map((foto) => <Foto key={foto.id} id={foto.id} alt="Foto del antes" />)
+            // Varias, de a dos por fila: así el antes no queda mucho más alto que el después.
+            <div className={antes.length > 1 ? 'grid grid-cols-2 gap-1' : undefined}>
+              {antes.map((foto) => (
+                <Foto key={foto.id} id={foto.id} alt="Foto del antes" />
+              ))}
+            </div>
           ) : (
             <p className="text-xs text-texto-secundario">Sin fotos del antes</p>
           )}
@@ -163,10 +177,11 @@ export function DialogoCierre({
 
   const alElegir = (evento: ChangeEvent<HTMLInputElement>) => {
     const archivo = evento.target.files?.[0] ?? null;
-    if (archivo && !TIPOS_FOTO.includes(archivo.type)) {
+    const problema = archivo ? problemaConLaFoto(archivo) : null;
+    if (problema) {
       evento.target.value = '';
       setFoto(null);
-      setError('Tiene que ser una foto JPG o PNG');
+      setError(problema);
       return;
     }
     setFoto(archivo);

@@ -3,6 +3,7 @@ import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { fotosDelAntes } from '../src/funcionalidades/bandeja/CierreFicha.js';
 import { PaginaFicha } from '../src/funcionalidades/bandeja/paginaFicha.js';
 import type {
   CierreGestion,
@@ -691,6 +692,25 @@ describe('cierre con la foto del después', () => {
     expect(pedidos).toEqual([]);
   });
 
+  it('una foto de más de 20 MB se rechaza al elegirla, como al reportar', async () => {
+    ficha = fichaBase({ estado: 'EN_EJECUCION' });
+    const usuario = userEvent.setup();
+    montar();
+    await titulo();
+    const pesada = new File(['foto'], 'despues.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(pesada, 'size', { value: 21 * 1024 * 1024 });
+
+    await usuario.click(screen.getByRole('button', { name: 'Cerrar con foto…' }));
+    const dialogo = screen.getByRole('dialog');
+    await usuario.upload(within(dialogo).getByLabelText('Foto del después'), pesada);
+
+    expect(within(dialogo).getByText('Pesa demasiado: elegí una foto de hasta 20 MB')).toBeInTheDocument();
+    // La foto no quedó elegida: enviar pide elegir otra y no manda nada.
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Enviar la foto' }));
+    expect(within(dialogo).getByText('Elegí la foto del después')).toBeInTheDocument();
+    expect(pedidos).toEqual([]);
+  });
+
   it('muestra el antes y el después lado a lado, con el resultado y su explicación', async () => {
     ficha = fichaBase({ estado: 'EN_EJECUCION', cierre: cierre('OBSERVADO') });
     montar();
@@ -765,5 +785,42 @@ describe('cierre con la foto del después', () => {
     expect(await screen.findByText(/Espera que otro operador del organismo/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Confirmar el cierre…' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cerrar con foto…' })).not.toBeInTheDocument();
+  });
+
+  it('un cierre que rechazó otro operador dice por qué y deja volver a cerrar', async () => {
+    ficha = fichaBase({
+      estado: 'EN_EJECUCION',
+      cierre: {
+        ...cierre('RECHAZADO', operador),
+        detalleComparacion: 'Lo rechazó Ana Pérez: la foto no muestra la esquina',
+      },
+    });
+    montar();
+
+    const seccion = (await screen.findByRole('heading', { name: 'Cierre' })).closest('section')!;
+    expect(within(seccion).getByText('Rechazado')).toBeInTheDocument();
+    expect(
+      within(seccion).getByText('Lo rechazó Ana Pérez: la foto no muestra la esquina'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cerrar con foto…' })).toBeInTheDocument();
+  });
+
+  it('el antes son las mismas fotos que comparó la IA: las de los reportes que cuentan, hasta 4', () => {
+    const reporte = (id: number, fotos: number[], estadoVerificacion = 'VERIFICADO') =>
+      ({
+        ...fichaBase().reportes[0]!,
+        id,
+        estadoVerificacion,
+        fotos: fotos.map((f) => ({ id: f, url: `/api/fotos/${f}` })),
+      }) as FichaGestion['reportes'][number];
+
+    const antes = fotosDelAntes([
+      reporte(2, [30, 31]),
+      reporte(1, [10]),
+      reporte(3, [20], 'DESESTIMADO'),
+      reporte(4, [40, 41]),
+    ]);
+
+    expect(antes.map((foto) => foto.id)).toEqual([10, 30, 31, 40]);
   });
 });

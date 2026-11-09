@@ -77,12 +77,12 @@ export function puedeCerrar(ficha: DatosCierre, ahora = new Date()) {
 }
 
 /**
- * Si este usuario puede confirmar o rechazar el cierre observado: lo que vio un operador lo confirma otro, y un
- * administrador puede confirmar cualquiera (mismas reglas que el servidor).
+ * Si este usuario puede confirmar o rechazar el cierre observado: lo confirma otra persona del organismo, nunca
+ * quien cerró, tampoco un administrador (mismas reglas que el servidor, decisión del 09/11).
  */
-export function puedeConfirmarCierre(ficha: DatosCierre, usuario: Pick<Usuario, 'id' | 'rol'> | null) {
+export function puedeConfirmarCierre(ficha: DatosCierre, usuario: Pick<Usuario, 'id'> | null) {
   if (!usuario || ficha.estado !== 'EN_EJECUCION' || ficha.cierre?.resultadoComparacion !== 'OBSERVADO') {
     return false;
   }
-  return usuario.rol === 'ADMINISTRADOR' || ficha.cierre.usuario.id !== usuario.id;
+  return ficha.cierre.usuario.id !== usuario.id;
 }

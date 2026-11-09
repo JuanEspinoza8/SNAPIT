@@ -172,17 +172,19 @@ describe('cierre con la foto del después', () => {
     expect(puedeCerrar({ ...conCierre('EN_EJECUCION', null), incidentePrincipalId: 9 }, AHORA)).toBe(false);
   });
 
-  it('confirma otro operador o un administrador; quien cerró no', () => {
+  it('confirma otra persona; quien cerró no, aunque sea administrador', () => {
     const observado = conCierre('EN_EJECUCION', cierre('OBSERVADO', 3));
 
-    expect(puedeConfirmarCierre(observado, { id: 4, rol: 'OPERADOR' })).toBe(true);
-    expect(puedeConfirmarCierre(observado, { id: 3, rol: 'OPERADOR' })).toBe(false);
-    expect(puedeConfirmarCierre(observado, { id: 3, rol: 'ADMINISTRADOR' })).toBe(true);
+    expect(puedeConfirmarCierre(observado, { id: 4 })).toBe(true);
+    expect(puedeConfirmarCierre(observado, { id: 3 })).toBe(false);
+    // El usuario de la sesión trae su rol: ser administrador no cambia nada.
+    const adminQueCerro = { id: 3, rol: 'ADMINISTRADOR' as const };
+    expect(puedeConfirmarCierre(observado, adminQueCerro)).toBe(false);
     expect(puedeConfirmarCierre(observado, null)).toBe(false);
   });
 
   it('solo un cierre observado de un incidente en ejecución se confirma', () => {
-    const otro = { id: 4, rol: 'OPERADOR' as const };
+    const otro = { id: 4 };
     expect(puedeConfirmarCierre(conCierre('EN_EJECUCION', cierre('RECHAZADO')), otro)).toBe(false);
     expect(puedeConfirmarCierre(conCierre('RESUELTO', cierre('VALIDADO')), otro)).toBe(false);
     expect(puedeConfirmarCierre(conCierre('EN_EJECUCION', null), otro)).toBe(false);
