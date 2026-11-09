@@ -15,10 +15,11 @@ import '../mapa/modelos.dart';
 import '../mapa/repositorio_mapa.dart';
 import 'carrusel_fotos.dart';
 import 'social.dart';
+import 'visor_fotos.dart';
 import 'widgets_social.dart';
 
-/// El detalle de un incidente que se abre desde el feed: todas sus fotos,
-/// sus datos y dónde está.
+/// El detalle de un incidente que se abre desde el feed: todas sus fotos (el
+/// antes y el después, si se resolvió), sus datos y dónde está.
 class PantallaIncidente extends ConsumerWidget {
   const PantallaIncidente(this.id, {super.key});
 
@@ -72,10 +73,20 @@ class _Contenido extends StatelessWidget {
 
     return ListView(
       children: [
-        CarruselFotos(
-          fotoIds: ficha.fotoIds,
-          descripcion: ficha.categoriaNombre,
-        ),
+        if (ficha.fotoCierreId case final fotoCierreId?)
+          _AntesYDespues(ficha, fotoCierreId)
+        else
+          CarruselFotos(
+            fotoIds: ficha.fotoIds,
+            descripcion: ficha.categoriaNombre,
+            alAmpliar: (i) => ampliarFotos(
+              context,
+              titulo: ficha.categoriaNombre,
+              fotoIds: ficha.fotoIds,
+              descripcion: ficha.categoriaNombre,
+              inicial: i,
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.all(Espacio.lg),
           child: Column(
@@ -113,6 +124,12 @@ class _Contenido extends StatelessWidget {
                 'Vecinos que lo reportaron',
                 '${ficha.cantidadVecinos}',
               ),
+              if (ficha.resueltoEn case final resueltoEn?)
+                _Dato(
+                  Icons.check_circle_outline,
+                  'Resuelto',
+                  fechaLarga(resueltoEn),
+                ),
               const SizedBox(height: Espacio.sm),
               _MapaChico(ficha),
               const SizedBox(height: Espacio.xl),
@@ -126,6 +143,84 @@ class _Contenido extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Un incidente resuelto (F09): las fotos de los reportes (el antes) y la que
+/// lo cerró (el después). Una sobre la otra: lado a lado quedan muy chicas en
+/// el celular.
+class _AntesYDespues extends StatelessWidget {
+  const _AntesYDespues(this.ficha, this.fotoCierreId);
+
+  final FichaIncidente ficha;
+  final int fotoCierreId;
+
+  @override
+  Widget build(BuildContext context) {
+    final antes = '${ficha.categoriaNombre}, antes';
+    final despues =
+        '${ficha.categoriaNombre}, después: cómo quedó al resolverse';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Rotulo('Antes'),
+        CarruselFotos(
+          fotoIds: ficha.fotoIds,
+          descripcion: antes,
+          alAmpliar: (i) => ampliarFotos(
+            context,
+            titulo: 'Antes',
+            fotoIds: ficha.fotoIds,
+            descripcion: antes,
+            inicial: i,
+          ),
+        ),
+        _Rotulo(switch (ficha.resueltoEn) {
+          final resueltoEn? =>
+            'Después · resuelto el ${fechaLarga(resueltoEn)}',
+          null => 'Después',
+        }),
+        AspectRatio(
+          aspectRatio: 4 / 3,
+          child: FotoIncidente(
+            fotoCierreId,
+            descripcion: despues,
+            alAmpliar: () => ampliarFotos(
+              context,
+              titulo: 'Después',
+              fotoIds: [fotoCierreId],
+              descripcion: despues,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Rotulo extends StatelessWidget {
+  const _Rotulo(this.texto);
+
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Espacio.lg,
+        vertical: Espacio.sm,
+      ),
+      child: Semantics(
+        header: true,
+        child: Text(
+          texto,
+          style: tema.textTheme.labelMedium?.copyWith(
+            color: tema.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -11,6 +11,7 @@ class CarruselFotos extends StatefulWidget {
     required this.fotoIds,
     required this.descripcion,
     this.cantidadTotal,
+    this.alAmpliar,
   });
 
   final List<int> fotoIds;
@@ -21,6 +22,9 @@ class CarruselFotos extends StatefulWidget {
   /// Cuántas tiene el incidente, si son más que [fotoIds]: la última avisa
   /// que el resto está en el detalle.
   final int? cantidadTotal;
+
+  /// Si no es null, tocar una foto la amplía: recibe cuál se tocó.
+  final void Function(int indice)? alAmpliar;
 
   @override
   State<CarruselFotos> createState() => _CarruselFotosState();
@@ -49,6 +53,10 @@ class _CarruselFotosState extends State<CarruselFotos> {
               fotos[i],
               descripcion:
                   'Foto ${i + 1} de ${fotos.length} de ${widget.descripcion}',
+              alAmpliar: switch (widget.alAmpliar) {
+                final alAmpliar? => () => alAmpliar(i),
+                null => null,
+              },
             ),
           ),
           if (fotos.length > 1)
@@ -169,12 +177,23 @@ class _SinFotos extends StatelessWidget {
   }
 }
 
-/// Una foto pública de `GET /fotos/:id`, recortada para llenar su lugar.
+/// Una foto pública de `GET /fotos/:id`. Por defecto, recortada para llenar
+/// su lugar; [ajuste] cambia eso (el visor la muestra entera).
 class FotoIncidente extends StatelessWidget {
-  const FotoIncidente(this.id, {super.key, required this.descripcion});
+  const FotoIncidente(
+    this.id, {
+    super.key,
+    required this.descripcion,
+    this.ajuste = BoxFit.cover,
+    this.alAmpliar,
+  });
 
   final int id;
   final String descripcion;
+  final BoxFit ajuste;
+
+  /// Si no es null, la foto es un botón que la amplía.
+  final VoidCallback? alAmpliar;
 
   @override
   Widget build(BuildContext context) {
@@ -184,26 +203,38 @@ class FotoIncidente extends StatelessWidget {
       child: Center(child: child),
     );
 
-    // La descripción queda aunque la foto no cargue.
-    return Semantics(
-      container: true,
-      image: true,
-      label: descripcion,
-      child: Image.network(
-        '${Entorno.apiUrl}/fotos/$id',
-        fit: BoxFit.cover,
-        excludeFromSemantics: true,
-        loadingBuilder: (_, imagen, progreso) =>
-            progreso == null ? imagen : recuadro(),
-        errorBuilder: (_, _, _) => recuadro(
-          child: Text(
-            'No se pudo cargar la foto',
-            style: tema.textTheme.bodySmall?.copyWith(
-              color: tema.colorScheme.onSurfaceVariant,
-            ),
+    final imagen = Image.network(
+      '${Entorno.apiUrl}/fotos/$id',
+      fit: ajuste,
+      excludeFromSemantics: true,
+      loadingBuilder: (_, imagen, progreso) =>
+          progreso == null ? imagen : recuadro(),
+      errorBuilder: (_, _, _) => recuadro(
+        child: Text(
+          'No se pudo cargar la foto',
+          style: tema.textTheme.bodySmall?.copyWith(
+            color: tema.colorScheme.onSurfaceVariant,
           ),
         ),
       ),
+    );
+
+    // La descripción queda aunque la foto no cargue. Si se amplía, TalkBack
+    // la anuncia como botón y dice para qué es.
+    return Semantics(
+      container: true,
+      image: true,
+      button: alAmpliar != null,
+      label: descripcion,
+      onTap: alAmpliar,
+      onTapHint: alAmpliar == null ? null : 'ampliar la foto',
+      child: alAmpliar == null
+          ? imagen
+          : GestureDetector(
+              onTap: alAmpliar,
+              excludeFromSemantics: true,
+              child: imagen,
+            ),
     );
   }
 }
