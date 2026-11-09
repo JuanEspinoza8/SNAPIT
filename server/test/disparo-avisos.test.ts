@@ -6,6 +6,7 @@ import { esperarTareasPendientes } from '../src/compartido/despuesDeConfirmar.js
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { avisarCambioDeEstado } from '../src/modulos/avisos/disparar.js';
+import { alCambiarIncidente } from '../src/modulos/incidentes/eventos.js';
 import { transaccion } from '../src/modulos/reportes/repositorio.js';
 import { borrarReportesDe, crearOrganismoDePrueba, crearUsuario, reportarEn } from './apoyo.js';
 import { fotoUnica, jpegSinExif } from './imagenes.js';
@@ -13,6 +14,22 @@ import { fotoUnica, jpegSinExif } from './imagenes.js';
 // Sin red: la dirección no se consulta y Firebase no está configurado (el aviso se guarda igual).
 vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
 vi.mock('../src/modulos/avisos/fcm.js', () => ({ enviarPush: vi.fn(async () => null) }));
+
+// Para simular que la base falla con un destinatario: las próximas `fallas.proximas` llamadas a notificar fallan.
+const fallas = vi.hoisted(() => ({ proximas: 0 }));
+vi.mock('../src/modulos/avisos/servicio.js', async (original) => {
+  const real = await original<typeof import('../src/modulos/avisos/servicio.js')>();
+  return {
+    ...real,
+    notificar: async (...datos: Parameters<typeof real.notificar>) => {
+      if (fallas.proximas > 0) {
+        fallas.proximas--;
+        throw new Error('La base no respondió');
+      }
+      return real.notificar(...datos);
+    },
+  };
+});
 
 const vecinos: number[] = [];
 afterAll(() => borrarReportesDe(vecinos));
@@ -114,6 +131,25 @@ describe('aviso de cambio de estado', () => {
 
     expect(await avisosDe(reporte.vecinoId)).toEqual([]);
   });
+
+  it('si falla el aviso a uno, los demás lo reciben igual', async () => {
+    const primero = await reportar();
+    const segundo = await reportar();
+    expect(segundo.incidenteId).toBe(primero.incidenteId);
+    await borrarAvisos([primero.vecinoId, segundo.vecinoId]);
+    fallas.proximas = 1;
+
+    const res = await request(app)
+      .post(`/api/incidentes/${primero.incidenteId}/derivacion`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ areaId: area.id });
+    expect(res.status).toBe(200);
+
+    // Falla el primero que se avisa (cualquiera de los dos): el otro recibe el suyo.
+    const avisos = [...(await avisosDe(primero.vecinoId)), ...(await avisosDe(segundo.vecinoId))];
+    expect(fallas.proximas).toBe(0);
+    expect(avisos.map((aviso) => aviso.tipo)).toEqual(['CAMBIO_ESTADO']);
+  });
 });
 
 describe('aviso de verificación', () => {
@@ -159,6 +195,28 @@ describe('aviso de verificación', () => {
     expect((await avisosDe(reporte.vecinoId)).map((aviso) => aviso.titulo)).toEqual([
       'Tu reporte se desestimó',
     ]);
+  });
+
+  it('si la revisión se deshace, el autor no recibe ningún aviso', async () => {
+    const reporte = await reportar({ pendiente: true });
+    await borrarAvisos([reporte.vecinoId]);
+    // Algo falla después de aplicar el resultado, dentro de la misma transacción.
+    const quitar = alCambiarIncidente(async () => {
+      throw new Error('se deshizo');
+    });
+    try {
+      const res = await request(app)
+        .post(`/api/reportes/${reporte.id}/revision`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ decision: 'VERIFICADO' });
+      expect(res.status).toBe(500);
+    } finally {
+      quitar();
+    }
+
+    expect(await avisosDe(reporte.vecinoId)).toEqual([]);
+    const { estadoVerificacion } = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
+    expect(estadoVerificacion).toBe('PENDIENTE_REVISION');
   });
 });
 

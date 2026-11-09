@@ -925,6 +925,8 @@ El aviso que llega al celular tiene `notificacionId`, `tipo` y, si es de un inci
 - Nadie recibe dos avisos por el mismo hecho: quien reportó y además sigue el incidente recibe uno, y el autor de un reporte cuya revisión cambió el estado del incidente recibe solo el de verificación.
 - Quien hizo la acción no se avisa a sí mismo: ni el operador que cambió el estado, ni el vecino de su propio reporte o del incidente nuevo en su zona.
 - Los avisos salen **recién cuando se confirma la transacción** del cambio (`compartido/despuesDeConfirmar.ts`): si falla, no sale ninguno. Tampoco demoran la respuesta: se mandan en segundo plano.
+- Si falla el aviso a un destinatario (por ejemplo, la base no responde), queda en el log y los demás reciben el suyo igual.
+- `NUEVO_EN_ZONA` sale apenas se crea el incidente, aunque su reporte esté pendiente de revisión: el incidente ya se ve en el mapa. Casi siempre sale sin la dirección, porque Nominatim la completa después: dice la categoría y la zona, y la dirección está en la ficha.
 
 ### `POST /api/dispositivos`
 Registra el celular para recibir avisos. Requiere sesión, de cualquier rol. La app lo llama al ingresar y cuando FCM le cambia el token.

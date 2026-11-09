@@ -1,5 +1,6 @@
 import type { EstadoIncidente } from '@prisma/client';
 import { despuesDeConfirmar } from '../../compartido/despuesDeConfirmar.js';
+import { logger } from '../../config/logger.js';
 import {
   destinatariosDelCambio,
   queYDonde,
@@ -15,6 +16,24 @@ import { notificar } from './servicio.js';
  * el aviso sale recién cuando se confirma (despuesDeConfirmar): nunca un aviso de algo que después se deshizo.
  * notificar() respeta los avisos apagados y las preferencias por categoría de cada uno.
  */
+
+/** Un aviso por destinatario. Si falla con uno, queda en el log y se sigue: los demás reciben el suyo igual. */
+async function avisarA<T extends { usuarioId: number }>(
+  destinatarios: T[],
+  incidenteId: number,
+  enviar: (destinatario: T) => Promise<unknown>,
+) {
+  for (const destinatario of destinatarios) {
+    try {
+      await enviar(destinatario);
+    } catch (error) {
+      logger.error(
+        { err: error, usuarioId: destinatario.usuarioId, incidenteId },
+        'No se pudo avisar a un vecino',
+      );
+    }
+  }
+}
 
 /**
  * El incidente cambió de estado: avisa a quienes lo reportaron o lo siguen, también en los unidos. Si quedó
@@ -37,16 +56,11 @@ export function avisarCambioDeEstado(
       repositorio.quienesSiguen(incidenteId),
     ]);
     const problema = queYDonde(incidente.categoria, incidente.direccion);
-    for (const { usuarioId, tipo } of destinatariosDelCambio({
-      reportaron,
-      siguen,
-      actorId,
-      nuevo,
-      yaAvisados,
-    })) {
+    const destinatarios = destinatariosDelCambio({ reportaron, siguen, actorId, nuevo, yaAvisados });
+    await avisarA(destinatarios, incidenteId, ({ usuarioId, tipo }) => {
       const { titulo, cuerpo } = textoCambioEstado(tipo, problema, nuevo);
-      await notificar(usuarioId, tipo, incidenteId, titulo, cuerpo);
-    }
+      return notificar(usuarioId, tipo, incidenteId, titulo, cuerpo);
+    });
   });
 }
 
@@ -87,9 +101,10 @@ export function avisarNuevoEnZona(incidenteId: number, autorId: number) {
     const incidente = await repositorio.buscarIncidente(incidenteId);
     if (!incidente) return;
     const problema = queYDonde(incidente.categoria, incidente.direccion);
-    for (const { usuarioId, zona } of await repositorio.zonasQueContienen(incidenteId, autorId)) {
+    const zonas = await repositorio.zonasQueContienen(incidenteId, autorId);
+    await avisarA(zonas, incidenteId, ({ usuarioId, zona }) => {
       const { titulo, cuerpo } = textoNuevoEnZona(zona, problema);
-      await notificar(usuarioId, 'NUEVO_EN_ZONA', incidenteId, titulo, cuerpo);
-    }
+      return notificar(usuarioId, 'NUEVO_EN_ZONA', incidenteId, titulo, cuerpo);
+    });
   });
 }
