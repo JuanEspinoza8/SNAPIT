@@ -345,7 +345,7 @@ export function BotonAccion({
   );
 }
 
-function CampoTexto(props: {
+export function CampoTexto(props: {
   id: string;
   etiqueta: string;
   valor: string;
@@ -376,11 +376,11 @@ function CampoTexto(props: {
   );
 }
 
-function ErrorDelServidor({ error }: { error: unknown }) {
+export function ErrorDelServidor({ error }: { error: unknown }) {
   return error ? <AvisoError error={aErrorApi(error)} /> : null;
 }
 
-function BotonEnviar({
+export function BotonEnviar({
   texto,
   enviando,
   alEnviar,
@@ -402,7 +402,7 @@ function BotonEnviar({
 }
 
 /** El segundo paso de una acción que no se puede deshacer (criterio de la #68). */
-function Confirmacion(props: {
+export function Confirmacion(props: {
   pregunta: string;
   texto: string;
   peligrosa?: boolean;

@@ -145,6 +145,52 @@ void main() {
       expect(ficha.estado, EstadoVisible.verificado);
       expect(ficha.direccion, isNull);
       expect(ficha.fotoIds, [1, 4]);
+      expect(ficha.fotoCierreId, isNull);
+      expect(ficha.resueltoEn, isNull);
+    });
+
+    Map<String, dynamic> fichaJson({
+      String estado = 'VERIFICADO',
+      Object? fotoCierre,
+      String? resueltoEn,
+    }) => {
+      'id': 9,
+      'lat': -38.9516,
+      'lon': -68.0591,
+      'categoria': {'id': 3, 'nombre': 'Cordón sin rampa'},
+      'estado': estado,
+      'enRevision': false,
+      'primerReporteEn': '2026-10-06T15:15:33.494Z',
+      'cantidadReportes': 1,
+      'cantidadVecinos': 1,
+      'direccion': null,
+      'fotos': [
+        {'id': 1, 'url': '/api/fotos/1'},
+      ],
+      'fotoCierre': fotoCierre,
+      'resueltoEn': resueltoEn,
+    };
+
+    test('lee la foto del cierre y cuándo se resolvió', () {
+      final ficha = FichaIncidente.desdeJson(
+        fichaJson(
+          estado: 'RESUELTO',
+          fotoCierre: {'id': 12, 'url': '/api/fotos/12'},
+          resueltoEn: '2026-11-08T18:20:00.000Z',
+        ),
+      );
+
+      expect(ficha.estado, EstadoVisible.resuelto);
+      expect(ficha.fotoIds, [1]);
+      expect(ficha.fotoCierreId, 12);
+      expect(ficha.resueltoEn, DateTime.utc(2026, 11, 8, 18, 20));
+    });
+
+    test('sin cierre, fotoCierre y resueltoEn llegan en null', () {
+      final ficha = FichaIncidente.desdeJson(fichaJson());
+
+      expect(ficha.fotoCierreId, isNull);
+      expect(ficha.resueltoEn, isNull);
     });
   });
 

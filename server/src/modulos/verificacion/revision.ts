@@ -1,8 +1,8 @@
 import { ErrorApp } from '../../compartido/errores.js';
-import { prisma } from '../../compartido/prisma.js';
 import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
+import { transaccion } from '../reportes/repositorio.js';
 import { esquemaFiltrosReportes, esquemaIdReporte, esquemaRevision } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 import { aplicarResultado } from './resultado.js';
@@ -75,12 +75,15 @@ function aRespuesta(fila: repositorio.FilaPendiente) {
   };
 }
 
-/** El operador verifica o desestima un reporte pendiente de su organismo. Todo en una transacción. */
+/**
+ * El operador verifica o desestima un reporte pendiente de su organismo. Todo en una transacción, con
+ * transaccion(): los avisos al vecino salen recién si se confirma.
+ */
 export async function revisarReporte(sesion: UsuarioSesion, parametros: unknown, cuerpo: unknown) {
   const { id } = validar(esquemaIdReporte, parametros);
   const { decision, comentario } = validar(esquemaRevision, cuerpo ?? {});
 
-  return prisma.$transaction(async (tx) => {
+  return transaccion(async (tx) => {
     const reporte = await repositorio.bloquearReporte(tx, id);
     if (!reporte) throw new ErrorApp(404, 'REPORTE_NO_ENCONTRADO', 'El reporte no existe');
     if (reporte.organismoId !== sesion.organismoId) {

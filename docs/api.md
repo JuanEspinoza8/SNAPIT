@@ -715,13 +715,17 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   "cantidadReportes": 1,
   "cantidadVecinos": 1,
   "direccion": "Lago Huechulafquen, Villa Ceferino",
-  "fotos": [{ "id": 1, "url": "/api/fotos/1" }]
+  "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
+  "fotoCierre": null,
+  "resueltoEn": null
 }
 ```
 
 - `severidad`: la gravedad consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`).
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
 - `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` ya incluye `/api`: la web la usa tal cual (pasa por el proxy); la app, que tiene la base terminada en `/api`, arma `fotos/<id>` sobre esa base.
+- `resueltoEn`: cuándo se resolvió (F09); `null` mientras no esté `RESUELTO`.
+- `fotoCierre`: la foto del después (F09), la que cerró el incidente, para mostrarla junto a `fotos` (el antes). `null` mientras el incidente no esté `RESUELTO`: los intentos de cierre rechazados u observados no se publican.
 - `direccion`: `"<calle> <altura>, <barrio>"`, según Nominatim (OpenStreetMap), del primer reporte del incidente. El barrio es lo que está después de la última coma. Si falta algo:
   - Sin altura (en Neuquén es lo más común): `"Lago Huechulafquen, Villa Ceferino"`.
   - Sin barrio: `"Ruta 22 1500, Sin barrio"`.
@@ -838,7 +842,9 @@ Quién ve cada foto:
 | El dueño del reporte | Además, todas las de sus reportes, aunque estén desestimados o eliminados, o el incidente ya no esté en el mapa. |
 | `OPERADOR` o `ADMINISTRADOR` | Además, todas las de los incidentes de su organismo, en cualquier estado. El organismo es el del área a la que se derivó el incidente o, si todavía no se derivó, el del área de su categoría. Si se unió a otro, manda el principal. Un administrador sin organismo ve solo las del mapa. |
 
-Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA`. Las fotos de los cierres todavía no se sirven (llegan con el cierre, corte 75 %).
+Las fotos del cierre (`POST /api/incidentes/:id/cierre`) siguen otra regla: sin sesión se ve solo la que cerró un incidente `RESUELTO` y visible (la de `fotoCierre` en la ficha); el operador o administrador del organismo ve las de todos los intentos.
+
+Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA`.
 
 - **Sin sesión** se puede usar directo en un `<img src="/api/fotos/7">` o en `Image.network`. Así la muestran el mapa y la ficha pública.
 - **Con sesión**, el token va en el encabezado `Authorization: Bearer ...`, como en cualquier ruta protegida. Un `<img>` o `Image.network` no lo mandan: la web baja el archivo con su cliente y lo muestra desde una URL local (`FotoConSesion`), y la app lo baja con dio. Es lo que hace «mis reportes» y lo que va a usar la ficha de gestión del operador.
@@ -904,7 +910,7 @@ Los comentarios de un reporte, con la misma forma que los del incidente (`{ "com
 En las dos: un reporte desestimado, eliminado, de un incidente que no se ve o inexistente responde **404** `REPORTE_NO_ENCONTRADO`. Un id inválido, **400** `DATOS_INVALIDOS`.
 
 ## Avisos al vecino
-Avisos push al celular sobre lo que le importa al vecino (F10), con Firebase Cloud Messaging (FCM). Cada aviso queda guardado en la base y se ve en la lista de la app aunque no haya llegado al celular. Cuándo se crea cada aviso (cambio de estado, cierre, verificación, zona habitual) se define en #115.
+Avisos push al celular sobre lo que le importa al vecino (F10), con Firebase Cloud Messaging (FCM). Cada aviso queda guardado en la base y se ve en la lista de la app aunque no haya llegado al celular.
 
 Un aviso **no se crea** si el usuario apagó todos los avisos (`notificacionesHabilitadas`), si apagó los de la categoría del incidente (`/api/preferencias-notificacion`) o si la cuenta está dada de baja. Si se crea, se manda a sus dispositivos activos:
 - Si FCM lo acepta en al menos uno, se completa `enviadaEn`.
@@ -912,6 +918,21 @@ Un aviso **no se crea** si el usuario apagó todos los avisos (`notificacionesHa
 - Si FCM no responde, o el servidor no tiene `FIREBASE_CREDENCIALES`, el aviso queda guardado con `enviadaEn` en `null`.
 
 El aviso que llega al celular tiene `notificacionId`, `tipo` y, si es de un incidente, `incidenteId` en sus datos, para abrir la ficha al tocarlo.
+
+**Cuándo se avisa** (`server/src/modulos/avisos/disparar.ts`):
+
+| `tipo` | Cuándo | A quién |
+|---|---|---|
+| `CAMBIO_ESTADO` | El incidente cambia de estado: lo deriva o lo desestima un operador, una revisión lo verifica, al unir, separar o deshacer una unión | A quienes lo reportaron y a quienes lo siguen, también en los incidentes unidos a él. Un reporte desestimado o eliminado por su autor no cuenta |
+| `CIERRE` | El incidente queda `RESUELTO` | A quienes lo reportaron. Quienes solo lo siguen reciben el de `CAMBIO_ESTADO` |
+| `VERIFICACION` | Un operador, o la IA desde la cola, verifica o desestima el reporte. También al crearlo, si queda pendiente de revisión («Tu reporte está en verificación») | Al autor del reporte. Verificado al llegar no se avisa: la pantalla de reportar ya lo dice |
+| `NUEVO_EN_ZONA` | Se crea un incidente nuevo (un reporte que no se agrupó con otro) | A los vecinos con una zona habitual activa que lo contiene (`ST_DWithin(centro, ubicacion, radio_metros)`). Si cae en varias zonas del mismo vecino, un solo aviso |
+
+- Nadie recibe dos avisos por el mismo hecho: quien reportó y además sigue el incidente recibe uno, y el autor de un reporte cuya revisión cambió el estado del incidente recibe solo el de verificación.
+- Quien hizo la acción no se avisa a sí mismo: ni el operador que cambió el estado, ni el vecino de su propio reporte o del incidente nuevo en su zona.
+- Los avisos salen **recién cuando se confirma la transacción** del cambio (`compartido/despuesDeConfirmar.ts`): si falla, no sale ninguno. Tampoco demoran la respuesta: se mandan en segundo plano.
+- Si falla el aviso a un destinatario (por ejemplo, la base no responde), queda en el log y los demás reciben el suyo igual.
+- `NUEVO_EN_ZONA` sale apenas se crea el incidente, aunque su reporte esté pendiente de revisión: el incidente ya se ve en el mapa. Casi siempre sale sin la dirección, porque Nominatim la completa después: dice la categoría y la zona, y la dirección está en la ficha.
 
 ### `POST /api/dispositivos`
 Registra el celular para recibir avisos. Requiere sesión, de cualquier rol. La app lo llama al ingresar y cuando FCM le cambia el token.
@@ -1059,6 +1080,7 @@ Lo que el organismo tiene que atender (F08): los incidentes `VERIFICADO`, `DERIV
 | `areaId` | `2` | El área responsable. **Si no viene, la del operador.** `todas` trae todo el organismo. Tiene que ser un área del organismo (puede estar inactiva). Un administrador sin área ve todo el organismo |
 | `estado` | `DERIVADO` | `VERIFICADO`, `DERIVADO` o `EN_EJECUCION` |
 | `categoriaId` | `3` | Una categoría |
+| `cierre` | `OBSERVADO` | Los que tienen un cierre en ese estado: `OBSERVADO` (por confirmar) o `RECHAZADO` |
 
 Responde **200**:
 
@@ -1080,12 +1102,14 @@ Responde **200**:
         { "factor": "EVIDENCIAS", "valor": 16.16, "detalle": "Lo reportaron 3 veces y lo confirmaron 2 vecinos: +16,2" },
         { "factor": "ANTIGUEDAD", "valor": 3.33, "detalle": "Lleva 10 días sin resolverse: +3,3" },
         { "factor": "CONTEXTO_URBANO", "valor": 15, "detalle": "A 80 m de Escuela N° 123 (escuela): +15" }
-      ]
+      ],
+      "cierre": null
     }
   ]
 }
 ```
 
+- `cierre`: cómo quedó su último intento de cierre (`POST /api/incidentes/:id/cierre`): `OBSERVADO` (espera que otro operador lo confirme), `RECHAZADO` (hay que volver a intentar) o `null` si no tiene. Uno validado ya no está en la bandeja: quedó `RESUELTO`.
 - `area`: el área responsable. Mientras el incidente está `VERIFICADO` es la de su categoría; desde que se deriva, la elegida.
 - `motivos`: el desglose de la prioridad, en el orden en que se calculó (ver «Prioridad del incidente» en `docs/calculos.md`). Si hay prioridad manual, el último es `AJUSTE_MANUAL`.
 - `cantidadReportes`: reportes no desestimados, sumando los de los incidentes unidos.
@@ -1240,6 +1264,72 @@ Deja un comentario en la bitácora (movimiento `COMENTARIO`) sin cambiar nada de
 | 400 `DATOS_INVALIDOS` | Falta el comentario o es muy largo |
 | 403 `SIN_PERMISO` | El incidente es de otro organismo |
 | 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+
+### `POST /api/incidentes/:id/cierre`
+Cierra un incidente `EN_EJECUCION` con la foto del después (F09). Multipart con la foto en el campo `foto` (JPG o PNG), como un reporte. Requiere sesión de `OPERADOR` o `ADMINISTRADOR` del organismo del incidente.
+
+1. La distancia sale del GPS de la foto (EXIF) hasta el punto del incidente.
+2. Si la foto está en el lugar (a `cierre.distancia_max_m` o menos), la IA compara las fotos del antes con la del después (`compararCierre`). Sin GPS o fuera del lugar no se le pregunta: el resultado ya está decidido.
+3. `decidirCierre` da el resultado (tabla en `docs/calculos.md`, «Cierre del incidente»):
+   - `VALIDADO`: el incidente pasa a `RESUELTO`, con `resuelto_en` y un movimiento `CAMBIO_ESTADO`.
+   - `RECHAZADO`: sigue `EN_EJECUCION`. Se puede volver a intentar: el reintento corrige el **mismo** cierre (un incidente se cierra una sola vez) y suma su foto.
+   - `OBSERVADO`: sigue `EN_EJECUCION` hasta que otro operador lo confirme o lo rechace (`POST /api/incidentes/:id/cierre/confirmacion`). Mientras tanto no se puede volver a cerrar.
+
+Cada intento guarda su foto (ninguna se borra), deja un movimiento en la bitácora con `detalleComparacion` y se avisa a la prioridad.
+
+Responde **201**:
+
+```json
+{
+  "incidente": { "id": 7, "estado": "EN_EJECUCION" },
+  "cierre": {
+    "id": 3,
+    "resultadoComparacion": "RECHAZADO",
+    "distanciaMetros": 1112.08,
+    "detalleComparacion": "La foto se sacó a 1112 m del incidente, y el máximo es 50 m: tiene que ser del mismo lugar.",
+    "fotos": [{ "id": 41, "url": "/api/fotos/41" }]
+  }
+}
+```
+
+- `distanciaMetros`: `null` si la foto no trae GPS.
+- `detalleComparacion`: por qué quedó así, en texto, para que el operador sepa qué corregir. Si la IA comparó, incluye su explicación.
+- `fotos`: las de todos los intentos, de la primera a la última.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | Falta la foto o no es JPG/PNG (campo `foto`) |
+| 403 `SIN_PERMISO` | El incidente es de otro organismo, o quien lo pide es un vecino |
+| 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+| 409 `INCIDENTE_NO_EN_EJECUCION` | El incidente no está `EN_EJECUCION` |
+| 409 `CIERRE_OBSERVADO` | Ya tiene un cierre observado esperando confirmación |
+| 409 `INCIDENTE_UNIDO` / `INCIDENTE_CADUCADO` | Está unido a otro (se cierra el principal) o caducó |
+
+### `POST /api/incidentes/:id/cierre/confirmacion`
+Confirma o rechaza un cierre `OBSERVADO`: el que la foto o la IA no pudieron decidir (F09). Lo confirma **otra persona** del organismo, `OPERADOR` o `ADMINISTRADOR`: nadie confirma su propio cierre, tampoco un administrador.
+
+```json
+{ "aceptar": false, "comentario": "La foto no muestra la esquina" }
+```
+
+| Campo | Obligatorio | Valor |
+|---|---|---|
+| `aceptar` | sí | `true` o `false` |
+| `comentario` | para rechazar | Hasta 1000 caracteres. Al rechazar, le dice a quien cerró qué corregir |
+
+- **Aceptar**: el cierre queda `VALIDADO` y el incidente pasa a `RESUELTO` (movimiento `CAMBIO_ESTADO`). Su foto del después se publica en la ficha.
+- **Rechazar**: el cierre queda `RECHAZADO` y el incidente sigue `EN_EJECUCION` (movimiento `COMENTARIO`). Se puede volver a cerrar: el intento nuevo corrige el mismo cierre.
+- En los dos casos, `detalleComparacion` del cierre pasa a decir quién lo decidió y por qué: «Lo confirmó Ana Pérez.», «Lo confirmó Ana Pérez: pasé y está tapado» o «Lo rechazó Ana Pérez: la foto no muestra la esquina». Es lo que muestra la ficha de gestión.
+
+Responde **200** con `{ "incidente": { "id", "estado" }, "cierre": { "id", "resultadoComparacion" }, "movimiento" }`.
+
+| Error | Cuándo |
+|---|---|
+| 400 `DATOS_INVALIDOS` | Falta `aceptar`, o el motivo para rechazar |
+| 403 `SIN_PERMISO` | El incidente es de otro organismo, o quien confirma es quien cerró |
+| 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
+| 409 `CIERRE_NO_OBSERVADO` | El incidente no tiene un cierre observado esperando confirmación |
+| 409 `INCIDENTE_UNIDO` / `INCIDENTE_CADUCADO` | Está unido a otro o caducó mientras esperaba |
 
 ### `PUT /api/incidentes/:id/categoria`
 Corrige la categoría de un incidente abierto (F06), también si está en revisión. La categoría que eligió el vecino en cada reporte no cambia. Queda un movimiento `COMENTARIO` con el antes y el después («Categoría cambiada de Pozo en la calzada a Vereda rota»), y se recalcula la prioridad. Si el incidente todavía no se derivó, pasa al área de la categoría nueva. La vigencia no cambia.

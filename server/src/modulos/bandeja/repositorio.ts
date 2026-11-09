@@ -18,6 +18,7 @@ export interface FiltrosBandeja {
   areaId?: number;
   estado?: (typeof ESTADOS_BANDEJA)[number];
   categoriaId?: number;
+  cierre?: 'OBSERVADO' | 'RECHAZADO';
 }
 
 export interface FilaBandeja {
@@ -33,6 +34,8 @@ export interface FilaBandeja {
   puntajePrioridad: number;
   prioridadManual: number | null;
   motivos: { factor: string; valor: number; detalle: string | null }[];
+  /** El resultado de su último intento de cierre (F09), o null si no tiene. Un VALIDADO ya no está acá: resolvió. */
+  cierre: 'OBSERVADO' | 'RECHAZADO' | null;
 }
 
 /**
@@ -49,6 +52,9 @@ export function listarBandeja(filtros: FiltrosBandeja) {
   if (filtros.areaId) condiciones.push(Prisma.sql`a.id = ${filtros.areaId}`);
   if (filtros.estado) condiciones.push(Prisma.sql`i.estado = ${filtros.estado}::estado_incidente`);
   if (filtros.categoriaId) condiciones.push(Prisma.sql`i.categoria_id = ${filtros.categoriaId}`);
+  if (filtros.cierre) {
+    condiciones.push(Prisma.sql`ci.resultado_comparacion = ${filtros.cierre}::resultado_comparacion`);
+  }
 
   return prisma.$queryRaw<FilaBandeja[]>`
     SELECT i.id, i.estado::text AS estado,
@@ -58,8 +64,10 @@ export function listarBandeja(filtros: FiltrosBandeja) {
            i.puntaje_prioridad::float8 AS "puntajePrioridad", i.prioridad_manual::float8 AS "prioridadManual",
            (SELECT coalesce(json_agg(json_build_object('factor', f.factor, 'valor', f.valor::float8,
                                                        'detalle', f.detalle) ORDER BY f.id), '[]')
-            FROM factor_prioridad f WHERE f.incidente_id = i.id) AS motivos
+            FROM factor_prioridad f WHERE f.incidente_id = i.id) AS motivos,
+           ci.resultado_comparacion::text AS cierre
     ${CON_AREA}
+    LEFT JOIN cierre_incidente ci ON ci.incidente_id = i.id
     WHERE ${Prisma.join(condiciones, ' AND ')}
     ORDER BY ${PRIORIDAD_EFECTIVA} DESC, i.primer_reporte_en, i.id`;
 }

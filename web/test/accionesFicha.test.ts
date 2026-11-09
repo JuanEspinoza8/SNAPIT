@@ -4,8 +4,14 @@ import {
   areasParaDerivar,
   estaCaducado,
   motivoSinGestion,
+  puedeCerrar,
+  puedeConfirmarCierre,
 } from '../src/funcionalidades/bandeja/acciones.js';
-import type { EstadoIncidente } from '../src/funcionalidades/bandeja/tipos.js';
+import type {
+  CierreGestion,
+  EstadoIncidente,
+  ResultadoCierre,
+} from '../src/funcionalidades/bandeja/tipos.js';
 
 const AHORA = new Date('2026-10-27T12:00:00Z');
 const BACHEO = { id: 1, nombre: 'Bacheo' };
@@ -140,5 +146,47 @@ describe('incidentes que no se gestionan', () => {
     ['DESESTIMADO', 'Está desestimado.'],
   ])('%s explica por qué no hay acciones', (estado, texto) => {
     expect(motivoSinGestion(ficha(estado), AHORA)).toBe(texto);
+  });
+});
+
+describe('cierre con la foto del después', () => {
+  const cierre = (resultado: ResultadoCierre, usuarioId = 3): CierreGestion => ({
+    id: 1,
+    resultadoComparacion: resultado,
+    distanciaMetros: null,
+    detalleComparacion: null,
+    creadoEn: '2026-10-27T10:00:00Z',
+    usuario: { id: usuarioId, nombre: 'Quien cerró' },
+    fotos: [{ id: 50, url: '/api/fotos/50' }],
+  });
+  const conCierre = (estado: EstadoIncidente, datos: CierreGestion | null) => ({
+    ...ficha(estado),
+    cierre: datos,
+  });
+
+  it('se cierra en ejecución, sin cierre o después de un rechazo; no mientras espera confirmación', () => {
+    expect(puedeCerrar(conCierre('EN_EJECUCION', null), AHORA)).toBe(true);
+    expect(puedeCerrar(conCierre('EN_EJECUCION', cierre('RECHAZADO')), AHORA)).toBe(true);
+    expect(puedeCerrar(conCierre('EN_EJECUCION', cierre('OBSERVADO')), AHORA)).toBe(false);
+    expect(puedeCerrar(conCierre('DERIVADO', null), AHORA)).toBe(false);
+    expect(puedeCerrar({ ...conCierre('EN_EJECUCION', null), incidentePrincipalId: 9 }, AHORA)).toBe(false);
+  });
+
+  it('confirma otra persona; quien cerró no, aunque sea administrador', () => {
+    const observado = conCierre('EN_EJECUCION', cierre('OBSERVADO', 3));
+
+    expect(puedeConfirmarCierre(observado, { id: 4 })).toBe(true);
+    expect(puedeConfirmarCierre(observado, { id: 3 })).toBe(false);
+    // El usuario de la sesión trae su rol: ser administrador no cambia nada.
+    const adminQueCerro = { id: 3, rol: 'ADMINISTRADOR' as const };
+    expect(puedeConfirmarCierre(observado, adminQueCerro)).toBe(false);
+    expect(puedeConfirmarCierre(observado, null)).toBe(false);
+  });
+
+  it('solo un cierre observado de un incidente en ejecución se confirma', () => {
+    const otro = { id: 4 };
+    expect(puedeConfirmarCierre(conCierre('EN_EJECUCION', cierre('RECHAZADO')), otro)).toBe(false);
+    expect(puedeConfirmarCierre(conCierre('RESUELTO', cierre('VALIDADO')), otro)).toBe(false);
+    expect(puedeConfirmarCierre(conCierre('EN_EJECUCION', null), otro)).toBe(false);
   });
 });

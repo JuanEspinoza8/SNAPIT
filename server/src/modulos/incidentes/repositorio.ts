@@ -162,7 +162,9 @@ export function buscarPrincipal(id: number) {
 }
 
 export async function buscarVisible(id: number) {
-  const [incidente] = await prisma.$queryRaw<(PuntoMapa & { severidad: string; direccion: string | null })[]>`
+  const [incidente] = await prisma.$queryRaw<
+    (PuntoMapa & { severidad: string; direccion: string | null; resueltoEn: Date | null })[]
+  >`
     SELECT i.id,
            ST_Y(i.ubicacion::geometry) AS lat,
            ST_X(i.ubicacion::geometry) AS lon,
@@ -173,7 +175,8 @@ export async function buscarVisible(id: number) {
            i.severidad::text AS severidad,
            i.primer_reporte_en AS "primerReporteEn",
            i.cantidad_reportes AS "cantidadReportes",
-           i.direccion
+           i.direccion,
+           i.resuelto_en AS "resueltoEn"
     FROM incidente i
     JOIN categoria c ON c.id = i.categoria_id
     WHERE i.id = ${id} AND ${INCIDENTE_VISIBLE}`;
@@ -208,6 +211,17 @@ export async function contarVecinos(id: number) {
   const [fila] = await prisma.$queryRaw<{ cantidad: bigint }[]>`
     SELECT count(DISTINCT r.usuario_id) AS cantidad ${REPORTES_VISIBLES_DEL_INCIDENTE(id)}`;
   return Number(fila?.cantidad ?? 0);
+}
+
+/** La foto que cerró el incidente (la última del cierre), si quedó RESUELTO. */
+export async function buscarFotoCierre(id: number) {
+  const [fila] = await prisma.$queryRaw<{ id: number | null }[]>`
+    SELECT max(f.id) AS id
+    FROM fotografia f
+    JOIN cierre_incidente ci ON ci.id = f.cierre_id
+    JOIN incidente i ON i.id = ci.incidente_id
+    WHERE ci.incidente_id = ${id} AND i.estado = 'RESUELTO'`;
+  return fila?.id ?? null;
 }
 
 export function listarFotos(id: number) {

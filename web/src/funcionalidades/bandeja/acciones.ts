@@ -1,3 +1,4 @@
+import type { Usuario } from '../../compartido/sesion/usuario.js';
 import type { EstadoIncidente, FichaGestion, Referencia } from './tipos.js';
 
 export interface AccionesValidas {
@@ -62,4 +63,26 @@ export function motivoSinGestion(ficha: DatosFicha, ahora = new Date()): string 
   if (ficha.estado === 'RESUELTO') return 'Está resuelto.';
   if (ficha.estado === 'DESESTIMADO') return 'Está desestimado.';
   return null;
+}
+
+type DatosCierre = DatosFicha & Pick<FichaGestion, 'cierre'>;
+
+/**
+ * Si se puede cerrar con la foto del después (F09): en ejecución, gestionable y sin un cierre esperando
+ * confirmación. Después de un rechazo se puede volver a intentar.
+ */
+export function puedeCerrar(ficha: DatosCierre, ahora = new Date()) {
+  const gestionable = ficha.incidentePrincipalId === null && !estaCaducado(ficha, ahora);
+  return gestionable && ficha.estado === 'EN_EJECUCION' && ficha.cierre?.resultadoComparacion !== 'OBSERVADO';
+}
+
+/**
+ * Si este usuario puede confirmar o rechazar el cierre observado: lo confirma otra persona del organismo, nunca
+ * quien cerró, tampoco un administrador (mismas reglas que el servidor, decisión del 09/11).
+ */
+export function puedeConfirmarCierre(ficha: DatosCierre, usuario: Pick<Usuario, 'id'> | null) {
+  if (!usuario || ficha.estado !== 'EN_EJECUCION' || ficha.cierre?.resultadoComparacion !== 'OBSERVADO') {
+    return false;
+  }
+  return ficha.cierre.usuario.id !== usuario.id;
 }

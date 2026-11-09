@@ -96,7 +96,7 @@ export async function obtenerGestion(sesion: UsuarioSesion, parametros: unknown)
       detalleComparacion: cierre.detalleComparacion,
       creadoEn: cierre.creadoEn,
       usuario: cierre.usuario,
-      // Se sirven desde la issue del cierre (corte 75 %), igual que las de los reportes.
+      // Las de cada intento, de la primera a la última: GET /api/fotos/:id las sirve al operador del organismo.
       fotos: cierre.fotografias.map((foto) => urlFoto(foto.id)),
     },
   };

@@ -7,6 +7,7 @@ import { logger } from '../../config/logger.js';
 import { elegirIncidente, type ParametrosAgrupacion, severidadConsolidada } from '../agrupacion/calculo.js';
 import * as agrupacion from '../agrupacion/repositorio.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
+import { avisarNuevoEnZona, avisarReporteEnVerificacion } from '../avisos/disparar.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import { vincularIncidente } from '../red/repositorio.js';
@@ -234,6 +235,7 @@ function guardarReporte(alta: {
       });
       // Si cae en la zona piloto, desde ya cambia los recorridos (F11).
       await vincularIncidente(tx, incidenteId);
+      avisarNuevoEnZona(incidenteId, reporte.usuarioId);
     }
 
     const guardado = await repositorio.insertarReporte(tx, { ...reporte, incidenteId });
@@ -252,6 +254,9 @@ function guardarReporte(alta: {
         operadorId: null,
         comentario: null,
       });
+    }
+    if (guardado.estadoVerificacion === 'PENDIENTE_REVISION') {
+      avisarReporteEnVerificacion(guardado.id, incidenteId);
     }
     await avisarCambioIncidente(tx, incidenteId);
 
@@ -290,15 +295,19 @@ export async function listarMisReportes(usuarioId: number) {
 
 /**
  * Sin sesión, solo las fotos del mapa. Con sesión, además, las de los reportes propios y, para
- * operadores y administradores, las de los incidentes de su organismo.
+ * operadores y administradores, las de los incidentes de su organismo. Lo mismo con las del cierre
+ * (buscarFotoDeCierrePermitida).
  */
 export async function buscarArchivoFoto(id: number, usuario: UsuarioSesion | null) {
   const gestiona = usuario?.rol === 'OPERADOR' || usuario?.rol === 'ADMINISTRADOR';
-  const foto = await repositorio.buscarFotoPermitida(id, {
+  const pedido = {
     usuarioId: usuario?.id ?? null,
     // Un administrador sin organismo no gestiona incidentes: ve solo las del mapa.
     organismoId: gestiona ? usuario.organismoId : null,
-  });
+  };
+  const foto =
+    (await repositorio.buscarFotoPermitida(id, pedido)) ??
+    (await repositorio.buscarFotoDeCierrePermitida(id, pedido));
   // Una foto que no puede ver responde igual que una que no existe: no se revela cuál es cuál.
   if (!foto) throw new ErrorApp(404, 'FOTO_NO_ENCONTRADA', 'La foto no existe');
   return almacenFotos.ubicacion(foto.rutaArchivo);

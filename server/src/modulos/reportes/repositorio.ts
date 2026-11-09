@@ -2,6 +2,7 @@ import { type OrigenReporte, Prisma, type Severidad, type TipoVigencia } from '@
 import { prisma } from '../../compartido/prisma.js';
 import { INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
 import type { ResultadoConfianza, Senal } from '../verificacion/calculo.js';
+import { conTareasAlConfirmar } from '../../compartido/despuesDeConfirmar.js';
 
 export function buscarCategoriaActiva(id: number) {
   return prisma.categoria.findFirst({ where: { id, activa: true } });
@@ -44,7 +45,8 @@ export interface SugerenciaDelReporte {
  * en total) se quedan cortos si varios reportes de la misma categoría esperan el bloqueo de la agrupación.
  */
 export function transaccion<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) {
-  return prisma.$transaction(fn, { maxWait: 10_000, timeout: 20_000 });
+  // Lo que se pida con despuesDeConfirmar() adentro (por ejemplo, los avisos) sale recién si se confirma.
+  return conTareasAlConfirmar(() => prisma.$transaction(fn, { maxWait: 10_000, timeout: 20_000 }));
 }
 
 // Las escrituras del alta de un reporte. Las encadena reportes/servicio.ts dentro de la transacción.
@@ -181,6 +183,29 @@ export async function buscarFotoPermitida(id: number, pedido: PedidoFoto) {
     LEFT JOIN incidente i ON i.id = coalesce(propio.incidente_principal_id, propio.id)
     LEFT JOIN categoria c ON c.id = i.categoria_id
     LEFT JOIN area a ON a.id = coalesce(i.area_id, c.area_id)
+    WHERE f.id = ${id}
+      AND (${Prisma.join(permisos, ' OR ')})`;
+  return foto;
+}
+
+/**
+ * Una foto del cierre de un incidente (F09). El público ve solo la que lo cerró (la última) y recién cuando
+ * quedó RESUELTO: los intentos rechazados u observados no se publican. El operador del organismo ve todas.
+ */
+export async function buscarFotoDeCierrePermitida(id: number, pedido: PedidoFoto) {
+  const permisos = [
+    Prisma.sql`(i.estado = 'RESUELTO' AND ${INCIDENTE_VISIBLE}
+                AND f.id = (SELECT max(ultima.id) FROM fotografia ultima WHERE ultima.cierre_id = ci.id))`,
+  ];
+  if (pedido.organismoId !== null) permisos.push(Prisma.sql`a.organismo_id = ${pedido.organismoId}`);
+
+  const [foto] = await prisma.$queryRaw<{ rutaArchivo: string }[]>`
+    SELECT f.ruta_archivo AS "rutaArchivo"
+    FROM fotografia f
+    JOIN cierre_incidente ci ON ci.id = f.cierre_id
+    JOIN incidente i ON i.id = ci.incidente_id
+    JOIN categoria c ON c.id = i.categoria_id
+    JOIN area a ON a.id = coalesce(i.area_id, c.area_id)
     WHERE f.id = ${id}
       AND (${Prisma.join(permisos, ' OR ')})`;
   return foto;

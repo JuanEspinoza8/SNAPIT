@@ -14,6 +14,7 @@ import {
   type ParametrosAgrupacion,
   type ReportesDelIncidente,
 } from './calculo.js';
+import { avisarCambioDeEstado } from '../avisos/disparar.js';
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se agrupa igual con estos. El radio y la
 // ventana dividen en el puntaje, así que tienen que ser positivos; un peso en 0 apaga ese término.
@@ -130,5 +131,7 @@ export async function recalcularEstado(tx: Prisma.TransactionClient, incidenteId
       comentario: motivo,
     },
   });
+  // Lo decidió el sistema: nadie queda afuera del aviso.
+  avisarCambioDeEstado(incidenteId, estado, nuevo, null);
   return nuevo;
 }

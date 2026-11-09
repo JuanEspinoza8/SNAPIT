@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { autenticar, permitirRoles } from '../../compartido/autenticacion.js';
+import { recibirFoto } from '../../compartido/recibirFoto.js';
 import { validar } from '../../compartido/validar.js';
 import { consultarSeguimiento, dejarDeSeguir, seguir } from '../avisos/seguimiento.js';
 import { obtenerGestion } from '../bandeja/servicio.js';
+import { cerrarIncidente, confirmarCierre } from '../cierre/servicio.js';
 import { fijarPrioridadManual, quitarPrioridadManual } from '../prioridad/ajusteManual.js';
 import { cambiarCategoria } from './categoria.js';
 import { esquemaFeed, esquemaFiltros, esquemaId } from './esquemas.js';
@@ -124,5 +126,26 @@ rutasIncidentes.put(
   permitirRoles('OPERADOR', 'ADMINISTRADOR'),
   async (req, res) => {
     res.json(await cambiarCategoria(req.usuario!, req.params, req.body));
+  },
+);
+
+// El cierre con la foto del después (F09). Primero la sesión: nadie sin permiso sube un archivo.
+rutasIncidentes.post(
+  '/:id/cierre',
+  autenticar,
+  permitirRoles('OPERADOR', 'ADMINISTRADOR'),
+  recibirFoto,
+  async (req, res) => {
+    res.status(201).json(await cerrarIncidente(req.usuario!, req.params, req.file?.buffer));
+  },
+);
+
+// Otro operador confirma o rechaza un cierre observado (F09).
+rutasIncidentes.post(
+  '/:id/cierre/confirmacion',
+  autenticar,
+  permitirRoles('OPERADOR', 'ADMINISTRADOR'),
+  async (req, res) => {
+    res.json(await confirmarCierre(req.usuario!, req.params, req.body));
   },
 );

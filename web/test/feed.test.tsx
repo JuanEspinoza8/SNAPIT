@@ -174,13 +174,14 @@ describe('inicio (feed)', () => {
 });
 
 describe('detalle del incidente', () => {
-  function servirIncidente() {
+  function servirIncidente(cambios: Record<string, unknown> = {}) {
     servidor.use(
       http.get(`${API}/incidentes/3`, () =>
         HttpResponse.json({
           ...tarjeta(3, { categoria: { id: 2, nombre: 'Vereda rota' }, severidad: 'GRAVE' }),
           cantidadVecinos: 2,
           fotos: [{ id: 31, url: '/api/fotos/31' }],
+          ...cambios,
         }),
       ),
       http.get(`${API}/social/incidentes/3/reportes`, () =>
@@ -256,6 +257,41 @@ describe('detalle del incidente', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
 
     expect(await screen.findByText('Todavía no hay comentarios.')).toBeInTheDocument();
+  });
+
+  it('un incidente resuelto muestra el antes y el después lado a lado, con la fecha de resolución', async () => {
+    servirIncidente({
+      estado: 'RESUELTO',
+      fotoCierre: { id: 90, url: '/api/fotos/90' },
+      resueltoEn: '2026-11-05T15:00:00.000Z',
+    });
+    renderConSesion('/incidente/3', { '/incidente/:id': <PaginaIncidente /> });
+
+    const comparacion = await screen.findByRole('region', { name: 'Antes y después' });
+    expect(within(comparacion).getByText('Antes')).toBeInTheDocument();
+    expect(within(comparacion).getByText(/Después · resuelto el/)).toBeInTheDocument();
+    // Texto alternativo en las dos: el antes (las fotos de los reportes) y el después (la del cierre).
+    expect(within(comparacion).getByAltText(/Vereda rota, antes/)).toHaveAttribute(
+      'src',
+      expect.stringContaining('/fotos/31'),
+    );
+    expect(
+      within(comparacion).getByAltText('Vereda rota, después: cómo quedó al resolverse'),
+    ).toHaveAttribute('src', expect.stringContaining('/fotos/90'));
+    // La fecha también va en la información, además de la etiqueta del estado.
+    const informacion = screen.getByRole('complementary', { name: 'Información' });
+    expect(within(informacion).getByText('Resuelto')).toBeInTheDocument();
+  });
+
+  it('un incidente sin cierre muestra solo las fotos de los reportes', async () => {
+    servirIncidente({ fotoCierre: null, resueltoEn: null });
+    renderConSesion('/incidente/3', { '/incidente/:id': <PaginaIncidente /> });
+
+    await screen.findByRole('heading', { name: 'Vereda rota', level: 1 });
+    expect(screen.queryByRole('region', { name: 'Antes y después' })).not.toBeInTheDocument();
+    const informacion = screen.getByRole('complementary', { name: 'Información' });
+    expect(within(informacion).queryByText('Resuelto')).not.toBeInTheDocument();
+    expect(screen.getByAltText(/Foto 1 de 1 de Vereda rota/)).toBeInTheDocument();
   });
 });
 

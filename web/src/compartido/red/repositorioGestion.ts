@@ -8,6 +8,8 @@ import type {
   Movimiento,
   Prioridad,
   Referencia,
+  RespuestaCierre,
+  RespuestaConfirmacion,
 } from '../../funcionalidades/bandeja/tipos.js';
 
 /** La prioridad que devuelven fijarla y quitarla. No traen el movimiento: la bitácora se vuelve a pedir. */
@@ -41,6 +43,10 @@ export interface RepositorioGestion {
   }>;
   fijarPrioridad(id: number, valor: number, motivo: string): Promise<RespuestaPrioridad>;
   quitarPrioridad(id: number): Promise<RespuestaPrioridad>;
+  /** Cierra un incidente en ejecución con la foto del después (F09). */
+  cerrar(id: number, foto: File): Promise<RespuestaCierre>;
+  /** Otro operador acepta o rechaza un cierre observado. */
+  confirmarCierre(id: number, aceptar: boolean, comentario: string): Promise<RespuestaConfirmacion>;
 }
 
 export function crearRepositorioGestion(cliente: ClienteApi): RepositorioGestion {
@@ -87,6 +93,17 @@ export function crearRepositorioGestion(cliente: ClienteApi): RepositorioGestion
     },
     quitarPrioridad(id) {
       return cliente.pedir(`/incidentes/${id}/prioridad-manual`, { metodo: 'DELETE' });
+    },
+    cerrar(id, foto) {
+      const formulario = new FormData();
+      formulario.append('foto', foto);
+      return cliente.pedir(`/incidentes/${id}/cierre`, { metodo: 'POST', cuerpo: formulario });
+    },
+    confirmarCierre(id, aceptar, comentario) {
+      return cliente.pedir(`/incidentes/${id}/cierre/confirmacion`, {
+        metodo: 'POST',
+        cuerpo: conComentario({ aceptar }, comentario),
+      });
     },
   };
 }

@@ -33,6 +33,12 @@ describe('filtros de la bandeja en la URL', () => {
     expect(leer(consulta)).toEqual({});
   });
 
+  it('lee el filtro de cierres por confirmar; otro valor de cierre se descarta', () => {
+    expect(leer('cierre=OBSERVADO')).toEqual({ cierre: 'OBSERVADO' });
+    expect(leer('cierre=VALIDADO')).toEqual({});
+    expect(aParametros({ cierre: 'OBSERVADO' }).toString()).toBe('cierre=OBSERVADO');
+  });
+
   it('el id más grande que entra en la base sí vale', () => {
     expect(leer('categoriaId=2147483647')).toEqual({ categoriaId: 2147483647 });
   });
