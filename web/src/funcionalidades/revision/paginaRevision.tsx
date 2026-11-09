@@ -1,33 +1,37 @@
 import { useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
+import { Modal } from '../../compartido/componentes/Modal.js';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { FichaIncidente } from '../mapa/FichaIncidente.js';
 import { DetallePendiente } from './DetallePendiente.js';
-import type { Decision } from './estadoFila.js';
 import { SeccionPendientes } from './SeccionPendientes.js';
 import { EtiquetaEstado, fechaCorta, SeccionTodos } from './SeccionTodos.js';
-import { Modal } from './Modal.js';
 import { TablaProceso, type Seleccion } from './TablaProceso.js';
-import type { EventoCola, ReporteDelOrganismo, ReportePendiente, Severidad } from './tipos.js';
+import {
+  severidadEnTexto,
+  type EstadoEvento,
+  type EventoCola,
+  type ReporteDelOrganismo,
+  type ReportePendiente,
+  type Severidad,
+} from './tipos.js';
 import { useRevision } from './useRevision.js';
 
 type Seccion = 'pendientes' | 'ia' | 'todos';
 const SECCIONES: Seccion[] = ['pendientes', 'ia', 'todos'];
 
 /**
- * La revisión del operador (F04): los reportes de baja confianza de su organismo. A la izquierda, sus dos
- * secciones: los pendientes, que se revisan a mano o se procesan con la IA (que publica los que coinciden con
- * el vecino), y el registro de cada procesamiento con IA.
+ * La revisión del operador (F04): los reportes de baja confianza de su organismo. A la izquierda, sus tres
+ * secciones: los pendientes, que se revisan a mano o se procesan con la IA (publica solo los que coinciden con
+ * el vecino y que la verificación aprobaba), el último procesamiento con IA y todos los reportes.
  */
 export function PaginaRevision() {
-  const { pendientes, todos, proceso, procesar, revisar, enCurso, procesoDeSesion, olvidarProceso } =
-    useRevision();
+  const revision = useRevision();
+  const { pendientes, todos, proceso, procesar, revisar, enCurso } = revision;
   // Un reporte ya decidido, abierto desde «Todos los reportes» para consultarlo.
   const [consultado, setConsultado] = useState<ReporteDelOrganismo | null>(null);
-  // Lo decidido a mano desde esta pantalla: la fila queda con su resultado hasta «Limpiar resueltos».
-  const [decisiones, setDecisiones] = useState<Map<number, Decision>>(new Map());
   const [seleccion, setSeleccion] = useState<Seleccion>(null);
   // La sección va en la URL: al recargar se sigue en la misma.
   const [parametros, setParametros] = useSearchParams();
@@ -46,11 +50,6 @@ export function PaginaRevision() {
   function abrirPendiente(id: number) {
     revisar.reset();
     setAbierto(pendientes.data?.find((reporte) => reporte.id === id) ?? null);
-  }
-
-  function limpiarResueltos() {
-    setDecisiones(new Map());
-    olvidarProceso();
   }
 
   return (
@@ -73,12 +72,7 @@ export function PaginaRevision() {
           </ItemMenu>
           <ItemMenu activo={seccion === 'ia'} alElegir={() => irA('ia')}>
             <span>Procesamiento con IA</span>
-            {enCurso && (
-              <span
-                className="h-2 w-2 animate-pulse rounded-full bg-estado-verificado"
-                aria-label="En curso"
-              />
-            )}
+            {enCurso && <span className="text-xs text-texto-secundario">En curso</span>}
           </ItemMenu>
           <ItemMenu activo={seccion === 'todos'} alElegir={() => irA('todos')}>
             <span>Todos los reportes</span>
@@ -90,30 +84,29 @@ export function PaginaRevision() {
 
         <div className="flex min-w-0 flex-col gap-4">
           {seccion === 'pendientes' && (
-            <>
-              <SeccionPendientes
-                consulta={pendientes}
-                proceso={procesoDeSesion}
-                enCurso={enCurso}
-                decisiones={decisiones}
-                procesando={procesar.isPending}
-                errorAlProcesar={procesar.isError ? procesar.error : null}
-                alProcesar={() => procesar.mutate()}
-                alLimpiar={limpiarResueltos}
-                alRevisar={abrirPendiente}
-                alVerReporte={(incidenteId) => setSeleccion({ tipo: 'ficha', incidenteId })}
-              />
-            </>
+            <SeccionPendientes
+              consulta={pendientes}
+              filas={revision.filas}
+              proceso={revision.procesoDeSesion}
+              enCurso={enCurso}
+              decisiones={revision.decisiones}
+              procesando={procesar.isPending}
+              errorAlProcesar={procesar.isError ? procesar.error : null}
+              alProcesar={() => procesar.mutate()}
+              alLimpiar={revision.limpiarResueltos}
+              alRevisar={abrirPendiente}
+              alVerReporte={(incidenteId) => setSeleccion({ tipo: 'ficha', incidenteId })}
+            />
           )}
 
           {seccion === 'ia' && (
-            <>
-              <TablaProceso
-                proceso={proceso.data}
-                cargando={proceso.isPending && proceso.fetchStatus !== 'idle'}
-                alElegir={setSeleccion}
-              />
-            </>
+            <TablaProceso
+              proceso={proceso.data}
+              cargando={proceso.isPending && proceso.fetchStatus !== 'idle'}
+              error={revision.errorProceso}
+              alReintentar={revision.reintentarProceso}
+              alElegir={setSeleccion}
+            />
           )}
 
           {seccion === 'todos' && (
@@ -167,7 +160,7 @@ export function PaginaRevision() {
                 { id: pendiente.id, decision, comentario },
                 {
                   onSuccess: () => {
-                    setDecisiones((actuales) => new Map(actuales).set(pendiente.id, decision));
+                    revision.anotarDecision(pendiente.id, decision);
                     setAbierto(null);
                   },
                 },
@@ -181,7 +174,7 @@ export function PaginaRevision() {
           titulo={`Propuesta de la IA · reporte #${seleccion.evento.reporte.id}`}
           alCerrar={() => setSeleccion(null)}
         >
-          <Propuesta evento={seleccion.evento} />
+          <Propuesta evento={seleccion.evento} ultimo={seleccion.ultimo} />
         </Modal>
       )}
       {seleccion?.tipo === 'ficha' && (
@@ -219,8 +212,17 @@ function ItemMenu({
   );
 }
 
-/** Lo que propuso la IA para un reporte, al lado de lo que eligió el vecino. */
-function Propuesta({ evento }: { evento: EventoCola }) {
+// En qué terminó el reporte, según el último paso de la IA: que coincida no alcanza para publicarlo.
+const DESENLACES: Record<EstadoEvento, string> = {
+  EN_PROCESO: 'La IA todavía lo está procesando.',
+  CLASIFICADO: 'La IA todavía lo está procesando.',
+  PUBLICADO: 'La IA lo publicó.',
+  REVISION_MANUAL: 'Quedó para revisión manual.',
+  ERROR: 'La IA no pudo terminar: quedó para revisión manual.',
+};
+
+/** Lo que propuso la IA para un reporte, al lado de lo que eligió el vecino, y en qué terminó. */
+function Propuesta({ evento, ultimo }: { evento: EventoCola; ultimo: EventoCola }) {
   const categorias = useCategorias();
   const nombre = (id: number | null) =>
     id === null ? '—' : (categorias.data?.find((c) => c.id === id)?.nombre ?? `Categoría ${id}`);
@@ -234,11 +236,11 @@ function Propuesta({ evento }: { evento: EventoCola }) {
       {evento.reporte.foto ? (
         <FotoConSesion
           fotoId={evento.reporte.foto.id}
-          className="aspect-[4/3] w-full rounded object-cover"
-          siFalla={<span className="aspect-[4/3] w-full rounded bg-superficie-alterna" />}
+          className="aspect-[4/3] w-full rounded-md object-cover"
+          siFalla={<span className="aspect-[4/3] w-full rounded-md bg-superficie-alterna" />}
         />
       ) : (
-        <span className="aspect-[4/3] w-full rounded bg-superficie-alterna" />
+        <span className="aspect-[4/3] w-full rounded-md bg-superficie-alterna" />
       )}
       <div className="flex flex-col gap-3 text-sm">
         <div className="grid grid-cols-2 gap-3">
@@ -253,19 +255,21 @@ function Propuesta({ evento }: { evento: EventoCola }) {
             {propuesta.severidad && <Gravedad severidad={propuesta.severidad} />}
           </div>
         </div>
-        <p className={`font-semibold ${coincide ? 'text-estado-resuelto' : 'text-estado-registrado'}`}>
-          {coincide ? 'Coinciden: la IA lo publica.' : 'No coinciden: queda para revisión manual.'}
+        <p className="text-texto">
+          {coincide ? 'Coincide con lo que eligió el vecino.' : 'No coincide con lo que eligió el vecino.'}
         </p>
         {propuesta.explicacion && <p className="text-texto-secundario">{propuesta.explicacion}</p>}
+        <div className="flex flex-col gap-1 border-t border-borde pt-3">
+          <p className="font-semibold text-texto">{DESENLACES[ultimo.estado]}</p>
+          {ultimo !== evento && ultimo.detalle && <p className="text-texto-secundario">{ultimo.detalle}</p>}
+        </div>
       </div>
     </div>
   );
 }
 
-const GRAVEDADES: Record<Severidad, string> = { LEVE: 'Leve', MODERADA: 'Moderada', GRAVE: 'Grave' };
-
 function Gravedad({ severidad }: { severidad: Severidad }) {
-  return <span className="text-xs text-texto-secundario">{GRAVEDADES[severidad]}</span>;
+  return <span className="text-xs text-texto-secundario">{severidadEnTexto[severidad]}</span>;
 }
 
 /** En qué quedó un reporte ya decidido: lo que se ve en lugar de la decisión al consultarlo. */
@@ -282,8 +286,9 @@ function Resultado({
       : reporte.estadoVerificacion === 'PENDIENTE_REVISION'
         ? 'Sigue pendiente de revisión.'
         : reporte.publicadoPorIaEn
-          ? `Lo publicó la IA el ${fechaCorta(reporte.publicadoPorIaEn)}, porque coincidió con lo que eligió el vecino.`
-          : 'Publicado: lo verificó el sistema al recibirlo o un operador al revisarlo.';
+          ? `Lo publicó la IA el ${fechaCorta(reporte.publicadoPorIaEn)}: coincidió con lo que eligió el ` +
+            'vecino y la verificación lo aprobaba.'
+          : 'Lo verificó el sistema al recibirlo o un operador al revisarlo.';
   return (
     <div className="flex flex-col gap-2 rounded-md border border-borde p-3 text-sm">
       <div className="flex items-center justify-between gap-2">

@@ -4,7 +4,7 @@ import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import type { ErrorApi } from '../../compartido/red/error.js';
 import { MapaChico } from './MapaChico.js';
-import { SENALES, type ReportePendiente, type Severidad } from './tipos.js';
+import { SENALES, severidadEnTexto, type ReportePendiente } from './tipos.js';
 
 type Decision = 'VERIFICADO' | 'DESESTIMADO';
 
@@ -21,8 +21,11 @@ interface Props {
   alDecidir: (decision: Decision, comentario: string) => void;
 }
 
-const GRAVEDADES: Record<Severidad, string> = { LEVE: 'Leve', MODERADA: 'Moderada', GRAVE: 'Grave' };
 const MAX_COMENTARIO = 1000;
+
+/** La reputación llega con decimales (66.67): se muestra con coma y hasta dos decimales, «66,67». */
+const reputacionEnTexto = (reputacion: number) =>
+  reputacion.toLocaleString('es-AR', { maximumFractionDigits: 2 });
 
 /** Todo lo que el operador necesita para aprobar o desestimar un pendiente, y la decisión. */
 export function DetallePendiente({
@@ -49,6 +52,13 @@ export function DetallePendiente({
     propuesta !== null &&
     propuesta.categoriaId === reporte.categoria.id &&
     propuesta.severidad === reporte.severidadDeclarada;
+  // La IA publica solo si coincide y la verificación lo aprobaba (decisión del 22/10): un pendiente que coincide
+  // quedó para revisión porque la confianza no alcanzaba.
+  const coincidencia = !coincide
+    ? 'No coincide con el vecino: por eso quedó para revisión.'
+    : soloLectura
+      ? 'Coincide con el vecino.'
+      : 'Coincide con el vecino, pero la confianza no llega a la que pide la verificación: por eso quedó para revisión.';
   const deshabilitado = bloqueado || yaResuelto || enviando !== null;
 
   return (
@@ -59,11 +69,11 @@ export function DetallePendiente({
           <FotoConSesion
             key={foto.id}
             fotoId={foto.id}
-            className="aspect-[4/3] w-full rounded object-cover"
-            siFalla={<span className="aspect-[4/3] w-full rounded bg-superficie-alterna" />}
+            className="aspect-[4/3] w-full rounded-md object-cover"
+            siFalla={<span className="aspect-[4/3] w-full rounded-md bg-superficie-alterna" />}
           />
         ) : (
-          <span className="flex aspect-[4/3] w-full items-center justify-center rounded bg-superficie-alterna text-sm text-texto-secundario">
+          <span className="flex aspect-[4/3] w-full items-center justify-center rounded-md bg-superficie-alterna text-sm text-texto-secundario">
             Sin foto
           </span>
         )}
@@ -75,9 +85,13 @@ export function DetallePendiente({
                 type="button"
                 onClick={() => setFotoElegida(indice)}
                 aria-label={`Ver la foto ${indice + 1}`}
-                className={`rounded border-2 ${indice === fotoElegida ? 'border-primario' : 'border-transparent'}`}
+                className={`rounded-md border-2 ${indice === fotoElegida ? 'border-primario' : 'border-transparent'}`}
               >
-                <FotoConSesion fotoId={otra.id} className="h-12 w-16 rounded object-cover" siFalla={null} />
+                <FotoConSesion
+                  fotoId={otra.id}
+                  className="h-12 w-16 rounded-md object-cover"
+                  siFalla={null}
+                />
               </button>
             ))}
           </div>
@@ -85,12 +99,12 @@ export function DetallePendiente({
 
         <Bloque titulo="Lo que reportó el vecino">
           <p className="font-semibold text-texto">
-            {reporte.categoria.nombre} · {GRAVEDADES[reporte.severidadDeclarada]}
+            {reporte.categoria.nombre} · {severidadEnTexto[reporte.severidadDeclarada]}
           </p>
           <p className="text-texto">
             {reporte.descripcion ?? <i className="text-texto-secundario">Sin descripción</i>}
           </p>
-          <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+          <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
             <dt className="text-texto-secundario">Dirección</dt>
             <dd className="text-texto">{reporte.direccion ?? 'pendiente'}</dd>
             <dt className="text-texto-secundario">Fecha</dt>
@@ -98,7 +112,7 @@ export function DetallePendiente({
             <dt className="text-texto-secundario">Enviado desde</dt>
             <dd className="text-texto">{reporte.origen === 'APP_MOVIL' ? 'la app' : 'el sitio web'}</dd>
             <dt className="text-texto-secundario">Ubicación</dt>
-            <dd className="font-mono text-texto">
+            <dd className="text-texto">
               {reporte.lat.toFixed(5)}, {reporte.lon.toFixed(5)}
             </dd>
             {reporte.incidente && (
@@ -121,21 +135,15 @@ export function DetallePendiente({
         {propuesta && (
           <Bloque titulo="Lo que propuso la IA">
             <p className="font-semibold text-texto">
-              {nombrePropuesta} · {GRAVEDADES[propuesta.severidad]}
+              {nombrePropuesta} · {severidadEnTexto[propuesta.severidad]}
             </p>
-            <p
-              className={`text-xs font-semibold ${coincide ? 'text-estado-resuelto' : 'text-estado-registrado'}`}
-            >
-              {coincide
-                ? '✓ Coincide con el vecino'
-                : '≠ No coincide con el vecino: por eso quedó para revisión'}
-            </p>
+            <p className="text-xs font-semibold text-texto">{coincidencia}</p>
             {propuesta.explicacion && <p className="text-texto-secundario">{propuesta.explicacion}</p>}
           </Bloque>
         )}
 
         <Bloque titulo={`Confianza ${reporte.nivelConfianza} de 100`}>
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2">
             {reporte.senales.map((senal, indice) => (
               <li key={indice} className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -145,11 +153,11 @@ export function DetallePendiente({
                   )}
                 </div>
                 <span
-                  className={`shrink-0 font-mono text-sm font-semibold ${
-                    senal.valor > 0
-                      ? 'text-estado-resuelto'
-                      : senal.valor < 0
-                        ? 'text-peligro'
+                  className={`shrink-0 text-sm font-semibold ${
+                    senal.valor < 0
+                      ? 'text-peligro'
+                      : senal.valor > 0
+                        ? 'text-texto'
                         : 'text-texto-secundario'
                   }`}
                 >
@@ -162,8 +170,8 @@ export function DetallePendiente({
 
         <Bloque titulo="El vecino">
           <p className="text-texto">
-            Reputación <b>{reporte.vecino.reputacion}</b> de 100 · {reporte.vecino.reportesConfirmados}{' '}
-            confirmado
+            Reputación <span className="font-semibold">{reputacionEnTexto(reporte.vecino.reputacion)}</span>{' '}
+            de 100 · {reporte.vecino.reportesConfirmados} confirmado
             {reporte.vecino.reportesConfirmados === 1 ? '' : 's'} · {reporte.vecino.reportesDesestimados}{' '}
             desestimado
             {reporte.vecino.reportesDesestimados === 1 ? '' : 's'}

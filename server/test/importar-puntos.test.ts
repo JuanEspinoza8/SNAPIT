@@ -38,14 +38,15 @@ let archivo: string;
 
 const importar = (sinConexion: boolean) => importarPuntosInteres({ prisma, archivo, sinConexion, overpass });
 
+// Solo el rango de este archivo: prioridad.test.ts carga sus puntos en otro y corre en paralelo.
 const borrarPuntosDePrueba = () =>
-  prisma.puntoInteres.deleteMany({ where: { osmId: { gte: BigInt(BASE) } } });
+  prisma.puntoInteres.deleteMany({ where: { osmId: { gte: BigInt(BASE), lt: BigInt(BASE + 1_000_000) } } });
 
 function leerPuntos() {
   return prisma.$queryRaw<{ osmId: bigint; tipo: string; nombre: string; lat: number; lon: number }[]>`
     SELECT osm_id AS "osmId", tipo::text AS tipo, nombre,
            ST_Y(ubicacion::geometry) AS lat, ST_X(ubicacion::geometry) AS lon
-    FROM punto_interes WHERE osm_id >= ${BigInt(BASE)} ORDER BY osm_id`;
+    FROM punto_interes WHERE osm_id >= ${BigInt(BASE)} AND osm_id < ${BigInt(BASE + 1_000_000)} ORDER BY osm_id`;
 }
 
 beforeEach(async () => {

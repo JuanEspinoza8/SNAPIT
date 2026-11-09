@@ -283,6 +283,25 @@ void main() {
 
       expect(find.text(mensaje), findsOneWidget);
     });
+
+    testWidgets('después de una falla, buscar el mismo texto vuelve a '
+        'consultar', (tester) async {
+      var fallas = 1;
+      final servidor = ServidorDeRecorridos()
+        ..respuestaBusqueda = () => fallas-- > 0
+            ? errorApi(503, 'GEOCODIFICACION_NO_DISPONIBLE', 'Sin servicio')
+            : json(200, lugaresJson);
+      await abrirRecorrido(tester, servidor);
+
+      await buscar(tester, 'Saavedra 500');
+      expect(find.text('Sin servicio'), findsOneWidget);
+
+      await tocar(tester, find.text('Buscar'));
+
+      expect(servidor.cantidad('/geocodificacion'), 2);
+      expect(find.text('Sin servicio'), findsNothing);
+      expect(find.text('Cornelio Saavedra 500, La Sirena'), findsOneWidget);
+    });
   });
 
   testWidgets('botones de 48 dp o más, con nombre para el lector de pantalla '
