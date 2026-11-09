@@ -21,6 +21,7 @@ import '../avisos/servicio_push.dart';
 import '../feed/pantalla_feed.dart';
 import '../mapa/foco_mapa.dart';
 import '../mapa/mapa_incidentes.dart';
+import '../mapa/repositorio_mapa.dart';
 import '../mis_reportes/pantalla_mis_reportes.dart';
 import '../recorrido/elegir_perfil_movilidad.dart';
 import '../recorrido/pantalla_recorrido.dart';
@@ -43,6 +44,10 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   StreamSubscription<MensajePush>? _avisosRecibidos;
   StreamSubscription<MensajePush>? _avisosAbiertos;
   late final AppLifecycleListener _ciclo;
+
+  // Al abrir la app cerrada desde una notificación, el aviso llega dos veces:
+  // como mensaje inicial y como aviso tocado. Se abre una sola.
+  final _avisosYaAbiertos = <int>{};
 
   // Todas menos Inicio se arman recién la primera vez que se abren. El mapa y
   // Reportar piden la ubicación al aparecer: armados de entrada, el permiso
@@ -121,13 +126,21 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         ),
       );
     ref.invalidate(avisosProvider);
+    // Si la ficha de ese incidente está abierta, que muestre el cambio.
+    if (mensaje.incidenteId case final id?) ref.invalidate(fichaProvider(id));
   }
 
   /// Abre la ficha del incidente (o la lista, si el aviso no es de uno) y lo
   /// marca como leído.
   void _abrirAviso(MensajePush mensaje) {
     if (!mounted) return;
+    if (mensaje.notificacionId case final id? when !_avisosYaAbiertos.add(id)) {
+      return;
+    }
     if (mensaje.incidenteId case final id?) {
+      // Si la ficha ya estaba abierta más abajo, se pide de nuevo: el aviso
+      // es justamente de un cambio.
+      ref.invalidate(fichaProvider(id));
       context.push(Rutas.incidente(id));
     } else {
       context.push(Rutas.avisos);
