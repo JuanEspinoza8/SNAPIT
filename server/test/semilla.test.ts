@@ -10,6 +10,7 @@ import { claveRegla, REGLAS_TRAMO } from '../src/modulos/recorridos/calculo.js';
 import { leerZonasPiloto } from '../src/modulos/red/zonaPiloto.js';
 import { cargarSemilla } from '../src/semilla/cargarSemilla.js';
 import {
+  AREAS,
   ARCHIVO_ZONAS_PILOTO,
   CATEGORIAS,
   CLAVE_USUARIOS_PRUEBA,
@@ -69,7 +70,7 @@ describe('semilla', { timeout: 60_000 }, () => {
 
     expect(segunda).toEqual(primera);
     expect(primera.organismos).toHaveLength(1);
-    expect(primera.organismos[0]?.areas).toHaveLength(4);
+    expect(primera.organismos[0]?.areas).toHaveLength(AREAS.length);
     expect(primera.categorias).toHaveLength(CATEGORIAS.length);
     expect(primera.perfiles).toHaveLength(PERFILES.length);
     expect(primera.matriz).toHaveLength(CATEGORIAS.length * PERFILES.length);

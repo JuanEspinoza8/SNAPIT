@@ -8,7 +8,7 @@ Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá
 
 ## Catálogo
 
-**Organismo:** Municipalidad de Neuquén, con las áreas **Bacheo**, **Veredas**, **Alumbrado** y **Obras**.
+**Organismo:** Municipalidad de Neuquén, con las áreas **Bacheo**, **Veredas**, **Alumbrado**, **Obras**, **Arbolado**, **Desagües**, **Higiene urbana**, **Tránsito** y **Atención general** (lo que no encaja en otra: el operador lo reclasifica).
 
 ### Categorías
 
@@ -19,6 +19,20 @@ Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá
 | Cordón sin rampa | Veredas | Permanente | — | 1,40 |
 | Luminaria apagada | Alumbrado | Permanente | — | 1,00 |
 | Obra que interrumpe el paso | Obras | Temporal | 30 días | 1,20 |
+| Tapa de cámara o alcantarilla | Bacheo | Permanente | — | 1,80 |
+| Desnivel o escalón en la vereda | Veredas | Permanente | — | 1,30 |
+| Obstáculo en la vereda | Veredas | Temporal | 3 días | 1,10 |
+| Poste dañado o cables colgando | Alumbrado | Permanente | — | 1,80 |
+| Árbol o rama caída | Arbolado | Temporal | 7 días | 1,70 |
+| Rama baja o árbol que obstruye | Arbolado | Permanente | — | 1,20 |
+| Raíces que levantan la vereda | Arbolado | Permanente | — | 1,30 |
+| Desagüe tapado o calle anegada | Desagües | Temporal | 7 días | 1,30 |
+| Pérdida de agua | Desagües | Temporal | 15 días | 1,10 |
+| Basura o escombros | Higiene urbana | Temporal | 7 días | 1,00 |
+| Semáforo que no funciona | Tránsito | Temporal | 7 días | 1,60 |
+| Señal de tránsito caída o faltante | Tránsito | Permanente | — | 1,10 |
+| Senda peatonal despintada | Tránsito | Permanente | — | 1,00 |
+| Otro problema en la vía pública | Atención general | Temporal | 30 días | 1,00 |
 
 - **Vigencia temporal:** el incidente vence `dias_caducidad_default` días después de creado (si la categoría no los define, `vigencia.dias_default`). Cuando un vecino confirma que el problema sigue, la vigencia se renueva.
 - **Peso de severidad:** cuánto pesa la categoría en el factor de severidad de la prioridad. Un peso mayor sube la prioridad de los incidentes de esa categoría.
@@ -34,6 +48,20 @@ Para calcular recorridos accesibles, cada problema afecta distinto según quién
 | Cordón sin rampa | ⛔ | 1,5 | ⛔ | 1,5 |
 | Luminaria apagada | 1,2 | 1,5 | 1,2 | 3,0 |
 | Obra que interrumpe el paso | ⛔ | ⛔ | ⛔ | ⛔ |
+| Tapa de cámara o alcantarilla | ⛔ | ⛔ | ⛔ | ⛔ |
+| Desnivel o escalón en la vereda | ⛔ | 2,0 | 2,0 | 2,0 |
+| Obstáculo en la vereda | ⛔ | 1,8 | ⛔ | 2,5 |
+| Poste dañado o cables colgando | 1,5 | 1,5 | 1,5 | 2,5 |
+| Árbol o rama caída | ⛔ | ⛔ | ⛔ | ⛔ |
+| Rama baja o árbol que obstruye | 1,3 | 1,5 | 1,3 | 3,0 |
+| Raíces que levantan la vereda | ⛔ | 2,0 | 2,5 | 2,5 |
+| Desagüe tapado o calle anegada | 2,5 | 2,0 | 2,0 | 2,0 |
+| Pérdida de agua | 1,5 | 1,5 | 1,3 | 1,5 |
+| Basura o escombros | 2,0 | 1,5 | 1,8 | 2,0 |
+| Semáforo que no funciona | 2,0 | 2,5 | 1,5 | 3,0 |
+| Señal de tránsito caída o faltante | 1,2 | 1,2 | 1,2 | 1,5 |
+| Senda peatonal despintada | 1,2 | 1,3 | 1,2 | 2,0 |
+| Otro problema en la vía pública | 1,2 | 1,2 | 1,2 | 1,2 |
 
 ## Parámetros del sistema
 
