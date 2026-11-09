@@ -40,7 +40,7 @@ export function PaginaIncidente() {
                   fotos={ficha.data.fotos}
                   despues={ficha.data.fotoCierre}
                   descripcion={ficha.data.categoria.nombre}
-                  resueltoEn={ficha.data.resueltoEn ?? null}
+                  resueltoEn={ficha.data.resueltoEn}
                 />
               ) : (
                 <Carrusel fotos={ficha.data.fotos} descripcion={ficha.data.categoria.nombre} />

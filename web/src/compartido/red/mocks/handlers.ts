@@ -265,6 +265,8 @@ export const handlers = [
       cantidadVecinos: 1,
       direccion: null,
       fotos: [],
+      fotoCierre: null,
+      resueltoEn: null,
     } satisfies FichaIncidente);
   }),
 
