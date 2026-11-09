@@ -173,6 +173,14 @@ describe('armar la red: de etiquetas de OSM a columnas', () => {
     expect(tramoCon({ highway: 'footway' }).tieneRampa).toBe(false);
   });
 
+  it('las calles peatonales y de convivencia no tienen cordón: cuentan como con rampa', () => {
+    expect(tramoCon({ highway: 'pedestrian' }).tieneRampa).toBe(true);
+    expect(tramoCon({ highway: 'living_street' }).tieneRampa).toBe(true);
+    // Una senda o una calle común, sin cordón rebajado marcado, siguen sin rampa.
+    expect(tramoCon({ highway: 'footway', footway: 'sidewalk' }).tieneRampa).toBe(false);
+    expect(tramoCon({ highway: 'residential' }).tieneRampa).toBe(false);
+  });
+
   it('en un camino peatonal toma ancho y superficie; en una calle no, porque son los de la calzada', () => {
     const tags = { width: '2', surface: 'paving_stones', incline: '6%' };
 

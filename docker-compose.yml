@@ -40,9 +40,13 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       IA_MODELO: ${IA_MODELO:-claude-haiku-5-5}
       IA_TIMEOUT_MS: ${IA_TIMEOUT_MS:-30000}
+      # Sin archivo el servidor arranca igual y los avisos no salen al celular.
+      FIREBASE_CREDENCIALES: ${FIREBASE_CREDENCIALES:-}
     volumes:
       # Las fotos de los reportes sobreviven aunque se reconstruya la imagen.
       - fotos_data:/app/fotos
+      # Las credenciales de Firebase: quedan afuera de la imagen y la misma ruta del .env sirve acá.
+      - ./server/secretos:/app/secretos:ro
       # La semilla lee de acá el polígono de la zona piloto: la imagen se arma solo con server/.
       - ./db/datos:/db/datos:ro
     ports:

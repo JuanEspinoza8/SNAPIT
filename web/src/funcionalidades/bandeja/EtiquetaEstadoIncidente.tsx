@@ -12,7 +12,7 @@ export function EtiquetaEstadoIncidente({ estado }: { estado: EstadoIncidente })
   const { etiqueta, clase } = ESTADOS_INCIDENTE[estado];
   return (
     <span
-      className={`${clase} whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold text-sobre-estado`}
+      className={`${clase} whitespace-nowrap rounded-md px-2 py-1 text-xs font-semibold text-sobre-estado`}
     >
       {etiqueta}
     </span>

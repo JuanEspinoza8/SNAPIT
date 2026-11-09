@@ -57,6 +57,9 @@ export function PaginaReportar() {
   const reportar = useReportar();
   const ia = useSugerenciaIa();
   const sugerencia = ia.estado.tipo === 'lista' ? ia.estado.sugerencia : null;
+  // Lo que sugirió la IA, solo si es una categoría de la lista y una gravedad conocida: lo demás se ignora.
+  const categoriaSugerida = categorias.data?.find((categoria) => categoria.id === sugerencia?.categoriaId);
+  const gravedadSugerida = SEVERIDADES.find((opcion) => opcion.valor === sugerencia?.severidad);
 
   const [foto, setFoto] = useState<File | null>(null);
   const [categoriaId, setCategoriaId] = useState('');
@@ -65,6 +68,8 @@ export function PaginaReportar() {
   const [punto, setPunto] = useState<Punto | null>(null);
   const [errores, setErrores] = useState<Errores>(ERRORES_VACIOS);
   const [aviso, setAviso] = useState(false);
+  // Si la IA completó algún campo: el aviso «completó lo que no habías elegido» sale solo en ese caso.
+  const [iaCompleto, setIaCompleto] = useState(false);
 
   // La respuesta de la IA llega después: para no pisar al vecino hay que ver lo que eligió en ese momento.
   const eleccion = useRef({ categoriaId, severidad });
@@ -94,6 +99,7 @@ export function PaginaReportar() {
     setPunto(null);
     setErrores(ERRORES_VACIOS);
     setAviso(false);
+    setIaCompleto(false);
     completadoPorIa.current = { categoria: false, severidad: false };
     ia.reiniciar();
     reportar.reset();
@@ -104,6 +110,7 @@ export function PaginaReportar() {
     if (completadoPorIa.current.categoria) setCategoriaId('');
     if (completadoPorIa.current.severidad) setSeveridad('');
     completadoPorIa.current = { categoria: false, severidad: false };
+    setIaCompleto(false);
     ia.reiniciar();
   }
 
@@ -129,18 +136,20 @@ export function PaginaReportar() {
     void ia.pedir(archivo).then((propuesta) => {
       if (!propuesta) return;
       const actual = eleccion.current;
-      // Una categoría que no está en la lista quedaría elegida sin verse.
+      // Una categoría que no está en la lista quedaría elegida sin verse, y una gravedad desconocida, también.
       const enLista = categorias.data?.some((categoria) => categoria.id === propuesta.categoriaId) ?? false;
+      const conocida = SEVERIDADES.some((opcion) => opcion.valor === propuesta.severidad);
       if (!actual.categoriaId && enLista) {
         setCategoriaId(String(propuesta.categoriaId));
         completadoPorIa.current.categoria = true;
         marcar('categoria', null);
       }
-      if (!actual.severidad) {
+      if (!actual.severidad && conocida) {
         setSeveridad(propuesta.severidad);
         completadoPorIa.current.severidad = true;
         marcar('severidad', null);
       }
+      setIaCompleto(completadoPorIa.current.categoria || completadoPorIa.current.severidad);
     });
   }
 
@@ -238,7 +247,7 @@ export function PaginaReportar() {
               className="mt-2 max-h-64 rounded-md border border-borde"
             />
           )}
-          <AvisoIa estado={ia.estado.tipo} />
+          <AvisoIa estado={ia.estado.tipo} completo={iaCompleto} />
         </div>
 
         <div className="space-y-1">
@@ -267,13 +276,10 @@ export function PaginaReportar() {
               </>
             )}
           </CampoSelecto>
-          {sugerencia && (
+          {categoriaSugerida && categoriaId && (
             <MarcaIa
-              aceptada={categoriaId === String(sugerencia.categoriaId)}
-              propuesta={
-                categorias.data?.find((categoria) => categoria.id === sugerencia.categoriaId)?.nombre ??
-                `categoría ${sugerencia.categoriaId}`
-              }
+              aceptada={categoriaId === String(categoriaSugerida.id)}
+              propuesta={categoriaSugerida.nombre}
             />
           )}
           {categorias.isSuccess && categorias.data.length === 0 && (
@@ -301,11 +307,8 @@ export function PaginaReportar() {
             </option>
           ))}
         </CampoSelecto>
-        {sugerencia && (
-          <MarcaIa
-            aceptada={severidad === sugerencia.severidad}
-            propuesta={SEVERIDADES.find((opcion) => opcion.valor === sugerencia.severidad)!.etiqueta}
-          />
+        {gravedadSugerida && severidad && (
+          <MarcaIa aceptada={severidad === gravedadSugerida.valor} propuesta={gravedadSugerida.etiqueta} />
         )}
 
         <div className="space-y-1">
@@ -373,8 +376,15 @@ export function PaginaReportar() {
   );
 }
 
-function AvisoIa({ estado }: { estado: 'sinFoto' | 'analizando' | 'lista' | 'noDisponible' }) {
-  if (estado === 'sinFoto') return null;
+function AvisoIa({
+  estado,
+  completo,
+}: {
+  estado: 'sinFoto' | 'analizando' | 'lista' | 'noDisponible';
+  /** Si la IA completó algún campo. Si no completó nada, las marcas de cada campo alcanzan. */
+  completo: boolean;
+}) {
+  if (estado === 'sinFoto' || (estado === 'lista' && !completo)) return null;
   const textos = {
     analizando: 'Analizando la foto con IA…',
     lista: 'La IA analizó la foto y completó lo que no habías elegido. Revisalo: podés cambiarlo.',
@@ -397,7 +407,10 @@ function AvisoIa({ estado }: { estado: 'sinFoto' | 'analizando' | 'lista' | 'noD
   );
 }
 
-/** Debajo de cada campo: si quedó lo que propuso la IA o si el vecino eligió otra cosa (antes o después). */
+/**
+ * Debajo de cada campo elegido: si quedó lo que propuso la IA o si el vecino eligió otra cosa (antes o después).
+ * Con el campo vacío no se muestra: el vecino todavía no eligió nada.
+ */
 function MarcaIa({ aceptada, propuesta }: { aceptada: boolean; propuesta: string }) {
   return aceptada ? (
     <p className="text-xs font-semibold text-primario">Sugerido por la IA</p>

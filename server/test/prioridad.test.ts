@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Area, Categoria, Severidad, TipoPuntoInteres } from '@prisma/client';
 import request from 'supertest';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
@@ -12,16 +12,20 @@ import { jpegConExif, jpegSinExif } from './imagenes.js';
 // La dirección no se consulta: no hace falta para la prioridad.
 vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
 
-// osm_id propios de este archivo, distintos de los de importar-puntos.test.ts.
-const OSM_BASE = 910_000_000_000_000;
+// osm_id propios de este archivo. importar-puntos.test.ts usa desde 900_000_000_000_000 y corre en paralelo:
+// si los rangos se cruzan, uno borra los puntos del otro.
+const OSM_BASE = 800_000_000_000_000;
 let siguienteOsm = OSM_BASE + Math.floor(Math.random() * 1_000_000_000);
+
+const borrarPuntos = () =>
+  prisma.puntoInteres.deleteMany({
+    where: { osmId: { gte: BigInt(OSM_BASE), lt: BigInt(OSM_BASE + 1_000_000_000) } },
+  });
 
 const vecinos: number[] = [];
 afterAll(async () => {
   await borrarReportesDe(vecinos);
-  await prisma.puntoInteres.deleteMany({
-    where: { osmId: { gte: BigInt(OSM_BASE), lt: BigInt(OSM_BASE + 1_000_000_000) } },
-  });
+  await borrarPuntos();
 });
 
 // Unos 80 m al norte (un grado de latitud son unos 111 km).
@@ -130,6 +134,9 @@ describe('prioridad del incidente', () => {
   });
 
   it('con una parada y una escuela cerca suma la escuela, con su nombre y su distancia', async () => {
+    onTestFinished(async () => {
+      await borrarPuntos();
+    });
     await crearPunto('PARADA_TRANSPORTE', 'N-2935', 0.0002);
     await crearPunto('ESCUELA', 'Escuela N° 123', OCHENTA_METROS);
 

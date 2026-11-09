@@ -3,6 +3,7 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
+import { ESTADOS_VERIFICACION } from '../../compartido/formato/verificacion.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { severidadEnTexto, type EstadoVerificacion, type ReporteDelOrganismo } from './tipos.js';
 import type { useRevision } from './useRevision.js';
@@ -12,7 +13,7 @@ type Filtro = 'TODOS' | EstadoVerificacion;
 const FILTROS: { valor: Filtro; texto: string }[] = [
   { valor: 'TODOS', texto: 'Todos' },
   { valor: 'PENDIENTE_REVISION', texto: 'Pendientes' },
-  { valor: 'VERIFICADO', texto: 'Publicados' },
+  { valor: 'VERIFICADO', texto: 'Verificados' },
   { valor: 'DESESTIMADO', texto: 'Desestimados' },
 ];
 
@@ -64,15 +65,15 @@ export function SeccionTodos({ consulta, alAbrir }: Props) {
         </label>
       </div>
 
-      <div role="tablist" aria-label="Filtrar por estado" className="flex flex-wrap gap-1">
+      {/* Botones que se marcan, no pestañas: filtran la misma lista, no cambian de panel. */}
+      <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1">
         {FILTROS.map(({ valor, texto }) => (
           <button
             key={valor}
             type="button"
-            role="tab"
-            aria-selected={filtro === valor}
+            aria-pressed={filtro === valor}
             onClick={() => setFiltro(valor)}
-            className={`rounded-md px-3 py-1.5 text-sm ${
+            className={`rounded-md px-3 py-2 text-sm ${
               filtro === valor
                 ? 'bg-superficie-alterna font-semibold text-primario'
                 : 'text-texto-secundario hover:bg-superficie-alterna'
@@ -112,11 +113,11 @@ function FilaReporte({ reporte, alAbrir }: { reporte: ReporteDelOrganismo; alAbr
         {foto ? (
           <FotoConSesion
             fotoId={foto.id}
-            className="h-16 w-24 shrink-0 rounded object-cover"
-            siFalla={<span className="h-16 w-24 shrink-0 rounded bg-superficie-alterna" />}
+            className="h-16 w-24 shrink-0 rounded-md object-cover"
+            siFalla={<span className="h-16 w-24 shrink-0 rounded-md bg-superficie-alterna" />}
           />
         ) : (
-          <span className="h-16 w-24 shrink-0 rounded bg-superficie-alterna" />
+          <span className="h-16 w-24 shrink-0 rounded-md bg-superficie-alterna" />
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <p className="truncate text-sm font-semibold text-texto">
@@ -132,7 +133,9 @@ function FilaReporte({ reporte, alAbrir }: { reporte: ReporteDelOrganismo; alAbr
           <span className="text-xs text-texto-secundario">{fechaCorta(reporte.registradoEn)}</span>
           <EtiquetaEstado reporte={reporte} />
           {reporte.publicadoPorIaEn && (
-            <span className="text-xs text-texto-secundario">el {fechaCorta(reporte.publicadoPorIaEn)}</span>
+            <span className="text-xs text-texto-secundario">
+              Publicado por la IA el {fechaCorta(reporte.publicadoPorIaEn)}
+            </span>
           )}
         </div>
       </button>
@@ -140,21 +143,11 @@ function FilaReporte({ reporte, alAbrir }: { reporte: ReporteDelOrganismo; alAbr
   );
 }
 
-/** El estado del reporte, distinguiendo los que publicó la IA. */
+/** El estado del reporte, con el mismo nombre que en la ficha y en incidentes, y colores neutros. */
 export function EtiquetaEstado({ reporte }: { reporte: ReporteDelOrganismo }) {
-  const { texto, clase } =
-    reporte.estadoVerificacion === 'PENDIENTE_REVISION'
-      ? { texto: 'Pendiente', clase: 'bg-estado-registrado' }
-      : reporte.estadoVerificacion === 'DESESTIMADO'
-        ? { texto: 'Desestimado', clase: 'bg-estado-desestimado' }
-        : reporte.publicadoPorIaEn
-          ? { texto: 'Publicado por la IA', clase: 'bg-estado-resuelto' }
-          : { texto: 'Publicado', clase: 'bg-estado-resuelto' };
   return (
-    <span
-      className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-semibold text-sobre-estado ${clase}`}
-    >
-      {texto}
+    <span className="whitespace-nowrap rounded-md border border-borde bg-superficie-alterna px-2 py-1 text-xs font-semibold text-texto">
+      {ESTADOS_VERIFICACION[reporte.estadoVerificacion]}
     </span>
   );
 }

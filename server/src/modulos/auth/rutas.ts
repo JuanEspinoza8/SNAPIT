@@ -7,6 +7,7 @@ import {
   esquemaRecuperarClave,
   esquemaRegistro,
   esquemaRestablecerClave,
+  esquemaSalir,
   esquemaTokenRenovacion,
 } from './esquemas.js';
 import * as servicio from './servicio.js';
@@ -31,8 +32,8 @@ rutasAuth.post('/renovar', async (req, res) => {
 });
 
 rutasAuth.post('/salir', async (req, res) => {
-  const { tokenRenovacion } = validar(esquemaTokenRenovacion, req.body ?? {});
-  await servicio.salir(tokenRenovacion);
+  const { tokenRenovacion, tokenPush } = validar(esquemaSalir, req.body ?? {});
+  await servicio.salir(tokenRenovacion, tokenPush);
   res.status(204).end();
 });
 

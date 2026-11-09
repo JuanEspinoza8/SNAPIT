@@ -294,7 +294,8 @@ export function aplicarRelevamiento(
         [hasta.lon, hasta.lat],
       ],
       tipo: 'VEREDA',
-      tieneRampa: false,
+      // Una unión no tiene cordón: se pasa sin escalón si el relevamiento dice que pasa una silla.
+      tieneRampa: punto.sePasaEnSilla === 'sí',
       pendientePorcentaje: null,
       anchoEstimado: null,
       superficie: null,

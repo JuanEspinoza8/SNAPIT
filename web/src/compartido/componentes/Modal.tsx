@@ -37,19 +37,18 @@ export function Modal({ titulo, ancho = 'max-w-3xl', alCerrar, children }: Props
       onClick={(evento) => {
         if (evento.target === dialogo.current) alCerrar();
       }}
-      className={`m-auto w-[calc(100%-2rem)] ${ancho} rounded-lg border border-borde bg-superficie p-0 text-texto shadow-xl backdrop:bg-black/40`}
+      className={`m-auto w-[calc(100%-2rem)] ${ancho} rounded-lg border border-borde bg-superficie p-0 text-texto shadow-md backdrop:bg-velo`}
     >
       <div className="max-h-[85dvh] overflow-y-auto p-5">
         {titulo && (
           <div className="mb-4 flex items-start justify-between gap-3">
-            <h2 className="text-lg font-semibold text-texto">{titulo}</h2>
+            <h2 className="text-xl font-semibold text-texto">{titulo}</h2>
             <button
               type="button"
               onClick={alCerrar}
-              aria-label="Cerrar"
-              className="rounded-md px-2 text-xl leading-none text-texto-secundario hover:bg-superficie-alterna hover:text-texto"
+              className="rounded-md px-3 py-1 text-sm font-semibold text-texto-secundario hover:bg-superficie-alterna hover:text-texto"
             >
-              ×
+              Cerrar
             </button>
           </div>
         )}

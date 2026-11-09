@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { aErrorApi, ErrorApi } from '../../compartido/red/error.js';
+import { useSesion } from '../../compartido/sesion/sesionContexto.js';
 import { severidadEnTexto } from '../revision/tipos.js';
 import { accionesValidas, motivoSinGestion } from './acciones.js';
 import {
@@ -60,10 +61,14 @@ function Ficha({ id }: { id: number }) {
 
 function Contenido({ ficha }: { ficha: FichaGestion }) {
   const acciones = useAccionesFicha(ficha.id);
+  const { usuario } = useSesion();
   const { areas, categorias } = useAreas();
   const [dialogo, setDialogo] = useState<Dialogo>(null);
-  const validas = accionesValidas(ficha);
+  const validas = accionesValidas(ficha, areas);
   const sinGestion = motivoSinGestion(ficha);
+  // Derivar y cambiar la categoría eligen de las áreas y las categorías: sin ellas, no se ofrecen.
+  const conCatalogo = categorias.isSuccess;
+  const errorCatalogo = categorias.isError ? aErrorApi(categorias.error) : null;
 
   const abrir = (cual: Exclude<Dialogo, null>) => {
     // Un error de la vez anterior no tiene que aparecer al volver a abrir.
@@ -124,7 +129,7 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
         {validas.pasarAEjecucion && (
           <BotonAccion alElegir={() => abrir('ejecucion')}>Pasar a ejecución…</BotonAccion>
         )}
-        {validas.cambiarCategoria && (
+        {validas.cambiarCategoria && conCatalogo && (
           <BotonAccion alElegir={() => abrir('categoria')}>Cambiar la categoría…</BotonAccion>
         )}
         {validas.desestimar && (
@@ -132,11 +137,25 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
             Desestimar…
           </BotonAccion>
         )}
-        {/* Unir y separar quedaron en su propia pestaña (#69): la ficha no los repite. */}
-        <Link to="/incidentes" className="px-3 py-2 text-sm font-semibold text-primario hover:underline">
-          Unir o separar en Incidentes
-        </Link>
+        {/* Unir y separar quedaron en su propia pestaña (#69), que es solo del operador: la ficha no los repite. */}
+        {usuario?.rol === 'OPERADOR' && (
+          <Link to="/incidentes" className="px-3 py-2 text-sm font-semibold text-primario hover:underline">
+            Unir o separar en Incidentes
+          </Link>
+        )}
       </div>
+      {errorCatalogo && validas.cambiarCategoria && (
+        <AvisoError
+          error={
+            new ErrorApi(
+              `${errorCatalogo.mensaje} Sin las áreas y las categorías no se puede derivar ni cambiar la categoría.`,
+              errorCatalogo.codigo,
+            )
+          }
+          alReintentar={() => void categorias.refetch()}
+          reintentando={categorias.isFetching}
+        />
+      )}
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <ReportesFicha incidenteId={ficha.id} reportes={ficha.reportes} />
