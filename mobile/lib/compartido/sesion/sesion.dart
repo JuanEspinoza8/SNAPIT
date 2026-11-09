@@ -45,6 +45,13 @@ class Sesion extends AsyncNotifier<Usuario?> {
     state = AsyncData(ingreso.usuario);
   }
 
+  /// Reemplaza el usuario en memoria después de un `PATCH /usuarios/yo`.
+  /// Solo si sigue siendo la misma cuenta.
+  void actualizarUsuario(Usuario usuario) {
+    if (state.value?.id != usuario.id) return;
+    state = AsyncData(usuario);
+  }
+
   /// Cierra la sesión en el teléfono enseguida y avisa al servidor sin
   /// esperarlo: si no hay red, esa sesión vence sola en el servidor.
   Future<void> salir() async {

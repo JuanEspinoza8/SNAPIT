@@ -21,6 +21,16 @@ void main() {
     expect(Usuario.desdeJson(usuarioJson()).perfilMovilidadId, isNull);
   });
 
+  test('lee el interruptor general de avisos', () {
+    expect(
+      Usuario.desdeJson(
+        usuarioJson(notificacionesHabilitadas: false),
+      ).notificacionesHabilitadas,
+      isFalse,
+    );
+    expect(Usuario.desdeJson(usuarioJson()).notificacionesHabilitadas, isTrue);
+  });
+
   test('un rol desconocido es un error', () {
     expect(
       () => Usuario.desdeJson(usuarioJson(rol: 'VISITANTE')),

@@ -198,6 +198,26 @@ void main() {
     });
   });
 
+  test('actualizarUsuario reemplaza al usuario de la misma cuenta', () async {
+    guardarSesion();
+    final servidor = ServidorFalso(
+      (_) => json(200, {'usuario': usuarioJson()}),
+    );
+    final contenedor = contenedorDePrueba(servidor);
+    await contenedor.read(sesionProvider.future);
+
+    contenedor
+        .read(sesionProvider.notifier)
+        .actualizarUsuario(
+          Usuario.desdeJson(usuarioJson(notificacionesHabilitadas: false)),
+        );
+
+    expect(
+      contenedor.read(sesionProvider).value?.notificacionesHabilitadas,
+      isFalse,
+    );
+  });
+
   test(
     'si la renovación se rechaza en medio del uso, la sesión se cierra',
     () async {

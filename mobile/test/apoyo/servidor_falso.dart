@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 typedef Pedido = ({
+  String metodo,
   String ruta,
   String? token,
   Object? datos,
@@ -27,6 +28,7 @@ class ServidorFalso implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) {
     pedidos.add((
+      metodo: options.method,
       ruta: options.path,
       token: options.headers['Authorization'] as String?,
       datos: options.data,

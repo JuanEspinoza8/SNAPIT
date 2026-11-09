@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1061668196816",
+    "project_id": "snapit-8b69b",
+    "storage_bucket": "snapit-8b69b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1061668196816:android:bde3725c3e69161c9ce9d5",
+        "android_client_info": {
+          "package_name": "ar.edu.uncoma.fi.snapit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCFoDKFCF04jlxZVEMmYmbIdiGLprsJum4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
