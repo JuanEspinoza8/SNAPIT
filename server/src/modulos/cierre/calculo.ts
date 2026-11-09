@@ -35,7 +35,8 @@ export interface DatosDelCierre {
   sinComparacion: string | null;
 }
 
-const metros = (valor: number) => `${Math.round(valor)} m`;
+// Para arriba: una foto rechazada por distancia nunca dice estar dentro del máximo.
+const metros = (valor: number) => `${Math.ceil(valor)} m`;
 
 /**
  * El texto que queda en cierre_incidente.detalle_comparacion y en la bitácora: por qué el cierre quedó como

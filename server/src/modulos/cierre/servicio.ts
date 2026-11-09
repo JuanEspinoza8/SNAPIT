@@ -116,7 +116,7 @@ export async function cerrarIncidente(
   try {
     return await transaccion(async (tx) => {
       // Se vuelve a comprobar con el incidente bloqueado: mientras la IA comparaba pudo cambiar.
-      exigirCerrable(await repositorio.leerIncidente(tx, id, { bloquear: true }), sesion);
+      const bloqueado = exigirCerrable(await repositorio.leerIncidente(tx, id, { bloquear: true }), sesion);
 
       const cierre = await repositorio.guardarCierre(tx, {
         incidenteId: id,
@@ -140,8 +140,15 @@ export async function cerrarIncidente(
         exifModelo: imagen.exif.modelo,
       });
 
-      let estado = incidente.estado;
-      if (resultado === 'VALIDADO' && transicionValida('EN_EJECUCION', 'RESUELTO', 'CIERRE')) {
+      let estado = bloqueado.estado;
+      if (resultado === 'VALIDADO') {
+        if (!transicionValida(bloqueado.estado, 'RESUELTO', 'CIERRE')) {
+          throw new ErrorApp(
+            409,
+            'TRANSICION_INVALIDA',
+            `Un incidente ${bloqueado.estado} no puede pasar a RESUELTO`,
+          );
+        }
         const ahora = new Date();
         await tx.incidente.update({
           where: { id },
@@ -151,7 +158,7 @@ export async function cerrarIncidente(
           incidenteId: id,
           usuarioId: sesion.id,
           tipo: 'CAMBIO_ESTADO',
-          estadoAnterior: 'EN_EJECUCION',
+          estadoAnterior: bloqueado.estado,
           estadoNuevo: 'RESUELTO',
           comentario: `Resuelto con la foto del después. ${detalle}`,
         });
