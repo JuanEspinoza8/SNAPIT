@@ -10,6 +10,7 @@ import { claveRegla, REGLAS_TRAMO } from '../src/modulos/recorridos/calculo.js';
 import { leerZonasPiloto } from '../src/modulos/red/zonaPiloto.js';
 import { cargarSemilla } from '../src/semilla/cargarSemilla.js';
 import {
+  AREAS,
   ARCHIVO_ZONAS_PILOTO,
   CATEGORIAS,
   CLAVE_USUARIOS_PRUEBA,
@@ -59,7 +60,7 @@ async function leerSemilla() {
   return { organismos, categorias, perfiles, matriz, parametros, atributos, usuarios, zonas };
 }
 
-// Cada carga hace unas 90 consultas y compite por la base con el resto de los tests en paralelo.
+// Cada carga hace unas 200 consultas y compite por la base con el resto de los tests en paralelo.
 describe('semilla', { timeout: 60_000 }, () => {
   it('correrla dos veces deja exactamente los mismos datos', async () => {
     await cargarSemilla(prisma, { usuariosPrueba: true });
@@ -69,7 +70,7 @@ describe('semilla', { timeout: 60_000 }, () => {
 
     expect(segunda).toEqual(primera);
     expect(primera.organismos).toHaveLength(1);
-    expect(primera.organismos[0]?.areas).toHaveLength(4);
+    expect(primera.organismos[0]?.areas).toHaveLength(AREAS.length);
     expect(primera.categorias).toHaveLength(CATEGORIAS.length);
     expect(primera.perfiles).toHaveLength(PERFILES.length);
     expect(primera.matriz).toHaveLength(CATEGORIAS.length * PERFILES.length);

@@ -25,6 +25,11 @@ export const AREAS = [
   { nombre: 'Veredas', descripcion: 'Veredas, cordones y rampas' },
   { nombre: 'Alumbrado', descripcion: 'Luminarias del alumbrado público' },
   { nombre: 'Obras', descripcion: 'Obras públicas y privadas en la vía pública' },
+  { nombre: 'Arbolado', descripcion: 'Árboles y ramas en la vía pública' },
+  { nombre: 'Desagües', descripcion: 'Desagües, alcantarillas, anegamientos y pérdidas de agua' },
+  { nombre: 'Higiene urbana', descripcion: 'Basura y escombros en la vía pública' },
+  { nombre: 'Tránsito', descripcion: 'Semáforos, señales y sendas peatonales' },
+  { nombre: 'Atención general', descripcion: 'Lo que no encaja en otra área: se reclasifica al revisarlo' },
 ] as const;
 
 type NombreArea = (typeof AREAS)[number]['nombre'];
@@ -55,7 +60,7 @@ export const CATEGORIAS: {
   },
   {
     nombre: 'Cordón sin rampa',
-    descripcion: 'Esquina sin rampa o con la rampa rota o bloqueada',
+    descripcion: 'Esquina sin rampa, o con la rampa rota',
     area: 'Veredas',
     tipoVigencia: 'PERMANENTE',
     diasCaducidad: null,
@@ -71,11 +76,132 @@ export const CATEGORIAS: {
   },
   {
     nombre: 'Obra que interrumpe el paso',
-    descripcion: 'Obra, zanja o materiales que cortan la vereda',
+    descripcion: 'Obra en curso: zanja, vallado o materiales de construcción que cortan la vereda',
     area: 'Obras',
     tipoVigencia: 'TEMPORAL',
     diasCaducidad: 30,
     peso: '1.20',
+  },
+  // Las que siguen se sumaron para que la IA no fuerce una foto en una categoría que no le corresponde. La
+  // descripción la lee la IA al clasificar: dice qué se ve en la foto, no quién lo arregla.
+  {
+    nombre: 'Tapa de cámara o alcantarilla',
+    descripcion:
+      'Tapa que falta o está rota y deja abierta una cámara, boca de registro o alcantarilla en la calle o la vereda',
+    area: 'Bacheo',
+    tipoVigencia: 'PERMANENTE',
+    diasCaducidad: null,
+    peso: '1.80',
+  },
+  {
+    nombre: 'Desnivel o escalón en la vereda',
+    descripcion:
+      'Escalón, rampa empinada o diferencia de altura entre partes de la vereda, sin que esté rota',
+    area: 'Veredas',
+    tipoVigencia: 'PERMANENTE',
+    diasCaducidad: null,
+    peso: '1.30',
+  },
+  {
+    nombre: 'Obstáculo en la vereda',
+    descripcion:
+      'Auto estacionado, mercadería, cartel, mesas u otro objeto que ocupa la vereda o tapa una rampa',
+    area: 'Veredas',
+    tipoVigencia: 'TEMPORAL',
+    diasCaducidad: 3,
+    peso: '1.10',
+  },
+  {
+    nombre: 'Poste dañado o cables colgando',
+    descripcion: 'Columna de luz inclinada o rota, o cables sueltos o colgando a baja altura',
+    area: 'Alumbrado',
+    tipoVigencia: 'PERMANENTE',
+    diasCaducidad: null,
+    peso: '1.80',
+  },
+  {
+    nombre: 'Árbol o rama caída',
+    descripcion: 'Árbol caído o rama grande caída en la calle o la vereda, que corta o dificulta el paso',
+    area: 'Arbolado',
+    tipoVigencia: 'TEMPORAL',
+    diasCaducidad: 7,
+    peso: '1.70',
+  },
+  {
+    nombre: 'Rama baja sobre la vereda',
+    descripcion: 'Ramas a la altura de la cabeza sobre la vereda, todavía en el árbol',
+    area: 'Arbolado',
+    tipoVigencia: 'PERMANENTE',
+    diasCaducidad: null,
+    peso: '1.20',
+  },
+  {
+    nombre: 'Raíces que levantan la vereda',
+    descripcion: 'Raíces de un árbol que rompen o levantan las baldosas de la vereda',
+    area: 'Arbolado',
+    tipoVigencia: 'PERMANENTE',
+    diasCaducidad: null,
+    peso: '1.30',
+  },
+  {
+    nombre: 'Desagüe tapado o calle anegada',
+    descripcion: 'Agua acumulada en la calle o la esquina, o un desagüe o rejilla tapados',
+    area: 'Desagües',
+    tipoVigencia: 'TEMPORAL',
+    diasCaducidad: 7,
+    peso: '1.30',
+  },
+  {
+    nombre: 'Pérdida de agua',
+    descripcion: 'Agua que brota o corre por la vereda o la calle desde una cañería',
+    area: 'Desagües',
+    tipoVigencia: 'TEMPORAL',
+    diasCaducidad: 15,
+    peso: '1.10',
+  },
+  {
+    nombre: 'Basura o escombros',
+    descripcion:
+      'Bolsas de basura, residuos o escombros tirados en la vereda o la calle, sin una obra a la vista',
+    area: 'Higiene urbana',
+    tipoVigencia: 'TEMPORAL',
+    diasCaducidad: 7,
+    peso: '1.00',
+  },
+  {
+    nombre: 'Semáforo que no funciona',
+    descripcion: 'Semáforo apagado, roto o con una luz que no enciende',
+    area: 'Tránsito',
+    tipoVigencia: 'TEMPORAL',
+    diasCaducidad: 7,
+    peso: '1.60',
+  },
+  {
+    nombre: 'Señal de tránsito caída o faltante',
+    descripcion: 'Cartel de tránsito caído, doblado, tapado o que falta',
+    area: 'Tránsito',
+    tipoVigencia: 'PERMANENTE',
+    diasCaducidad: null,
+    peso: '1.10',
+  },
+  {
+    nombre: 'Senda peatonal despintada',
+    descripcion: 'Senda peatonal o cruce con la pintura gastada o que no se ve',
+    area: 'Tránsito',
+    tipoVigencia: 'PERMANENTE',
+    diasCaducidad: null,
+    peso: '1.00',
+  },
+  {
+    // La última opción: si nada encaja, mejor esta que forzar otra. El operador la cambia al revisarlo.
+    // Permanente: la vigencia no sigue a la categoría, así que si fuera temporal el incidente vencería
+    // igual después de reclasificarlo.
+    nombre: 'Otro problema en la vía pública',
+    descripcion: 'Solo si el problema no corresponde a ninguna de las otras categorías',
+    area: 'Atención general',
+    tipoVigencia: 'PERMANENTE',
+    diasCaducidad: null,
+    peso: '1.00',
   },
 ];
 
@@ -121,6 +247,94 @@ export const MATRIZ_CATEGORIA_PERFIL: Record<NombreCategoria, Record<NombrePerfi
     'Bastón o andador': 'intransitable',
     'Coche de bebé': 'intransitable',
     'Baja visión': 'intransitable',
+  },
+  // Una tapa faltante es un pozo profundo: nadie debería pasar por ahí.
+  'Tapa de cámara o alcantarilla': {
+    'Silla de ruedas': 'intransitable',
+    'Bastón o andador': 'intransitable',
+    'Coche de bebé': 'intransitable',
+    'Baja visión': 'intransitable',
+  },
+  'Desnivel o escalón en la vereda': {
+    'Silla de ruedas': 'intransitable',
+    'Bastón o andador': 2.0,
+    'Coche de bebé': 2.0,
+    'Baja visión': 2.0,
+  },
+  'Obstáculo en la vereda': {
+    'Silla de ruedas': 'intransitable',
+    'Bastón o andador': 1.8,
+    'Coche de bebé': 'intransitable',
+    'Baja visión': 2.5,
+  },
+  'Poste dañado o cables colgando': {
+    'Silla de ruedas': 1.5,
+    'Bastón o andador': 1.5,
+    'Coche de bebé': 1.5,
+    'Baja visión': 2.5,
+  },
+  'Árbol o rama caída': {
+    'Silla de ruedas': 'intransitable',
+    'Bastón o andador': 'intransitable',
+    'Coche de bebé': 'intransitable',
+    'Baja visión': 'intransitable',
+  },
+  // A la altura de la cabeza: para quien no la ve es un golpe; en silla o con coche se pasa por abajo.
+  'Rama baja sobre la vereda': {
+    'Silla de ruedas': 1.3,
+    'Bastón o andador': 1.5,
+    'Coche de bebé': 1.3,
+    'Baja visión': 3.0,
+  },
+  'Raíces que levantan la vereda': {
+    'Silla de ruedas': 'intransitable',
+    'Bastón o andador': 2.0,
+    'Coche de bebé': 2.5,
+    'Baja visión': 2.5,
+  },
+  'Desagüe tapado o calle anegada': {
+    'Silla de ruedas': 2.5,
+    'Bastón o andador': 2.0,
+    'Coche de bebé': 2.0,
+    'Baja visión': 2.0,
+  },
+  'Pérdida de agua': {
+    'Silla de ruedas': 1.5,
+    'Bastón o andador': 1.5,
+    'Coche de bebé': 1.3,
+    'Baja visión': 1.5,
+  },
+  'Basura o escombros': {
+    'Silla de ruedas': 2.0,
+    'Bastón o andador': 1.5,
+    'Coche de bebé': 1.8,
+    'Baja visión': 2.0,
+  },
+  // Sin semáforo, cruzar es mucho más riesgoso para quien no ve o cruza más lento.
+  'Semáforo que no funciona': {
+    'Silla de ruedas': 2.0,
+    'Bastón o andador': 2.5,
+    'Coche de bebé': 1.5,
+    'Baja visión': 3.0,
+  },
+  'Señal de tránsito caída o faltante': {
+    'Silla de ruedas': 1.2,
+    'Bastón o andador': 1.2,
+    'Coche de bebé': 1.2,
+    'Baja visión': 1.5,
+  },
+  'Senda peatonal despintada': {
+    'Silla de ruedas': 1.2,
+    'Bastón o andador': 1.3,
+    'Coche de bebé': 1.2,
+    'Baja visión': 2.0,
+  },
+  // No se sabe qué es: pesa poco hasta que el operador lo reclasifique.
+  'Otro problema en la vía pública': {
+    'Silla de ruedas': 1.2,
+    'Bastón o andador': 1.2,
+    'Coche de bebé': 1.2,
+    'Baja visión': 1.2,
   },
 };
 

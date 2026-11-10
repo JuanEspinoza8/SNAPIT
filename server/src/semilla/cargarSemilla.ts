@@ -43,7 +43,7 @@ export async function cargarSemilla(
   const hashClavePrueba = await bcrypt.hash(CLAVE_USUARIOS_PRUEBA, 10);
   const zonasPiloto = await leerArchivoZonas(archivoZonasPiloto);
 
-  // Son unas 90 consultas seguidas: se amplían los tiempos por defecto de Prisma (2 s para empezar, 5 s en total).
+  // Son unas 200 consultas seguidas: se amplían los tiempos por defecto de Prisma (2 s para empezar, 5 s en total).
   return prisma.$transaction(
     async (tx) => {
       // organismo y area no tienen nombre único en el modelo: se busca primero y después se crea o actualiza.

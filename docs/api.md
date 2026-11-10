@@ -260,7 +260,7 @@ Lo que el vecino puede elegir al reportar y los filtros del mapa. Responde **200
     {
       "id": 3,
       "nombre": "Cordón sin rampa",
-      "descripcion": "Esquina sin rampa o con la rampa rota o bloqueada",
+      "descripcion": "Esquina sin rampa, o con la rampa rota",
       "tipoVigenciaDefault": "PERMANENTE",
       "area": { "id": 2, "nombre": "Veredas" }
     }
