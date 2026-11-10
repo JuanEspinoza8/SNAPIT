@@ -1,4 +1,3 @@
-import { access } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
@@ -49,12 +48,6 @@ function enviar(token: string, categoriaId: number) {
     .attach('foto', jpegConExif(), 'foto.jpg');
 }
 
-const existe = (ubicacion: string) =>
-  access(ubicacion).then(
-    () => true,
-    () => false,
-  );
-
 describe('POST /api/reportes cuando algo falla', () => {
   it('si no se puede guardar el archivo, no queda ningún reporte', async () => {
     const { categoria, usuario, token } = await preparar();
@@ -75,7 +68,7 @@ describe('POST /api/reportes cuando algo falla', () => {
 
     expect(res.status).toBe(500);
     const ruta = await guardar.mock.results[0]!.value;
-    expect(await existe(almacenFotos.ubicacion(ruta))).toBe(false);
+    expect(await almacenFotos.leer(ruta)).toBeNull();
     expect(await prisma.reporte.count({ where: { usuarioId: usuario.id } })).toBe(0);
   });
 
@@ -86,6 +79,6 @@ describe('POST /api/reportes cuando algo falla', () => {
     const res = await enviar(token, categoria.id);
 
     expect(res.status).toBe(201);
-    expect(await existe(almacenFotos.ubicacion(await guardar.mock.results[0]!.value))).toBe(true);
+    expect(await almacenFotos.leer(await guardar.mock.results[0]!.value)).not.toBeNull();
   });
 });

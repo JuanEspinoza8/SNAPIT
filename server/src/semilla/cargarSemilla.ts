@@ -36,11 +36,12 @@ export async function cargarSemilla(
   prisma: PrismaClient,
   {
     usuariosPrueba,
+    claveUsuarios = CLAVE_USUARIOS_PRUEBA,
     archivoZonasPiloto = ARCHIVO_ZONAS_PILOTO,
-  }: { usuariosPrueba: boolean; archivoZonasPiloto?: string },
+  }: { usuariosPrueba: boolean; claveUsuarios?: string; archivoZonasPiloto?: string },
 ) {
   // Fuera de la transacción: bcrypt tarda y la transacción tiene un tiempo máximo.
-  const hashClavePrueba = await bcrypt.hash(CLAVE_USUARIOS_PRUEBA, 10);
+  const hashClavePrueba = await bcrypt.hash(claveUsuarios, 10);
   const zonasPiloto = await leerArchivoZonas(archivoZonasPiloto);
 
   // Son unas 200 consultas seguidas: se amplían los tiempos por defecto de Prisma (2 s para empezar, 5 s en total).
@@ -163,7 +164,7 @@ export async function cargarSemilla(
             continue;
           }
           // El hash cambia en cada corrida (bcrypt usa una sal nueva): solo se reemplaza si la clave cambió.
-          const claveIgual = await bcrypt.compare(CLAVE_USUARIOS_PRUEBA, usuario.passwordHash);
+          const claveIgual = await bcrypt.compare(claveUsuarios, usuario.passwordHash);
           await tx.usuario.update({
             where: { email },
             data: {

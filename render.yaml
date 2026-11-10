@@ -1,0 +1,54 @@
+# Servidor de la demo publicada en Render (#118). La base y las fotos están en Supabase y la web en Vercel
+# (web/vercel.json). Cómo se arma y se actualiza: «Demo publicada» en el README.
+# Los valores con sync: false son secretos: Render los pide al crear el servicio y no salen de su panel.
+services:
+  - type: web
+    name: snapit-api
+    runtime: docker
+    plan: free
+    # Cerca de Supabase (us-east-1): cada pedido hace varias consultas a la base.
+    region: virginia
+    # Sin branch: publica la rama sobre la que se crea el Blueprint (main, salvo para probar un PR).
+    # Rutas desde la raíz del repo: la imagen se arma solo con server/, igual que en docker-compose.yml.
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    # Solo se vuelve a publicar si cambió el servidor.
+    buildFilter:
+      paths:
+        - server/**
+    autoDeployTrigger: commit
+    healthCheckPath: /api/salud
+    envVars:
+      # Session pooler de Supabase (puerto 5432): Render no sale por IPv6 y la conexión directa lo pide.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      # La URL de Vercel: los links de los correos apuntan a la web.
+      - key: URL_WEB
+        sync: false
+      # Render free bloquea los puertos 465 y 587: Brevo atiende también en el 2525.
+      - key: SMTP_HOST
+        value: smtp-relay.brevo.com
+      - key: SMTP_PUERTO
+        value: "2525"
+      - key: SMTP_USUARIO
+        sync: false
+      - key: SMTP_CLAVE
+        sync: false
+      - key: CORREO_REMITENTE
+        sync: false
+      # Render borra el disco en cada reinicio: las fotos van a Supabase Storage.
+      - key: FOTOS_ALMACEN
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_CLAVE_SECRETA
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: IA_MODELO
+        value: claude-haiku-5-5
+      # Secret File «firebase.json» del servicio: Render lo monta en /etc/secrets.
+      - key: FIREBASE_CREDENCIALES
+        value: /etc/secrets/firebase.json

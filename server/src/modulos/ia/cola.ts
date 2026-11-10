@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { ErrorApp } from '../../compartido/errores.js';
@@ -171,7 +170,8 @@ async function procesarReporte(
 
   let clasificacion;
   try {
-    const foto = await readFile(almacenFotos.ubicacion(reporte.rutaArchivo));
+    const foto = await almacenFotos.leer(reporte.rutaArchivo);
+    if (!foto) throw new Error('no está el archivo');
     clasificacion = await clasificarImagen(contexto.usuarioId, foto, { conExplicacion: true });
   } catch (error) {
     const motivo =

@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { analizarFoto } from '../../compartido/analisisFoto.js';
@@ -64,7 +63,13 @@ async function comparar(usuarioId: number, incidenteId: number, fotoDespues: Buf
   try {
     const rutas = await repositorio.fotosDelAntes(incidenteId, MAX_FOTOS_ANTES);
     if (rutas.length === 0) return { comparacion: null, sinComparacion: 'no hay fotos del antes' };
-    const antes = await Promise.all(rutas.map((ruta) => readFile(almacenFotos.ubicacion(ruta))));
+    const antes = await Promise.all(
+      rutas.map(async (ruta) => {
+        const foto = await almacenFotos.leer(ruta);
+        if (!foto) throw new Error(`No está el archivo ${ruta}`);
+        return foto;
+      }),
+    );
     return { comparacion: await compararCierre(usuarioId, antes, fotoDespues), sinComparacion: null };
   } catch (error) {
     if (error instanceof IaNoDisponible) {
