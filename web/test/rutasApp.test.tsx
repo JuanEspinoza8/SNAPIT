@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { rutas } from '../src/compartido/componentes/Rutas.js';
@@ -105,6 +106,44 @@ describe('rutas de la aplicación', () => {
     abrir('/revision', 'ADMINISTRADOR');
 
     expect(await screen.findByRole('heading', { name: 'Alta de operadores' })).toBeInTheDocument();
+  });
+
+  it('un link viejo a «Mis reportes» lleva al perfil, donde están los reportes', async () => {
+    servidor.use(http.get('*/api/reportes/mios', () => HttpResponse.json({ reportes: [] })));
+    abrir('/mis-reportes', 'VECINO');
+
+    expect(await screen.findByRole('heading', { name: 'X', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Mis reportes' })).toBeInTheDocument();
+  });
+
+  it('sin sesión, «Reportar» pide ingresar y después vuelve al formulario', async () => {
+    servidor.use(
+      http.get('*/api/incidentes/feed', () => HttpResponse.json({ incidentes: [], siguiente: null })),
+      http.get('*/api/categorias', () => HttpResponse.json({ categorias: [] })),
+      http.post('*/api/auth/ingreso', () =>
+        HttpResponse.json({
+          tokenAcceso: 'acceso',
+          tokenRenovacion: 'renovacion',
+          usuario: {
+            id: 1,
+            email: 'x@ejemplo.com',
+            nombre: 'X',
+            rol: 'VECINO',
+            organismoId: null,
+            areaId: null,
+          },
+        }),
+      ),
+    );
+    const usuario = userEvent.setup();
+    abrir('/');
+
+    await usuario.click(await screen.findByRole('link', { name: 'Reportar' }));
+    await usuario.type(await screen.findByLabelText('Correo'), 'x@ejemplo.com');
+    await usuario.type(screen.getByLabelText('Clave'), 'una-clave');
+    await usuario.click(screen.getByRole('button', { name: 'Ingresar' }));
+
+    expect(await screen.findByRole('heading', { name: 'Reportar un problema' })).toBeInTheDocument();
   });
 
   it('un administrador abre la administración', async () => {

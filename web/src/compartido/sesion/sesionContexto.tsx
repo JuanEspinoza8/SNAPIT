@@ -122,11 +122,3 @@ export function useSesion(): ValorContexto {
   if (!valor) throw new Error('useSesion se usa solo dentro de ProveedorSesion');
   return valor;
 }
-
-/**
- * Como useSesion, pero null fuera de ProveedorSesion. Para piezas que se muestran también en pantallas
- * públicas montadas sin sesión (por ejemplo, el botón «Reportar» del mapa en sus tests).
- */
-export function useSesionOpcional(): ValorContexto | null {
-  return use(Contexto);
-}

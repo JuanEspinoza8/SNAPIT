@@ -9,11 +9,23 @@ import logo from '../../assets/logo.png';
 // El inicio (el feed) y el mapa son públicos: están en el menú de todos los roles y también sin sesión.
 const INICIO = { ruta: '/', texto: 'Inicio' };
 const MAPA = { ruta: '/mapa', texto: 'Mapa' };
-// El perfil propio, con el nombre del usuario: todos los roles con sesión. Para el vecino reemplaza a «Mis reportes»
-// (sus reportes están ahí).
-const perfil = (usuario: Usuario) => ({ ruta: '/perfil', texto: usuario.nombre });
 
-function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
+interface Seccion {
+  ruta: string;
+  texto: string;
+  /** Para el lector de pantalla y el cartel del mouse, cuando el texto solo no dice adónde lleva. */
+  etiqueta?: string;
+}
+
+// El perfil propio, con el nombre del usuario: todos los roles con sesión. Para el vecino reemplaza a «Mis reportes»
+// (sus reportes están ahí), y la etiqueta lo dice.
+const perfil = (usuario: Usuario): Seccion => ({
+  ruta: '/perfil',
+  texto: usuario.nombre,
+  etiqueta: `${usuario.nombre}: tu perfil${esVecino(usuario) ? ' y tus reportes' : ''}`,
+});
+
+function seccionesDe(usuario: Usuario): Seccion[] {
   if (esVecino(usuario)) {
     // Reportar no va en el menú: está el botón «+ Reportar» en el inicio y en el mapa.
     return [INICIO, MAPA, perfil(usuario)];
@@ -84,8 +96,12 @@ export function Layout() {
                   to={seccion.ruta}
                   // Sin `end`, «Inicio» (/) quedaría marcado en todas las páginas.
                   end={seccion.ruta === '/'}
+                  aria-label={seccion.etiqueta}
+                  title={seccion.etiqueta}
+                  // El nombre puede tener hasta 120 caracteres: se recorta para no salirse del ancho de un
+                  // celular. Los demás textos del menú entran sobrados.
                   className={({ isActive }) =>
-                    `whitespace-nowrap rounded-md px-3 py-2 text-sm ${
+                    `max-w-40 truncate rounded-md px-3 py-2 text-sm sm:max-w-64 ${
                       isActive
                         ? 'bg-superficie-alterna font-semibold text-primario'
                         : 'text-texto-secundario hover:bg-superficie-alterna'

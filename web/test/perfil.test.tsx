@@ -69,6 +69,21 @@ describe('perfil', () => {
     const reportes = screen.getByRole('region', { name: 'Mis reportes' });
     expect(await within(reportes).findByText('Cordón sin rampa')).toBeInTheDocument();
     expect(within(reportes).getByRole('link', { name: /Reportar/ })).toHaveAttribute('href', '/reportar');
+    expect(pedidosMisReportes).toBe(1);
+  });
+
+  it('sin reportes, el vecino ve una sola invitación a reportar: la de la lista', async () => {
+    sesionDe('VECINO');
+    servidor.use(http.get('*/api/reportes/mios', () => HttpResponse.json({ reportes: [] })));
+    renderConSesion('/perfil', { '/perfil': <PaginaPerfil /> });
+
+    const reportes = await screen.findByRole('region', { name: 'Mis reportes' });
+    expect(await within(reportes).findByText('Todavía no hiciste reportes')).toBeInTheDocument();
+    expect(within(reportes).getAllByRole('link', { name: /Reportar/ })).toHaveLength(1);
+    expect(within(reportes).getByRole('link', { name: 'Reportar un problema' })).toHaveAttribute(
+      'href',
+      '/reportar',
+    );
   });
 
   it('un operador ve sus datos, sin reportes: no los pide', async () => {
@@ -114,10 +129,12 @@ describe('botón Reportar', () => {
     expect(await screen.findByRole('link', { name: /Reportar/ })).toHaveAttribute('href', '/reportar');
   });
 
-  it('sin sesión lleva a ingresar', async () => {
+  it('sin sesión también va al formulario, que pide ingresar (rutasApp.test)', async () => {
     sesionDe();
     montar();
-    expect(await screen.findByRole('link', { name: /Reportar/ })).toHaveAttribute('href', '/ingreso');
+    const boton = await screen.findByRole('link', { name: /Reportar/ });
+    expect(boton).toHaveAttribute('href', '/reportar');
+    expect(boton).toHaveAttribute('title', 'Ingresá para reportar un problema');
   });
 
   it('un operador no lo ve: no reporta', async () => {

@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAlmacen, useCliente } from '../../compartido/red/clienteContexto.js';
 import { crearRepositorioAuth } from '../../compartido/red/repositorioAuth.js';
-import { inicioSegunRol } from '../../compartido/sesion/usuario.js';
+import { destinoTrasIngreso } from '../../compartido/sesion/usuario.js';
 import { useSesion } from '../../compartido/sesion/sesionContexto.js';
 
 export interface DatosIngreso {
@@ -15,6 +15,7 @@ export function useIngreso() {
   const cliente = useCliente();
   const almacen = useAlmacen();
   const navegar = useNavigate();
+  const { state } = useLocation();
   const { guardarSesion } = useSesion();
   const repositorio = useMemo(() => crearRepositorioAuth(cliente), [cliente]);
 
@@ -28,7 +29,7 @@ export function useIngreso() {
         tokenRenovacion: ingreso.tokenRenovacion,
       });
       guardarSesion(ingreso.usuario);
-      navegar(inicioSegunRol(ingreso.usuario), { replace: true });
+      navegar(destinoTrasIngreso(state, ingreso.usuario), { replace: true });
     },
   });
 }

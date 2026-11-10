@@ -106,6 +106,12 @@ describe('mapa público', () => {
     expect(pedidos[0]?.searchParams.get('bbox')).toBe('-68.1000,-38.9700,-68.0300,-38.9300');
   });
 
+  it('ofrece reportar un problema, también sin sesión', async () => {
+    renderRuta('/mapa', <PaginaMapa />);
+
+    expect(await screen.findByRole('link', { name: 'Reportar' })).toHaveAttribute('href', '/reportar');
+  });
+
   it('los filtros actualizan el mapa sin recargar la página', async () => {
     const usuario = userEvent.setup();
     renderRuta('/mapa', <PaginaMapa />);
