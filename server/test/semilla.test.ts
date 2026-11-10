@@ -60,7 +60,7 @@ async function leerSemilla() {
   return { organismos, categorias, perfiles, matriz, parametros, atributos, usuarios, zonas };
 }
 
-// Cada carga hace unas 90 consultas y compite por la base con el resto de los tests en paralelo.
+// Cada carga hace unas 200 consultas y compite por la base con el resto de los tests en paralelo.
 describe('semilla', { timeout: 60_000 }, () => {
   it('correrla dos veces deja exactamente los mismos datos', async () => {
     await cargarSemilla(prisma, { usuariosPrueba: true });
