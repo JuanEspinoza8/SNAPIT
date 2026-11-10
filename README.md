@@ -352,7 +352,7 @@ La demo para los cortes y la defensa (#118) corre en servicios gratuitos, separa
 | Base y fotos | Supabase | PostgreSQL con PostGIS y pgRouting, y un bucket privado para las fotos (`FOTOS_ALMACEN=supabase`) |
 | Despierto | UptimeRobot | Un pedido a `/api/salud` cada 5 minutos |
 
-La app va directo a Render, sin pasar por Vercel.
+La web está en https://snapit-pi.vercel.app y la API en https://snapit-api-9wz7.onrender.com/api. La app va directo a Render, sin pasar por Vercel.
 
 ### Actualizarla
 
@@ -389,13 +389,13 @@ La semilla no se corre sola, porque vuelve a dejar los parámetros en sus valore
    ```
    Con `CLAVE_USUARIOS_DEMO` la semilla carga los usuarios de prueba con esa clave y no con la del repo, que es público. La clave se pasa al grupo y a los docentes por privado. Los comandos son para Git Bash; el resto de las variables las toman del `.env`.
 5. **Vercel.** Add New › Project, con este repo y Root Directory `web` (detecta Vite solo).
-   - Si Render le dio al servidor otra URL que `snapit-api.onrender.com`, se cambia en `web/vercel.json`.
+   - `web/vercel.json` tiene la URL del servidor. Render le suma un sufijo al nombre (`snapit-api-9wz7`): si el servicio se vuelve a crear, se cambia ahí.
    - En Render, `URL_WEB` es la URL de Vercel: los links de los correos apuntan ahí.
    - Settings › Git › Deploy Hooks: uno para `main`, que va al secreto `VERCEL_DEPLOY_HOOK` del repo.
-6. **UptimeRobot.** Un monitor HTTP(S) cada 5 minutos a `https://snapit-api.onrender.com/api/salud`. Render duerme el servidor a los 15 minutos sin pedidos (y despertarlo tarda cerca de un minuto), y Supabase pausa el proyecto después de 7 días con poca actividad. `/api/salud` consulta la base, así que el mismo pedido sirve para los dos.
+6. **UptimeRobot.** Un monitor HTTP(S) cada 5 minutos a `https://snapit-api-9wz7.onrender.com/api/salud`. Render duerme el servidor a los 15 minutos sin pedidos (y despertarlo tarda cerca de un minuto), y Supabase pausa el proyecto después de 7 días con poca actividad. `/api/salud` consulta la base, así que el mismo pedido sirve para los dos.
 7. **App.** Se compila contra el servidor publicado:
    ```bash
-   flutter build apk --release --dart-define=API_URL=https://snapit-api.onrender.com/api
+   flutter build apk --release --dart-define=API_URL=https://snapit-api-9wz7.onrender.com/api
    ```
 
 ### Límites del plan gratuito
