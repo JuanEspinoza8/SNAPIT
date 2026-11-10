@@ -74,7 +74,8 @@ describe('layout', () => {
 
     expect(await screen.findByText('Nombre')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
-    expect(screen.getByRole('link', { name: 'Reportar' })).toHaveAttribute('href', '/reportar');
+    // Reportar no está en el menú: es el botón del inicio y del mapa.
+    expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
     // El perfil, con el nombre del usuario, en el lugar de «Mis reportes» (que quedó dentro del perfil).
     expect(screen.getByRole('link', { name: 'Nombre' })).toHaveAttribute('href', '/perfil');
     expect(screen.queryByRole('link', { name: 'Mis reportes' })).not.toBeInTheDocument();

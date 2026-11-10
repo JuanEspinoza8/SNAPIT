@@ -15,7 +15,8 @@ const perfil = (usuario: Usuario) => ({ ruta: '/perfil', texto: usuario.nombre }
 
 function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
   if (esVecino(usuario)) {
-    return [INICIO, MAPA, { ruta: '/reportar', texto: 'Reportar' }, perfil(usuario)];
+    // Reportar no va en el menú: está el botón «+ Reportar» en el inicio y en el mapa.
+    return [INICIO, MAPA, perfil(usuario)];
   }
   if (esOperador(usuario)) {
     return [
