@@ -26,6 +26,8 @@ export default defineConfig({
       FOTOS_DIR: path.join(os.tmpdir(), 'snapit-fotos-test'),
       SUPABASE_URL: '',
       SUPABASE_CLAVE_SECRETA: '',
+      // Los tests ingresan con la clave de prueba del repo.
+      CLAVE_USUARIOS_DEMO: '',
       // Chico, para probar el límite sin mandar archivos enormes.
       FOTO_MAX_MB: '1',
       // Los tests simulan Nominatim. Si alguno se olvida, falla contra esta dirección local y no le

@@ -113,6 +113,19 @@ describe('semilla', { timeout: 60_000 }, () => {
     expect(res.body.usuario.rol).toBe('OPERADOR');
   });
 
+  it('con la clave de la demo, los usuarios ingresan con esa y no con la del repo', async () => {
+    try {
+      await cargarSemilla(prisma, { usuariosPrueba: true, claveUsuarios: 'clave-de-la-demo' });
+
+      expect((await ingresar('admin@snapit.test', 'clave-de-la-demo')).status).toBe(200);
+      expect((await ingresar('admin@snapit.test', CLAVE_USUARIOS_PRUEBA)).status).toBe(401);
+    } finally {
+      // Los otros tests ingresan con la clave del repo: volver a correrla sin clave la restaura.
+      await cargarSemilla(prisma, { usuariosPrueba: true });
+    }
+    expect((await ingresar('admin@snapit.test', CLAVE_USUARIOS_PRUEBA)).status).toBe(200);
+  });
+
   // No modifica categorías ni perfiles: los tests de otros módulos los leen de la misma base, en paralelo.
   it('restaura lo que se haya cambiado a mano', async () => {
     await cargarSemilla(prisma, { usuariosPrueba: true });
@@ -193,12 +206,40 @@ describe('semilla', { timeout: 60_000 }, () => {
   });
 
   it('con NODE_ENV=production no carga los usuarios de prueba ni muestra la clave', async () => {
-    const correr = promisify(execFile);
-    const { stdout } = await correr(process.execPath, ['--import', 'tsx', 'src/semilla/index.ts'], {
-      env: { ...process.env, NODE_ENV: 'production' },
-    });
+    const { stdout } = await correrSemilla({ NODE_ENV: 'production', CLAVE_USUARIOS_DEMO: '' });
 
     expect(stdout).toContain('no se cargan los usuarios de prueba');
     expect(stdout).not.toContain(CLAVE_USUARIOS_PRUEBA);
   }, 30_000);
+
+  it('con CLAVE_USUARIOS_DEMO carga los usuarios aunque sea producción, sin mostrar la clave', async () => {
+    try {
+      const { stdout } = await correrSemilla({
+        NODE_ENV: 'production',
+        CLAVE_USUARIOS_DEMO: 'clave-de-la-demo',
+      });
+
+      expect(stdout).toContain('clave la de CLAVE_USUARIOS_DEMO');
+      expect(stdout).not.toContain('clave-de-la-demo');
+      expect((await ingresar('vecino1@snapit.test', 'clave-de-la-demo')).status).toBe(200);
+    } finally {
+      await cargarSemilla(prisma, { usuariosPrueba: true });
+    }
+  }, 30_000);
+
+  it('una CLAVE_USUARIOS_DEMO que no cumple la regla de las claves frena la semilla', async () => {
+    await expect(
+      correrSemilla({ NODE_ENV: 'production', CLAVE_USUARIOS_DEMO: 'corta' }),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining('CLAVE_USUARIOS_DEMO inválida'),
+    });
+  }, 30_000);
 });
+
+/** Corre la semilla como proceso, igual que npm run semilla, con la base de los tests. */
+function correrSemilla(variables: Record<string, string>) {
+  return promisify(execFile)(process.execPath, ['--import', 'tsx', 'src/semilla/index.ts'], {
+    env: { ...process.env, ...variables },
+  });
+}
