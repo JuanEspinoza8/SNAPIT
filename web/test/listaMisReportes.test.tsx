@@ -9,7 +9,7 @@ import { ProveedorCliente } from '../src/compartido/red/clienteContexto.js';
 import { ProveedorSesion, useSesion } from '../src/compartido/sesion/sesionContexto.js';
 import type { Usuario } from '../src/compartido/sesion/usuario.js';
 import { PaginaIngreso } from '../src/funcionalidades/cuenta/paginaIngreso.js';
-import { PaginaMisReportes } from '../src/funcionalidades/misReportes/paginaMisReportes.js';
+import { ListaMisReportes } from '../src/funcionalidades/misReportes/ListaMisReportes.js';
 import type { ReporteMio } from '../src/funcionalidades/misReportes/tipos.js';
 import { renderRuta } from './apoyo.js';
 
@@ -90,7 +90,7 @@ describe('ver mis reportes', () => {
         fotos: [{ id: 7, url: '/api/fotos/7' }],
       }),
     );
-    const { container } = renderRuta('/mis-reportes', <PaginaMisReportes />);
+    const { container } = renderRuta('/mis-reportes', <ListaMisReportes />);
 
     expect(await screen.findByText('Cordón sin rampa')).toBeInTheDocument();
     expect(screen.getByText('1 oct 2026')).toBeInTheDocument();
@@ -100,7 +100,7 @@ describe('ver mis reportes', () => {
 
   it('pide la foto con la sesión y libera la URL local al salir', async () => {
     conReportes(reporte({ fotos: [{ id: 7, url: '/api/fotos/7' }] }));
-    const { container, unmount } = renderRuta('/mis-reportes', <PaginaMisReportes />);
+    const { container, unmount } = renderRuta('/mis-reportes', <ListaMisReportes />);
 
     await waitFor(() => expect(container.querySelector('img')).not.toBeNull());
     expect(fotosPedidas).toEqual([{ id: '7', autorizacion: 'Bearer acceso-del-vecino' }]);
@@ -118,7 +118,7 @@ describe('ver mis reportes', () => {
         fotos: [{ id: 8, url: '/api/fotos/8' }],
       }),
     );
-    const { container } = renderRuta('/mis-reportes', <PaginaMisReportes />);
+    const { container } = renderRuta('/mis-reportes', <ListaMisReportes />);
 
     expect(await screen.findByText('Desestimado')).toBeInTheDocument();
     await waitFor(() => expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:foto-local'));
@@ -128,7 +128,7 @@ describe('ver mis reportes', () => {
 
   it('un reporte sin fotos muestra el recuadro', async () => {
     conReportes(reporte({ fotos: [] }));
-    renderRuta('/mis-reportes', <PaginaMisReportes />);
+    renderRuta('/mis-reportes', <ListaMisReportes />);
 
     expect(await screen.findByText('Foto no disponible')).toBeInTheDocument();
     expect(fotosPedidas).toEqual([]);
@@ -144,7 +144,7 @@ describe('ver mis reportes', () => {
         ),
       ),
     );
-    const { container } = renderRuta('/mis-reportes', <PaginaMisReportes />);
+    const { container } = renderRuta('/mis-reportes', <ListaMisReportes />);
 
     expect(await screen.findByText('Foto no disponible')).toBeInTheDocument();
     expect(container.querySelector('img')).toBeNull();
@@ -153,7 +153,7 @@ describe('ver mis reportes', () => {
 
   it('si la foto llega pero no se puede mostrar, queda el recuadro', async () => {
     conReportes(reporte({ fotos: [{ id: 7, url: '/api/fotos/7' }] }));
-    const { container } = renderRuta('/mis-reportes', <PaginaMisReportes />);
+    const { container } = renderRuta('/mis-reportes', <ListaMisReportes />);
 
     await waitFor(() => expect(container.querySelector('img')).not.toBeNull());
     fireEvent.error(container.querySelector('img')!);
@@ -163,7 +163,7 @@ describe('ver mis reportes', () => {
   });
 
   it('si no hay reportes, lo dice y ofrece reportar', async () => {
-    renderRuta('/mis-reportes', <PaginaMisReportes />);
+    renderRuta('/mis-reportes', <ListaMisReportes />);
 
     expect(await screen.findByText('Todavía no hiciste reportes')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Reportar un problema' })).toHaveAttribute('href', '/reportar');
@@ -177,7 +177,7 @@ describe('ver mis reportes', () => {
       }),
     );
     const usuario = userEvent.setup();
-    renderRuta('/mis-reportes', <PaginaMisReportes />);
+    renderRuta('/mis-reportes', <ListaMisReportes />);
 
     await usuario.click(await screen.findByRole('button', { name: /Cordón sin rampa/ }));
 
@@ -195,7 +195,7 @@ describe('ver mis reportes', () => {
         ),
       ),
     );
-    renderRuta('/mis-reportes', <PaginaMisReportes />);
+    renderRuta('/mis-reportes', <ListaMisReportes />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron traer tus reportes');
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
@@ -221,7 +221,7 @@ describe('al cambiar de sesión en la misma pestaña', () => {
         <button type="button" onClick={() => void salir().then(() => navegar('/ingreso'))}>
           Salir
         </button>
-        <PaginaMisReportes />
+        <ListaMisReportes />
       </>
     );
   }
@@ -276,7 +276,7 @@ describe('al cambiar de sesión en la misma pestaña', () => {
     await usuario.click(await screen.findByRole('link', { name: 'Mis reportes' }));
 
     // Mientras llega la lista de B, no se ve nada de A.
-    expect(await screen.findByRole('heading', { name: 'Mis reportes' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Salir' })).toBeInTheDocument();
     expect(screen.queryByText('Reporte de A')).not.toBeInTheDocument();
 
     responderB();

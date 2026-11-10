@@ -101,6 +101,13 @@ describe('inicio (feed)', () => {
     expect(within(agrupado).getByText('Lo reportaron 3 vecinos')).toBeInTheDocument();
   });
 
+  it('ofrece reportar un problema, también sin sesión', async () => {
+    feedEnDosPaginas();
+    renderRuta('/', <PaginaInicio />);
+
+    expect(await screen.findByRole('link', { name: 'Reportar' })).toHaveAttribute('href', '/reportar');
+  });
+
   it('«Cargar más» pide la página siguiente con el cursor y avisa cuando no hay más', async () => {
     const cursores = feedEnDosPaginas();
     renderRuta('/', <PaginaInicio />);

@@ -74,8 +74,14 @@ describe('layout', () => {
 
     expect(await screen.findByText('Nombre')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
-    expect(screen.getByRole('link', { name: 'Reportar' })).toHaveAttribute('href', '/reportar');
-    expect(screen.getByRole('link', { name: 'Mis reportes' })).toHaveAttribute('href', '/mis-reportes');
+    // Reportar no está en el menú: es el botón del inicio y del mapa.
+    expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
+    // El perfil, con el nombre del usuario, en el lugar de «Mis reportes» (que quedó dentro del perfil). La
+    // etiqueta dice que sus reportes están ahí.
+    const perfil = screen.getByRole('link', { name: 'Nombre: tu perfil y tus reportes' });
+    expect(perfil).toHaveAttribute('href', '/perfil');
+    expect(perfil).toHaveTextContent('Nombre');
+    expect(screen.queryByRole('link', { name: 'Mis reportes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Bandeja' })).not.toBeInTheDocument();
   });
 
@@ -84,6 +90,7 @@ describe('layout', () => {
 
     expect(await screen.findByRole('link', { name: 'Bandeja' })).toHaveAttribute('href', '/bandeja');
     expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
+    expect(screen.getByRole('link', { name: 'Nombre: tu perfil' })).toHaveAttribute('href', '/perfil');
     expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
   });
 
@@ -96,6 +103,7 @@ describe('layout', () => {
     );
     expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
     expect(screen.getByRole('link', { name: 'Bandeja' })).toHaveAttribute('href', '/bandeja');
+    expect(screen.getByRole('link', { name: 'Nombre: tu perfil' })).toHaveAttribute('href', '/perfil');
     expect(screen.queryByRole('link', { name: 'Revisión' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Incidentes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();

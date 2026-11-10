@@ -27,3 +27,19 @@ export function inicioSegunRol(usuario: Usuario): string {
   if (esAdministrador(usuario)) return '/administracion';
   return '/';
 }
+
+/** Lo que RutaProtegida deja en la navegación al mandar al ingreso: la página que se quiso abrir. */
+export interface EstadoIngreso {
+  desde: string;
+}
+
+/**
+ * Adónde va quien acaba de ingresar: a la página que quiso abrir sin sesión o, si no hay, al inicio de su rol.
+ * Si esa página no es de su rol, RutaProtegida lo vuelve a mandar a su inicio.
+ */
+export function destinoTrasIngreso(estado: unknown, usuario: Usuario): string {
+  const desde = (estado as Partial<EstadoIngreso> | null)?.desde;
+  // Solo rutas de la propia web: «//otro.sitio» sería otra dirección.
+  if (typeof desde === 'string' && desde.startsWith('/') && !desde.startsWith('//')) return desde;
+  return inicioSegunRol(usuario);
+}

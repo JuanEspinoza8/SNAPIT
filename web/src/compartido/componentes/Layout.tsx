@@ -10,14 +10,25 @@ import logo from '../../assets/logo.png';
 const INICIO = { ruta: '/', texto: 'Inicio' };
 const MAPA = { ruta: '/mapa', texto: 'Mapa' };
 
-function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
+interface Seccion {
+  ruta: string;
+  texto: string;
+  /** Para el lector de pantalla y el cartel del mouse, cuando el texto solo no dice adónde lleva. */
+  etiqueta?: string;
+}
+
+// El perfil propio, con el nombre del usuario: todos los roles con sesión. Para el vecino reemplaza a «Mis reportes»
+// (sus reportes están ahí), y la etiqueta lo dice.
+const perfil = (usuario: Usuario): Seccion => ({
+  ruta: '/perfil',
+  texto: usuario.nombre,
+  etiqueta: `${usuario.nombre}: tu perfil${esVecino(usuario) ? ' y tus reportes' : ''}`,
+});
+
+function seccionesDe(usuario: Usuario): Seccion[] {
   if (esVecino(usuario)) {
-    return [
-      INICIO,
-      MAPA,
-      { ruta: '/reportar', texto: 'Reportar' },
-      { ruta: '/mis-reportes', texto: 'Mis reportes' },
-    ];
+    // Reportar no va en el menú: está el botón «+ Reportar» en el inicio y en el mapa.
+    return [INICIO, MAPA, perfil(usuario)];
   }
   if (esOperador(usuario)) {
     return [
@@ -26,6 +37,7 @@ function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
       { ruta: '/bandeja', texto: 'Bandeja' },
       { ruta: '/revision', texto: 'Revisión' },
       { ruta: '/incidentes', texto: 'Incidentes' },
+      perfil(usuario),
     ];
   }
   if (esAdministrador(usuario)) {
@@ -34,6 +46,7 @@ function seccionesDe(usuario: Usuario): { ruta: string; texto: string }[] {
       MAPA,
       { ruta: '/bandeja', texto: 'Bandeja' },
       { ruta: '/administracion', texto: 'Administración' },
+      perfil(usuario),
     ];
   }
   return [INICIO, MAPA];
@@ -77,15 +90,18 @@ export function Layout() {
 
           {estado === 'conSesion' ? (
             <nav className="flex flex-wrap items-center gap-1">
-              <span className="hidden pr-2 text-sm text-texto-secundario sm:inline">{usuario?.nombre}</span>
               {secciones.map((seccion) => (
                 <NavLink
                   key={seccion.ruta}
                   to={seccion.ruta}
                   // Sin `end`, «Inicio» (/) quedaría marcado en todas las páginas.
                   end={seccion.ruta === '/'}
+                  aria-label={seccion.etiqueta}
+                  title={seccion.etiqueta}
+                  // El nombre puede tener hasta 120 caracteres: se recorta para no salirse del ancho de un
+                  // celular. Los demás textos del menú entran sobrados.
                   className={({ isActive }) =>
-                    `whitespace-nowrap rounded-md px-3 py-2 text-sm ${
+                    `max-w-40 truncate rounded-md px-3 py-2 text-sm sm:max-w-64 ${
                       isActive
                         ? 'bg-superficie-alterna font-semibold text-primario'
                         : 'text-texto-secundario hover:bg-superficie-alterna'

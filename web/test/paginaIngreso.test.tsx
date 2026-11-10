@@ -15,13 +15,14 @@ beforeAll(() => servidor.listen());
 afterAll(() => servidor.close());
 afterEach(() => servidor.resetHandlers());
 
-function renderPaginaIngreso() {
+/** `desde` es la página protegida que mandó al ingreso (RutaProtegida). */
+function renderPaginaIngreso(desde?: string) {
   const consulta = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={consulta}>
       <ProveedorCliente>
         <ProveedorSesion>
-          <MemoryRouter initialEntries={['/ingreso']}>
+          <MemoryRouter initialEntries={[{ pathname: '/ingreso', state: desde ? { desde } : null }]}>
             <Routes>
               <Route path="/" element={<p>Inicio</p>} />
               <Route path="/mapa" element={<p>Mapa</p>} />
@@ -73,6 +74,32 @@ describe('página de ingreso', () => {
     expect(await screen.findByText('Inicio')).toBeInTheDocument();
     expect(localStorage.getItem('snapit:tokenAcceso')).toBe('acceso-simulado');
     expect(localStorage.getItem('snapit:tokenRenovacion')).toBe('renovacion-simulada');
+  });
+
+  it('si llegó desde una página que pedía sesión, vuelve a ella', async () => {
+    servidor.use(
+      http.post('*/api/auth/ingreso', () =>
+        HttpResponse.json({
+          tokenAcceso: 'acceso-simulado',
+          tokenRenovacion: 'renovacion-simulada',
+          usuario: {
+            id: 2,
+            email: 'vecino@ejemplo.com',
+            nombre: 'Vecino',
+            rol: 'VECINO',
+            organismoId: null,
+            areaId: null,
+          },
+        }),
+      ),
+    );
+
+    renderPaginaIngreso('/mapa');
+    await userEvent.type(screen.getByLabelText('Correo'), 'vecino@ejemplo.com');
+    await userEvent.type(screen.getByLabelText('Clave'), 'una-clave');
+    await userEvent.click(screen.getByRole('button', { name: 'Ingresar' }));
+
+    expect(await screen.findByText('Mapa')).toBeInTheDocument();
   });
 
   it('muestra el mensaje del servidor si las credenciales no sirven', async () => {
