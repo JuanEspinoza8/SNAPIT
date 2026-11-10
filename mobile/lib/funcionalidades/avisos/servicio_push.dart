@@ -32,6 +32,12 @@ Future<void> iniciarFirebasePush() async {
 
 var _firebaseListo = false;
 
+/// Si el teléfono deja mostrar los avisos. Se vuelve a leer cada vez que se
+/// abre la pantalla que lo usa.
+final estadoPermisoProvider = FutureProvider.autoDispose<EstadoPermiso>(
+  (ref) => ref.watch(servicioPushProvider).estadoPermiso(),
+);
+
 final servicioPushProvider = Provider<ServicioPush>((ref) {
   final servicio = ServicioPushFirebase();
   ref.onDispose(servicio.cerrar);

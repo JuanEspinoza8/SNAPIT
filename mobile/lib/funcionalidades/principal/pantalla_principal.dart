@@ -23,6 +23,7 @@ import '../mapa/foco_mapa.dart';
 import '../mapa/mapa_incidentes.dart';
 import '../mapa/repositorio_mapa.dart';
 import '../mis_reportes/pantalla_mis_reportes.dart';
+import '../recorrido/elegir_perfil_movilidad.dart';
 import '../recorrido/pantalla_recorrido.dart';
 import '../reportar/pantalla_reportar.dart';
 
@@ -179,8 +180,8 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
         title: const Text('Activá los avisos'),
         content: const Text(
           'Así te enteramos cuando avanza un reporte, se cierra un incidente '
-          'o aparece uno nuevo en tus zonas. Podés desactivarlos cuando '
-          'quieras desde los ajustes del teléfono.',
+          'o aparece uno nuevo en tus zonas. Los podés activar o apagar '
+          'cuando quieras desde «Avisos y zonas», en tu cuenta.',
         ),
         actions: [
           TextButton(
@@ -352,8 +353,9 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (contexto) => SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
             Espacio.lg,
             0,
@@ -389,6 +391,28 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
                       .elegir(oscuro: oscuro),
                 ),
               ),
+              if (usuario.rol == Rol.vecino) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.notifications_outlined),
+                  title: const Text('Avisos y zonas'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(contexto).pop();
+                    context.push(Rutas.ajustesAvisos);
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.directions_walk),
+                  title: const Text('Perfil de movilidad'),
+                  subtitle: const Text(
+                    'Elegí cómo te movés en los recorridos.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => mostrarElegirPerfilMovilidad(contexto),
+                ),
+              ],
               const SizedBox(height: Espacio.lg),
               OutlinedButton.icon(
                 icon: const Icon(Icons.logout),

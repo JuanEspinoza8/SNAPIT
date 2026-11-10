@@ -79,6 +79,8 @@ class ServidorSocial {
         });
       case '/incidentes/3':
         return json(200, tarjetaJson(3, categoria: 'Vereda rota'));
+      case '/incidentes/3/seguimiento':
+        return json(200, {'siguiendo': false});
       case '/social/incidentes/3/reportes':
         return json(200, {
           'incidenteId': 3,

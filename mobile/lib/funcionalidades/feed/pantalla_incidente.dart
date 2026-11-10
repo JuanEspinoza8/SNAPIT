@@ -4,12 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../compartido/errores/aviso_error.dart';
 import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/formato/fechas.dart';
 import '../../compartido/mapa/capa_osm.dart';
 import '../../compartido/red/error_api.dart';
 import '../../compartido/rutas/rutas_app.dart';
+import '../../compartido/sesion/sesion.dart';
+import '../../compartido/sesion/usuario.dart';
 import '../../compartido/tema/tema_app.dart';
+import '../avisos/avisos.dart';
+import '../avisos/repositorio_avisos.dart';
 import '../mapa/estados.dart';
 import '../mapa/modelos.dart';
 import '../mapa/repositorio_mapa.dart';
@@ -81,14 +86,15 @@ class _ErrorFicha extends StatelessWidget {
   }
 }
 
-class _Contenido extends StatelessWidget {
+class _Contenido extends ConsumerWidget {
   const _Contenido(this.ficha);
 
   final FichaIncidente ficha;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tema = Theme.of(context);
+    final esVecino = ref.watch(sesionProvider).value?.rol == Rol.vecino;
     final secundario = tema.textTheme.bodySmall?.copyWith(
       color: tema.colorScheme.onSurfaceVariant,
     );
@@ -133,6 +139,10 @@ class _Contenido extends StatelessWidget {
                   style: secundario,
                 ),
               ],
+              if (esVecino) ...[
+                const SizedBox(height: Espacio.lg),
+                _BotonSeguir(ficha.id),
+              ],
               const SizedBox(height: Espacio.lg),
               if (ficha.direccion case final direccion?)
                 _Dato(Icons.place_outlined, 'Dirección', direccion),
@@ -166,6 +176,86 @@ class _Contenido extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Sigue o deja de seguir el incidente para recibir sus cambios.
+class _BotonSeguir extends ConsumerStatefulWidget {
+  const _BotonSeguir(this.incidenteId);
+
+  final int incidenteId;
+
+  @override
+  ConsumerState<_BotonSeguir> createState() => _BotonSeguirState();
+}
+
+class _BotonSeguirState extends ConsumerState<_BotonSeguir> {
+  var _enviando = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final seguimiento = ref.watch(seguimientoProvider(widget.incidenteId));
+    // Sin saber si lo sigue, el botón podría decir lo contrario de lo que
+    // pasa: mejor decirlo y dejar que vuelva a preguntar.
+    if (seguimiento.hasError && !seguimiento.isLoading) {
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              'No se pudo saber si lo seguís.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () =>
+                ref.invalidate(seguimientoProvider(widget.incidenteId)),
+            child: const Text('Reintentar'),
+          ),
+        ],
+      );
+    }
+    final siguiendo = seguimiento.value ?? false;
+    final ocupado = seguimiento.isLoading || _enviando;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
+        onPressed: ocupado ? null : _cambiar,
+        icon: ocupado
+            ? const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                siguiendo
+                    ? Icons.notifications_off_outlined
+                    : Icons.notifications_none,
+              ),
+        label: Text(siguiendo ? 'Dejar de seguir' : 'Seguir'),
+      ),
+    );
+  }
+
+  Future<void> _cambiar() async {
+    final siguiendo =
+        ref.read(seguimientoProvider(widget.incidenteId)).value ?? false;
+    final repositorio = ref.read(repositorioAvisosProvider);
+    setState(() => _enviando = true);
+
+    try {
+      if (siguiendo) {
+        await repositorio.dejarDeSeguir(widget.incidenteId);
+      } else {
+        await repositorio.seguir(widget.incidenteId);
+      }
+      ref.invalidate(seguimientoProvider(widget.incidenteId));
+    } catch (error) {
+      if (mounted) mostrarError(context, error);
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
   }
 }
 

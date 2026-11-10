@@ -26,6 +26,7 @@ void guardarSesion() =>
 Map<String, Object?> usuarioJson({
   String rol = 'VECINO',
   int? perfilMovilidadId,
+  bool notificacionesHabilitadas = true,
 }) => {
   'id': 7,
   'email': 'ana@ejemplo.com',
@@ -34,6 +35,7 @@ Map<String, Object?> usuarioJson({
   'organismoId': rol == 'VECINO' ? null : 1,
   'areaId': rol == 'OPERADOR' ? 3 : null,
   'perfilMovilidadId': perfilMovilidadId,
+  'notificacionesHabilitadas': notificacionesHabilitadas,
 };
 
 Future<ResponseBody> ingresoCorrecto({String rol = 'VECINO'}) => json(200, {
