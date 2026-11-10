@@ -2,3 +2,5 @@ node_modules
 dist
 test
 *.log
+# Render copia los Secret Files a la raíz del contexto del build (#118).
+firebase.json

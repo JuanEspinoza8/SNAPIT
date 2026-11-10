@@ -341,6 +341,79 @@ lib/
 
 Elegimos Riverpod en lugar de Provider porque sus providers no dependen del árbol de widgets: el cliente HTTP, la sesión y las rutas se leen sin `BuildContext`, y en los tests cualquier pieza se reemplaza con `overrides`. Se usa sin generación de código. Riverpod reintenta por su cuenta los providers que fallan; en la app eso está apagado (`retry` en `main.dart`) para que el error se muestre y el usuario decida si reintentar.
 
+## Demo publicada
+
+La demo para los cortes y la defensa (#118) corre en servicios gratuitos, separados:
+
+| Pieza | Dónde | Configuración |
+|---|---|---|
+| Web | Vercel | `web/vercel.json`: reenvía `/api` al servidor (la API no habilita CORS) y manda cualquier otra ruta a `index.html` |
+| Servidor | Render | `render.yaml`: el mismo `server/Dockerfile`, que aplica las migraciones al arrancar |
+| Base y fotos | Supabase | PostgreSQL con PostGIS y pgRouting, y un bucket privado para las fotos (`FOTOS_ALMACEN=supabase`) |
+| Despierto | UptimeRobot | Un pedido a `/api/salud` cada 5 minutos |
+
+La app va directo a Render, sin pasar por Vercel.
+
+### Actualizarla
+
+Se actualiza sola: cada merge a `main` que toca `server/` vuelve a publicar el servidor, que aplica las migraciones pendientes al arrancar, y cada uno que toca `web/` vuelve a publicar la web. Para publicarla a mano, por ejemplo si un merge no se publicó:
+
+```bash
+gh workflow run demo.yml
+```
+
+La semilla no se corre sola, porque vuelve a dejar los parámetros en sus valores iniciales y pisaría lo que se haya ajustado. Si un PR cambia el catálogo, se corre a mano (paso 4).
+
+### Armarla desde cero
+
+1. **Supabase.** Un proyecto en la región East US (North Virginia), cerca de Render.
+   - Antes de la primera migración, en el SQL Editor:
+     ```sql
+     create extension if not exists postgis with schema extensions;
+     create extension if not exists pgrouting with schema extensions;
+     ```
+     Así `0_init` no las crea en `public`, donde quedarían expuestas, y no hay que tocar ninguna migración: su `CREATE EXTENSION IF NOT EXISTS` no hace nada si ya están.
+   - Apagar la Data API (Integrations › Data API). El servidor habla directo con la base; con la Data API prendida, las tablas sin RLS se podrían leer y escribir con la clave pública.
+   - En Storage, un bucket **privado** `fotos`, con límite de 20 MB y tipos `image/jpeg` e `image/png`.
+   - La `DATABASE_URL` es la del *session pooler* (Connect › Session pooler, puerto 5432) con `?connection_limit=5` al final: Render no sale por IPv6, que es lo que pide la conexión directa, y el pooler gratuito admite 15 conexiones. Sin `schema=public`: Prisma reemplazaría el `search_path` y no encontraría PostGIS.
+   - La clave para las fotos es la secreta (`sb_secret_...`, en Project Settings › API Keys).
+2. **Correo.** Render gratis bloquea los puertos 465 y 587, así que el correo sale por [Brevo](https://www.brevo.com) en el 2525. Se verifica el correo del grupo como remitente y se saca una clave SMTP (SMTP & API › SMTP).
+3. **Render.** New › Blueprint, con este repo: pide los secretos que `render.yaml` marca con `sync: false`. Después, en el servicio:
+   - Environment › Secret Files: `firebase.json`, la cuenta de servicio de Firebase.
+   - Settings › Deploy Hook: la URL va al secreto `RENDER_DEPLOY_HOOK` del repo (`gh secret set RENDER_DEPLOY_HOOK`).
+4. **Datos.** Con el servidor arriba (ya aplicó las migraciones), desde `server/` en la PC, con la `DATABASE_URL` del paso 1:
+   ```bash
+   DATABASE_URL="<session pooler>" NODE_ENV=production CLAVE_USUARIOS_DEMO="<clave>" npm run semilla
+   DATABASE_URL="<session pooler>" npm run importar:puntos -- --sin-conexion
+   DATABASE_URL="<session pooler>" npm run importar:red -- --sin-conexion
+   ```
+   Con `CLAVE_USUARIOS_DEMO` la semilla carga los usuarios de prueba con esa clave y no con la del repo, que es público. La clave se pasa al grupo y a los docentes por privado. Los comandos son para Git Bash; el resto de las variables las toman del `.env`.
+5. **Vercel.** Add New › Project, con este repo y Root Directory `web` (detecta Vite solo).
+   - Si Render le dio al servidor otra URL que `snapit-api.onrender.com`, se cambia en `web/vercel.json`.
+   - En Render, `URL_WEB` es la URL de Vercel: los links de los correos apuntan ahí.
+   - Settings › Git › Deploy Hooks: uno para `main`, que va al secreto `VERCEL_DEPLOY_HOOK` del repo.
+6. **UptimeRobot.** Un monitor HTTP(S) cada 5 minutos a `https://snapit-api.onrender.com/api/salud`. Render duerme el servidor a los 15 minutos sin pedidos (y despertarlo tarda cerca de un minuto), y Supabase pausa el proyecto después de 7 días con poca actividad. `/api/salud` consulta la base, así que el mismo pedido sirve para los dos.
+7. **App.** Se compila contra el servidor publicado:
+   ```bash
+   flutter build apk --release --dart-define=API_URL=https://snapit-api.onrender.com/api
+   ```
+
+### Límites del plan gratuito
+
+- **Render:**
+  - 512 MB de RAM.
+  - 750 horas por mes: alcanza para un servicio prendido todo el mes, no para dos.
+  - 5 GB de tráfico saliente por mes, que incluyen las fotos que sirve la API y las que se mandan a la IA. Si se pasa, suspende el servicio hasta el mes siguiente.
+  - Puede reiniciar el servicio en cualquier momento y borra el disco: por eso las fotos van a Supabase.
+- **Supabase:**
+  - 500 MB de base y 1 GB de fotos.
+  - Sin copias de seguridad. Antes de cada entrega conviene guardar una (hace falta `pg_dump` 17, por eso con Docker):
+    ```bash
+    docker run --rm -v "$PWD:/copia" postgres:17 pg_dump "<session pooler>" -Fc -f /copia/snapit-demo.dump
+    ```
+- **Cuentas:** Vercel y Render gratis admiten una sola persona por cuenta. El resto del grupo actualiza la demo con `gh workflow run demo.yml`.
+- **Correo:** Brevo reescribe el remitente, y los correos a Outlook pueden caer en spam.
+
 ## Integración continua
 
 Cada PR y cada push a `main` corren [`.github/workflows/ci.yml`](.github/workflows/ci.yml) en GitHub Actions. Hay un trabajo por capa y cada uno corre solo si cambió su carpeta; un trabajo que no corre figura como omitido, no como fallido.

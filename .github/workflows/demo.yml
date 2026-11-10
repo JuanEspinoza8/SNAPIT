@@ -1,0 +1,24 @@
+# Vuelve a publicar la demo (#118) con lo que hay en main: el servidor en Render y la web en Vercel.
+# Los dos se publican solos con cada merge a main; esto es para cuando uno no se publicó o hay que
+# repetirlo. Se corre con: gh workflow run demo.yml
+# Las URL de los deploy hooks son secretos del repo (RENDER_DEPLOY_HOOK y VERCEL_DEPLOY_HOOK).
+name: Demo
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  publicar:
+    name: Publicar la demo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Servidor en Render
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: curl --fail --silent --show-error -X POST "$HOOK" > /dev/null
+      - name: Web en Vercel
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: curl --fail --silent --show-error -X POST "$HOOK" > /dev/null
