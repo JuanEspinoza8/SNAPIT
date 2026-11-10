@@ -24,7 +24,7 @@ Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá
 | Obstáculo en la vereda | Veredas | Temporal | 3 días | 1,10 |
 | Poste dañado o cables colgando | Alumbrado | Permanente | — | 1,80 |
 | Árbol o rama caída | Arbolado | Temporal | 7 días | 1,70 |
-| Rama baja o árbol que obstruye | Arbolado | Permanente | — | 1,20 |
+| Rama baja sobre la vereda | Arbolado | Permanente | — | 1,20 |
 | Raíces que levantan la vereda | Arbolado | Permanente | — | 1,30 |
 | Desagüe tapado o calle anegada | Desagües | Temporal | 7 días | 1,30 |
 | Pérdida de agua | Desagües | Temporal | 15 días | 1,10 |
@@ -53,7 +53,7 @@ Para calcular recorridos accesibles, cada problema afecta distinto según quién
 | Obstáculo en la vereda | ⛔ | 1,8 | ⛔ | 2,5 |
 | Poste dañado o cables colgando | 1,5 | 1,5 | 1,5 | 2,5 |
 | Árbol o rama caída | ⛔ | ⛔ | ⛔ | ⛔ |
-| Rama baja o árbol que obstruye | 1,3 | 1,5 | 1,3 | 3,0 |
+| Rama baja sobre la vereda | 1,3 | 1,5 | 1,3 | 3,0 |
 | Raíces que levantan la vereda | ⛔ | 2,0 | 2,5 | 2,5 |
 | Desagüe tapado o calle anegada | 2,5 | 2,0 | 2,0 | 2,0 |
 | Pérdida de agua | 1,5 | 1,5 | 1,3 | 1,5 |

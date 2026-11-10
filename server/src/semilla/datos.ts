@@ -60,7 +60,7 @@ export const CATEGORIAS: {
   },
   {
     nombre: 'Cordón sin rampa',
-    descripcion: 'Esquina sin rampa o con la rampa rota o bloqueada',
+    descripcion: 'Esquina sin rampa, o con la rampa rota',
     area: 'Veredas',
     tipoVigencia: 'PERMANENTE',
     diasCaducidad: null,
@@ -76,7 +76,7 @@ export const CATEGORIAS: {
   },
   {
     nombre: 'Obra que interrumpe el paso',
-    descripcion: 'Obra, zanja o materiales que cortan la vereda',
+    descripcion: 'Obra en curso: zanja, vallado o materiales de construcción que cortan la vereda',
     area: 'Obras',
     tipoVigencia: 'TEMPORAL',
     diasCaducidad: 30,
@@ -87,7 +87,7 @@ export const CATEGORIAS: {
   {
     nombre: 'Tapa de cámara o alcantarilla',
     descripcion:
-      'Tapa faltante, rota o hundida de una cámara, boca de registro o alcantarilla en la calle o la vereda',
+      'Tapa que falta o está rota y deja abierta una cámara, boca de registro o alcantarilla en la calle o la vereda',
     area: 'Bacheo',
     tipoVigencia: 'PERMANENTE',
     diasCaducidad: null,
@@ -121,15 +121,15 @@ export const CATEGORIAS: {
   },
   {
     nombre: 'Árbol o rama caída',
-    descripcion: 'Árbol caído o rama grande en la calle o la vereda, que corta o dificulta el paso',
+    descripcion: 'Árbol caído o rama grande caída en la calle o la vereda, que corta o dificulta el paso',
     area: 'Arbolado',
     tipoVigencia: 'TEMPORAL',
     diasCaducidad: 7,
     peso: '1.70',
   },
   {
-    nombre: 'Rama baja o árbol que obstruye',
-    descripcion: 'Ramas a la altura de la cabeza o un árbol que ocupa el paso de la vereda',
+    nombre: 'Rama baja sobre la vereda',
+    descripcion: 'Ramas a la altura de la cabeza sobre la vereda, todavía en el árbol',
     area: 'Arbolado',
     tipoVigencia: 'PERMANENTE',
     diasCaducidad: null,
@@ -161,7 +161,8 @@ export const CATEGORIAS: {
   },
   {
     nombre: 'Basura o escombros',
-    descripcion: 'Bolsas de basura, residuos o escombros acumulados en la vereda o la calle',
+    descripcion:
+      'Bolsas de basura, residuos o escombros tirados en la vereda o la calle, sin una obra a la vista',
     area: 'Higiene urbana',
     tipoVigencia: 'TEMPORAL',
     diasCaducidad: 7,
@@ -279,7 +280,7 @@ export const MATRIZ_CATEGORIA_PERFIL: Record<NombreCategoria, Record<NombrePerfi
     'Baja visión': 'intransitable',
   },
   // A la altura de la cabeza: para quien no la ve es un golpe; en silla o con coche se pasa por abajo.
-  'Rama baja o árbol que obstruye': {
+  'Rama baja sobre la vereda': {
     'Silla de ruedas': 1.3,
     'Bastón o andador': 1.5,
     'Coche de bebé': 1.3,
