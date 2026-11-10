@@ -20,8 +20,12 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       DATABASE_URL: process.env.TEST_DATABASE_URL,
-      // Las fotos de los tests van a una carpeta temporal, no a la de desarrollo.
+      // Las fotos de los tests van a una carpeta temporal, no a la de desarrollo ni a Supabase, aunque el
+      // .env apunte ahí.
+      FOTOS_ALMACEN: 'disco',
       FOTOS_DIR: path.join(os.tmpdir(), 'snapit-fotos-test'),
+      SUPABASE_URL: '',
+      SUPABASE_CLAVE_SECRETA: '',
       // Chico, para probar el límite sin mandar archivos enormes.
       FOTO_MAX_MB: '1',
       // Los tests simulan Nominatim. Si alguno se olvida, falla contra esta dirección local y no le

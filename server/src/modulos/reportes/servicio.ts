@@ -310,5 +310,8 @@ export async function buscarArchivoFoto(id: number, usuario: UsuarioSesion | nul
     (await repositorio.buscarFotoDeCierrePermitida(id, pedido));
   // Una foto que no puede ver responde igual que una que no existe: no se revela cuál es cuál.
   if (!foto) throw new ErrorApp(404, 'FOTO_NO_ENCONTRADA', 'La foto no existe');
-  return almacenFotos.ubicacion(foto.rutaArchivo);
+  const contenido = await almacenFotos.leer(foto.rutaArchivo);
+  // La fila existe pero el archivo no (por ejemplo, se borró el volumen).
+  if (!contenido) throw new ErrorApp(404, 'FOTO_NO_ENCONTRADA', 'La foto no existe');
+  return { contenido, ruta: foto.rutaArchivo };
 }

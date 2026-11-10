@@ -7,50 +7,72 @@ import { z } from 'zod';
 // dotenv no hace nada y se usan las variables del entorno.
 config({ path: fileURLToPath(new URL('../../../.env', import.meta.url)), quiet: true });
 
-const esquema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(3000),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  DATABASE_URL: z.url(),
-  // Firma los tokens de acceso. Si se filtra, cualquiera puede armar un token válido.
-  JWT_SECRET: z.string().min(32, 'Tiene que tener al menos 32 caracteres'),
-  // Los links de los correos apuntan a la web. Sin barra final, para armar `${URL_WEB}/ruta`.
-  URL_WEB: z.url().transform((url) => url.replace(/\/+$/, '')),
-  SMTP_HOST: z.string().min(1),
-  SMTP_PUERTO: z.coerce.number().int().positive(),
-  // Mailpit no pide usuario ni clave; un SMTP real, sí.
-  SMTP_USUARIO: z.string().optional(),
-  SMTP_CLAVE: z.string().optional(),
-  CORREO_REMITENTE: z.string().min(1),
-  // Carpeta donde se guardan las fotos de los reportes. Relativa a donde se corre el servidor.
-  FOTOS_DIR: z
-    .string()
-    .min(1)
-    .default('fotos')
-    .transform((carpeta) => path.resolve(carpeta)),
-  FOTO_MAX_MB: z.coerce.number().positive().default(10),
-  // Dirección y barrio de cada reporte. Sin barra final, para armar `${NOMINATIM_URL}/reverse`.
-  NOMINATIM_URL: z
-    .url()
-    .default('https://nominatim.openstreetmap.org')
-    .transform((url) => url.replace(/\/+$/, '')),
-  // El servicio público rechaza los pedidos que no dicen de qué aplicación vienen.
-  NOMINATIM_USER_AGENT: z.string().min(1).default('SnapIt/1.0 (+https://github.com/JuanEspinoza8/SNAPIT)'),
-  // IA (Claude). Sin clave el servidor arranca igual: cada consulta a la IA falla con IaNoDisponible.
-  ANTHROPIC_API_KEY: z
-    .string()
-    .optional()
-    .transform((clave) => clave || undefined),
-  IA_MODELO: z.string().min(1).default('claude-haiku-5-5'),
-  // Lo máximo que se espera una consulta, contando el reintento ante errores pasajeros.
-  IA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
-  // Archivo de la cuenta de servicio de Firebase, relativo a donde se corre el servidor. Sin él el servidor
-  // arranca igual: los avisos se guardan y se listan, pero no salen al celular.
-  FIREBASE_CREDENCIALES: z
-    .string()
-    .optional()
-    .transform((ruta) => (ruta ? path.resolve(ruta) : undefined)),
-});
+const esquema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: z.coerce.number().int().positive().default(3000),
+    LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+    DATABASE_URL: z.url(),
+    // Firma los tokens de acceso. Si se filtra, cualquiera puede armar un token válido.
+    JWT_SECRET: z.string().min(32, 'Tiene que tener al menos 32 caracteres'),
+    // Los links de los correos apuntan a la web. Sin barra final, para armar `${URL_WEB}/ruta`.
+    URL_WEB: z.url().transform((url) => url.replace(/\/+$/, '')),
+    SMTP_HOST: z.string().min(1),
+    SMTP_PUERTO: z.coerce.number().int().positive(),
+    // Mailpit no pide usuario ni clave; un SMTP real, sí.
+    SMTP_USUARIO: z.string().optional(),
+    SMTP_CLAVE: z.string().optional(),
+    CORREO_REMITENTE: z.string().min(1),
+    // Carpeta donde se guardan las fotos de los reportes. Relativa a donde se corre el servidor.
+    FOTOS_DIR: z
+      .string()
+      .min(1)
+      .default('fotos')
+      .transform((carpeta) => path.resolve(carpeta)),
+    FOTO_MAX_MB: z.coerce.number().positive().default(10),
+    // Dónde se guardan las fotos: en FOTOS_DIR o en Supabase Storage (la demo publicada, #118).
+    FOTOS_ALMACEN: z.enum(['disco', 'supabase']).default('disco'),
+    // Sin barra final, para armar `${SUPABASE_URL}/storage/v1/...`. Vacía cuenta como ausente.
+    SUPABASE_URL: z
+      .union([z.literal(''), z.url()])
+      .optional()
+      .transform((url) => (url ? url.replace(/\/+$/, '') : undefined)),
+    // La clave secreta del proyecto (sb_secret_...). Salta los permisos del bucket: nunca sale del servidor.
+    SUPABASE_CLAVE_SECRETA: z
+      .string()
+      .optional()
+      .transform((clave) => clave || undefined),
+    SUPABASE_BUCKET: z.string().min(1).default('fotos'),
+    // Dirección y barrio de cada reporte. Sin barra final, para armar `${NOMINATIM_URL}/reverse`.
+    NOMINATIM_URL: z
+      .url()
+      .default('https://nominatim.openstreetmap.org')
+      .transform((url) => url.replace(/\/+$/, '')),
+    // El servicio público rechaza los pedidos que no dicen de qué aplicación vienen.
+    NOMINATIM_USER_AGENT: z.string().min(1).default('SnapIt/1.0 (+https://github.com/JuanEspinoza8/SNAPIT)'),
+    // IA (Claude). Sin clave el servidor arranca igual: cada consulta a la IA falla con IaNoDisponible.
+    ANTHROPIC_API_KEY: z
+      .string()
+      .optional()
+      .transform((clave) => clave || undefined),
+    IA_MODELO: z.string().min(1).default('claude-haiku-5-5'),
+    // Lo máximo que se espera una consulta, contando el reintento ante errores pasajeros.
+    IA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+    // Archivo de la cuenta de servicio de Firebase, relativo a donde se corre el servidor. Sin él el servidor
+    // arranca igual: los avisos se guardan y se listan, pero no salen al celular.
+    FIREBASE_CREDENCIALES: z
+      .string()
+      .optional()
+      .transform((ruta) => (ruta ? path.resolve(ruta) : undefined)),
+  })
+  .superRefine((datos, ctx) => {
+    if (datos.FOTOS_ALMACEN !== 'supabase') return;
+    for (const clave of ['SUPABASE_URL', 'SUPABASE_CLAVE_SECRETA'] as const) {
+      if (!datos[clave]) {
+        ctx.addIssue({ code: 'custom', path: [clave], message: 'Obligatoria con FOTOS_ALMACEN=supabase' });
+      }
+    }
+  });
 
 const resultado = esquema.safeParse(process.env);
 

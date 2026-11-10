@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
+import { almacenFotos } from '../src/compartido/almacenFotos.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { env } from '../src/config/env.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
@@ -98,6 +99,17 @@ describe('GET /api/fotos/:id sin sesión', () => {
     expect(res.headers['content-type']).toBe('image/jpeg');
     expect(res.headers['cache-control']).toBe('public, max-age=3600');
     expect(res.headers.vary).toContain('Authorization');
+  });
+
+  it('si el archivo ya no está, responde 404 aunque la fila exista', async () => {
+    const { fotoId } = await reporteConFoto();
+    const foto = await prisma.fotografia.findUniqueOrThrow({ where: { id: fotoId } });
+    await almacenFotos.borrar(foto.rutaArchivo);
+
+    const res = await bajar(fotoId);
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.codigo).toBe('FOTO_NO_ENCONTRADA');
   });
 
   it('la foto de un reporte desestimado no se sirve, aunque su incidente siga en el mapa', async () => {
