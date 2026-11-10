@@ -32,7 +32,7 @@ Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá
 | Semáforo que no funciona | Tránsito | Temporal | 7 días | 1,60 |
 | Señal de tránsito caída o faltante | Tránsito | Permanente | — | 1,10 |
 | Senda peatonal despintada | Tránsito | Permanente | — | 1,00 |
-| Otro problema en la vía pública | Atención general | Temporal | 30 días | 1,00 |
+| Otro problema en la vía pública | Atención general | Permanente | — | 1,00 |
 
 - **Vigencia temporal:** el incidente vence `dias_caducidad_default` días después de creado (si la categoría no los define, `vigencia.dias_default`). Cuando un vecino confirma que el problema sigue, la vigencia se renueva.
 - **Peso de severidad:** cuánto pesa la categoría en el factor de severidad de la prioridad. Un peso mayor sube la prioridad de los incidentes de esa categoría.
@@ -221,6 +221,8 @@ El reporte se suma al candidato de mayor puntaje si **supera** `umbral` (justo e
 | Mismo lugar, hace 25 días, otra foto | 0,5 + 0,03 + 0 = 0,53 | Se agrupa |
 | A 30 m o más | — | No es candidato |
 
+**Límite conocido: «Otro problema en la vía pública».** La agrupación da por hecho que la misma categoría es el mismo tipo de problema, y en la de último recurso no lo es. Dos problemas distintos de esa categoría, cerca y con pocos días de diferencia, se agrupan aunque las fotos no se parezcan: a 5 m y con un día, 0,42 + 0,19 + 0 = 0,61. El operador saca el reporte a un incidente nuevo (separar, #55).
+
 Dos reportes de la misma categoría que llegan a la vez se procesan de a uno (un bloqueo por categoría en la base): así el segundo ve el incidente que abrió el primero. Si algo falla en la transacción, incluido el recálculo de la prioridad, no queda nada: ni el reporte ni el cambio del incidente. Unir, deshacer una unión y separar un reporte toman el mismo bloqueo.
 
 ### Estado del incidente según sus reportes
@@ -278,7 +280,7 @@ Además de la transición, el operador no trabaja un incidente unido a otro (se 
 
 **Cambiar la categoría** (#66) no es un cambio de estado. Queda como un `COMENTARIO` («Categoría cambiada de X a Y»), porque no hay un tipo de movimiento propio, y recalcula la prioridad: el peso de la categoría entra en la severidad. Si el incidente todavía no se derivó, pasa al área de la categoría nueva. La categoría de cada reporte, la que eligió el vecino, no cambia. Desde el cambio, los reportes nuevos de la categoría nueva se pueden sumar al incidente y los de la vieja no.
 
-**Límite conocido:** la vigencia no cambia con la categoría. El incidente conserva la que tomó al nacer (si la categoría vieja era temporal, sigue venciendo en la misma fecha).
+**Límite conocido:** la vigencia no cambia con la categoría. El incidente conserva la que tomó al nacer (si la categoría vieja era temporal, sigue venciendo en la misma fecha). Por eso «Otro problema en la vía pública», la que el operador más va a reclasificar, es permanente: si fuera temporal, el incidente reclasificado desaparecería al vencer aunque ahora fuera, por ejemplo, un pozo.
 
 ### Prioridad del incidente
 
