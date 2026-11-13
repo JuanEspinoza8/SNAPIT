@@ -714,6 +714,7 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   "primerReporteEn": "2026-10-06T15:15:33.494Z",
   "cantidadReportes": 1,
   "cantidadVecinos": 1,
+  "cantidadConfirmaciones": 2,
   "direccion": "Lago Huechulafquen, Villa Ceferino",
   "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
   "fotoCierre": null,
@@ -723,6 +724,7 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
 
 - `severidad`: la gravedad consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`).
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
+- `cantidadConfirmaciones`: cuántos vecinos distintos confirmaron que el problema sigue (el botón «Sigue estando»), sumando los incidentes que se le unieron. Cuenta también a los que lo reportaron.
 - `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` ya incluye `/api`: la web la usa tal cual (pasa por el proxy); la app, que tiene la base terminada en `/api`, arma `fotos/<id>` sobre esa base.
 - `resueltoEn`: cuándo se resolvió (F09); `null` mientras no esté `RESUELTO`.
 - `fotoCierre`: la foto del después (F09), la que cerró el incidente, para mostrarla junto a `fotos` (el antes). `null` mientras el incidente no esté `RESUELTO`: los intentos de cierre rechazados u observados no se publican.
@@ -778,6 +780,28 @@ Responde **200**:
 - `cantidadMeGusta` suma los de todos sus reportes; `cantidadComentarios`, los de sus reportes más los del incidente y los de sus unidos. Con la misma regla que las fotos: sin reportes desestimados ni eliminados, y sin comentarios eliminados. El detalle de cada uno está en [Social](#social).
 
 Un `cursor` que no se puede leer, un `limite` fuera de rango o un filtro inválido: **400** `DATOS_INVALIDOS` con `detalles`.
+
+### `POST /api/incidentes/:id/confirmaciones` · `GET /api/incidentes/:id/confirmacion`
+Un vecino confirma que el problema sigue (F12), una sola vez por incidente, y la ficha pregunta si ya lo hizo. Requieren sesión de `VECINO`: sin sesión, **401**; operador o administrador, **403**. Igual que la ficha, pedir un incidente unido a otro es pedir el principal.
+
+`POST` no lleva cuerpo. Responde **201** con el principal y el contador nuevo de la ficha:
+
+```json
+{ "incidenteId": 9, "cantidadConfirmaciones": 3 }
+```
+
+- En un incidente temporal renueva la vigencia: vence a los días de su categoría contados desde ahora, salvo que ya venciera más tarde. Uno permanente no cambia.
+- Recalcula la prioridad. La confirmación de quien ya lo reportó renueva la vigencia pero no suma evidencia (EVIDENCIAS en [`calculos.md`](calculos.md)).
+- Se puede confirmar uno pendiente de revisión (`enRevision`), porque se ve en el mapa.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 404 | `INCIDENTE_NO_ENCONTRADO` | No existe |
+| 409 | `INCIDENTE_CERRADO` | Está resuelto o desestimado |
+| 409 | `INCIDENTE_CADUCADO` | Caducó o se le venció la vigencia, aunque la tarea diaria todavía no lo haya marcado |
+| 409 | `YA_CONFIRMADO` | El vecino ya lo confirmó, o confirmó uno de los incidentes que se le unieron |
+
+`GET` responde **200** con `{ "confirmado": true }`, contando también lo que confirmó en los incidentes que se le unieron. Inexistente: **404**.
 
 ### `POST /api/incidentes/:id/union`
 Un operador marca que el incidente `:id` es el mismo problema que otro, el **principal** (F05). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, y los dos incidentes tienen que ser de su organismo.

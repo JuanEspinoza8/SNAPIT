@@ -1,8 +1,8 @@
 import type { Prisma } from '@prisma/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { logger } from '../src/config/logger.js';
-import { vigenciaSegunCategoria } from '../src/modulos/incidentes/calculo.js';
-import { vigenciaDeCategoria } from '../src/modulos/incidentes/vigencia.js';
+import { vigenciaRenovada, vigenciaSegunCategoria } from '../src/modulos/incidentes/calculo.js';
+import { vigenciaAlConfirmar, vigenciaDeCategoria } from '../src/modulos/incidentes/vigencia.js';
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 const desde = new Date('2026-11-10T12:00:00Z');
@@ -25,6 +25,37 @@ describe('vigenciaSegunCategoria', () => {
     expect(
       vigenciaSegunCategoria({ tipoVigenciaDefault: 'TEMPORAL', diasCaducidadDefault: null }, desde, 30),
     ).toEqual({ tipoVigencia: 'TEMPORAL', vigenteHasta: dentroDe(30) });
+  });
+});
+
+describe('vigenciaRenovada', () => {
+  // `desde` hace de «ahora»: el momento en que el vecino confirma.
+  const conDias = (dias: number | null) => ({ diasCaducidadDefault: dias });
+  const temporal = (vigenteHasta: Date | null) => ({ tipoVigencia: 'TEMPORAL', vigenteHasta }) as const;
+
+  it('un permanente queda igual, aunque su categoría tenga días cargados', () => {
+    const permanente = { tipoVigencia: 'PERMANENTE', vigenteHasta: null } as const;
+    expect(vigenciaRenovada(permanente, conDias(7), desde, 30)).toEqual(permanente);
+  });
+
+  it('un temporal pasa a vencer a los días de su categoría contados desde ahora', () => {
+    expect(vigenciaRenovada(temporal(dentroDe(2)), conDias(7), desde, 30)).toEqual(temporal(dentroDe(7)));
+  });
+
+  it('si ya vencía más tarde, conserva su fecha: confirmar nunca acorta la vigencia', () => {
+    expect(vigenciaRenovada(temporal(dentroDe(20)), conDias(7), desde, 30)).toEqual(temporal(dentroDe(20)));
+  });
+
+  it('si vencía justo en ahora + días, queda igual', () => {
+    expect(vigenciaRenovada(temporal(dentroDe(7)), conDias(7), desde, 30)).toEqual(temporal(dentroDe(7)));
+  });
+
+  it('con una categoría sin días usa los días por defecto', () => {
+    expect(vigenciaRenovada(temporal(dentroDe(2)), conDias(null), desde, 30)).toEqual(temporal(dentroDe(30)));
+  });
+
+  it('un temporal sin fecha (la base no lo permite) recibe una', () => {
+    expect(vigenciaRenovada(temporal(null), conDias(7), desde, 30)).toEqual(temporal(dentroDe(7)));
   });
 });
 
@@ -71,5 +102,12 @@ describe('vigenciaDeCategoria', () => {
     expect((await vigenciaDeCategoria(categoria, desde, conParametro('12'))).vigenteHasta).toEqual(
       dentroDe(7),
     );
+  });
+
+  it('al confirmar, un temporal cuya categoría no tiene días renueva con vigencia.dias_default', async () => {
+    const vigencia = { tipoVigencia: 'TEMPORAL', vigenteHasta: dentroDe(2) } as const;
+    expect(
+      await vigenciaAlConfirmar(vigencia, { diasCaducidadDefault: null }, desde, conParametro('12')),
+    ).toEqual({ tipoVigencia: 'TEMPORAL', vigenteHasta: dentroDe(12) });
   });
 });
