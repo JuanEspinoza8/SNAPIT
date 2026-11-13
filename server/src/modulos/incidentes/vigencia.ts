@@ -1,7 +1,7 @@
 import type { Categoria, Prisma } from '@prisma/client';
 import { type DefinicionParametros, leerParametrosNumericos } from '../../compartido/parametros.js';
 import { prisma } from '../../compartido/prisma.js';
-import { type Vigencia, vigenciaSegunCategoria } from './calculo.js';
+import { type Vigencia, vigenciaRenovada, vigenciaSegunCategoria } from './calculo.js';
 
 // El mismo valor que carga la semilla: si falta el parámetro, antes que rechazar el reporte se usa este.
 const PARAMETROS: DefinicionParametros<'diasPorDefecto'> = {
@@ -24,4 +24,18 @@ export async function vigenciaDeCategoria(
 ): Promise<Vigencia> {
   const { diasPorDefecto } = await leerParametrosNumericos(PARAMETROS, cliente);
   return vigenciaSegunCategoria(categoria, desde, diasPorDefecto);
+}
+
+/**
+ * La vigencia del incidente después de que un vecino confirma que sigue (vigenciaRenovada), con
+ * vigencia.dias_default si su categoría no define días. Dentro de una transacción hay que pasarle `tx`.
+ */
+export async function vigenciaAlConfirmar(
+  vigencia: Vigencia,
+  categoria: Pick<Categoria, 'diasCaducidadDefault'>,
+  ahora: Date,
+  cliente: Prisma.TransactionClient = prisma,
+): Promise<Vigencia> {
+  const { diasPorDefecto } = await leerParametrosNumericos(PARAMETROS, cliente);
+  return vigenciaRenovada(vigencia, categoria, ahora, diasPorDefecto);
 }
