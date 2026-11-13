@@ -2,6 +2,7 @@ import { app } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { prisma } from './compartido/prisma.js';
+import { iniciarCaducidadDiaria } from './tareas/caducidadDiaria.js';
 import { iniciarDireccionesPendientes } from './tareas/direccionesPendientes.js';
 import { iniciarPrioridadDiaria } from './tareas/prioridadDiaria.js';
 
@@ -17,6 +18,7 @@ const servidor = app.listen(env.PORT, (error) => {
 // Las tareas van acá y no en app.ts: los tests usan la app sin que corran.
 iniciarDireccionesPendientes();
 iniciarPrioridadDiaria();
+iniciarCaducidadDiaria();
 
 // Al cerrar (Ctrl+C o docker stop) se terminan las peticiones en curso y se cierra la base.
 function apagar(senal: string) {

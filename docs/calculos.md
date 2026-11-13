@@ -35,6 +35,11 @@ Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá
 | Otro problema en la vía pública | Atención general | Permanente | — | 1,00 |
 
 - **Vigencia temporal:** el incidente vence `dias_caducidad_default` días después de creado o de que el operador le cambió la categoría (si la categoría no los define, `vigencia.dias_default`; si ese parámetro falta o no es un entero positivo, 30 días y un aviso en el log). Cuando un vecino confirma que el problema sigue, la vigencia se renueva: `vigente_hasta = max(vigente_hasta, ahora + días)`, con los mismos días. Confirmar nunca la acorta, y un permanente no cambia (#154, `vigenciaRenovada` en `server/src/modulos/incidentes/calculo.ts`). Uno resuelto, desestimado, caducado o vencido no se puede confirmar: un temporal vencido no revive.
+- **Caducidad** (#155, `server/src/tareas/caducidadDiaria.ts`): todos los días a las 03:00 de Argentina, y al arrancar el servidor, se marca `caducado_en` en los temporales vencidos que no están resueltos, desestimados ni unidos a otro (`POR_CADUCAR` en `server/src/modulos/incidentes/repositorio.ts`). Un permanente nunca caduca.
+  - `caducado_en` es la fecha en que venció (`vigente_hasta`), no la de la tarea. Queda un movimiento `COMENTARIO` del sistema en la bitácora («Caducó: venció su vigencia.»). El estado no cambia, no se recalcula la prioridad y no se avisa al vecino.
+  - Desde que vence, el mapa, el feed, la bandeja, la agrupación, la prioridad y los recorridos ya lo dejan afuera, aunque la tarea todavía no lo haya marcado (`INCIDENTE_VISIBLE`).
+  - Cada incidente va en su propia transacción, y el `UPDATE` vuelve a mirar el criterio: correrla dos veces, o dos a la vez, no duplica el movimiento. Si uno falla, se deja el error en el log con su id y se sigue con los demás.
+  - Para correrla a mano: `npm run tarea:caducidad` desde `server/`, o `docker compose exec server node dist/tareas/caducarVencidos.js` en Docker. Termina con código 1 si algún incidente falló.
 - **Peso de severidad:** cuánto pesa la categoría en el factor de severidad de la prioridad. Un peso mayor sube la prioridad de los incidentes de esa categoría.
 
 ### Perfiles de movilidad y matriz categoría × perfil
