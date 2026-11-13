@@ -8,9 +8,9 @@ import * as agrupacion from '../agrupacion/repositorio.js';
 import { recalcularEstado } from '../agrupacion/repositorio.js';
 import { vincularIncidente } from '../red/repositorio.js';
 import { insertarIncidente, transaccion } from '../reportes/repositorio.js';
-import { vigenciaDeCategoria } from '../reportes/servicio.js';
 import { esquemaId } from './esquemas.js';
 import { avisarCambioIncidente } from './eventos.js';
+import { vigenciaDeCategoria } from './vigencia.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -170,7 +170,7 @@ export async function separarReporte(sesion: UsuarioSesion, parametros: unknown,
       severidad: reporte.severidad,
       lat: reporte.lat,
       lon: reporte.lon,
-      ...(await vigenciaDeCategoria(categoria, reporte.llegadaEn)),
+      ...(await vigenciaDeCategoria(categoria, reporte.llegadaEn, tx)),
       primerReporteEn: reporte.registradoEn,
     });
     const ahora = new Date();

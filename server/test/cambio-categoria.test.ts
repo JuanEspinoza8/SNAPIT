@@ -1,11 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import type { Area, Categoria, Usuario } from '@prisma/client';
+import type { Area, Categoria, TipoVigencia, Usuario } from '@prisma/client';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
-import { borrarReportesDe, crearOrganismoDePrueba, crearUsuario, reportarEn, tokenDe } from './apoyo.js';
+import {
+  borrarReportesDe,
+  crearOrganismoDePrueba,
+  crearUsuario,
+  diasVigenciaPorDefecto,
+  reportarEn,
+  tokenDe,
+} from './apoyo.js';
 
 // La dirección no se consulta: no hace falta para cambiar la categoría.
 vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
@@ -170,5 +177,65 @@ describe('PUT /api/incidentes/:id/categoria', () => {
     expect((await cambiar(ajeno, { categoriaId: otro.categoria.id })).status).toBe(403);
     expect((await cambiar(2_000_000_000, { categoriaId: nueva.id })).status).toBe(404);
     expect((await cambiar(ajeno, { categoriaId: nueva.id }, await tokenDe('VECINO'))).status).toBe(403);
+  });
+
+  describe('la vigencia pasa a ser la de la categoría nueva, contada desde el cambio', () => {
+    const DIA_MS = 24 * 60 * 60 * 1000;
+
+    const crearCategoria = (tipoVigenciaDefault: TipoVigencia, diasCaducidadDefault: number | null) =>
+      prisma.categoria.create({
+        data: { nombre: `Obra ${randomUUID()}`, areaId: area.id, tipoVigenciaDefault, diasCaducidadDefault },
+      });
+    const vigenciaDe = (id: number) =>
+      prisma.incidente.findUniqueOrThrow({
+        where: { id },
+        select: { tipoVigencia: true, vigenteHasta: true },
+      });
+
+    /** Cambia la categoría y comprueba que el incidente vence a `dias` contados desde el cambio. */
+    async function cambiarYEsperarVencimiento(id: number, categoriaId: number, dias: number) {
+      const antes = Date.now();
+      expect((await cambiar(id, { categoriaId })).status).toBe(200);
+      const { tipoVigencia, vigenteHasta } = await vigenciaDe(id);
+      expect(tipoVigencia).toBe('TEMPORAL');
+      expect(vigenteHasta!.getTime()).toBeGreaterThanOrEqual(antes + dias * DIA_MS);
+      expect(vigenteHasta!.getTime()).toBeLessThanOrEqual(Date.now() + dias * DIA_MS);
+    }
+
+    it('a una permanente deja de vencer', async () => {
+      const obra = await crearCategoria('TEMPORAL', 10);
+      const id = (await reportar(0, { categoriaId: obra.id })).incidenteId;
+      expect((await vigenciaDe(id)).tipoVigencia).toBe('TEMPORAL');
+
+      expect((await cambiar(id, { categoriaId: nueva.id })).status).toBe(200);
+
+      expect(await vigenciaDe(id)).toEqual({ tipoVigencia: 'PERMANENTE', vigenteHasta: null });
+    });
+
+    it('a una temporal vence a sus días, no en la fecha que tenía con la de antes', async () => {
+      const obra = await crearCategoria('TEMPORAL', 10);
+      const id = (await reportar(0, { categoriaId: obra.id })).incidenteId;
+      // Como si hubiera nacido hace 8 días: con la de antes le quedarían 2.
+      await prisma.incidente.update({
+        where: { id },
+        data: { vigenteHasta: new Date(Date.now() + 2 * DIA_MS) },
+      });
+
+      await cambiarYEsperarVencimiento(id, (await crearCategoria('TEMPORAL', 7)).id, 7);
+    });
+
+    it('de una permanente a una temporal vence a los días de la nueva', async () => {
+      const id = (await reportar()).incidenteId;
+      expect(await vigenciaDe(id)).toEqual({ tipoVigencia: 'PERMANENTE', vigenteHasta: null });
+
+      await cambiarYEsperarVencimiento(id, (await crearCategoria('TEMPORAL', 7)).id, 7);
+    });
+
+    it('a una temporal sin días vence a los de vigencia.dias_default', async () => {
+      const id = (await reportar()).incidenteId;
+      const sinDias = await crearCategoria('TEMPORAL', null);
+
+      await cambiarYEsperarVencimiento(id, sinDias.id, await diasVigenciaPorDefecto());
+    });
   });
 });

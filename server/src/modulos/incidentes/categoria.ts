@@ -9,14 +9,15 @@ import { registrarMovimiento } from './bitacora.js';
 import { esquemaId } from './esquemas.js';
 import { avisarCambioIncidente } from './eventos.js';
 import { bloquearParaGestion, comentarioOpcional, datosInvalidos, idEnCuerpo } from './gestion.js';
+import { vigenciaDeCategoria } from './vigencia.js';
 
 const esquemaCategoria = z.object({ categoriaId: idEnCuerpo, comentario: comentarioOpcional });
 
 /**
  * El operador corrige la categoría de un incidente abierto (F06). La que eligió cada vecino en su reporte no
  * cambia. No hay un tipo de movimiento para esto: queda un COMENTARIO con la categoría de antes y la nueva.
- * Se recalcula la prioridad, porque la categoría pesa en la severidad. La vigencia no cambia: es la que el
- * incidente tomó al nacer.
+ * Se recalcula la prioridad, porque la categoría pesa en la severidad. La vigencia pasa a ser la de la categoría
+ * nueva, contada desde el cambio (§7.6): si es temporal vence a sus días, y si es permanente ya no vence.
  */
 export async function cambiarCategoria(sesion: UsuarioSesion, parametros: unknown, cuerpo: unknown) {
   const { id } = validar(esquemaId, parametros);
@@ -49,6 +50,8 @@ export async function cambiarCategoria(sesion: UsuarioSesion, parametros: unknow
         id: true,
         nombre: true,
         activa: true,
+        tipoVigenciaDefault: true,
+        diasCaducidadDefault: true,
         area: { select: { id: true, nombre: true, organismoId: true } },
       },
     });
@@ -65,7 +68,9 @@ export async function cambiarCategoria(sesion: UsuarioSesion, parametros: unknow
       where: { id: incidente.categoriaId },
       select: { nombre: true },
     });
-    await tx.incidente.update({ where: { id }, data: { categoriaId, actualizadoEn: new Date() } });
+    const ahora = new Date();
+    const vigencia = await vigenciaDeCategoria(nueva, ahora, tx);
+    await tx.incidente.update({ where: { id }, data: { categoriaId, ...vigencia, actualizadoEn: ahora } });
     const nota = comentario ? `: ${comentario}` : '';
     const movimiento = await registrarMovimiento(tx, {
       incidenteId: id,
