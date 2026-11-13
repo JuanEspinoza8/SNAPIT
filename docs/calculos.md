@@ -34,7 +34,7 @@ Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá
 | Senda peatonal despintada | Tránsito | Permanente | — | 1,00 |
 | Otro problema en la vía pública | Atención general | Permanente | — | 1,00 |
 
-- **Vigencia temporal:** el incidente vence `dias_caducidad_default` días después de creado o de que el operador le cambió la categoría (si la categoría no los define, `vigencia.dias_default`; si ese parámetro falta o no es un entero positivo, 30 días y un aviso en el log). Cuando un vecino confirma que el problema sigue, la vigencia se renueva.
+- **Vigencia temporal:** el incidente vence `dias_caducidad_default` días después de creado o de que el operador le cambió la categoría (si la categoría no los define, `vigencia.dias_default`; si ese parámetro falta o no es un entero positivo, 30 días y un aviso en el log). Cuando un vecino confirma que el problema sigue, la vigencia se renueva: `vigente_hasta = max(vigente_hasta, ahora + días)`, con los mismos días. Confirmar nunca la acorta, y un permanente no cambia (#154, `vigenciaRenovada` en `server/src/modulos/incidentes/calculo.ts`). Uno resuelto, desestimado, caducado o vencido no se puede confirmar: un temporal vencido no revive.
 - **Peso de severidad:** cuánto pesa la categoría en el factor de severidad de la prioridad. Un peso mayor sube la prioridad de los incidentes de esa categoría.
 
 ### Perfiles de movilidad y matriz categoría × perfil
@@ -307,11 +307,12 @@ Cada incidente tiene un **puntaje** que lo ordena en la bandeja y un **desglose*
 | Factor | Cuenta | De dónde sale cada dato |
 |---|---|---|
 | `SEVERIDAD` | `peso_severidad × nivel / 3 × peso de la categoría` | `nivel`: 1 si es leve, 2 si es moderada y 3 si es grave (la severidad consolidada del incidente). El peso de la categoría es `categoria.peso_severidad_base` |
-| `EVIDENCIAS` | `peso_evidencias × min(1, ln(1 + n) / ln(1 + tope_evidencias))` | `n` = reportes no desestimados (`cantidad_reportes`, con los de los incidentes unidos) + vecinos distintos que lo confirmaron (también en los unidos) |
+| `EVIDENCIAS` | `peso_evidencias × min(1, ln(1 + n) / ln(1 + tope_evidencias))` | `n` = reportes no desestimados (`cantidad_reportes`, con los de los incidentes unidos) + vecinos distintos que lo confirmaron (también en los unidos) sin tener un reporte que ya cuenta |
 | `ANTIGUEDAD` | `peso_antiguedad × min(1, días / tope_antiguedad_dias)` | `días`: días completos desde `primer_reporte_en` |
 | `CONTEXTO_URBANO` | `peso_contexto × factor del punto` | El punto de interés a no más de `radio_contexto_m` con el mayor `factor_*` de su tipo; ante un empate, el más cercano. Sin ninguno, 0 |
 
 - **Evidencias con logaritmo:** los primeros reportes y confirmaciones dicen mucho y los siguientes cada vez menos. Con un reporte suma un cuarto del peso (ln 2 / ln 16), con cinco casi dos tercios, y desde `tope_evidencias` el peso entero.
+- **Cada vecino confirma una vez** (#154): la confirmación de quien ya tiene un reporte no desestimado en el incidente o en uno de sus unidos renueva la vigencia pero no suma evidencia, porque ese vecino ya cuenta por su reporte. Se mira en cada recálculo: si después le desestiman el reporte, pasa a contar su confirmación. Límite conocido: un vecino con dos reportes válidos en el mismo incidente suma 2, porque los reportes salen de `cantidad_reportes`.
 - **Días completos:** 10 días y medio cuentan como 10. Así el número del texto coincide con la cuenta, y el valor cambia una vez por día.
 - **Un solo punto de interés:** cuenta el más relevante, no la suma. Diez paradas juntas no valen más que una escuela. Para eso alcanza con buscar el más cercano de cada tipo (`ST_DWithin` sobre el índice GIST de `punto_interes`).
 
@@ -345,7 +346,7 @@ Cada factor guarda un texto que se entiende sin conocer la fórmula. Los número
 
 **Máximo:** `puntaje_prioridad` y `factor_prioridad.valor` son `numeric(6,2)`, así que cada factor y el puntaje se recortan a 9999,99. Con los valores de partida el máximo es 40 × peso de la categoría + 60: 120 para un pozo, y 4059,6 con el peso más alto que admite `categoria.peso_severidad_base` (99,99). Solo se llega al tope con pesos fuera de escala, y entonces la suma del desglose puede pasar el puntaje.
 
-**Cuándo se recalcula:** en la misma transacción que el cambio, cada vez que un reporte se suma al incidente, un reporte se verifica o se desestima, se une o se deshace una unión, se separa un reporte, y cuando el operador lo deriva, lo pasa a ejecución o le cambia la categoría (`alCambiarIncidente` en `incidentes/eventos.ts`). Se guarda `puntaje_prioridad` y se **reemplazan** las filas de `factor_prioridad` del incidente: es el único borrado del sistema, porque son datos derivados y la tabla no tiene fecha (decisión del 01/10). Si el recálculo falla, no queda nada del cambio. Un incidente resuelto o desestimado no se recalcula: su desglose queda como estaba al cerrarse.
+**Cuándo se recalcula:** en la misma transacción que el cambio, cada vez que un reporte se suma al incidente, un reporte se verifica o se desestima, se une o se deshace una unión, se separa un reporte, un vecino confirma que sigue, y cuando el operador lo deriva, lo pasa a ejecución o le cambia la categoría (`alCambiarIncidente` en `incidentes/eventos.ts`). Se guarda `puntaje_prioridad` y se **reemplazan** las filas de `factor_prioridad` del incidente: es el único borrado del sistema, porque son datos derivados y la tabla no tiene fecha (decisión del 01/10). Si el recálculo falla, no queda nada del cambio. Un incidente resuelto o desestimado no se recalcula: su desglose queda como estaba al cerrarse.
 
 **Recálculo diario** (#63, `server/src/tareas/prioridadDiaria.ts`): la antigüedad crece con los días aunque nadie toque el incidente, así que todos los días a las 03:00 de Argentina se recalculan los incidentes abiertos. Son los que no están resueltos ni desestimados, ni unidos a otro, ni caducados o vencidos: los demás no están en la bandeja, y un unido se recalcula solo si se deshace la unión. También corre al arrancar el servidor, por si estaba apagado a esa hora.
 

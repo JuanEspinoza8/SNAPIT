@@ -213,6 +213,34 @@ export async function contarVecinos(id: number) {
   return Number(fila?.cantidad ?? 0);
 }
 
+// --- Confirmaciones (F12, #154) ---
+
+/**
+ * Las confirmaciones del incidente y de los que se le unieron: quien confirmó el duplicado confirmó el mismo
+ * problema, como pasa con los seguimientos. Quedan con el alias `c`. La usa también la prioridad.
+ */
+export const CONFIRMACIONES_DEL_INCIDENTE = (id: number) => Prisma.sql`
+  FROM confirmacion_incidente c
+  JOIN incidente confirmado ON confirmado.id = c.incidente_id
+  WHERE (confirmado.id = ${id} OR confirmado.incidente_principal_id = ${id})`;
+
+/** Vecinos distintos que confirmaron el incidente o uno de sus unidos: el contador de la ficha. */
+export async function contarConfirmaciones(id: number, cliente: Prisma.TransactionClient = prisma) {
+  const [fila] = await cliente.$queryRaw<{ cantidad: bigint }[]>`
+    SELECT count(DISTINCT c.usuario_id) AS cantidad ${CONFIRMACIONES_DEL_INCIDENTE(id)}`;
+  return Number(fila?.cantidad ?? 0);
+}
+
+export async function yaConfirmo(usuarioId: number, id: number, cliente: Prisma.TransactionClient = prisma) {
+  const [fila] = await cliente.$queryRaw<{ confirmo: boolean }[]>`
+    SELECT EXISTS (SELECT 1 ${CONFIRMACIONES_DEL_INCIDENTE(id)} AND c.usuario_id = ${usuarioId}) AS confirmo`;
+  return fila?.confirmo ?? false;
+}
+
+export function insertarConfirmacion(tx: Prisma.TransactionClient, incidenteId: number, usuarioId: number) {
+  return tx.confirmacionIncidente.create({ data: { incidenteId, usuarioId } });
+}
+
 /** La foto que cerró el incidente (la última del cierre), si quedó RESUELTO. */
 export async function buscarFotoCierre(id: number) {
   const [fila] = await prisma.$queryRaw<{ id: number | null }[]>`
