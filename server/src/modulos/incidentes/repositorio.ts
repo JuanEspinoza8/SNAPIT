@@ -40,7 +40,7 @@ export const CADUCO_EN = Prisma.sql`
  * está después de la última coma de la dirección, o la dirección entera si no tiene coma. Null mientras
  * la dirección no se completó. Va con el alias `i`.
  */
-const BARRIO = Prisma.sql`
+export const BARRIO = Prisma.sql`
   CASE WHEN i.direccion IS NOT NULL
        THEN coalesce(nullif(btrim(substring(i.direccion from '[^,]*$')), ''), ${SIN_BARRIO})
   END`;

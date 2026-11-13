@@ -89,7 +89,7 @@ type Tx = Prisma.TransactionClient;
  * alias `r` (reporte), `i` (incidente que manda) y `a` (área responsable): la del área a la que se derivó
  * o, si todavía no se derivó, la de su categoría, como en las fotos (#49) y la bandeja.
  */
-const DEL_ORGANISMO = Prisma.sql`
+export const DEL_ORGANISMO = Prisma.sql`
   FROM reporte r
   LEFT JOIN incidente propio ON propio.id = r.incidente_id
   LEFT JOIN incidente i ON i.id = coalesce(propio.incidente_principal_id, propio.id)
