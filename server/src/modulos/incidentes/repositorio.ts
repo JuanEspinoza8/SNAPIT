@@ -15,6 +15,27 @@ export const INCIDENTE_VISIBLE = Prisma.sql`
   AND (i.vigente_hasta IS NULL OR i.vigente_hasta > now())`;
 
 /**
+ * Los que la tarea diaria tiene que caducar (F12, #155): temporales vencidos, todavía sin marcar, que no están
+ * resueltos, desestimados ni unidos a otro. Un permanente nunca caduca, aunque tenga una fecha cargada.
+ * Va con el alias `i`.
+ */
+export const POR_CADUCAR = Prisma.sql`
+  i.caducado_en IS NULL
+  AND i.tipo_vigencia = 'TEMPORAL'
+  AND i.vigente_hasta <= now()
+  AND i.estado NOT IN ('RESUELTO', 'DESESTIMADO')
+  AND i.incidente_principal_id IS NULL`;
+
+/**
+ * Cuándo caducó el incidente: la marca de la tarea diaria o, si todavía no corrió, cuándo venció. Null si no
+ * caducó, si se resolvió o desestimó antes de vencer, o si no hay incidente. Va con el alias `i`.
+ */
+export const CADUCO_EN = Prisma.sql`
+  CASE WHEN i.caducado_en IS NOT NULL THEN i.caducado_en
+       WHEN ${POR_CADUCAR} THEN i.vigente_hasta
+  END`;
+
+/**
  * El barrio del incidente, con la misma regla que extraerBarrio() (geocodificacion/calculo.ts): lo que
  * está después de la última coma de la dirección, o la dirección entera si no tiene coma. Null mientras
  * la dirección no se completó. Va con el alias `i`.
@@ -239,6 +260,27 @@ export async function yaConfirmo(usuarioId: number, id: number, cliente: Prisma.
 
 export function insertarConfirmacion(tx: Prisma.TransactionClient, incidenteId: number, usuarioId: number) {
   return tx.confirmacionIncidente.create({ data: { incidenteId, usuarioId } });
+}
+
+// --- Caducidad (F12, #155) ---
+
+/** Los incidentes que la tarea diaria tiene que caducar. */
+export async function listarVencidos() {
+  const filas = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT i.id FROM incidente i WHERE ${POR_CADUCAR} ORDER BY i.id`;
+  return filas.map((fila) => fila.id);
+}
+
+/**
+ * Marca el incidente como caducado, con la fecha en que venció. El UPDATE vuelve a mirar el criterio: si entre la
+ * lista y su turno se cerró, se unió a otro o ya lo marcó otra corrida, no cambia nada y devuelve false.
+ */
+export async function marcarCaducado(tx: Prisma.TransactionClient, id: number) {
+  const marcados = await tx.$executeRaw`
+    UPDATE incidente i
+    SET caducado_en = i.vigente_hasta, actualizado_en = now()
+    WHERE i.id = ${id} AND ${POR_CADUCAR}`;
+  return marcados === 1;
 }
 
 /** La foto que cerró el incidente (la última del cierre), si quedó RESUELTO. */
