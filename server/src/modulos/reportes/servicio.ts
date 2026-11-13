@@ -262,6 +262,7 @@ export async function listarMisReportes(usuarioId: number) {
               id: fila.incidenteId,
               estado: fila.incidenteEstado,
               enRevision: fila.incidenteEstado === 'REGISTRADO',
+              caducadoEn: fila.incidenteCaducadoEn,
             },
     })),
   };
