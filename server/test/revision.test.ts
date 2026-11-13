@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
+import { caducarIncidentes } from '../src/modulos/incidentes/caducidad.js';
 import { alCambiarIncidente } from '../src/modulos/incidentes/eventos.js';
 import { calcularReputacion } from '../src/modulos/verificacion/calculo.js';
 import { borrarReportesDe, crearUsuario } from './apoyo.js';
@@ -412,6 +413,25 @@ describe('GET /api/reportes', () => {
     expect(ids(verificados)).not.toContain(pendiente.id);
     expect(ids(deOtraCategoria)).toEqual([]);
     expect(ids(deEsta).sort()).toEqual([verificado.id, pendiente.id].sort());
+  });
+
+  it('dice cuándo caducó o venció el incidente del reporte, para que «Unir» no lo proponga', async () => {
+    const reporte = await reportar(await crearVecino(), { verificado: true });
+    const caducadoEn = async () =>
+      (await todos()).body.reportes.find((r: { id: number }) => r.id === reporte.id).incidente.caducadoEn;
+    expect(await caducadoEn()).toBeNull();
+
+    const vencio = new Date(Date.now() - 60_000);
+    await prisma.incidente.update({
+      where: { id: reporte.incidenteId },
+      data: { tipoVigencia: 'TEMPORAL', vigenteHasta: vencio },
+    });
+    // Vencido sin marcar, y después marcado por la tarea diaria: la fecha es la misma.
+    expect(await caducadoEn()).toBe(vencio.toISOString());
+    await caducarIncidentes([reporte.incidenteId]);
+    const incidente = await prisma.incidente.findUniqueOrThrow({ where: { id: reporte.incidenteId } });
+    expect(incidente.caducadoEn).toEqual(vencio);
+    expect(await caducadoEn()).toBe(vencio.toISOString());
   });
 
   it('no incluye los de otros organismos', async () => {

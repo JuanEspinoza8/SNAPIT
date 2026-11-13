@@ -76,6 +76,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 | `npm run importar:red` | Carga la red peatonal de la zona piloto desde OpenStreetMap (ver «Red peatonal») |
 | `npm run vincular:incidentes` | Recalcula qué tramos de la red obstruye cada incidente (ver «Red peatonal») |
 | `npm run tarea:prioridad` | Corre ya el recálculo diario de prioridad, que el servidor hace solo a las 03:00 y al arrancar |
+| `npm run tarea:caducidad` | Corre ya la caducidad diaria de los incidentes temporales vencidos, que el servidor hace sola a las 03:00 y al arrancar |
 | `npm test` | Tests con Vitest contra la base `snapit_test` (se crea sola) |
 | `npm run lint` | ESLint |
 | `npm run format` | Formatea con Prettier |
@@ -90,10 +91,11 @@ docker compose exec server node dist/semilla/index.js
 docker compose exec -e NODE_ENV=development server node dist/semilla/index.js
 ```
 
-El recálculo diario de prioridad también:
+El recálculo diario de prioridad y la caducidad diaria también:
 
 ```bash
 docker compose exec server node dist/tareas/recalcularPrioridad.js
+docker compose exec server node dist/tareas/caducarVencidos.js
 ```
 
 ### Correos en desarrollo
