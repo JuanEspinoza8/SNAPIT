@@ -8,13 +8,6 @@ export function buscarCategoriaActiva(id: number) {
   return prisma.categoria.findFirst({ where: { id, activa: true } });
 }
 
-/** El valor entero de un parámetro, o null si no está cargado o no es un entero. */
-export async function leerParametroEntero(clave: string) {
-  const parametro = await prisma.parametroSistema.findUnique({ where: { clave } });
-  const valor = Number(parametro?.valor);
-  return parametro && Number.isInteger(valor) ? valor : null;
-}
-
 /** La consulta a la IA que dio una sugerencia, y si ya la usó otro reporte. */
 export async function buscarSugerencia(registroIaId: number) {
   const registro = await prisma.registroIa.findUnique({

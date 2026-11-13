@@ -1,4 +1,4 @@
-import type { EstadoIncidente } from '@prisma/client';
+import type { Categoria, EstadoIncidente, TipoVigencia } from '@prisma/client';
 
 /**
  * Quién hace el cambio de estado:
@@ -25,4 +25,29 @@ const TRANSICIONES: Record<EstadoIncidente, Partial<Record<EstadoIncidente, ViaT
 /** Si el incidente puede pasar de `desde` a `hacia` por esa vía. */
 export function transicionValida(desde: EstadoIncidente, hacia: EstadoIncidente, via: ViaTransicion) {
   return TRANSICIONES[desde][hacia]?.includes(via) ?? false;
+}
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+export interface Vigencia {
+  tipoVigencia: TipoVigencia;
+  vigenteHasta: Date | null;
+}
+
+/**
+ * La vigencia que toma un incidente de la categoría (§7.6), contada desde `desde`: al nacer o al cambiarle la
+ * categoría. Un temporal (por ejemplo, una obra) vence a los días de su categoría, o a `diasPorDefecto` si
+ * ella no los define. Un permanente no vence. Como las dos columnas salen juntas de acá, un temporal siempre
+ * tiene vencimiento (el CHECK incidente_temporal_con_vencimiento).
+ */
+export function vigenciaSegunCategoria(
+  categoria: Pick<Categoria, 'tipoVigenciaDefault' | 'diasCaducidadDefault'>,
+  desde: Date,
+  diasPorDefecto: number,
+): Vigencia {
+  if (categoria.tipoVigenciaDefault !== 'TEMPORAL') {
+    return { tipoVigencia: categoria.tipoVigenciaDefault, vigenteHasta: null };
+  }
+  const dias = categoria.diasCaducidadDefault ?? diasPorDefecto;
+  return { tipoVigencia: 'TEMPORAL', vigenteHasta: new Date(desde.getTime() + dias * DIA_MS) };
 }
