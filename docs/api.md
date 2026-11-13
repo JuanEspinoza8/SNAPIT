@@ -391,7 +391,7 @@ Responde **200**, del más nuevo al más viejo (por `registradoEn`):
       "descripcion": "Pozo grande frente a la escuela",
       "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
       "estadoVerificacion": "PENDIENTE_REVISION",
-      "incidente": { "id": 9, "estado": "REGISTRADO", "enRevision": true }
+      "incidente": { "id": 9, "estado": "REGISTRADO", "enRevision": true, "caducadoEn": null }
     }
   ]
 }
@@ -400,6 +400,7 @@ Responde **200**, del más nuevo al más viejo (por `registradoEn`):
 - `estadoVerificacion`: qué pasó con **este reporte** (`VERIFICADO`, `PENDIENTE_REVISION` o `DESESTIMADO`).
 - `incidente`: qué pasa con **el problema** (`REGISTRADO`, `VERIFICADO`, `DERIVADO`, `EN_EJECUCION`, `RESUELTO` o `DESESTIMADO`). Si un operador unió el incidente a otro, viene el **principal**, que es el que sigue avanzando: su `id` puede no coincidir con el `incidenteId` que devolvió el `POST`.
 - `incidente` es `null` si el reporte quedó sin incidente.
+- `incidente.caducadoEn`: cuándo caducó el incidente (el principal, si se unió a otro), o `null`. Si la tarea diaria ya lo marcó, es su `caducado_en`; si es un temporal vencido que todavía no marcó, cuándo venció (es la misma fecha). Un incidente resuelto o desestimado antes de vencer tiene `null`. Un incidente con fecha acá no está en el mapa y su ficha pública da 404, así que no conviene ofrecer abrirla.
 - `fotos`: todas las del reporte. Se bajan de `GET /api/fotos/:id` **con la sesión** (`Authorization: Bearer ...`): así también se ven las de un reporte desestimado o las de un incidente que ya no está en el mapa, que sin sesión dan 404.
 - Un vecino sin reportes recibe `{ "reportes": [] }`.
 
@@ -476,7 +477,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
         { "tipo": "REPUTACION", "valor": 0, "detalle": "Reputación del vecino: 50 de 100" }
       ],
       "fotos": [{ "id": 12, "url": "/api/fotos/12" }],
-      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1, "propioId": 9 },
+      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1, "propioId": 9, "caducadoEn": null },
       "vecino": { "reputacion": 50, "reportesConfirmados": 0, "reportesDesestimados": 0 },
       "propuestaIa": null
     }
@@ -487,7 +488,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `senales`: por qué quedó con ese nivel, en el orden en que se calcularon (ver `docs/calculos.md`).
 - `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el incidente no esté en el mapa.
 - `vecino`: su historial, no quién es.
-- `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`).
+- `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`). `caducadoEn` dice cuándo caducó o venció el principal, o `null`, como en `GET /api/reportes/mios`: «Unir» no propone los que tienen fecha.
 - `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última clasificación: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
 - No trae los pendientes de un incidente resuelto o desestimado: ya no se revisan (ver «Incidente cerrado» en `docs/calculos.md`). Siguen en `GET /api/reportes`, pendientes.

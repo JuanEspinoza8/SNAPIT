@@ -26,6 +26,8 @@ async function vecino() {
 
 afterAll(() => borrarReportesDe(vecinos));
 
+type Reportado = { id: number; incidenteId: number };
+
 /** Carga un reporte por la API, como lo haría la app. */
 // Reportes en el mismo punto y de la misma categoría se agrupan solos (#53): para tener incidentes
 // distintos, cada reporte va en un lugar distinto.
@@ -41,7 +43,7 @@ async function reportar(token: string, categoriaId: number, registradoEn: string
     .field('origen', 'APP_MOVIL')
     .field('registradoEn', registradoEn)
     .attach('foto', jpegConExif(), 'foto.jpg');
-  return res.body as { id: number; incidenteId: number };
+  return res.body as Reportado;
 }
 
 const misReportes = (token: string) =>
@@ -67,7 +69,7 @@ describe('GET /api/reportes/mios', () => {
       descripcion: 'Reporte del 2026-10-03T10:00:00-03:00',
       fotos: [{ id: foto.id, url: `/api/fotos/${foto.id}` }],
       estadoVerificacion: 'PENDIENTE_REVISION',
-      incidente: { id: nuevo.incidenteId, estado: 'REGISTRADO', enRevision: true },
+      incidente: { id: nuevo.incidenteId, estado: 'REGISTRADO', enRevision: true, caducadoEn: null },
     });
   });
 
@@ -83,17 +85,18 @@ describe('GET /api/reportes/mios', () => {
     expect(res.body.reportes.map((r: { id: number }) => r.id)).toEqual([deAna.id]);
   });
 
-  it('si su incidente se unió a otro, muestra el estado del principal', async () => {
+  it('si su incidente se unió a otro, muestra el estado y la caducidad del principal', async () => {
     const categoria = await crearCategoria();
     const { token } = await vecino();
     const otro = await vecino();
     const mio = await reportar(token, categoria.id, '2026-10-02T10:00:00-03:00');
     // A un kilómetro: la agrupación automática no los junta, el operador los une a mano.
     const delPrincipal = await reportar(otro.token, categoria.id, '2026-10-01T10:00:00-03:00', '-38.96');
-    // Un operador unió mi incidente al del otro vecino, que ya está en ejecución.
+    // Un operador unió mi incidente al del otro vecino, que ya está en ejecución y después caducó.
+    const caduco = new Date(Date.now() - 60_000);
     await prisma.incidente.update({
       where: { id: delPrincipal.incidenteId },
-      data: { estado: 'EN_EJECUCION' },
+      data: { estado: 'EN_EJECUCION', tipoVigencia: 'TEMPORAL', vigenteHasta: caduco, caducadoEn: caduco },
     });
     await prisma.incidente.update({
       where: { id: mio.incidenteId },
@@ -106,6 +109,46 @@ describe('GET /api/reportes/mios', () => {
       id: delPrincipal.incidenteId,
       estado: 'EN_EJECUCION',
       enRevision: false,
+      caducadoEn: caduco.toISOString(),
+    });
+  });
+
+  it('dice cuándo caducó o venció su incidente, y nada si se resolvió antes', async () => {
+    const { token } = await vecino();
+    // Una categoría por reporte: así no se agrupan, aunque estén en el mismo punto.
+    const reportarEl = async (dia: string) =>
+      reportar(token, (await crearCategoria()).id, `2026-10-${dia}T10:00:00-03:00`);
+    const vigente = await reportarEl('01');
+    const vencido = await reportarEl('02');
+    const caducado = await reportarEl('03');
+    const resuelto = await reportarEl('04');
+    const enUnDia = new Date(Date.now() + 86_400_000);
+    const haceUnaHora = new Date(Date.now() - 3_600_000);
+    const haceDosHoras = new Date(Date.now() - 7_200_000);
+    const vigencias = [
+      [vigente, { tipoVigencia: 'TEMPORAL', vigenteHasta: enUnDia }],
+      // Vencido, pero la tarea diaria todavía no lo marcó.
+      [vencido, { tipoVigencia: 'TEMPORAL', vigenteHasta: haceUnaHora }],
+      [caducado, { tipoVigencia: 'TEMPORAL', vigenteHasta: haceDosHoras, caducadoEn: haceDosHoras }],
+      [resuelto, { estado: 'RESUELTO', tipoVigencia: 'TEMPORAL', vigenteHasta: haceUnaHora }],
+    ] as const;
+    for (const [reporte, data] of vigencias) {
+      await prisma.incidente.update({ where: { id: reporte.incidenteId }, data });
+    }
+
+    const res = await misReportes(token);
+
+    const caducadoEn = Object.fromEntries(
+      res.body.reportes.map((r: { id: number; incidente: { caducadoEn: string | null } }) => [
+        r.id,
+        r.incidente.caducadoEn,
+      ]),
+    );
+    expect(caducadoEn).toEqual({
+      [vigente.id]: null,
+      [vencido.id]: haceUnaHora.toISOString(),
+      [caducado.id]: haceDosHoras.toISOString(),
+      [resuelto.id]: null,
     });
   });
 
