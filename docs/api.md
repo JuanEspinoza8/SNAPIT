@@ -1386,6 +1386,69 @@ Responde **200**:
 | 409 `MISMA_CATEGORIA` | Ya es de esa categoría |
 | 409 `CATEGORIA_CAMBIADA` | Otro operador la cambió en ese mismo momento: hay que volver a intentar |
 
+## Indicadores del organismo
+El panel de indicadores (F13). Las dos rutas requieren sesión de `OPERADOR` o `ADMINISTRADOR` (sin sesión, 401; otro rol, 403 `SIN_PERMISO`) y miden solo **su organismo**. El área de un incidente es la responsable, igual que en la bandeja: la del área a la que se derivó o, si todavía no se derivó, la de su categoría. Un incidente unido a otro no cuenta aparte: lo suyo cuenta en el principal.
+
+Las dos aceptan los mismos filtros, todos opcionales:
+
+| Parámetro | Ejemplo | Qué filtra |
+|---|---|---|
+| `desde` / `hasta` | `2026-10-01` | El período, con el mismo formato que el mapa: con solo la fecha se toma el día completo en hora de Argentina; también aceptan fecha y hora ISO 8601. Cada indicador dice qué fecha mira |
+| `areaId` | `2` | Un área del organismo (puede estar inactiva). **Si no viene, todo el organismo** |
+
+Un filtro inválido, `hasta` anterior a `desde` o un área de otro organismo: **400** `DATOS_INVALIDOS` con `detalles`. Un administrador sin organismo recibe todo en 0 y las listas vacías.
+
+**Abierto** quiere decir `REGISTRADO`, `VERIFICADO`, `DERIVADO` o `EN_EJECUCION` y visible en el mapa: no cuentan los unidos a otro, los caducados ni los temporales cuya vigencia ya pasó (aunque la tarea diaria todavía no los haya marcado).
+
+### `GET /api/indicadores`
+Responde **200**:
+
+```json
+{
+  "abiertosPorEstado": [
+    { "estado": "REGISTRADO", "cantidad": 1 },
+    { "estado": "VERIFICADO", "cantidad": 2 },
+    { "estado": "DERIVADO", "cantidad": 1 },
+    { "estado": "EN_EJECUCION", "cantidad": 1 }
+  ],
+  "nuevosYResueltosPorSemana": [
+    { "semana": "2026-01-05", "nuevos": 7, "resueltos": 2 },
+    { "semana": "2026-01-12", "nuevos": 3, "resueltos": 3 },
+    { "semana": "2026-01-19", "nuevos": 0, "resueltos": 0 }
+  ],
+  "tiempoDeResolucion": {
+    "porCategoria": [{ "id": 1, "nombre": "Pozo en la calzada", "cantidad": 3, "medianaDias": 4, "promedioDias": 5 }],
+    "porArea": [{ "id": 1, "nombre": "Bacheo", "cantidad": 3, "medianaDias": 4, "promedioDias": 5 }],
+    "porBarrio": [{ "barrio": "Villa Ceferino", "cantidad": 2, "medianaDias": 6.5, "promedioDias": 6.5 }]
+  },
+  "barriosConMasAbiertos": [
+    { "barrio": "Centro", "cantidad": 2 },
+    { "barrio": "Villa Ceferino", "cantidad": 1 }
+  ],
+  "reportesDesestimados": { "total": 5, "desestimados": 3, "porcentaje": 60 }
+}
+```
+
+- `abiertosPorEstado`: los incidentes abiertos **hoy** cuyo primer reporte cae en el período, por estado. Vienen siempre los cuatro estados, en el orden del circuito, aunque alguno esté en 0. Sin período, todos los abiertos.
+- `nuevosYResueltosPorSemana`: cuántos incidentes entraron y cuántos se resolvieron cada semana, de lunes a domingo en hora de Argentina. `semana` es la fecha del lunes. **Nuevo** es un incidente cuyo primer reporte cae en esa semana, sin contar los unidos a otro ni los desestimados (no eran un problema real); los caducados y los que están en revisión sí cuentan. **Resuelto** es uno que pasó a `RESUELTO` en esa semana (`resuelto_en`). Vienen todas las semanas, también las que quedan en 0, desde la de `desde` (sin `desde`, la del dato más viejo) hasta la de `hasta` (sin `hasta`, la actual). La primera y la última pueden ser parciales: solo cuenta lo que cae dentro del período. Sin datos y sin `desde`, la lista viene vacía.
+- `tiempoDeResolucion`: cuánto tardaron en resolverse los incidentes que se resolvieron en el período (`resuelto_en`), contado desde el primer reporte (`resuelto_en − primer_reporte_en`), en días con un decimal (6 horas son 0,3 días). Por categoría, por área y por barrio; `cantidad` es cuántos resueltos entran en cada grupo. La **mediana** es el tiempo del medio (con una cantidad par, el promedio de los dos del medio): la mitad se resolvió en menos y la otra mitad en más, y un caso que tardó muchísimo no la mueve como al **promedio**. Primero el grupo con la mediana más alta (el que más tarda); ante un empate, por nombre. Un incidente sin dirección cuenta en su categoría y su área, pero en ningún barrio.
+- `barriosConMasAbiertos`: los mismos abiertos de `abiertosPorEstado`, por barrio, de más a menos (ante un empate, por nombre). Vienen todos los barrios con algún abierto; el panel puede mostrar los primeros. El barrio sale de la dirección, como en [`GET /api/barrios`](#get-apibarrios): los incidentes que todavía no tienen dirección no entran en ninguno.
+- `reportesDesestimados`: de los reportes cargados en el período (`registrado_en`), cuántos se desestimaron. `total` incluye **todos** los recibidos: también los que todavía esperan revisión y los que su autor eliminó. `porcentaje` es `desestimados / total × 100` con un decimal, y es `null` si no hay reportes. Un reporte es del área responsable del incidente que manda (el principal, si el suyo se unió a otro), como en `GET /api/reportes`.
+
+### `GET /api/indicadores/calor`
+Los puntos del mapa de calor: los mismos abiertos de `abiertosPorEstado` (abiertos hoy, con el primer reporte en el período), del más viejo al más nuevo. Responde **200**:
+
+```json
+{
+  "puntos": [
+    { "lat": -38.9516, "lon": -68.0591, "peso": 1 },
+    { "lat": -38.9551, "lon": -68.0632, "peso": 0.25 }
+  ]
+}
+```
+
+`peso` va de 0 a 1: la prioridad del incidente (la manual, si la hay; si no, la calculada) dividida por la mayor de la lista, con dos decimales. El más urgente pesa 1. No se divide por 100 porque la prioridad puede pasar de 100 (por el peso de la categoría o por una prioridad manual). Si todos tienen prioridad 0, todos pesan 1. Sirve tal cual como intensidad de leaflet.heat.
+
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
 
