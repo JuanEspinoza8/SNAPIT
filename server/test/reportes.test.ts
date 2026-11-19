@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
-import { borrarReportesDe, crearUsuario, tokenDe } from './apoyo.js';
+import { borrarReportesDe, crearUsuario, diasVigenciaPorDefecto, tokenDe } from './apoyo.js';
 import { EXIF_DE_PRUEBA, fotoUnica, jpegConExif, jpegSinExif, png1x1 } from './imagenes.js';
 
 // La dirección se prueba en direcciones.test.ts: acá no se consulta Nominatim.
@@ -228,6 +228,20 @@ describe('POST /api/reportes', () => {
     expect(incidente.tipoVigencia).toBe('TEMPORAL');
     expect(incidente.vigenteHasta!.getTime()).toBeGreaterThanOrEqual(antes + DIEZ_DIAS);
     expect(incidente.vigenteHasta!.getTime()).toBeLessThanOrEqual(Date.now() + DIEZ_DIAS);
+  });
+
+  it('una categoría temporal sin días vence a los de vigencia.dias_default', async () => {
+    const categoria = await crearCategoria({ tipoVigencia: 'TEMPORAL', diasCaducidad: null });
+    const { token } = await vecino();
+    const plazo = (await diasVigenciaPorDefecto()) * 86_400_000;
+    const antes = Date.now();
+
+    const res = await enviar(token, categoria.id);
+
+    const incidente = await prisma.incidente.findUniqueOrThrow({ where: { id: res.body.incidenteId } });
+    expect(incidente.tipoVigencia).toBe('TEMPORAL');
+    expect(incidente.vigenteHasta!.getTime()).toBeGreaterThanOrEqual(antes + plazo);
+    expect(incidente.vigenteHasta!.getTime()).toBeLessThanOrEqual(Date.now() + plazo);
   });
 
   describe('datos inválidos → 400 con detalle', () => {

@@ -67,6 +67,15 @@ export async function borrarReportesDe(usuarioIds: number[]) {
   await prisma.incidente.deleteMany({ where: { id: { in: incidentes } } });
 }
 
+/**
+ * Los días de vigencia de un temporal cuya categoría no los define. En una base nueva la semilla corre al
+ * final, así que el parámetro puede faltar: entonces son 30.
+ */
+export async function diasVigenciaPorDefecto() {
+  const parametro = await prisma.parametroSistema.findUnique({ where: { clave: 'vigencia.dias_default' } });
+  return parametro ? Number(parametro.valor) : 30;
+}
+
 /** Un organismo nuevo con un área y una categoría de esa área: así los tests no ven los incidentes de otros. */
 export async function crearOrganismoDePrueba(pesoSeveridadBase = '1.00') {
   const organismo = await prisma.organismo.create({ data: { nombre: `Organismo ${randomUUID()}` } });

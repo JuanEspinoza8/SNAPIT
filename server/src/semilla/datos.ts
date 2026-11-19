@@ -194,8 +194,6 @@ export const CATEGORIAS: {
   },
   {
     // La última opción: si nada encaja, mejor esta que forzar otra. El operador la cambia al revisarlo.
-    // Permanente: la vigencia no sigue a la categoría, así que si fuera temporal el incidente vencería
-    // igual después de reclasificarlo.
     nombre: 'Otro problema en la vía pública',
     descripcion: 'Solo si el problema no corresponde a ninguna de las otras categorías',
     area: 'Atención general',

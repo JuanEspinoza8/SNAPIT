@@ -34,7 +34,7 @@ Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá
 | Senda peatonal despintada | Tránsito | Permanente | — | 1,00 |
 | Otro problema en la vía pública | Atención general | Permanente | — | 1,00 |
 
-- **Vigencia temporal:** el incidente vence `dias_caducidad_default` días después de creado (si la categoría no los define, `vigencia.dias_default`). Cuando un vecino confirma que el problema sigue, la vigencia se renueva.
+- **Vigencia temporal:** el incidente vence `dias_caducidad_default` días después de creado o de que el operador le cambió la categoría (si la categoría no los define, `vigencia.dias_default`; si ese parámetro falta o no es un entero positivo, 30 días y un aviso en el log). Cuando un vecino confirma que el problema sigue, la vigencia se renueva.
 - **Peso de severidad:** cuánto pesa la categoría en el factor de severidad de la prioridad. Un peso mayor sube la prioridad de los incidentes de esa categoría.
 
 ### Perfiles de movilidad y matriz categoría × perfil
@@ -280,7 +280,7 @@ Además de la transición, el operador no trabaja un incidente unido a otro (se 
 
 **Cambiar la categoría** (#66) no es un cambio de estado. Queda como un `COMENTARIO` («Categoría cambiada de X a Y»), porque no hay un tipo de movimiento propio, y recalcula la prioridad: el peso de la categoría entra en la severidad. Si el incidente todavía no se derivó, pasa al área de la categoría nueva. La categoría de cada reporte, la que eligió el vecino, no cambia. Desde el cambio, los reportes nuevos de la categoría nueva se pueden sumar al incidente y los de la vieja no.
 
-**Límite conocido:** la vigencia no cambia con la categoría. El incidente conserva la que tomó al nacer (si la categoría vieja era temporal, sigue venciendo en la misma fecha). Por eso «Otro problema en la vía pública», la que el operador más va a reclasificar, es permanente: si fuera temporal, el incidente reclasificado desaparecería al vencer aunque ahora fuera, por ejemplo, un pozo.
+La vigencia también sigue a la categoría nueva, contada desde el cambio: si es temporal, el incidente vence a los días de la nueva (aunque antes venciera en otra fecha); si es permanente, deja de vencer. Así, un incidente reclasificado no desaparece en la fecha que le correspondía a la categoría equivocada.
 
 ### Prioridad del incidente
 

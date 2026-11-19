@@ -1332,7 +1332,7 @@ Responde **200** con `{ "incidente": { "id", "estado" }, "cierre": { "id", "resu
 | 409 `INCIDENTE_UNIDO` / `INCIDENTE_CADUCADO` | Está unido a otro o caducó mientras esperaba |
 
 ### `PUT /api/incidentes/:id/categoria`
-Corrige la categoría de un incidente abierto (F06), también si está en revisión. La categoría que eligió el vecino en cada reporte no cambia. Queda un movimiento `COMENTARIO` con el antes y el después («Categoría cambiada de Pozo en la calzada a Vereda rota»), y se recalcula la prioridad. Si el incidente todavía no se derivó, pasa al área de la categoría nueva. La vigencia no cambia.
+Corrige la categoría de un incidente abierto (F06), también si está en revisión. La categoría que eligió el vecino en cada reporte no cambia. Queda un movimiento `COMENTARIO` con el antes y el después («Categoría cambiada de Pozo en la calzada a Vereda rota»), y se recalcula la prioridad. Si el incidente todavía no se derivó, pasa al área de la categoría nueva. La vigencia pasa a ser la de la categoría nueva, contada desde el cambio: si es temporal vence a sus días, y si es permanente deja de vencer.
 
 ```json
 { "categoriaId": 2, "comentario": "Es la vereda, no la calle" }

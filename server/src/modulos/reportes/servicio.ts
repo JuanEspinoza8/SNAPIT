@@ -1,4 +1,3 @@
-import type { Categoria } from '@prisma/client';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { analizarFoto } from '../../compartido/analisisFoto.js';
 import { ErrorApp } from '../../compartido/errores.js';
@@ -10,6 +9,7 @@ import type { UsuarioSesion } from '../auth/tokens.js';
 import { avisarNuevoEnZona, avisarReporteEnVerificacion } from '../avisos/disparar.js';
 import { completarDireccionSinEsperar } from '../geocodificacion/servicio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
+import { vigenciaDeCategoria } from '../incidentes/vigencia.js';
 import { vincularIncidente } from '../red/repositorio.js';
 import type { Senal } from '../verificacion/calculo.js';
 import { aplicarResultado } from '../verificacion/resultado.js';
@@ -18,15 +18,11 @@ import { verificarReporte } from '../verificacion/servicio.js';
 import { type DatosReporte, esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 
-const DIA_MS = 24 * 60 * 60 * 1000;
 // Margen para relojes de celulares un poco adelantados.
 const TOLERANCIA_FUTURO_MS = 5 * 60 * 1000;
 
 const datosInvalidos = (campo: string, mensaje: string) =>
   new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [{ campo, mensaje }]);
-
-// Por si falta el parámetro (la semilla lo carga): antes que rechazar el reporte, se usa este valor.
-const DIAS_VIGENCIA_SI_FALTA = 30;
 
 /**
  * Comprueba la sugerencia de la IA que manda el cliente contra lo que quedó en registro_ia: tiene que ser
@@ -78,28 +74,6 @@ async function validarSugerencia(
     sugerenciaAceptada:
       datos.categoriaId === categoriaSugeridaId && datos.severidadDeclarada === severidadSugerida,
   };
-}
-
-async function diasVigenciaPorDefecto() {
-  const dias = await repositorio.leerParametroEntero('vigencia.dias_default');
-  if (dias !== null) return dias;
-  logger.warn('Falta el parámetro vigencia.dias_default: se usan %d días', DIAS_VIGENCIA_SI_FALTA);
-  return DIAS_VIGENCIA_SI_FALTA;
-}
-
-/**
- * La vigencia con que nace un incidente de la categoría (§7.6): un temporal (por ejemplo, una obra) vence solo
- * a los días de su categoría, contados desde `desde`. La usan el alta y la separación de un reporte.
- */
-export async function vigenciaDeCategoria(
-  categoria: Pick<Categoria, 'tipoVigenciaDefault' | 'diasCaducidadDefault'>,
-  desde: Date,
-): Promise<Pick<repositorio.NuevoIncidente, 'tipoVigencia' | 'vigenteHasta'>> {
-  if (categoria.tipoVigenciaDefault !== 'TEMPORAL') {
-    return { tipoVigencia: categoria.tipoVigenciaDefault, vigenteHasta: null };
-  }
-  const dias = categoria.diasCaducidadDefault ?? (await diasVigenciaPorDefecto());
-  return { tipoVigencia: 'TEMPORAL', vigenteHasta: new Date(desde.getTime() + dias * DIA_MS) };
 }
 
 export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: Buffer | undefined) {
