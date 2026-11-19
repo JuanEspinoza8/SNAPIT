@@ -1,8 +1,9 @@
 import cron from 'node-cron';
+import { ZONA_HORARIA } from '../compartido/zonaHoraria.js';
 import { logger } from '../config/logger.js';
 import { caducarIncidentes } from '../modulos/incidentes/caducidad.js';
 import { listarVencidos } from '../modulos/incidentes/repositorio.js';
-import { HORARIO, ZONA_HORARIA } from './prioridadDiaria.js';
+import { HORARIO } from './prioridadDiaria.js';
 
 /**
  * Marca como caducados los temporales vencidos (F12). El mapa, la bandeja y los recorridos ya los dejan afuera

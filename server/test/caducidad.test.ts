@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { EstadoIncidente, TipoVigencia } from '@prisma/client';
+import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { app } from '../src/app.js';
 import { logger } from '../src/config/logger.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { caducarIncidentes } from '../src/modulos/incidentes/caducidad.js';
@@ -137,6 +139,13 @@ describe('caducarIncidentes', () => {
     expect(despues.actualizadoEn.getTime()).toBeGreaterThan(antes.actualizadoEn.getTime());
     expect(await movimientos(id)).toEqual([MOVIMIENTO]);
     expect(await listarVencidos()).not.toContain(id);
+  });
+
+  it('después de caducarlo, el incidente sigue fuera de la ficha pública', async () => {
+    const id = await crearIncidente();
+    await caducarIncidentes([id]);
+
+    expect((await request(app).get(`/api/incidentes/${id}`)).status).toBe(404);
   });
 
   it('correrla dos veces no duplica el movimiento ni cambia la fecha', async () => {
