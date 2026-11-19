@@ -1396,7 +1396,7 @@ Las dos aceptan los mismos filtros, todos opcionales:
 | `desde` / `hasta` | `2026-10-01` | El período, con el mismo formato que el mapa: con solo la fecha se toma el día completo en hora de Argentina; también aceptan fecha y hora ISO 8601. Cada indicador dice qué fecha mira |
 | `areaId` | `2` | Un área del organismo (puede estar inactiva). **Si no viene, todo el organismo** |
 
-Un filtro inválido, `hasta` anterior a `desde` o un área de otro organismo: **400** `DATOS_INVALIDOS` con `detalles`. Un administrador sin organismo recibe todo en 0 y las listas vacías.
+Un filtro inválido, `hasta` anterior a `desde`, una fecha anterior al año 2000, un período de más de 3 años (de `desde` a `hasta`, o a hoy si falta `hasta`) o un área de otro organismo: **400** `DATOS_INVALIDOS` con `detalles`. Un administrador sin organismo recibe todo en 0 y las listas vacías.
 
 **Abierto** quiere decir `REGISTRADO`, `VERIFICADO`, `DERIVADO` o `EN_EJECUCION` y visible en el mapa: no cuentan los unidos a otro, los caducados ni los temporales cuya vigencia ya pasó (aunque la tarea diaria todavía no los haya marcado).
 
@@ -1430,13 +1430,13 @@ Responde **200**:
 ```
 
 - `abiertosPorEstado`: los incidentes abiertos **hoy** cuyo primer reporte cae en el período, por estado. Vienen siempre los cuatro estados, en el orden del circuito, aunque alguno esté en 0. Sin período, todos los abiertos.
-- `nuevosYResueltosPorSemana`: cuántos incidentes entraron y cuántos se resolvieron cada semana, de lunes a domingo en hora de Argentina. `semana` es la fecha del lunes. **Nuevo** es un incidente cuyo primer reporte cae en esa semana, sin contar los unidos a otro ni los desestimados (no eran un problema real); los caducados y los que están en revisión sí cuentan. **Resuelto** es uno que pasó a `RESUELTO` en esa semana (`resuelto_en`). Vienen todas las semanas, también las que quedan en 0, desde la de `desde` (sin `desde`, la del dato más viejo) hasta la de `hasta` (sin `hasta`, la actual). La primera y la última pueden ser parciales: solo cuenta lo que cae dentro del período. Sin datos y sin `desde`, la lista viene vacía.
+- `nuevosYResueltosPorSemana`: cuántos incidentes entraron y cuántos se resolvieron cada semana, de lunes a domingo en hora de Argentina. `semana` es la fecha del lunes. **Nuevo** es un incidente cuyo primer reporte cae en esa semana, sin contar los unidos a otro ni los desestimados (no eran un problema real); los caducados y los que están en revisión sí cuentan. **Resuelto** es uno que pasó a `RESUELTO` en esa semana (`resuelto_en`). Vienen todas las semanas, también las que quedan en 0, desde la de `desde` (sin `desde`, la del dato más viejo) hasta la de `hasta` (sin `hasta`, la actual). La primera y la última pueden ser parciales: solo cuenta lo que cae dentro del período. Sin datos y sin `desde`, la lista viene vacía, y también si `desde` es posterior a hoy y no hay `hasta`.
 - `tiempoDeResolucion`: cuánto tardaron en resolverse los incidentes que se resolvieron en el período (`resuelto_en`), contado desde el primer reporte (`resuelto_en − primer_reporte_en`), en días con un decimal (6 horas son 0,3 días). Por categoría, por área y por barrio; `cantidad` es cuántos resueltos entran en cada grupo. La **mediana** es el tiempo del medio (con una cantidad par, el promedio de los dos del medio): la mitad se resolvió en menos y la otra mitad en más, y un caso que tardó muchísimo no la mueve como al **promedio**. Primero el grupo con la mediana más alta (el que más tarda); ante un empate, por nombre. Un incidente sin dirección cuenta en su categoría y su área, pero en ningún barrio.
 - `barriosConMasAbiertos`: los mismos abiertos de `abiertosPorEstado`, por barrio, de más a menos (ante un empate, por nombre). Vienen todos los barrios con algún abierto; el panel puede mostrar los primeros. El barrio sale de la dirección, como en [`GET /api/barrios`](#get-apibarrios): los incidentes que todavía no tienen dirección no entran en ninguno.
 - `reportesDesestimados`: de los reportes cargados en el período (`registrado_en`), cuántos se desestimaron. `total` incluye **todos** los recibidos: también los que todavía esperan revisión y los que su autor eliminó. `porcentaje` es `desestimados / total × 100` con un decimal, y es `null` si no hay reportes. Un reporte es del área responsable del incidente que manda (el principal, si el suyo se unió a otro), como en `GET /api/reportes`.
 
 ### `GET /api/indicadores/calor`
-Los puntos del mapa de calor: los mismos abiertos de `abiertosPorEstado` (abiertos hoy, con el primer reporte en el período), del más viejo al más nuevo. Responde **200**:
+Los puntos del mapa de calor: los mismos abiertos de `abiertosPorEstado` (abiertos hoy, con el primer reporte en el período), del primer reporte más viejo al más nuevo. Responde **200**:
 
 ```json
 {

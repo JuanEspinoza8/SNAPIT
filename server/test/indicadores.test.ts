@@ -358,6 +358,20 @@ describe('GET /api/indicadores', () => {
     });
   });
 
+  it('desde y hasta del mismo día dan una sola semana', async () => {
+    const res = await indicadores({ desde: '2026-01-07', hasta: '2026-01-07' });
+    expect(res.status).toBe(200);
+    expect(res.body.nuevosYResueltosPorSemana).toHaveLength(1);
+    expect(res.body.nuevosYResueltosPorSemana[0].semana).toBe('2026-01-05');
+  });
+
+  it('con desde posterior a hoy y sin hasta, no hay semanas', async () => {
+    const futuro = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const proximo = await indicadores({ desde: futuro });
+    expect(proximo.status).toBe(200);
+    expect(proximo.body.nuevosYResueltosPorSemana).toEqual([]);
+  });
+
   it('un administrador ve lo mismo que el operador de su organismo', async () => {
     const [deOperador, deAdmin] = await Promise.all([indicadores(ENERO), indicadores(ENERO, tokenAdmin)]);
     expect(deAdmin.status).toBe(200);
@@ -433,5 +447,28 @@ describe.each(['', '/calor'])('permisos y filtros de GET /api/indicadores%s', (r
     res = await pedir({ desde: '2026-02-01', hasta: '2026-01-05' }, token);
     expect(res.status).toBe(400);
     expect(res.body.error.detalles).toEqual([{ campo: 'hasta', mensaje: 'No puede ser anterior a desde' }]);
+  });
+
+  it('un período de más de 3 años o una fecha anterior al 2000 responden 400, no un 500', async () => {
+    let res = await pedir({ desde: '2020-01-01', hasta: '2026-01-31' }, token);
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles).toEqual([
+      { campo: 'desde', mensaje: 'El período no puede pasar de 3 años' },
+    ]);
+
+    // Sin hasta, el período llega hasta hoy.
+    res = await pedir({ desde: '2001-01-01' }, token);
+    expect(res.status).toBe(400);
+
+    res = await pedir({ desde: '1999-12-31' }, token);
+    expect(res.status).toBe(400);
+    res = await pedir({ desde: '0000-01-01', hasta: '0000-01-02' }, token);
+    expect(res.status).toBe(400);
+    res = await pedir({ hasta: '0000-01-01' }, token);
+    expect(res.status).toBe(400);
+  });
+
+  it.each(['0', '-1', '2147483648', '1.5'])('un areaId %s responde 400', async (areaId) => {
+    expect((await pedir({ areaId }, token)).status).toBe(400);
   });
 });

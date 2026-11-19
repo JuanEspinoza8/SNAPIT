@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
-import { ZONA_HORARIA } from '../../tareas/prioridadDiaria.js';
+import { ZONA_HORARIA } from '../../compartido/zonaHoraria.js';
 import { CON_AREA } from '../bandeja/repositorio.js';
 import { BARRIO, INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
 import { PRIORIDAD_EFECTIVA } from '../prioridad/repositorio.js';
@@ -75,9 +75,11 @@ export function contarPorSemana(filtros: FiltrosIndicadores) {
              ${semanaDe(Prisma.sql`coalesce(${filtros.hasta ?? null}::timestamptz, now())`)} AS ultima
     )
     SELECT to_char(s.semana, 'YYYY-MM-DD') AS semana,
-           (SELECT count(*)::int FROM nuevos n WHERE n.semana = s.semana) AS nuevos,
-           (SELECT count(*)::int FROM resueltos r WHERE r.semana = s.semana) AS resueltos
+           coalesce(n.cantidad, 0)::int AS nuevos,
+           coalesce(r.cantidad, 0)::int AS resueltos
     FROM limites, generate_series(limites.primera, limites.ultima, interval '1 week') AS s(semana)
+    LEFT JOIN (SELECT semana, count(*) AS cantidad FROM nuevos GROUP BY semana) n ON n.semana = s.semana
+    LEFT JOIN (SELECT semana, count(*) AS cantidad FROM resueltos GROUP BY semana) r ON r.semana = s.semana
     ORDER BY s.semana`;
 }
 
@@ -121,5 +123,5 @@ export function listarPuntosAbiertos(filtros: FiltrosIndicadores) {
            ${PRIORIDAD_EFECTIVA}::float8 AS prioridad
     ${CON_AREA}
     WHERE ${ABIERTO} AND ${filtrar(filtros, PRIMER_REPORTE)}
-    ORDER BY i.id`;
+    ORDER BY i.primer_reporte_en, i.id`;
 }

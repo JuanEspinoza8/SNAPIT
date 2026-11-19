@@ -145,6 +145,10 @@ describe('pesosDeCalor', () => {
     expect(pesosDeCalor([0, 0])).toEqual([1, 1]);
   });
 
+  it('un solo punto con prioridad pesa 1', () => {
+    expect(pesosDeCalor([35])).toEqual([1]);
+  });
+
   it('sin puntos no hay pesos', () => {
     expect(pesosDeCalor([])).toEqual([]);
   });
