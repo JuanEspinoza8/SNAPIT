@@ -6,7 +6,7 @@ import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { PRIORIDAD_EFECTIVA } from '../src/modulos/prioridad/repositorio.js';
-import { borrarReportesDe, crearUsuario } from './apoyo.js';
+import { borrarReportesDe, crearUsuario, verificarReporte } from './apoyo.js';
 import { fotoUnica, jpegSinExif } from './imagenes.js';
 
 // La dirección no se consulta: no hace falta para la prioridad.
@@ -37,8 +37,8 @@ beforeEach(async () => {
 
 /**
  * Un reporte en la cuadra `cuadra` del lugar del test (cada una a unos 110 m: no se agrupan entre sí). Con la
- * cámara de la app queda verificado (50 + 15) y el incidente pasa a VERIFICADO; desde la galería sin EXIF
- * queda pendiente (50 − 10) y el incidente sigue REGISTRADO.
+ * reporte se verifica enseguida (verificarReporte) y el incidente pasa a VERIFICADO; con `pendiente` queda
+ * pendiente y el incidente sigue REGISTRADO.
  */
 async function reportar(opciones: { severidad?: Severidad; cuadra?: number; pendiente?: boolean } = {}) {
   const vecino = await crearUsuario({ rol: 'VECINO' });
@@ -54,6 +54,7 @@ async function reportar(opciones: { severidad?: Severidad; cuadra?: number; pend
     .field('tomadaConCamaraApp', String(!opciones.pendiente))
     .attach('foto', await fotoUnica(jpegSinExif()), 'foto.jpg');
   expect(res.status).toBe(201);
+  if (!opciones.pendiente) await verificarReporte(res.body.id as number);
   return res.body.incidenteId as number;
 }
 

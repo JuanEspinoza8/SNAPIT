@@ -65,64 +65,47 @@ Para calcular recorridos accesibles, cada problema afecta distinto según quién
 
 ## Parámetros del sistema
 
-### Verificación automática del reporte
+### Controles automáticos del reporte
 
-El nivel de confianza va de 0 a 100. Un reporte que no llega al umbral queda pendiente de revisión: el sistema nunca lo desestima solo.
+Al recibir cada reporte se hacen tres controles sobre su foto (F04, `server/src/modulos/verificacion/calculo.ts`). **No deciden si el reporte se publica:** todo reporte llega `PENDIENTE_REVISION` y lo publica la verificación con IA (ver "Cola de verificación con IA") o un operador. Los controles son los datos con los que deciden.
 
 | Parámetro | Tipo | Valor | Para qué |
 |---|---|---|---|
-| `verificacion.confianza_base` | entero | 50 | Nivel con el que arranca todo reporte, antes de sumar las señales |
-| `verificacion.umbral_verificado` | entero | 60 | Desde este nivel el reporte queda verificado |
-| `verificacion.distancia_exif_max_m` | entero | 100 | Distancia máxima (m) entre la ubicación EXIF de la foto y el punto enviado para considerar que coinciden |
-| `verificacion.valor_exif_coincide` | decimal | 20 | Suma si la ubicación EXIF coincide |
-| `verificacion.valor_exif_no_coincide` | decimal | −30 | Resta si la ubicación EXIF queda más lejos que la distancia máxima |
-| `verificacion.valor_exif_ausente` | decimal | −10 | Resta si una foto subida de la galería no trae ubicación EXIF |
+| `verificacion.distancia_exif_max_m` | entero | 100 | Distancia máxima (m) entre la ubicación EXIF de la foto y el punto enviado para considerar que la foto se sacó en el lugar |
 | `verificacion.hamming_duplicado_max` | entero | 6 | Bits distintos, como máximo, entre dos hashes perceptuales para considerar que son la misma foto |
-| `verificacion.valor_hash_duplicado` | decimal | −40 | Resta si la misma foto ya se usó en otro reporte |
-| `verificacion.valor_origen_app` | decimal | 15 | Suma si la foto se sacó con la cámara de la app |
-| `verificacion.valor_reputacion_max` | decimal | 20 | Lo máximo que la reputación del vecino suma o resta |
-| `verificacion.dias_foto_antigua` | entero | 7 | Días entre la foto y el reporte a partir de los cuales la foto se considera antigua |
-| `verificacion.valor_fecha_antigua` | decimal | −20 | Resta si la foto es antigua |
+| `verificacion.dias_foto_antigua` | entero | 7 | Días entre la foto y el reporte a partir de los cuales la foto se considera vieja |
 
-Se calcula al crear cada reporte (#50, `server/src/modulos/verificacion/calculo.ts`):
+Cada control queda en `senal_verificacion` como una señal, con una explicación para el operador. El valor dice cómo salió: **1** si se cumple, **−1** si no y **0** si la foto no trae con qué hacerlo.
 
-```math
-\text{nivel} = \min\left(100,\ \max\left(0,\ \text{confianza\_base} + \sum \text{señales}\right)\right)
-```
+| Control | Señal | 1 | −1 | 0 |
+|---|---|---|---|---|
+| Ubicación | `EXIF_COINCIDE` o `EXIF_AUSENTE` | La ubicación EXIF está a no más de `distancia_exif_max_m` del punto (justo en el límite cuenta) | Está más lejos (`EXIF_COINCIDE` negativa) | La foto no trae ubicación (`EXIF_AUSENTE`) |
+| Antigüedad | `FECHA_ANTIGUA` | Entre la fecha EXIF y `registradoEn` pasaron hasta `dias_foto_antigua` días | Pasaron más | La foto no trae fecha |
+| Foto repetida | `HASH_DUPLICADO` | No hay otra foto a no más de `hamming_duplicado_max` bits | La misma foto ya se usó en otro reporte, también del mismo vecino | La foto es lisa u oscura y no se puede comparar (ver abajo) |
 
-El nivel se redondea a entero. Desde `umbral_verificado` el reporte queda `VERIFICADO`; por debajo, `PENDIENTE_REVISION`. Cada señal se guarda en `senal_verificacion` con su valor y una explicación, para que el operador vea por qué quedó así.
+El **nivel de confianza** (`nivel_confianza`) es el porcentaje de controles que se cumplen, redondeado: 100, 67, 33 o 0. Es un resumen para el operador; no decide nada.
 
-| Señal | Cuándo | Valor |
-|---|---|---|
-| `EXIF_COINCIDE` | La foto trae ubicación y está a no más de `distancia_exif_max_m` del punto (justo en el límite cuenta) | +20 |
-| `EXIF_COINCIDE` (negativa) | La foto trae ubicación pero está más lejos | −30 |
-| `EXIF_AUSENTE` | Foto de galería sin ubicación. Una foto de la cámara de la app sin ubicación no resta: la app puede no grabarla | −10 |
-| `HASH_DUPLICADO` | La foto está a no más de `hamming_duplicado_max` bits de una foto de otro reporte, también del mismo vecino. No se calcula si alguna de las dos tiene `hamming_duplicado_max` unos o menos (ver abajo) | −40 |
-| `ORIGEN_APP` | La foto se sacó con la cámara de la app (`tomadaConCamaraApp`). Desde el sitio web ese dato no puede venir en `true`: responde 400 | +15 |
-| `REPUTACION` | Siempre: `valor_reputacion_max × (reputación − 50) / 50`. Reputación 0 → −20, 50 → 0, 100 → +20 | −20 a +20 |
-| `FECHA_ANTIGUA` | Entre la fecha EXIF de la foto y `registradoEn` pasaron más de `dias_foto_antigua` días | −20 |
+| Caso | Ubicación | Antigüedad | Repetida | Nivel |
+|---|---|---|---|---|
+| Foto con GPS en el punto, del mismo día | 1 | 1 | 1 | 100 |
+| Foto sin EXIF (por ejemplo, reenviada por WhatsApp) | 0 | 0 | 1 | 33 |
+| Foto con GPS lejos del punto, vieja y repetida | −1 | −1 | −1 | 0 |
 
-**Ejemplos** (vecino con la reputación inicial, 50):
+**Solo la ubicación prueba algo:** que la foto se sacó en el lugar. La antigüedad y la foto repetida sirven para descartar. Por eso la IA publica sola únicamente si la ubicación coincide y no hay ningún control en contra.
 
-| Caso | Cuenta | Nivel | Estado |
-|---|---|---|---|
-| Foto con la cámara de la app, EXIF en el punto | 50 + 20 + 15 + 0 | 85 | Verificado |
-| Foto de galería sin EXIF | 50 − 10 + 0 | 40 | Pendiente de revisión |
-| Foto de galería sin EXIF, vecino con reputación 100 | 50 − 10 + 20 | 60 | Verificado |
-| La misma foto de otro reporte, sin EXIF | 50 − 10 − 40 + 0 | 0 | Pendiente de revisión |
+La reputación del vecino y si la foto se sacó con la cámara de la app ya no cuentan: los tipos `ORIGEN_APP` y `REPUTACION` siguen en el enum `tipo_senal` (modelo congelado), pero no se generan más. La reputación se sigue calculando (ver abajo) y el operador la ve al revisar. Los parámetros del puntaje anterior (`confianza_base`, `umbral_verificado` y los `valor_*`) y `demo.revision_manual` ya no existen: la semilla los borra.
 
-El sistema **nunca desestima** un reporte por sí solo, ni con nivel 0: desestimar es siempre una decisión de un operador (#51).
-
-**Fotos lisas u oscuras.** Una foto lisa da un hash de 64 ceros, y una muy oscura casi (ver "Límites conocidos" del hash). Un hash con `hamming_duplicado_max` unos o menos está a esa distancia de cualquier foto lisa, así que no sirve para decir que dos fotos son la misma: si la foto nueva o la guardada lo tiene, `HASH_DUPLICADO` no se calcula. Una foto lisa reutilizada no se detecta, pero una foto lisa tampoco prueba nada. Las escenas nocturnas dibujadas para probarlo tienen entre 5 y 14 unos y quedan a 12–24 bits entre sí, lejos del 6: no se confunden, y la que tiene más de 6 unos se detecta si se repite.
+**Fotos lisas u oscuras.** Una foto lisa da un hash de 64 ceros, y una muy oscura casi (ver "Límites conocidos" del hash). Un hash con `hamming_duplicado_max` unos o menos está a esa distancia de cualquier foto lisa, así que no sirve para decir que dos fotos son la misma: si la foto nueva lo tiene, `HASH_DUPLICADO` queda en 0, y una guardada así no se usa para comparar. Una foto lisa reutilizada no se detecta, pero una foto lisa tampoco prueba nada. Las escenas nocturnas dibujadas para probarlo tienen entre 5 y 14 unos y quedan a 12–24 bits entre sí, lejos del 6: no se confunden, y la que tiene más de 6 unos se detecta si se repite.
 
 **Límites que hay que asumir:**
 
-- `tomadaConCamaraApp` lo declara la app. El servidor rechaza la combinación imposible (sitio web con cámara de la app), pero no puede comprobar que una petición que dice venir de la app la haya usado de verdad.
-- La búsqueda de la foto repetida se hace antes de abrir la transacción del reporte. Dos envíos simultáneos de la misma foto no se ven entre sí y ninguno resta. Es la misma carrera que aceptaba el plan para la agrupación.
+- El EXIF lo puede editar quien sube la foto: la ubicación y la fecha prueban algo, no todo.
+- `tomadaConCamaraApp` se sigue guardando y el servidor rechaza la combinación imposible (sitio web con cámara de la app), pero ya no cuenta para la verificación.
+- La búsqueda de la foto repetida se hace antes de abrir la transacción del reporte. Dos envíos simultáneos de la misma foto no se ven entre sí y los dos quedan como nuevos. Es la misma carrera que aceptaba el plan para la agrupación.
 
 ### Resultado de la verificación y reputación del vecino
 
-Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo mismo, lo haya decidido el sistema al recibirlo o un operador al revisarlo (#51, `server/src/modulos/verificacion/resultado.ts`). Todo va en la misma transacción que el cambio del reporte:
+Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo mismo, lo haya decidido la IA o un operador (#51, `server/src/modulos/verificacion/resultado.ts`). Todo va en la misma transacción que el cambio del reporte:
 
 1. **Historial del vecino.** Un verificado suma a `reportes_confirmados` y un desestimado a `reportes_desestimados`. Con los contadores nuevos se recalcula la reputación:
 
@@ -130,7 +113,7 @@ Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo m
    \text{reputación} = 100 \times \frac{\text{confirmados} + 1}{\text{confirmados} + \text{desestimados} + 2}
    ```
 
-   Se guarda con dos decimales. Sin historial da **50**, la reputación inicial. Cada confirmado la acerca a 100 y cada desestimado a 0; el +1 y el +2 hacen que un solo reporte no la lleve a un extremo. La usa la señal `REPUTACION` de los reportes siguientes del vecino.
+   Se guarda con dos decimales. Sin historial da **50**, la reputación inicial. Cada confirmado la acerca a 100 y cada desestimado a 0; el +1 y el +2 hacen que un solo reporte no la lleve a un extremo. El operador la ve al revisar sus reportes.
 
    | Confirmados | Desestimados | Reputación |
    |---|---|---|
@@ -147,10 +130,11 @@ Cuando un reporte queda **verificado** o **desestimado**, se aplica siempre lo m
    Desestimar un reporte de un incidente que tiene otros reportes válidos no cambia su estado, pero sí recalcula su **severidad consolidada**, porque los desestimados no cuentan (ver la agrupación).
 
    **Cantidad de reportes.** `cantidad_reportes` cuenta solo los reportes no desestimados, propios y de los unidos (decisión del 21/10). Un desestimado se resta del incidente del reporte y, si se unió a otro, también del principal.
-3. **Bitácora.** Un cambio de estado queda como `CAMBIO_ESTADO`, con el estado anterior y el nuevo. Una revisión del operador queda siempre, aunque el incidente no cambie: entonces como `COMENTARIO`. El texto dice qué reporte, quién lo decidió (el operador o "automáticamente", con su nivel de confianza) y el comentario del operador.
+3. **Bitácora.** Un cambio de estado queda como `CAMBIO_ESTADO`, con el estado anterior y el nuevo. Una revisión del operador queda siempre, aunque el incidente no cambie: entonces como `COMENTARIO`. El texto dice qué reporte, quién lo decidió (el operador o la IA) y el comentario del operador.
 4. **Prioridad.** Se avisa al módulo de prioridad (#61) para que recalcule el incidente.
+5. **Agradecimiento.** Si quedó verificado, SnapIt comenta en el reporte «¡Gracias por tu reporte! Ya fue derivado al área de X.», con el área que lo atiende: la del incidente si un operador lo derivó, o la de su categoría. Sale siempre que un reporte se publica, lo haya decidido la IA o un operador. El área es solo informativa: el incidente no cambia de estado ni de área (derivar de verdad es el `DERIVACION` del operador). El autor es el usuario de SnapIt (`sistema@snapit.app`, `server/src/compartido/usuarioSistema.ts`), que crea la semilla también en producción y con el que nadie puede iniciar sesión: su clave es aleatoria. Si todavía no existe, el reporte se publica igual, sin el comentario.
 
-Un reporte **pendiente** no cuenta para la reputación hasta que un operador lo revisa (`POST /api/reportes/:id/revision`). Un reporte ya verificado o desestimado no se vuelve a revisar.
+Un reporte **pendiente** no cuenta para la reputación hasta que lo publica la IA o lo revisa un operador (`POST /api/reportes/:id/revision`). Un reporte ya verificado o desestimado no se vuelve a revisar.
 
 **Incidente cerrado.** Si el incidente que manda está `RESUELTO` o `DESESTIMADO`, sus pendientes ya no se revisan: no aparecen en `GET /api/reportes/pendientes`, no entran en la cola de la IA y revisarlos da 409 `INCIDENTE_CERRADO`. Siguen `PENDIENTE_REVISION`: desestimar el incidente no toca sus reportes ni la reputación (decisión del 22/10), y revisarlos después tampoco. El vecino ve el estado del incidente en "Mis reportes".
 
@@ -158,26 +142,50 @@ Un reporte **pendiente** no cuenta para la reputación hasta que un operador lo 
 
 ### Cola de verificación con IA
 
-El operador puede procesar los reportes pendientes de su organismo con la IA (`POST /api/ia/procesar-cola`, `server/src/modulos/ia/cola.ts`), de a uno por vez:
+Todo reporte llega pendiente (ver "Controles automáticos del reporte"). El operador procesa los pendientes de su organismo con la IA cuando aprieta "Procesar con IA" (`POST /api/ia/procesar-cola`, `server/src/modulos/ia/cola.ts`), de a uno por vez.
 
-1. La IA mira la foto y propone categoría y gravedad, con una explicación breve (la misma clasificación que la sugerencia al vecino, F06).
-2. **Si coincide exactamente** con lo que eligió el vecino (la misma categoría y la misma gravedad) **y la verificación automática ya lo aprobaba** (`nivel_confianza` ≥ `verificacion.umbral_verificado`), el reporte se publica: queda `VERIFICADO` con el mismo resultado que una aprobación manual (reputación, incidente, bitácora y prioridad), y en la bitácora figura que lo publicó la IA. Solo pasa con los reportes que el modo demostración mandó a la cola.
-3. **Si no coincide, o si coincide pero la verificación no lo aprobaba**, queda pendiente para revisión manual, con la propuesta guardada. En el segundo caso el log dice el nivel, el umbral y las señales en contra (foto repetida, lejos del punto, vieja, de galería sin ubicación).
-4. **Si la IA falla** o un operador lo revisó mientras tanto, queda como está: la IA nunca pisa una decisión de una persona.
+**1. La IA mira la foto** (`server/src/modulos/ia/verificarFoto.ts`). Si el reporte se sumó a un incidente que ya tiene un reporte verificado, se le manda también la foto de ese reporte como referencia. No se le dice qué eligió el vecino, para que no se deje llevar. Responde:
 
-La lista de pendientes se toma al arrancar, sin los de incidentes cerrados. Antes de clasificar cada reporte se mira si sigue pendiente y si su incidente sigue abierto. Si no, queda `REVISION_MANUAL` sin consultar a la IA, así que no gasta tokens. En el resumen cuenta en `derivados`, como el que un operador revisó mientras la IA lo procesaba: lo decidió una persona.
+| Campo | Qué dice |
+|---|---|
+| `esProblemaViaPublica` | Si la foto muestra un problema en el espacio público. `false` para una mascota, una persona posando, un interior, una captura de pantalla, un meme o algo sin relación con la calle |
+| `categoriaId`, `severidad` | Qué problema ve y qué tan grave es, con la misma lista y el mismo criterio que la sugerencia al vecino (F06). `null` si no es un problema de la vía pública |
+| `mismoProblema` | Si la foto muestra el mismo problema que la de referencia. `null` si no había referencia |
+| `datosPersonales` | Si se ve una cara reconocible o una patente legible |
+| `explicacion` | Una o dos oraciones para el operador |
 
-La IA no reemplaza la verificación (F04): un reporte de baja confianza lo decide siempre un operador, aunque la foto muestre lo que eligió el vecino. Sin el modo demostración, la cola tiene solo reportes de baja confianza, así que la IA no publica ninguno: deja su propuesta para el operador.
+Sin referencia se pide esfuerzo `low`; con referencia, `medium`, porque comparar dos fotos es más difícil. La respuesta se valida al recibirla: una categoría que no está en la lista, o un problema sin categoría, cuenta como una respuesta inválida y queda como `ERROR`.
 
-Si el vecino aceptó la sugerencia de la IA al cargar el reporte (F06), la IA se compara con su propia propuesta. No es una puerta, porque igual hace falta que la verificación lo aprobara, pero el log lo aclara y el resumen lo cuenta aparte (`publicadosConSugerencia`).
+**2. Se decide** con lo que dijo la IA y los controles automáticos (`decidirVerificacion`, en `server/src/modulos/verificacion/calculo.ts`). La IA dice qué muestra la foto; dónde se sacó lo dicen los controles. Se mira en este orden y vale lo primero que se cumple:
 
-Cada paso queda en `evento_verificacion_ia`, con los tokens que usó la clasificación. Con el precio del modelo (`server/src/modulos/ia/costos.ts`) da el costo de cada procesamiento.
+| # | Situación | Resultado |
+|---|---|---|
+| 1 | La foto no muestra un problema de la vía pública | **Desestimar sugerido**: queda en los desestimados pendientes, para que un operador lo confirme |
+| 2 | La IA ve otra categoría u otra gravedad que la que eligió el vecino | Revisión manual |
+| 3 | Se ve una cara o una patente | Revisión manual, para revisar la foto antes de publicarla |
+| 4 | La foto ya se usó en otro reporte, o es vieja | Revisión manual |
+| 5 | La foto se sacó lejos del punto | Revisión manual |
+| 6 | La foto se sacó en el punto | **Publicado** |
+| 7 | La foto no trae ubicación, pero es el mismo problema que el reporte verificado del incidente | **Publicado** (corroborado) |
+| 8 | La foto no trae ubicación y no hay referencia, o no es el mismo problema | Revisión manual |
 
-**Límite del costo:** solo suman las clasificaciones que salieron bien. Una respuesta que no es JSON, que se cortó por largo o que no tiene la forma pedida gastó tokens igual, pero queda como `ERROR` sin el uso, así que el costo real puede ser algo mayor.
+**La IA nunca desestima.** Un "desestimar sugerido" sigue `PENDIENTE_REVISION`: no toca la reputación del vecino, no le avisa nada y no cambia el incidente hasta que un operador lo confirma. Se reconoce porque su último paso en el log es `REVISION_MANUAL` y la respuesta de la IA que lleva dice `esProblemaViaPublica: false`. Así no hace falta ningún estado nuevo en el modelo.
 
-| Parámetro | Tipo | Valor | Para qué |
-|---|---|---|---|
-| `demo.revision_manual` | entero | 0 | Modo demostración. Con 1, todo reporte nuevo queda pendiente de revisión aunque la verificación automática lo aprobaría (el nivel y las señales se guardan igual), para mostrar la cola resuelta a mano o con la IA. Con 0, funciona como en producción |
+Esos reportes forman los **desestimados pendientes** (`GET /api/reportes/desestimados-pendientes`, `MARCADO_PARA_DESESTIMAR` en `server/src/modulos/incidentes/repositorio.ts`). Salen de la lista de pendientes comunes y, mientras esperan, **no se ven en público**: su foto no se sirve sin sesión, no aparecen en la ficha, el feed ni lo social, y su incidente desaparece del mapa si todos sus reportes válidos están marcados (uno sin reportes sí se ve). El operador rescata uno verificándolo, o los confirma todos juntos (`POST /api/reportes/desestimados-pendientes/confirmacion`), que los desestima como una revisión.
+
+**Límite conocido:** para saber si un reporte está marcado se busca su último paso en `evento_verificacion_ia`, que no tiene índice por `reporte_id`. Con pocos procesamientos no se nota; si el log crece mucho, conviene agregar ese índice (es un cambio del modelo: se acuerda con el grupo).
+
+**Publicado** queda `VERIFICADO` con el mismo resultado que una aprobación manual (reputación, incidente, bitácora y prioridad), y en la bitácora figura que lo publicó la IA y cómo se probó el lugar: la ubicación de la foto o el reporte verificado que la corrobora.
+
+**3. Qué entra a la cola.** Los pendientes del organismo en incidentes abiertos que **la IA todavía no miró**: un reporte con un paso `CLASIFICADO` no vuelve a entrar, porque lo que queda es de una persona y volver a consultar costaría lo mismo para la misma respuesta. Si la consulta falló (`ERROR`), sí vuelve a entrar en el próximo procesamiento.
+
+La lista se toma al arrancar. Antes de consultar cada reporte se mira si sigue pendiente y si su incidente sigue abierto. Si no, queda `REVISION_MANUAL` sin consultar a la IA, así que no gasta tokens. En el resumen cuenta en `derivados`, como el que un operador revisó mientras la IA lo procesaba: lo decidió una persona. Si la IA falla o un operador lo revisó mientras tanto, queda como está: la IA nunca pisa una decisión de una persona.
+
+**Resumen** de cada procesamiento: `publicados`, `derivados` (revisión manual), `desestimados` (desestimar sugerido) y `errores`, además del tiempo medio y el costo. Si el vecino había aceptado la sugerencia de la IA al cargar el reporte (F06), el log lo aclara y el resumen cuenta aparte los publicados así (`publicadosConSugerencia`).
+
+Cada paso queda en `evento_verificacion_ia`, con los tokens que usó la consulta. Con el precio del modelo (`server/src/modulos/ia/costos.ts`) da el costo de cada procesamiento.
+
+**Límite del costo:** solo suman las consultas que salieron bien. Una respuesta que no es JSON, que se cortó por largo o que no tiene la forma pedida gastó tokens igual, pero queda como `ERROR` sin el uso, así que el costo real puede ser algo mayor.
 
 ### Agrupación de reportes en incidentes
 
@@ -197,7 +205,7 @@ Cada reporte nuevo se suma al incidente que más se le parece, o abre uno nuevo 
 
 **Candidatos:** incidentes de la **misma categoría**, a no más de `radio_m` metros, no resueltos ni desestimados, no caducados ni vencidos, no unidos a otro, y con algún reporte válido que llegó en los últimos `ventana_dias` días. "Reportes del incidente" son siempre los no desestimados del incidente y de los que se le unieron (`REPORTES_DEL_INCIDENTE`, en `incidentes/repositorio.ts`): de ahí salen el último reporte, la foto más parecida y la severidad consolidada.
 
-**Reportes eliminados por su autor** (`reporte.eliminado_en`, #125): no se muestran (ficha, feed, lo social y la foto sin sesión, con `REPORTES_VISIBLES_DEL_INCIDENTE`), pero por ahora **siguen contando** en la agrupación, en `cantidad_reportes`, en la prioridad y en la reputación. Todavía no hay forma de eliminar un reporte: qué deja de contar al eliminarlo (y si se puede eliminar uno desestimado o el único de un incidente) se decide con esa issue. Mientras tanto, un incidente puede decir más reportes de los que muestra.
+**Reportes eliminados por su autor** (`reporte.eliminado_en`, `DELETE /api/reportes/:id`, #150): para el cálculo cuentan **como un desestimado**. Se restan de `cantidad_reportes` (del incidente y del principal, si se unió a otro), dejan de pesar en la severidad consolidada y en el estado del incidente (`estadoSegunReportes`), y se recalcula la prioridad. Para **agrupar siguen contando**, como antes: un reporte nuevo en el mismo lugar se suma a ese incidente. La **reputación no cambia**: eliminar no es un error del vecino. Un pendiente eliminado sale de la revisión y de la cola de la IA. No se muestran en ningún lado (ficha, feed, lo social, Mis reportes y la foto sin sesión). No se puede eliminar el único reporte visible de un incidente (sin contar sus unidos): quedaría vacío. Uno ya desestimado se puede eliminar, pero no cambia nada del cálculo.
 
 **Puntaje** de cada candidato, de 0 a 1:
 
@@ -374,11 +382,16 @@ Cada factor guarda un texto que se entiende sin conocer la fórmula. Los número
 
 ### Datos de cada foto
 
-Al recibir una foto (`server/src/compartido/analisisFoto.ts`) se guarda el archivo tal como llegó y se completan estas columnas de `fotografia`. Si alguno de estos datos no se puede leer, queda en null y la foto se acepta igual: solo se rechaza si no es un JPG o PNG.
+Al recibir una foto (`server/src/compartido/analisisFoto.ts`) se aceptan **JPG, PNG, WebP, AVIF y HEIC/HEIF** (la del iPhone), reconocidos por el contenido. Se leen del original el EXIF y el hash perceptual, y se completan estas columnas de `fotografia`. Si alguno de estos datos no se puede leer, queda en null y la foto se acepta igual: solo se rechaza si no es una imagen de esos formatos.
+
+**Lo que se guarda no es el original:** se gira según el EXIF, se achica a 1920 px del lado mayor (sin agrandar las chicas) y se pasa a **WebP con calidad 80, sin metadatos**. Una foto de celular de 8 MB queda en unos 200 a 400 KB, y la foto pública ya no lleva la ubicación exacta ni el modelo del teléfono (esos datos quedan en la base). `sharp` no trae el decodificador HEVC (por patentes): el HEIC se decodifica antes con libheif (`heic-decode`, en WebAssembly).
+
+Las fotos guardadas antes de este cambio se pasan a WebP con `npm run fotos:comprimir` (con `-- --probar`, solo cuenta cuánto se ahorraría): guarda la WebP, actualiza la ruta, las medidas y el tamaño, y recién después borra el original. El EXIF y el hash ya están en la fila y no cambian.
 
 | Columna | De dónde sale |
 |---|---|
-| `ancho`, `alto` | Encabezado de la imagen, sin girarla según el EXIF |
+| `ancho`, `alto` | Las de la foto guardada (la WebP, ya girada y achicada) |
+| `tamano_bytes` | El tamaño de la foto guardada |
 | `exif_latitud`, `exif_longitud` | GPS del EXIF, de grados, minutos y segundos a decimales (6 decimales, unos 10 cm). Sur y oeste son negativos. Si falta una de las dos o su hemisferio (N/S, E/O), o las dos son 0 (lo que graban algunos celulares sin señal), quedan las dos en null |
 | `exif_tomada_en` | `DateTimeOriginal` del EXIF, con la zona de `OffsetTimeOriginal`. Si la cámara no grabó la zona, se toma la de Argentina (−03:00). Una fecha que no existe (un 31 de febrero) queda en null |
 | `exif_marca`, `exif_modelo` | `Make` y `Model` del EXIF, recortados a 60 caracteres |

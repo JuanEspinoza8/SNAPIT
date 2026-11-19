@@ -7,7 +7,7 @@ import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { alCambiarIncidente } from '../src/modulos/incidentes/eventos.js';
 import { calcularReputacion } from '../src/modulos/verificacion/calculo.js';
-import { borrarReportesDe, crearUsuario } from './apoyo.js';
+import { borrarReportesDe, crearUsuario, verificarReporte } from './apoyo.js';
 import { EXIF_DE_PRUEBA, fotoUnica, jpegConExif, jpegSinExif } from './imagenes.js';
 
 // La dirección no se consulta: no hace falta para la revisión.
@@ -52,8 +52,8 @@ beforeEach(async () => {
 });
 
 /**
- * Manda un reporte en el punto del EXIF de la foto de prueba. Con la cámara de la app y GPS queda verificado
- * (50 + 20 + 15, menos 20 si la foto ya es antigua); con una foto de galería sin EXIF, pendiente (50 − 10).
+ * Manda un reporte en el punto del EXIF de la foto de prueba. Todo reporte llega pendiente; con `verificado`
+ * (foto con GPS) se verifica enseguida, como lo haría la IA (verificarReporte). Sin, queda pendiente.
  */
 async function reportar(vecino: Usuario, opciones: { verificado: boolean; severidad?: Severidad }) {
   const res = await request(app)
@@ -67,7 +67,8 @@ async function reportar(vecino: Usuario, opciones: { verificado: boolean; severi
     .field('tomadaConCamaraApp', String(opciones.verificado))
     .attach('foto', await fotoUnica(opciones.verificado ? jpegConExif() : jpegSinExif()), 'foto.jpg');
   expect(res.status).toBe(201);
-  expect(res.body.estadoVerificacion).toBe(opciones.verificado ? 'VERIFICADO' : 'PENDIENTE_REVISION');
+  expect(res.body.estadoVerificacion).toBe('PENDIENTE_REVISION');
+  if (opciones.verificado) await verificarReporte(res.body.id as number);
   return res.body as { id: number; incidenteId: number };
 }
 
@@ -104,7 +105,7 @@ describe('reputación', () => {
   });
 });
 
-describe('verificación automática al recibir el reporte', () => {
+describe('verificación sin un operador de por medio', () => {
   it('un reporte verificado suma a la reputación y verifica el incidente', async () => {
     const vecino = await crearVecino();
 
@@ -151,11 +152,11 @@ describe('GET /api/reportes/pendientes', () => {
       categoria: { id: categoria.id },
       severidadDeclarada: 'MODERADA',
       origen: 'APP_MOVIL',
-      nivelConfianza: 40,
+      nivelConfianza: 33,
       incidente: { id: pendiente.incidenteId, estado: 'REGISTRADO', cantidadReportes: 1 },
       vecino: { reputacion: 50, reportesConfirmados: 0, reportesDesestimados: 0 },
     });
-    expect(fila.senales).toContainEqual(expect.objectContaining({ tipo: 'EXIF_AUSENTE', valor: -10 }));
+    expect(fila.senales).toContainEqual(expect.objectContaining({ tipo: 'EXIF_AUSENTE', valor: 0 }));
     expect(fila.fotos).toEqual([
       { id: expect.any(Number), url: expect.stringMatching(/^\/api\/fotos\/\d+$/) },
     ]);
@@ -286,7 +287,7 @@ describe('POST /api/reportes/:id/revision', () => {
     expect(await historial(vecino.id)).toMatchObject({ reportesConfirmados: 1, reportesDesestimados: 0 });
   });
 
-  it('tampoco uno que el sistema ya verificó al recibirlo', async () => {
+  it('tampoco uno ya verificado', async () => {
     const reporte = await reportar(await crearVecino(), { verificado: true });
 
     const res = await revisar(reporte.id, { decision: 'DESESTIMADO' });

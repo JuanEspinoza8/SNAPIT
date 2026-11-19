@@ -172,7 +172,7 @@ describe('agrupación de reportes en incidentes (F05)', () => {
     expect(nuevo.incidenteId).not.toBe(primero.incidenteId);
   });
 
-  it('un reporte que su autor eliminó sigue contando para agrupar: eso lo decide la issue de eliminar', async () => {
+  it('un reporte que su autor eliminó sigue contando para agrupar (#150)', async () => {
     const primero = await reportar();
     await prisma.reporte.update({ where: { id: primero.id }, data: { eliminadoEn: new Date() } });
 

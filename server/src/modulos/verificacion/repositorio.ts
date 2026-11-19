@@ -8,57 +8,24 @@ import {
 import { distanciaHammingSql } from '../../compartido/hashPerceptual.js';
 import {
   bitsDelHash,
-  deCeroACien,
   type DefinicionParametros,
   leerParametrosNumericos,
   noNegativo,
 } from '../../compartido/parametros.js';
 import { prisma } from '../../compartido/prisma.js';
+import { MARCADO_PARA_DESESTIMAR } from '../incidentes/repositorio.js';
 import { calcularReputacion, type ParametrosVerificacion } from './calculo.js';
 
-// Los mismos valores que carga la semilla: si falta un parámetro, se verifica igual con estos. Los valores de
-// las señales (valor_*) pueden ser negativos; el resto no.
+// Los mismos valores que carga la semilla: si falta un parámetro, se verifica igual con estos.
 const PARAMETROS: DefinicionParametros<keyof ParametrosVerificacion> = {
-  confianzaBase: { clave: 'verificacion.confianza_base', valor: 50, valido: deCeroACien },
-  umbralVerificado: { clave: 'verificacion.umbral_verificado', valor: 60, valido: deCeroACien },
   distanciaExifMaxM: { clave: 'verificacion.distancia_exif_max_m', valor: 100, valido: noNegativo },
-  valorExifCoincide: { clave: 'verificacion.valor_exif_coincide', valor: 20 },
-  valorExifNoCoincide: { clave: 'verificacion.valor_exif_no_coincide', valor: -30 },
-  valorExifAusente: { clave: 'verificacion.valor_exif_ausente', valor: -10 },
   hammingDuplicadoMax: { clave: 'verificacion.hamming_duplicado_max', valor: 6, valido: bitsDelHash },
-  valorHashDuplicado: { clave: 'verificacion.valor_hash_duplicado', valor: -40 },
-  valorOrigenApp: { clave: 'verificacion.valor_origen_app', valor: 15 },
-  valorReputacionMax: { clave: 'verificacion.valor_reputacion_max', valor: 20 },
   diasFotoAntigua: { clave: 'verificacion.dias_foto_antigua', valor: 7, valido: noNegativo },
-  valorFechaAntigua: { clave: 'verificacion.valor_fecha_antigua', valor: -20 },
 };
-
-/**
- * Si está activo el modo demostración (demo.revision_manual = 1): todo reporte nuevo va a la cola de
- * revisión, para procesarla a mano o con la IA (ia/cola.ts).
- */
-export async function modoDemostracion() {
-  const { revisionManual } = await leerParametrosNumericos({
-    revisionManual: {
-      clave: 'demo.revision_manual',
-      valor: 0,
-      valido: (valor) => valor === 0 || valor === 1,
-    },
-  });
-  return revisionManual === 1;
-}
 
 /** Los parámetros verificacion.* de parametro_sistema. */
 export function leerParametros(): Promise<ParametrosVerificacion> {
   return leerParametrosNumericos(PARAMETROS);
-}
-
-export async function leerReputacion(usuarioId: number) {
-  const usuario = await prisma.usuario.findUniqueOrThrow({
-    where: { id: usuarioId },
-    select: { reputacion: true },
-  });
-  return Number(usuario.reputacion);
 }
 
 /**
@@ -131,6 +98,8 @@ export interface FilaPendiente {
   estadoVerificacion: EstadoVerificacion;
   /** Cuándo lo publicó la IA al procesar la cola, o null si no fue ella. */
   publicadoPorIaEn: Date | null;
+  /** Si la IA lo marcó para desestimar y espera que un operador lo confirme (MARCADO_PARA_DESESTIMAR). */
+  marcadoParaDesestimar: boolean;
 }
 
 export interface FiltrosReportes {
@@ -140,11 +109,17 @@ export interface FiltrosReportes {
   orden: 'viejos' | 'nuevos';
   limite: number;
   soloIncidentesAbiertos?: boolean;
+  /** true: solo los marcados para desestimar; false: sin ellos. Sin el filtro, todos. */
+  marcados?: boolean;
 }
 
 /**
- * Lo que la IA necesita de cada pendiente del organismo: qué eligió el vecino, su foto, el nivel de confianza
- * con las señales en contra y si aceptó la sugerencia de la IA al cargarlo. Del más viejo al más nuevo.
+ * Lo que la IA necesita de cada pendiente del organismo que todavía no miró: qué eligió el vecino, su foto, los
+ * controles automáticos y si aceptó la sugerencia de la IA al cargarlo. Del más viejo al más nuevo. La foto de
+ * referencia se busca recién al procesar cada uno (buscarReferencia).
+ *
+ * Un reporte que la IA ya miró (tiene un paso CLASIFICADO) no vuelve a entrar: lo que queda es de una persona, y
+ * volver a consultar costaría lo mismo para la misma respuesta. Si la consulta falló, sí vuelve a entrar.
  */
 export function pendientesParaIa(organismoId: number) {
   return prisma.$queryRaw<
@@ -153,22 +128,47 @@ export function pendientesParaIa(organismoId: number) {
       categoriaId: number;
       severidad: Severidad;
       rutaArchivo: string | null;
-      nivelConfianza: number;
-      senalesEnContra: string[];
+      senales: { tipo: TipoSenal; valor: number }[];
       sugerenciaAceptada: boolean;
     }[]
   >`
     SELECT r.id, r.categoria_id AS "categoriaId", r.severidad_declarada::text AS severidad,
            (SELECT f.ruta_archivo FROM fotografia f WHERE f.reporte_id = r.id ORDER BY f.id LIMIT 1) AS "rutaArchivo",
-           r.nivel_confianza AS "nivelConfianza",
-           (SELECT coalesce(array_agg(s.detalle ORDER BY s.id), '{}') FROM senal_verificacion s
-            WHERE s.reporte_id = r.id AND s.valor < 0 AND s.detalle IS NOT NULL) AS "senalesEnContra",
+           (SELECT coalesce(json_agg(json_build_object('tipo', s.tipo, 'valor', s.valor::float8) ORDER BY s.id), '[]')
+            FROM senal_verificacion s WHERE s.reporte_id = r.id) AS senales,
            coalesce(r.sugerencia_aceptada, false) AS "sugerenciaAceptada"
     ${DEL_ORGANISMO}
     WHERE r.estado_verificacion = 'PENDIENTE_REVISION'
+      AND r.eliminado_en IS NULL
       AND a.organismo_id = ${organismoId}
       AND ${INCIDENTE_ABIERTO}
+      AND NOT EXISTS (SELECT 1 FROM evento_verificacion_ia e
+                      WHERE e.reporte_id = r.id AND e.estado = 'CLASIFICADO')
     ORDER BY r.registrado_en, r.id`;
+}
+
+/**
+ * La foto de referencia de un pendiente: la de un reporte ya verificado del mismo incidente (el principal, con sus
+ * unidos). Si la IA dice que muestran el mismo problema, el lugar queda corroborado aunque la foto no traiga
+ * ubicación. Se busca al procesar cada reporte, no al arrancar: así sirve también uno que la IA acaba de publicar
+ * en el mismo procesamiento (por ejemplo, la foto con GPS del mismo bache).
+ */
+export async function buscarReferencia(id: number) {
+  const [fila] = await prisma.$queryRaw<{ reporteId: number; rutaArchivo: string }[]>`
+    SELECT r2.id AS "reporteId", f.ruta_archivo AS "rutaArchivo"
+    FROM reporte r
+    JOIN incidente propio ON propio.id = r.incidente_id
+    JOIN incidente r2_incidente ON coalesce(r2_incidente.incidente_principal_id, r2_incidente.id)
+                                   = coalesce(propio.incidente_principal_id, propio.id)
+    JOIN reporte r2 ON r2.incidente_id = r2_incidente.id
+    JOIN fotografia f ON f.reporte_id = r2.id
+    WHERE r.id = ${id}
+      AND r2.id <> r.id
+      AND r2.estado_verificacion = 'VERIFICADO'
+      AND r2.eliminado_en IS NULL
+    ORDER BY r2.registrado_en, r2.id, f.id
+    LIMIT 1`;
+  return fila ?? null;
 }
 
 /** En qué quedó el reporte y si su incidente se cerró: la cola lo mira antes de pagar la clasificación. */
@@ -183,24 +183,52 @@ export async function estadoEnCola(id: number) {
   return fila;
 }
 
-/** Los reportes que esperan revisión en los incidentes abiertos del organismo, del más viejo al más nuevo. */
+/**
+ * Los reportes que esperan revisión en los incidentes abiertos del organismo, del más viejo al más nuevo. Los
+ * marcados para desestimar van aparte (listarMarcados).
+ */
 export function listarPendientes(organismoId: number) {
   return listarDelOrganismo(organismoId, {
     estado: 'PENDIENTE_REVISION',
     orden: 'viejos',
     limite: 1000,
     soloIncidentesAbiertos: true,
+    marcados: false,
   });
+}
+
+/** Los desestimados pendientes: los que la IA marcó para desestimar en los incidentes abiertos del organismo. */
+export function listarMarcados(organismoId: number) {
+  return listarDelOrganismo(organismoId, {
+    estado: 'PENDIENTE_REVISION',
+    orden: 'viejos',
+    limite: 1000,
+    soloIncidentesAbiertos: true,
+    marcados: true,
+  });
+}
+
+/** Si el reporte sigue marcado para desestimar: entre que el operador vio la lista y confirmó, pudo cambiar. */
+export async function estaMarcado(tx: Tx, id: number) {
+  const [fila] = await tx.$queryRaw<{ marcado: boolean }[]>`
+    SELECT ${MARCADO_PARA_DESESTIMAR()} AS marcado FROM reporte r WHERE r.id = ${id}`;
+  return fila?.marcado ?? false;
 }
 
 /** Los reportes de los incidentes del organismo, con todo lo que hace falta para revisarlos o consultarlos. */
 export function listarDelOrganismo(organismoId: number, filtros: FiltrosReportes) {
-  const condiciones = [Prisma.sql`a.organismo_id = ${organismoId}`];
+  // Uno que su autor eliminó (#150) ya no se revisa ni se lista.
+  const condiciones = [Prisma.sql`a.organismo_id = ${organismoId}`, Prisma.sql`r.eliminado_en IS NULL`];
   if (filtros.estado) {
     condiciones.push(Prisma.sql`r.estado_verificacion = ${filtros.estado}::estado_verificacion`);
   }
   if (filtros.categoriaId) condiciones.push(Prisma.sql`r.categoria_id = ${filtros.categoriaId}`);
   if (filtros.soloIncidentesAbiertos) condiciones.push(INCIDENTE_ABIERTO);
+  if (filtros.marcados !== undefined) {
+    condiciones.push(
+      filtros.marcados ? MARCADO_PARA_DESESTIMAR() : Prisma.sql`NOT ${MARCADO_PARA_DESESTIMAR()}`,
+    );
+  }
   const orden =
     filtros.orden === 'viejos'
       ? Prisma.sql`r.registrado_en, r.id`
@@ -230,7 +258,8 @@ export function listarDelOrganismo(organismoId: number, filtros: FiltrosReportes
             LIMIT 1) AS "propuestaIa",
            r.estado_verificacion::text AS "estadoVerificacion",
            (SELECT min(e.creado_en) FROM evento_verificacion_ia e
-            WHERE e.reporte_id = r.id AND e.estado = 'PUBLICADO') AS "publicadoPorIaEn"
+            WHERE e.reporte_id = r.id AND e.estado = 'PUBLICADO') AS "publicadoPorIaEn",
+           ${MARCADO_PARA_DESESTIMAR()} AS "marcadoParaDesestimar"
     ${DEL_ORGANISMO}
     JOIN categoria rc ON rc.id = r.categoria_id
     JOIN usuario u ON u.id = r.usuario_id
@@ -325,6 +354,21 @@ export function actualizarIncidente(
   datos: { estado?: EstadoIncidente; severidad?: Severidad },
 ) {
   return tx.incidente.update({ where: { id }, data: { ...datos, actualizadoEn: new Date() } });
+}
+
+/**
+ * El nombre del área que atiende el reporte: la del incidente que manda (la derivada o, si no, la de su
+ * categoría) o, si el reporte no tiene incidente, la de su categoría.
+ */
+export async function areaDelReporte(tx: Tx, reporteId: number) {
+  const [fila] = await tx.$queryRaw<{ nombre: string }[]>`
+    SELECT a.nombre ${DEL_ORGANISMO}
+    WHERE r.id = ${reporteId}`;
+  return fila?.nombre ?? null;
+}
+
+export function comentarReporte(tx: Tx, comentario: { usuarioId: number; reporteId: number; texto: string }) {
+  return tx.comentario.create({ data: comentario });
 }
 
 export function registrarMovimiento(

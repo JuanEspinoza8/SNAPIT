@@ -7,7 +7,8 @@ const id = (siFalta: string) =>
     .int32({ error: (problema) => (problema.input === undefined ? siFalta : 'No es un id válido') })
     .positive({ error: 'No es un id válido' });
 
-// Los vecinos se registran solos: desde la administración se crean operadores y administradores.
+// Los vecinos se registran solos: desde la administración se crean operadores y administradores. El operador
+// puede no tener área: entonces ve todo su organismo.
 export const esquemaAltaUsuario = z.discriminatedUnion(
   'rol',
   [
@@ -17,7 +18,7 @@ export const esquemaAltaUsuario = z.discriminatedUnion(
       nombre,
       rol: z.literal('OPERADOR'),
       organismoId: id('Es obligatorio'),
-      areaId: id('Es obligatoria'),
+      areaId: id('Es obligatoria').nullish(),
     }),
     z.object({
       email,
@@ -35,3 +36,40 @@ export const esquemaAltaUsuario = z.discriminatedUnion(
 );
 
 export type DatosAltaUsuario = z.output<typeof esquemaAltaUsuario>;
+
+export const esquemaIdUsuario = z.object({
+  id: z.coerce
+    .number({ error: 'No es válido' })
+    .pipe(z.int32({ error: 'No es válido' }).positive({ error: 'No es válido' })),
+});
+
+// Modificar un usuario: su nombre, su rol y dónde trabaja. El correo y la clave son de cada uno.
+export const esquemaModificacionUsuario = z.discriminatedUnion(
+  'rol',
+  [
+    z.object({
+      nombre,
+      rol: z.literal('VECINO'),
+      organismoId: z.null({ error: 'Los vecinos no tienen organismo' }).optional(),
+      areaId: z.null({ error: 'Solo los operadores tienen área' }).optional(),
+    }),
+    z.object({
+      nombre,
+      rol: z.literal('OPERADOR'),
+      organismoId: id('Es obligatorio'),
+      areaId: id('Es obligatoria').nullish(),
+    }),
+    z.object({
+      nombre,
+      rol: z.literal('ADMINISTRADOR'),
+      organismoId: id('Es obligatorio').nullish(),
+      areaId: z.null({ error: 'Solo los operadores tienen área' }).optional(),
+    }),
+  ],
+  {
+    error: (problema) =>
+      problema.code === 'invalid_union' ? 'Tiene que ser VECINO, OPERADOR o ADMINISTRADOR' : undefined,
+  },
+);
+
+export type DatosModificacionUsuario = z.output<typeof esquemaModificacionUsuario>;

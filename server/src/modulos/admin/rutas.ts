@@ -21,3 +21,12 @@ rutasAdmin.post('/usuarios', async (req, res) => {
 rutasAdmin.get('/usuarios', async (_req, res) => {
   res.json(await servicio.listarUsuarios());
 });
+
+rutasAdmin.put('/usuarios/:id', async (req, res) => {
+  res.json(await servicio.modificarUsuario(req.usuario!, req.params, req.body));
+});
+
+rutasAdmin.delete('/usuarios/:id', async (req, res) => {
+  await servicio.darDeBaja(req.usuario!, req.params);
+  res.status(204).end();
+});

@@ -6,6 +6,10 @@ import { app } from '../src/app.js';
 import { almacenFotos } from '../src/compartido/almacenFotos.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
+import { avisarCambioIncidente } from '../src/modulos/incidentes/eventos.js';
+import { transaccion } from '../src/modulos/reportes/repositorio.js';
+import { cambiarEstadoReporte } from '../src/modulos/verificacion/repositorio.js';
+import { aplicarResultado } from '../src/modulos/verificacion/resultado.js';
 import { fotoUnica, jpegSinExif } from './imagenes.js';
 
 export const CLAVE = 'clave-de-prueba-1';
@@ -108,9 +112,26 @@ export async function crearIncidente(
 }
 
 /**
- * Un reporte de un vecino nuevo en ese punto. Con la cámara de la app se verifica solo (50 + 15) y su
- * incidente queda VERIFICADO; con `pendiente`, desde la galería sin EXIF queda pendiente (50 − 10) y el
- * incidente sigue REGISTRADO. Los tests que lo usan simulan la geocodificación.
+ * Verifica un reporte pendiente como lo haría la verificación con IA o un operador, sin pasar por ellos: el
+ * reporte queda VERIFICADO con todo su efecto (reputación, incidente, bitácora y prioridad).
+ */
+export async function verificarReporte(reporteId: number) {
+  await transaccion(async (tx) => {
+    await cambiarEstadoReporte(tx, reporteId, 'VERIFICADO');
+    const efecto = await aplicarResultado(tx, {
+      reporteId,
+      decision: 'VERIFICADO',
+      operadorId: null,
+      comentario: null,
+    });
+    if (efecto.incidente) await avisarCambioIncidente(tx, efecto.incidente.id);
+  });
+}
+
+/**
+ * Un reporte de un vecino nuevo en ese punto. Todo reporte llega pendiente; salvo con `pendiente`, se verifica
+ * enseguida (verificarReporte) y su incidente queda VERIFICADO. Con `pendiente` el incidente sigue REGISTRADO.
+ * Los tests que lo usan simulan la geocodificación.
  */
 export async function reportarEn(
   punto: { lat: number; lon: number },
@@ -128,5 +149,6 @@ export async function reportarEn(
     .field('tomadaConCamaraApp', String(!opciones.pendiente))
     .attach('foto', await fotoUnica(jpegSinExif()), 'foto.jpg');
   if (res.status !== 201) throw new Error(`El reporte no se creó: ${res.status} ${JSON.stringify(res.body)}`);
+  if (!opciones.pendiente) await verificarReporte(res.body.id as number);
   return { id: res.body.id as number, incidenteId: res.body.incidenteId as number, vecinoId: vecino.id };
 }

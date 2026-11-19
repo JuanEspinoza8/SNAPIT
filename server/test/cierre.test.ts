@@ -3,6 +3,7 @@ import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
+import { idUsuarioSistema } from '../src/compartido/usuarioSistema.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { compararCierre } from '../src/modulos/ia/compararCierre.js';
 import { IaNoDisponible } from '../src/modulos/ia/servicio.js';
@@ -68,6 +69,15 @@ const cerrar = (id: number, foto: Buffer | null = jpegConExif(), conToken = toke
 const incidente = (id: number) =>
   prisma.incidente.findUniqueOrThrow({ where: { id }, select: { estado: true, resueltoEn: true } });
 
+/** Lo que SnapIt comentó en los reportes del incidente: al resolverse, uno en cada reporte publicado. */
+async function comentariosDeSnapit(id: number) {
+  const comentarios = await prisma.comentario.findMany({
+    where: { reporte: { incidenteId: id }, usuarioId: (await idUsuarioSistema())! },
+    select: { texto: true },
+  });
+  return comentarios.map((comentario) => comentario.texto).filter((texto) => texto.startsWith('¡Listo!'));
+}
+
 describe('POST /api/incidentes/:id/cierre', () => {
   it('con la foto en el lugar y la IA diciendo resuelto, valida el cierre y resuelve el incidente', async () => {
     const id = await enEjecucion();
@@ -94,6 +104,10 @@ describe('POST /api/incidentes/:id/cierre', () => {
       where: { incidenteId: id, tipo: 'CAMBIO_ESTADO', estadoNuevo: 'RESUELTO' },
     });
     expect(movimiento).toMatchObject({ estadoAnterior: 'EN_EJECUCION', usuarioId: operador.id });
+    // SnapIt le cuenta al vecino que su reporte sirvió.
+    expect(await comentariosDeSnapit(id)).toEqual([
+      `¡Listo! El área de ${area.nombre} resolvió este problema. Gracias por reportarlo.`,
+    ]);
   });
 
   it('la ficha pública muestra el después, y su foto se ve sin sesión', async () => {
@@ -243,7 +257,7 @@ describe('POST /api/incidentes/:id/cierre', () => {
     expect(sinFoto.body.error.detalles).toEqual([{ campo: 'foto', mensaje: 'Es obligatoria' }]);
     expect(noImagen.status).toBe(400);
     expect(noImagen.body.error.detalles).toEqual([
-      { campo: 'foto', mensaje: 'Tiene que ser una imagen JPG o PNG' },
+      { campo: 'foto', mensaje: 'Tiene que ser una foto JPG, PNG, WebP o HEIC' },
     ]);
   });
 });
@@ -287,6 +301,7 @@ describe('POST /api/incidentes/:id/cierre/confirmacion', () => {
     expect(await detalle(cierreId)).toBe(`Lo confirmó ${otro.nombre}: Pasé y está tapado`);
     // Ya resuelto, la foto del después se publica.
     expect((await request(app).get(`/api/incidentes/${id}`)).body.fotoCierre).not.toBeNull();
+    expect(await comentariosDeSnapit(id)).toHaveLength(1);
   });
 
   it('otro operador lo rechaza con un motivo: el incidente sigue en ejecución y se puede volver a cerrar', async () => {

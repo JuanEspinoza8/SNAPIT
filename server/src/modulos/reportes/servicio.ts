@@ -12,8 +12,6 @@ import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import { vigenciaDeCategoria } from '../incidentes/vigencia.js';
 import { vincularIncidente } from '../red/repositorio.js';
 import type { Senal } from '../verificacion/calculo.js';
-import { aplicarResultado } from '../verificacion/resultado.js';
-import { modoDemostracion } from '../verificacion/repositorio.js';
 import { verificarReporte } from '../verificacion/servicio.js';
 import { type DatosReporte, esquemaReporte } from './esquemas.js';
 import * as repositorio from './repositorio.js';
@@ -81,7 +79,7 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
   const problemaFoto = !archivo
     ? [{ campo: 'foto', mensaje: 'Es obligatoria' }]
     : !imagen
-      ? [{ campo: 'foto', mensaje: 'Tiene que ser una imagen JPG o PNG' }]
+      ? [{ campo: 'foto', mensaje: 'Tiene que ser una foto JPG, PNG, WebP o HEIC' }]
       : [];
   const datos = validar(esquemaReporte, cuerpo ?? {}, problemaFoto);
 
@@ -107,24 +105,19 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
 
   const parametrosAgrupacion = await agrupacion.leerParametros();
   // Antes de guardar: la foto todavía no está en la base, así que no se encuentra a sí misma como repetida.
-  let verificacion = await verificarReporte({
+  const verificacion = await verificarReporte({
     usuarioId,
     lat: datos.lat,
     lon: datos.lon,
     registradoEn,
-    tomadaConCamaraApp: datos.tomadaConCamaraApp,
     exif: imagen!.exif,
     hashPerceptual: imagen!.hashPerceptual,
   });
-  // Modo demostración: el nivel y las señales se guardan igual, pero el reporte espera en la cola aunque la
-  // verificación automática lo aprobaría, para mostrar la revisión manual y la de la IA (ia/cola.ts).
-  if (verificacion.estado === 'VERIFICADO' && (await modoDemostracion())) {
-    verificacion = { ...verificacion, estado: 'PENDIENTE_REVISION' };
-  }
 
   // Primero el archivo y después la base. Si la base falla, se borra el archivo: nunca queda
   // un reporte sin foto ni una foto suelta.
-  const rutaArchivo = await almacenFotos.guardar(archivo!, imagen!.tipo);
+  // Se guarda la WebP, no el original: pesa una fracción y sale sin EXIF (los datos ya se leyeron).
+  const rutaArchivo = await almacenFotos.guardar(imagen!.archivo, imagen!.tipo);
   let reporte: Awaited<ReturnType<typeof guardarReporte>>;
   try {
     reporte = await guardarReporte({
@@ -133,7 +126,7 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
         categoriaId: categoria.id,
         severidad: datos.severidadDeclarada,
         sugerencia,
-        verificacion,
+        nivelConfianza: verificacion.nivel,
         descripcion: datos.descripcion,
         lat: datos.lat,
         lon: datos.lon,
@@ -146,7 +139,7 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
         rutaArchivo,
         ancho: imagen!.ancho,
         alto: imagen!.alto,
-        tamanoBytes: archivo!.length,
+        tamanoBytes: imagen!.archivo.length,
         tomadaConCamaraApp: datos.tomadaConCamaraApp,
         hashPerceptual: imagen!.hashPerceptual,
         exifLatitud: imagen!.exif.latitud,
@@ -219,19 +212,9 @@ function guardarReporte(alta: {
     // Con el reporte ya guardado: la cantidad y la severidad consolidada lo incluyen.
     const severidad = severidadConsolidada(await agrupacion.severidadesDeclaradas(tx, incidenteId));
     await repositorio.sumarReporte(tx, incidenteId, { severidad, actualizadoEn: reporte.sincronizadoEn });
-    // Verificado al llegar: cuenta para la reputación del vecino y puede verificar el incidente. Uno pendiente
-    // espera la revisión del operador (verificacion/revision.ts).
-    if (guardado.estadoVerificacion === 'VERIFICADO') {
-      await aplicarResultado(tx, {
-        reporteId: guardado.id,
-        decision: 'VERIFICADO',
-        operadorId: null,
-        comentario: null,
-      });
-    }
-    if (guardado.estadoVerificacion === 'PENDIENTE_REVISION') {
-      avisarReporteEnVerificacion(guardado.id, incidenteId);
-    }
+    // Todo reporte llega pendiente: lo publica la verificación con IA (ia/cola.ts) o un operador
+    // (verificacion/revision.ts).
+    avisarReporteEnVerificacion(guardado.id, incidenteId);
     await avisarCambioIncidente(tx, incidenteId);
 
     return {

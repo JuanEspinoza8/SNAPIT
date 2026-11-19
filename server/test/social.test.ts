@@ -101,15 +101,17 @@ describe('GET /api/social/incidentes/:id/reportes', () => {
           descripcion: 'Una baldosa rota',
           creadoEn: '2026-10-01T12:00:00.000Z',
           // Del autor, solo su número dentro del incidente.
-          autor: { numero: 1, nombre: 'Vecino 1' },
+          autor: { numero: 1, nombre: 'Vecino 1', sistema: false },
           fotos: [{ id: primero.fotoId, url: `/api/fotos/${primero.fotoId}` }],
           cantidadMeGusta: 2,
           cantidadComentarios: 1,
+          // Sin sesión, nadie le dio me gusta.
+          yaMeGusta: false,
         },
         // Carla comentó (el 02/10) antes de que Bruno reportara (el 03/10); el comentario borrado de Bruno no cuenta.
         expect.objectContaining({
           id: segundo.id,
-          autor: { numero: 3, nombre: 'Vecino 3' },
+          autor: { numero: 3, nombre: 'Vecino 3', sistema: false },
           cantidadMeGusta: 0,
           cantidadComentarios: 0,
         }),
@@ -147,7 +149,7 @@ describe('GET /api/social/incidentes/:id/reportes', () => {
       res.body.reportes.map((r: { autor: { nombre: string } }) => r.autor.nombre);
     expect(autores(reportesDeUno)).toEqual(['Vecino 1', 'Vecino 2']);
     // Ana comenta en la foto de Bruno: sigue siendo la Vecino 1 de este incidente.
-    expect(comentarios.body.comentarios[0].autor).toEqual({ numero: 1, nombre: 'Vecino 1' });
+    expect(comentarios.body.comentarios[0].autor).toEqual({ numero: 1, nombre: 'Vecino 1', sistema: false });
     // En el otro incidente llegó segunda: no se puede saber que es la misma persona.
     expect(autores(reportesDeOtro)).toEqual(['Vecino 1', 'Vecino 2']);
   });
@@ -205,13 +207,14 @@ describe('GET /api/social/incidentes/:id/comentarios', () => {
           texto: 'El primero',
           creadoEn: '2026-10-02T12:00:00.000Z',
           editadoEn: null,
-          autor: { numero: 1, nombre: 'Vecino 1' },
+          autor: { numero: 1, nombre: 'Vecino 1', sistema: false },
+          esMio: false,
         },
         // Bruno participó por primera vez con el comentario de la foto, el 02/10.
         expect.objectContaining({
           id: nuevo.id,
           texto: 'El segundo',
-          autor: { numero: 2, nombre: 'Vecino 2' },
+          autor: { numero: 2, nombre: 'Vecino 2', sistema: false },
         }),
       ],
     });
@@ -257,11 +260,14 @@ describe('GET /api/social/reportes/:id y /comentarios', () => {
     expect(publico.body).toMatchObject({
       id: reporte.id,
       incidenteId: principal,
-      autor: { numero: 1, nombre: 'Vecino 1' },
+      autor: { numero: 1, nombre: 'Vecino 1', sistema: false },
       cantidadMeGusta: 1,
     });
     expect(comentarios.body.comentarios).toEqual([
-      expect.objectContaining({ id: comentario.id, autor: { numero: 2, nombre: 'Vecino 2' } }),
+      expect.objectContaining({
+        id: comentario.id,
+        autor: { numero: 2, nombre: 'Vecino 2', sistema: false },
+      }),
     ]);
   });
 

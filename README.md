@@ -61,9 +61,10 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 | Rol | Correo |
 |---|---|
 | Administrador | `admin@snapit.test` |
-| Operador de Bacheo | `bacheo@snapit.test` |
-| Operadora de Veredas | `veredas@snapit.test` |
+| Operador (sin área: ve todo el organismo) | `operador@snapit.test` |
 | Vecinos | `vecino1@snapit.test`, `vecino2@snapit.test`, `vecino3@snapit.test` |
+
+Además, siempre (también en producción) carga el usuario de **SnapIt** (`sistema@snapit.app`), con el que el sistema firma sus comentarios, por ejemplo el agradecimiento al publicar un reporte. Nadie inicia sesión con él: su clave es aleatoria.
 
 > **Nunca uses `prisma migrate dev` ni `prisma db push`.** El modelo está congelado: `0_init` es el `db/schema.sql` entregado y cada cambio acordado con el grupo va en una migración escrita a mano (ver [CONTRIBUTING.md](CONTRIBUTING.md)). `schema.prisma` no puede expresar los índices GIST ni los nombres de las restricciones, así que esos comandos generan una migración que borra los índices espaciales y renombra las claves del modelo entregado. Para aplicar migraciones, solo `prisma migrate deploy`.
 
@@ -71,6 +72,8 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
 | `npm run semilla` | Carga o restaura el catálogo, los parámetros, la zona piloto y los usuarios de prueba (estos, fuera de producción) |
+| `npm run fotos:comprimir` | Pasa a WebP las fotos guardadas antes de que se guardaran así (con `-- --probar`, solo cuenta cuánto se ahorraría). En Docker: `docker compose exec server node dist/tareas/comprimirFotos.js` |
+| `npm run demo:reportes -- <carpeta>` | Carga como reportes de vecinos las fotos de una carpeta, según su `demo.json` (ver «Reportes para la demo») |
 | `npm run semilla:social` | Solo en desarrollo: suma cinco vecinos de ejemplo (`vecino4..8@snapit.test`, misma clave) y les reparte likes y comentarios sobre los incidentes que ya hay. Se puede correr varias veces: no duplica nada |
 | `npm run importar:puntos` | Carga los puntos de interés de Neuquén desde OpenStreetMap (ver «Puntos de interés») |
 | `npm run importar:red` | Carga la red peatonal de la zona piloto desde OpenStreetMap (ver «Red peatonal») |
@@ -95,6 +98,26 @@ El recálculo diario de prioridad también:
 ```bash
 docker compose exec server node dist/tareas/recalcularPrioridad.js
 ```
+
+### Reportes para la demo
+
+Para mostrar la verificación con IA conviene tener pendientes variados. `npm run demo:reportes -- <carpeta>` carga como reportes de vecinos las fotos de una carpeta, según un `demo.json` que va en la misma carpeta:
+
+```json
+[
+  { "foto": "bache.jpg", "categoria": "Pozo en la calzada", "gravedad": "GRAVE" },
+  { "foto": "bache-de-whatsapp.jpg", "categoria": "Pozo en la calzada", "gravedad": "GRAVE", "lat": -38.9512, "lon": -68.0588 },
+  { "foto": "perro.jpg", "categoria": "Vereda rota", "gravedad": "LEVE", "vecino": "vecino2@snapit.test" },
+  { "foto": "luminaria.jpg", "categoria": "Pozo en la calzada", "gravedad": "MODERADA", "descripcion": "Frente a la plaza" }
+]
+```
+
+- `categoria` es el nombre de una categoría activa (sin importar mayúsculas) y `gravedad`, `LEVE`, `MODERADA` o `GRAVE`.
+- `vecino` es opcional: sin él se reparten entre `vecino1..3@snapit.test`, así que hace falta haber corrido `npm run semilla`.
+- El punto sale de `lat` y `lon`, si están; si no, del EXIF de la foto, como en la web y la app; si tampoco trae, uno en el centro de Neuquén (uno por cuadra, para que no se agrupen).
+- Los reportes entran como cualquier otro: pendientes, con sus controles y agrupados. Después se procesan con la IA desde `/revision`.
+
+Un juego útil: una foto real con GPS (se publica), la misma foto del problema reenviada por WhatsApp sin GPS y con el punto del primero (se publica corroborada), una foto que no es de la calle (va a desestimados) y una con la categoría equivocada (queda para revisar).
 
 ### Correos en desarrollo
 
@@ -325,8 +348,8 @@ lib/
 
 ### Reportar
 
-- Solo para vecinos, en la pestaña «Reportar». La foto se saca con la app de cámara del teléfono (SnapIt no pide el permiso de cámara) o se elige de la galería, y se manda el archivo original, sin achicar ni recomprimir, para conservar el EXIF.
-- La ubicación es una lectura nueva del GPS, nunca la última conocida. Sin permiso o con la ubicación apagada no se puede enviar, y la pantalla dice qué hacer. «Mover el punto» abre un mapa donde el punto es el centro: se arrastra el mapa, no el pin.
+- Solo para vecinos, en la pestaña «Reportar». La foto se saca con la app de cámara del teléfono (SnapIt no pide el permiso de cámara) o se elige de la galería, y se manda el archivo original, sin achicar ni recomprimir: el servidor lee su EXIF y recién ahí lo convierte a WebP.
+- El punto sale, en este orden, de: lo que el vecino eligió en el mapa; la ubicación que trae la foto en su EXIF (donde se sacó, aunque el vecino reporte después desde otro lado); o una lectura nueva del GPS, nunca la última conocida. El GPS no pisa el punto de la foto, y la foto no pisa uno elegido en el mapa. Sin permiso o con la ubicación apagada, y sin ubicación en la foto, no se puede enviar, y la pantalla dice qué hacer. «Mover el punto» abre un mapa donde el punto es el centro: se arrastra el mapa, no el pin. En Android 10 o más, la galería puede entregar la foto sin su ubicación si la app no tiene el permiso de leerla (ACCESS_MEDIA_LOCATION): entonces queda el GPS.
 - Lo cargado vive en un borrador (`reporteEnCursoProvider`) que se manda con `RepositorioReportes`. Si el envío falla, sigue en pantalla y el reintento manda la misma fecha de registro. Al salir de la cuenta, se descarta.
 - En el emulador, la cámara muestra una escena virtual y la ubicación se fija en *Extended controls → Location* (o con `adb emu geo fix <lon> <lat>`).
 

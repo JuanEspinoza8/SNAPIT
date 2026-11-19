@@ -3,7 +3,12 @@ import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import { transaccion } from '../reportes/repositorio.js';
-import { esquemaFiltrosReportes, esquemaIdReporte, esquemaRevision } from './esquemas.js';
+import {
+  esquemaConfirmacion,
+  esquemaFiltrosReportes,
+  esquemaIdReporte,
+  esquemaRevision,
+} from './esquemas.js';
 import * as repositorio from './repositorio.js';
 import { aplicarResultado } from './resultado.js';
 
@@ -34,9 +39,10 @@ export async function listarReportes(sesion: UsuarioSesion, consulta: unknown) {
     reportes: filas.map((fila) => ({
       ...aRespuesta(fila),
       estadoVerificacion: fila.estadoVerificacion,
-      // Si lo publicó la IA al procesar la cola, cuándo. Si no, null: lo verificó el sistema al recibirlo o
-      // un operador (eso todavía no se registra aparte).
+      // Si lo publicó la IA al procesar la cola, cuándo. Si no, null: lo verificó un operador (eso todavía no
+      // se registra aparte).
       publicadoPorIaEn: fila.publicadoPorIaEn,
+      marcadoParaDesestimar: fila.marcadoParaDesestimar,
     })),
   };
 }
@@ -73,6 +79,65 @@ function aRespuesta(fila: repositorio.FilaPendiente) {
     // Si la IA ya lo procesó y lo derivó a revisión: qué propuso y por qué.
     propuestaIa: fila.propuestaIa,
   };
+}
+
+/**
+ * Los desestimados pendientes del organismo: los reportes que la IA marcó para desestimar porque su foto no muestra
+ * un problema de la vía pública. Esperan que un operador lo confirme (confirmarDesestimados) o los rescate
+ * verificándolos (revisarReporte). Mientras tanto no se ven en público.
+ */
+export async function listarDesestimadosPendientes(sesion: UsuarioSesion) {
+  if (sesion.organismoId === null) return { reportes: [] };
+  const filas = await repositorio.listarMarcados(sesion.organismoId);
+  return { reportes: filas.map(aRespuesta) };
+}
+
+const MOTIVO_CONFIRMACION = 'la IA marcó que la foto no muestra un problema de la vía pública';
+
+/**
+ * El operador confirma los desestimados pendientes de su organismo: los que pide en `ids`, o todos si no pide
+ * ninguno. Cada uno se desestima en su propia transacción, igual que una revisión (reputación, incidente,
+ * bitácora y aviso al vecino), así uno que falla no frena al resto. Los que ya no están marcados (los revisó
+ * otra persona mientras tanto), son de otro organismo o no existen, se omiten con el motivo.
+ */
+export async function confirmarDesestimados(sesion: UsuarioSesion, cuerpo: unknown) {
+  const { ids } = validar(esquemaConfirmacion, cuerpo ?? {});
+  if (sesion.organismoId === null) {
+    throw new ErrorApp(403, 'SIN_PERMISO', 'Tu usuario no pertenece a ningún organismo');
+  }
+  const pedidos = ids ?? (await repositorio.listarMarcados(sesion.organismoId)).map((fila) => fila.id);
+
+  const desestimados: number[] = [];
+  const omitidos: { id: number; motivo: string }[] = [];
+  for (const id of new Set(pedidos)) {
+    try {
+      const motivo = await transaccion(async (tx) => {
+        const reporte = await repositorio.bloquearReporte(tx, id);
+        if (!reporte) return 'El reporte no existe';
+        if (reporte.organismoId !== sesion.organismoId)
+          return 'El reporte es de un incidente de otro organismo';
+        if (reporte.estado !== 'PENDIENTE_REVISION' || !(await repositorio.estaMarcado(tx, id))) {
+          return 'Ya no está marcado para desestimar';
+        }
+        await repositorio.cambiarEstadoReporte(tx, id, 'DESESTIMADO');
+        const efecto = await aplicarResultado(tx, {
+          reporteId: id,
+          decision: 'DESESTIMADO',
+          operadorId: sesion.id,
+          comentario: MOTIVO_CONFIRMACION,
+        });
+        if (efecto.incidente) await avisarCambioIncidente(tx, efecto.incidente.id);
+        return null;
+      });
+      if (motivo) omitidos.push({ id, motivo });
+      else desestimados.push(id);
+    } catch (error) {
+      // Por ejemplo, el incidente se cerró mientras tanto (409 INCIDENTE_CERRADO).
+      if (!(error instanceof ErrorApp)) throw error;
+      omitidos.push({ id, motivo: error.message });
+    }
+  }
+  return { desestimados, omitidos };
 }
 
 /**

@@ -4,15 +4,42 @@ import { SIN_BARRIO } from '../geocodificacion/calculo.js';
 import type { Filtros, PedidoFeed } from './esquemas.js';
 
 /**
+ * Si el reporte con el alias `r` está marcado para desestimar: la IA dijo que su foto no muestra un problema de la
+ * vía pública y espera que un operador lo confirme (ia/cola.ts). Sigue PENDIENTE_REVISION, pero su último paso en
+ * el log de la IA es REVISION_MANUAL con esa respuesta. Mientras espera no se muestra en público: ni su foto, ni
+ * su incidente si no tiene otro reporte que se vea.
+ */
+export const MARCADO_PARA_DESESTIMAR = (r: Prisma.Sql = Prisma.raw('r')) => Prisma.sql`(
+  ${r}.estado_verificacion = 'PENDIENTE_REVISION'
+  AND coalesce((
+    SELECT e.estado = 'REVISION_MANUAL' AND ri.salida->>'esProblemaViaPublica' = 'false'
+    FROM evento_verificacion_ia e
+    LEFT JOIN registro_ia ri ON ri.id = e.registro_ia_id
+    WHERE e.reporte_id = ${r}.id
+    ORDER BY e.id DESC
+    LIMIT 1
+  ), false))`;
+
+/**
  * Lo que se ve en el mapa público: ni desestimados, ni caducados, ni los unidos a otro incidente.
- * Un temporal cuya vigencia ya pasó cuenta como caducado aunque todavía no se haya marcado.
+ * Un temporal cuya vigencia ya pasó cuenta como caducado aunque todavía no se haya marcado. Tampoco uno cuyos
+ * reportes válidos están todos marcados para desestimar (MARCADO_PARA_DESESTIMAR); uno sin reportes sí se ve.
  * Va con el alias `i`. La usan también las fotos públicas (reportes/repositorio.ts).
  */
 export const INCIDENTE_VISIBLE = Prisma.sql`
   i.estado <> 'DESESTIMADO'
   AND i.caducado_en IS NULL
   AND i.incidente_principal_id IS NULL
-  AND (i.vigente_hasta IS NULL OR i.vigente_hasta > now())`;
+  AND (i.vigente_hasta IS NULL OR i.vigente_hasta > now())
+  AND NOT (
+    EXISTS (SELECT 1 FROM reporte rm JOIN incidente im ON im.id = rm.incidente_id
+            WHERE (im.id = i.id OR im.incidente_principal_id = i.id)
+              AND ${MARCADO_PARA_DESESTIMAR(Prisma.raw('rm'))})
+    AND NOT EXISTS (SELECT 1 FROM reporte rv JOIN incidente iv ON iv.id = rv.incidente_id
+                    WHERE (iv.id = i.id OR iv.incidente_principal_id = i.id)
+                      AND rv.estado_verificacion <> 'DESESTIMADO'
+                      AND NOT ${MARCADO_PARA_DESESTIMAR(Prisma.raw('rv'))})
+  )`;
 
 /**
  * El barrio del incidente, con la misma regla que extraerBarrio() (geocodificacion/calculo.ts): lo que
@@ -22,6 +49,17 @@ export const INCIDENTE_VISIBLE = Prisma.sql`
 const BARRIO = Prisma.sql`
   CASE WHEN i.direccion IS NOT NULL
        THEN coalesce(nullif(btrim(substring(i.direccion from '[^,]*$')), ''), ${SIN_BARRIO})
+  END`;
+
+/**
+ * El área a la que quedó derivado un incidente publicado: la que le asignó el operador o, si no, la de su
+ * categoría. Mientras está en revisión es null: todavía no se derivó a nadie. Va con los alias `i` (incidente) y
+ * `c` (su categoría).
+ */
+export const DERIVADO_A = Prisma.sql`
+  CASE WHEN i.estado = 'REGISTRADO' THEN NULL
+       ELSE (SELECT json_build_object('id', a.id, 'nombre', a.nombre)
+             FROM area a WHERE a.id = coalesce(i.area_id, c.area_id))
   END`;
 
 export interface PuntoMapa {
@@ -37,7 +75,7 @@ export interface PuntoMapa {
 }
 
 // Lo que pueden filtrar el mapa y el feed, siempre sobre lo visible.
-function condicionesDe(filtros: Filtros) {
+export function condicionesDe(filtros: Filtros) {
   const condiciones = [INCIDENTE_VISIBLE];
   if (filtros.categoriaId) condiciones.push(Prisma.sql`i.categoria_id = ${filtros.categoriaId}`);
   if (filtros.estado) condiciones.push(Prisma.sql`i.estado = ${filtros.estado}::estado_incidente`);
@@ -79,6 +117,7 @@ export const FOTOS_POR_TARJETA = 5;
 
 export interface TarjetaFeed extends PuntoMapa {
   severidad: string;
+  derivadoA: { id: number; nombre: string } | null;
   direccion: string | null;
   resueltoEn: Date | null;
   cursorMicrosegundos: bigint;
@@ -118,6 +157,7 @@ export function listarFeed(pedido: PedidoFeed) {
            i.cantidad_reportes AS "cantidadReportes",
            i.direccion,
            i.resuelto_en AS "resueltoEn",
+           ${DERIVADO_A} AS "derivadoA",
            vecinos.cantidad AS "cantidadVecinos",
            coalesce(fotos.ids, '{}') AS "fotoIds",
            fotos.total AS "cantidadFotos",
@@ -163,7 +203,12 @@ export function buscarPrincipal(id: number) {
 
 export async function buscarVisible(id: number) {
   const [incidente] = await prisma.$queryRaw<
-    (PuntoMapa & { severidad: string; direccion: string | null; resueltoEn: Date | null })[]
+    (PuntoMapa & {
+      severidad: string;
+      direccion: string | null;
+      resueltoEn: Date | null;
+      derivadoA: { id: number; nombre: string } | null;
+    })[]
   >`
     SELECT i.id,
            ST_Y(i.ubicacion::geometry) AS lat,
@@ -176,7 +221,8 @@ export async function buscarVisible(id: number) {
            i.primer_reporte_en AS "primerReporteEn",
            i.cantidad_reportes AS "cantidadReportes",
            i.direccion,
-           i.resuelto_en AS "resueltoEn"
+           i.resuelto_en AS "resueltoEn",
+           ${DERIVADO_A} AS "derivadoA"
     FROM incidente i
     JOIN categoria c ON c.id = i.categoria_id
     WHERE i.id = ${id} AND ${INCIDENTE_VISIBLE}`;
@@ -186,8 +232,8 @@ export async function buscarVisible(id: number) {
 /**
  * Reportes válidos del incidente y de los que se le unieron: de ahí salen, en la agrupación, la severidad, el
  * último reporte y la foto más parecida. Alcanza con un nivel: un incidente que tiene unidos no se puede unir a
- * otro, así que no hay cadenas. Los reportes desestimados no cuentan. Los que su autor eliminó sí: qué cambia en
- * los cálculos al eliminar se decide con la issue de eliminar (docs/calculos.md). Para mostrar, se usa
+ * otro, así que no hay cadenas. Los desestimados no cuentan. Los que su autor eliminó siguen contando para agrupar
+ * (#150); para el estado y la severidad no cuentan (agrupacion/repositorio.ts). Para mostrar, se usa
  * REPORTES_VISIBLES_DEL_INCIDENTE.
  * `id` puede ser un número o una columna de la consulta de afuera (por ejemplo, Prisma.sql`i.id`); los
  * reportes quedan con el alias `r`.
@@ -199,12 +245,13 @@ export const REPORTES_DEL_INCIDENTE = (id: number | Prisma.Sql) => Prisma.sql`
     AND r.estado_verificacion <> 'DESESTIMADO'`;
 
 /**
- * Los reportes que ve el público: los de REPORTES_DEL_INCIDENTE menos los que su autor eliminó. De acá salen las
- * fotos, los vecinos y lo social de la ficha y del feed.
+ * Los reportes que ve el público: los de REPORTES_DEL_INCIDENTE menos los que su autor eliminó y los marcados
+ * para desestimar. De acá salen las fotos, los vecinos y lo social de la ficha y del feed.
  */
 export const REPORTES_VISIBLES_DEL_INCIDENTE = (id: number | Prisma.Sql) => Prisma.sql`
   ${REPORTES_DEL_INCIDENTE(id)}
-    AND r.eliminado_en IS NULL`;
+    AND r.eliminado_en IS NULL
+    AND NOT ${MARCADO_PARA_DESESTIMAR()}`;
 
 export async function contarVecinos(id: number) {
   // count() de PostgreSQL llega como bigint: se pasa a número para el JSON.

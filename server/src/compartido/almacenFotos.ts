@@ -3,14 +3,15 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { env } from '../config/env.js';
 
-export type ExtensionFoto = 'jpg' | 'png';
+// Las nuevas se guardan en WebP (analisisFoto.ts); las anteriores pueden ser JPG o PNG.
+export type ExtensionFoto = 'jpg' | 'png' | 'webp';
 
 /**
  * Dónde viven los archivos de las fotos. En la base se guarda solo la ruta que devuelve guardar(), así que
  * cambiar de almacén no toca el modelo. FOTOS_ALMACEN elige cuál se usa.
  */
 export interface AlmacenFotos {
-  /** Guarda el archivo tal cual llegó, sin recomprimir (así se conserva el EXIF). Devuelve su ruta. */
+  /** Guarda el archivo tal cual se le pasa. Devuelve su ruta. */
   guardar(contenido: Buffer, extension: ExtensionFoto): Promise<string>;
   /** El archivo de una ruta guardada, o null si ya no está. */
   leer(ruta: string): Promise<Buffer | null>;
@@ -55,7 +56,7 @@ export interface ConfigSupabase {
 // Una foto de 10 MB entre Render y Supabase tarda menos de un segundo; esto corta solo si el servicio no responde.
 const PLAZO_MS = 30_000;
 
-const TIPOS: Record<ExtensionFoto, string> = { jpg: 'image/jpeg', png: 'image/png' };
+const TIPOS: Record<ExtensionFoto, string> = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 
 /**
  * En un bucket privado de Supabase Storage, por su API REST. Es la de la demo publicada: Render borra el

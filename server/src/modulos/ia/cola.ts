@@ -9,17 +9,22 @@ import { listarCategoriasActivas } from '../catalogo/repositorio.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import * as verificacion from '../verificacion/repositorio.js';
 import { transaccion } from '../reportes/repositorio.js';
+import { controlesDeSenales, decidirVerificacion } from '../verificacion/calculo.js';
 import { aplicarResultado } from '../verificacion/resultado.js';
-import { clasificarImagen } from './clasificarFoto.js';
 import { costoUsd } from './costos.js';
 import * as repositorio from './repositorio.js';
 import { IaNoDisponible } from './servicio.js';
+import { verificarFoto, type Verificacion } from './verificarFoto.js';
 
 /*
- * Cola de verificación con IA. El operador procesa los reportes pendientes de su organismo con la IA, que
- * clasifica cada foto y publica sola los reportes en los que coincide exactamente con lo que eligió el vecino
- * (categoría y gravedad) y que la verificación automática ya aprobaba: los que el modo demostración mandó a la
- * cola. Los demás quedan para revisión manual (#51), con la propuesta guardada.
+ * Cola de verificación con IA (F04). El operador procesa los reportes pendientes de su organismo con la IA, que
+ * mira la foto de cada uno: si muestra un problema de la vía pública, cuál, si es el mismo que el de un reporte
+ * ya verificado del incidente y si se ven datos personales. Con eso y los controles automáticos se decide
+ * (verificacion/calculo.ts, decidirVerificacion):
+ * - publica sola los que muestran lo que eligió el vecino y tienen el lugar probado;
+ * - deja en los desestimados pendientes los que no muestran un problema de la vía pública, para que una persona
+ *   lo confirme (la IA nunca desestima);
+ * - deja para revisión manual (#51) todo lo demás, con el motivo.
  * Cada paso queda en evento_verificacion_ia: es el log que ve el operador.
  */
 
@@ -94,10 +99,8 @@ type Pendiente = Awaited<ReturnType<typeof verificacion.pendientesParaIa>>[numbe
 
 async function procesar(contexto: Contexto, pendientes: Pendiente[]) {
   let nombres: Map<number, string>;
-  let umbralVerificado: number;
   try {
     nombres = new Map((await listarCategoriasActivas()).map((c) => [c.id, c.nombre]));
-    ({ umbralVerificado } = await verificacion.leerParametros());
   } catch (error) {
     logger.error({ err: error, procesoId: contexto.id }, 'No se pudo arrancar el procesamiento con IA');
     for (const reporte of pendientes) {
@@ -114,7 +117,7 @@ async function procesar(contexto: Contexto, pendientes: Pendiente[]) {
     id === undefined ? '?' : (nombres.get(id) ?? `categoría ${id}`);
   for (const reporte of pendientes) {
     try {
-      await procesarReporte(contexto, reporte, nombre, umbralVerificado);
+      await procesarReporte(contexto, reporte, nombre);
     } catch (error) {
       // Lo inesperado (por ejemplo, la base caída) tampoco corta el resto de la cola.
       logger.error({ err: error, reporteId: reporte.id }, 'Falló el procesamiento con IA de un reporte');
@@ -142,13 +145,8 @@ const evento = (
     ...extra,
   });
 
-async function procesarReporte(
-  contexto: Contexto,
-  reporte: Pendiente,
-  nombre: (id?: number) => string,
-  umbral: number,
-) {
-  // La lista se tomó al arrancar: si una persona ya lo decidió, no se paga una clasificación que no se usa.
+async function procesarReporte(contexto: Contexto, reporte: Pendiente, nombre: (id?: number) => string) {
+  // La lista se tomó al arrancar: si una persona ya lo decidió, no se paga una consulta que no se usa.
   const actual = await verificacion.estadoEnCola(reporte.id);
   if (actual.estado !== 'PENDIENTE_REVISION' || actual.incidenteCerrado) {
     await evento(
@@ -162,17 +160,22 @@ async function procesarReporte(
     return;
   }
 
-  await evento(contexto, reporte.id, 'EN_PROCESO', 'Clasificando la foto');
+  await evento(contexto, reporte.id, 'EN_PROCESO', 'Analizando la foto');
   if (!reporte.rutaArchivo) {
     await evento(contexto, reporte.id, 'ERROR', 'El reporte no tiene foto: queda en la cola manual');
     return;
   }
 
-  let clasificacion;
+  let analisis: Verificacion;
+  const referencia = await verificacion.buscarReferencia(reporte.id);
   try {
     const foto = await almacenFotos.leer(reporte.rutaArchivo);
     if (!foto) throw new Error('no está el archivo');
-    clasificacion = await clasificarImagen(contexto.usuarioId, foto, { conExplicacion: true });
+    // Si la de referencia no se puede leer, se verifica sin ella: solo se pierde la corroboración.
+    const fotoReferencia = referencia
+      ? await almacenFotos.leer(referencia.rutaArchivo).catch(() => null)
+      : null;
+    analisis = await verificarFoto(contexto.usuarioId, foto, fotoReferencia ?? null);
   } catch (error) {
     const motivo =
       error instanceof IaNoDisponible
@@ -182,53 +185,38 @@ async function procesarReporte(
     return;
   }
 
-  const propone = `${nombre(clasificacion.categoriaId)}, ${clasificacion.severidad}`;
-  const eligio = `${nombre(reporte.categoriaId)}, ${reporte.severidad}`;
-  // Si el vecino aceptó la sugerencia al cargarlo, la IA se compara con su propia propuesta: el log lo dice.
-  const sugerida = reporte.sugerenciaAceptada ? ' (había aceptado la sugerencia de la IA)' : '';
   await evento(
     contexto,
     reporte.id,
     'CLASIFICADO',
-    `La IA propone ${propone}; el vecino eligió ${eligio}${sugerida}.` +
-      (clasificacion.explicacion ? ` ${clasificacion.explicacion}` : ''),
+    describirAnalisis(analisis, reporte, referencia, nombre),
     {
-      registroIaId: clasificacion.registroIaId,
-      tokensEntrada: clasificacion.uso.entrada,
-      tokensSalida: clasificacion.uso.salida,
+      registroIaId: analisis.registroIaId,
+      tokensEntrada: analisis.uso.entrada,
+      tokensSalida: analisis.uso.salida,
     },
   );
 
-  const coincide =
-    clasificacion.categoriaId === reporte.categoriaId && clasificacion.severidad === reporte.severidad;
-  if (!coincide) {
-    await evento(
-      contexto,
-      reporte.id,
-      'REVISION_MANUAL',
-      'No coincide con lo que eligió el vecino: queda para revisión manual',
-    );
+  const decision = decidirVerificacion({
+    analisis,
+    eligio: { categoriaId: reporte.categoriaId, severidad: reporte.severidad },
+    controles: controlesDeSenales(reporte.senales),
+  });
+  // El paso final lleva la consulta: así se sabe de qué respuesta salió (y cuáles son los desestimados pendientes).
+  const final = { registroIaId: analisis.registroIaId };
+  if (decision.resultado !== 'PUBLICAR') {
+    await evento(contexto, reporte.id, 'REVISION_MANUAL', decision.motivo, final);
     return;
   }
 
-  // La IA no reemplaza la verificación (F04): un reporte de baja confianza (foto repetida, lejos del punto,
-  // vieja...) lo decide siempre un operador, aunque la foto muestre lo que eligió el vecino.
-  if (reporte.nivelConfianza < umbral) {
-    const enContra = reporte.senalesEnContra.length > 0 ? ` (${reporte.senalesEnContra.join('; ')})` : '';
-    await evento(
-      contexto,
-      reporte.id,
-      'REVISION_MANUAL',
-      `Coincide con lo que eligió el vecino, pero la verificación le dio ${reporte.nivelConfianza} de ` +
-        `confianza y hacen falta ${umbral}${enContra}: queda para revisión manual`,
-    );
-    return;
-  }
-
-  const resultado = await publicar(contexto, reporte.id, reporte.nivelConfianza);
+  const comentario =
+    decision.prueba === 'CORROBORADO'
+      ? `coincide con la categoría y la gravedad que eligió el vecino, y es el mismo problema que el reporte #${referencia!.reporteId}, ya verificado`
+      : 'coincide con la categoría y la gravedad que eligió el vecino, y la foto se sacó en el punto';
+  const resultado = await publicar(contexto, reporte.id, comentario);
   // Si mientras tanto lo revisó un operador o se cerró el incidente, no es un error de la IA.
   const detalles = {
-    PUBLICADO: 'Coincide con lo que eligió el vecino y la verificación lo aprobaba: publicado',
+    PUBLICADO: decision.motivo,
     REVISADO: 'Un operador lo revisó mientras la IA lo procesaba: queda su decisión',
     CERRADO: 'El incidente se cerró mientras la IA lo procesaba: no se publica',
   };
@@ -237,7 +225,35 @@ async function procesarReporte(
     reporte.id,
     resultado === 'PUBLICADO' ? 'PUBLICADO' : 'REVISION_MANUAL',
     detalles[resultado],
+    final,
   );
+}
+
+/** Lo que vio la IA, comparado con lo que eligió el vecino: el paso CLASIFICADO del log. */
+function describirAnalisis(
+  analisis: Verificacion,
+  reporte: Pendiente,
+  referencia: { reporteId: number } | null,
+  nombre: (id?: number) => string,
+) {
+  if (!analisis.esProblemaViaPublica) {
+    return `La IA no ve un problema de la vía pública. ${analisis.explicacion}`;
+  }
+  const ve = `${nombre(analisis.categoriaId ?? undefined)}, ${analisis.severidad}`;
+  const eligio = `${nombre(reporte.categoriaId)}, ${reporte.severidad}`;
+  // Si el vecino aceptó la sugerencia al cargarlo, la IA se compara con su propia propuesta: el log lo dice.
+  const sugerida = reporte.sugerenciaAceptada ? ' (había aceptado la sugerencia de la IA)' : '';
+  const partes = [`La IA ve ${ve}; el vecino eligió ${eligio}${sugerida}.`, analisis.explicacion];
+  if (analisis.mismoProblema !== null && referencia) {
+    const otro = `el reporte #${referencia.reporteId}, ya verificado`;
+    partes.push(
+      analisis.mismoProblema
+        ? `Es el mismo problema que ${otro}.`
+        : `No parece el mismo problema que ${otro}.`,
+    );
+  }
+  if (analisis.datosPersonales) partes.push('Se ve una cara o una patente.');
+  return partes.join(' ');
 }
 
 /**
@@ -247,7 +263,7 @@ async function procesarReporte(
 async function publicar(
   contexto: Contexto,
   reporteId: number,
-  nivelConfianza: number,
+  comentario: string,
 ): Promise<'PUBLICADO' | 'REVISADO' | 'CERRADO'> {
   try {
     // Con transaccion(): los avisos al vecino (avisos/disparar.ts) salen recién si se confirma.
@@ -259,7 +275,7 @@ async function publicar(
         reporteId,
         decision: 'VERIFICADO',
         operadorId: contexto.usuarioId,
-        comentario: `coincide con la categoría y la gravedad que eligió el vecino, y la verificación le había dado ${nivelConfianza} de confianza`,
+        comentario,
         porIa: true,
       });
       if (efecto.incidente) await avisarCambioIncidente(tx, efecto.incidente.id);
@@ -290,9 +306,14 @@ export async function verProceso(sesion: UsuarioSesion, parametros: unknown) {
   }
 
   const actual = enMemoria?.[1];
-  // El último paso de cada reporte dice en qué terminó.
+  // El último paso de cada reporte dice en qué terminó. Uno que la IA dejó para revisión porque la foto no muestra
+  // un problema de la vía pública es un desestimado pendiente: se cuenta aparte.
   const finales = new Map<number, string>();
-  for (const fila of filas) if (FINALES.has(fila.estado)) finales.set(fila.reporteId, fila.estado);
+  for (const fila of filas) {
+    if (!FINALES.has(fila.estado)) continue;
+    const desestimado = fila.estado === 'REVISION_MANUAL' && fila.propuesta?.esProblemaViaPublica === false;
+    finales.set(fila.reporteId, desestimado ? 'DESESTIMADO' : fila.estado);
+  }
   const clasificados = filas.filter((fila) => fila.estado === 'CLASIFICADO');
   const costos = clasificados.map((fila) =>
     fila.modelo === null
@@ -326,8 +347,11 @@ export async function verProceso(sesion: UsuarioSesion, parametros: unknown) {
         fila.estado === 'CLASIFICADO' && fila.propuesta
           ? {
               registroIaId: fila.registroIaId,
+              esProblemaViaPublica: fila.propuesta.esProblemaViaPublica ?? null,
               categoriaId: fila.propuesta.categoriaId ?? null,
               severidad: fila.propuesta.severidad ?? null,
+              mismoProblema: fila.propuesta.mismoProblema ?? null,
+              datosPersonales: fila.propuesta.datosPersonales ?? null,
               explicacion: fila.propuesta.explicacion ?? null,
             }
           : null,
@@ -341,6 +365,8 @@ export async function verProceso(sesion: UsuarioSesion, parametros: unknown) {
         ([reporteId, final]) => final === 'PUBLICADO' && conSugerencia.has(reporteId),
       ).length,
       derivados: contar('REVISION_MANUAL'),
+      // Los que la IA marcó para desestimar: esperan que un operador lo confirme.
+      desestimados: contar('DESESTIMADO'),
       errores: contar('ERROR'),
       tiempoMedioMs:
         duraciones.length === 0
