@@ -8,6 +8,7 @@ import '../../compartido/red/error_api.dart';
 import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../../config/entorno.dart';
+import 'derivado_a.dart';
 import 'estados.dart';
 import 'modelos.dart';
 import 'repositorio_mapa.dart';
@@ -71,6 +72,10 @@ class _Contenido extends StatelessWidget {
         Text(ficha.categoriaNombre, style: tema.textTheme.titleLarge),
         const SizedBox(height: Espacio.sm),
         EtiquetaEstado(ficha.estado),
+        if (ficha.derivadoA != null) ...[
+          const SizedBox(height: Espacio.sm),
+          DerivadoA(ficha.derivadoA),
+        ],
         if (ficha.enRevision) ...[
           const SizedBox(height: Espacio.sm),
           Text(

@@ -34,3 +34,5 @@ flutter:
   # El logo del encabezado: el mismo que usa la web (web/src/assets/logo.png).
   assets:
     - assets/logo.png
+    # La foto de perfil de SnapIt en los comentarios: la misma que la web.
+    - assets/avatar-snapit.png

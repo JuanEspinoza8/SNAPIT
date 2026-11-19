@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/red/error_api.dart';
-import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/tema/tema_app.dart';
 import 'estado_feed.dart';
-import 'tarjeta_feed.dart';
+import 'tarjeta_publicacion.dart';
 
-/// La pantalla de inicio: los incidentes de la ciudad uno debajo del otro,
-/// del más nuevo al más viejo. Al llegar al final pide la página siguiente.
+/// La pantalla de inicio: lo que reportaron los vecinos, una publicación
+/// debajo de la otra, de la más nueva a la más vieja (solo los reportes ya
+/// publicados). Al llegar al final pide la página siguiente.
 class PantallaFeed extends ConsumerWidget {
   const PantallaFeed({super.key});
 
@@ -21,7 +20,7 @@ class PantallaFeed extends ConsumerWidget {
 
     // Mientras recarga se sigue viendo lo que había.
     if (feed.value case final estado?) {
-      if (estado.tarjetas.isEmpty) {
+      if (estado.publicaciones.isEmpty) {
         return RefreshIndicator(
           onRefresh: notifier.recargar,
           child: const _Vacio(),
@@ -33,14 +32,10 @@ class PantallaFeed extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: Espacio.sm),
           // Una fila más al final: carga la página siguiente o avisa que no
           // hay más.
-          itemCount: estado.tarjetas.length + 1,
+          itemCount: estado.publicaciones.length + 1,
           itemBuilder: (context, i) {
-            if (i < estado.tarjetas.length) {
-              final tarjeta = estado.tarjetas[i];
-              return TarjetaIncidente(
-                tarjeta,
-                alAbrir: () => context.push(Rutas.incidente(tarjeta.id)),
-              );
+            if (i < estado.publicaciones.length) {
+              return TarjetaPublicacion(estado.publicaciones[i]);
             }
             return _Final(estado: estado, alCargarMas: notifier.cargarMas);
           },
@@ -127,7 +122,7 @@ class _FinalState extends State<_Final> {
           child: CircularProgressIndicator(semanticsLabel: 'Cargando más'),
         ),
         _ => Text(
-          'No hay más incidentes por ahora',
+          'No hay más publicaciones por ahora',
           textAlign: TextAlign.center,
           style: tema.textTheme.bodySmall?.copyWith(
             color: tema.colorScheme.onSurfaceVariant,
@@ -156,13 +151,13 @@ class _Vacio extends StatelessWidget {
         ),
         const SizedBox(height: Espacio.lg),
         Text(
-          'Todavía no hay incidentes',
+          'Todavía no hay publicaciones',
           textAlign: TextAlign.center,
           style: tema.textTheme.titleMedium,
         ),
         const SizedBox(height: Espacio.sm),
         Text(
-          'Cuando un vecino reporte un problema, va a aparecer acá.',
+          'Cuando se publique el reporte de un vecino, va a aparecer acá.',
           textAlign: TextAlign.center,
           style: tema.textTheme.bodySmall?.copyWith(
             color: tema.colorScheme.onSurfaceVariant,

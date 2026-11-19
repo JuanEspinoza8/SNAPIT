@@ -17,32 +17,32 @@ class PaletaSnapIt {
     required this.sobrePeligro,
   });
 
-  /// La original: fondo blanco y azul petróleo.
+  /// Neutra, sin color en los botones (la paleta neutra de shadcn/ui, como
+  /// la web): el color queda para lo que informa, como los estados.
   static const claro = PaletaSnapIt(
     brillo: Brightness.light,
-    primario: Color(0xFF1F5E7A),
-    sobrePrimario: Color(0xFFFFFFFF),
+    primario: Color(0xFF171717),
+    sobrePrimario: Color(0xFFFAFAFA),
     superficie: Color(0xFFFFFFFF),
-    superficieAlterna: Color(0xFFF6F7F9),
-    borde: Color(0xFFD9DEE5),
-    texto: Color(0xFF1A202C),
-    textoSecundario: Color(0xFF5A6474),
+    superficieAlterna: Color(0xFFFAFAFA),
+    borde: Color(0xFFE5E5E5),
+    texto: Color(0xFF0A0A0A),
+    textoSecundario: Color(0xFF737373),
     peligro: Color(0xFFB42318),
     sobrePeligro: Color(0xFFFFFFFF),
   );
 
-  /// «Noche neutra»: gris carbón con acento azul. El azul con texto blanco
-  /// encima no llega a AA (3,7:1), así que lo que va sobre el azul es casi
-  /// negro (5:1). El texto secundario sobre las tarjetas da 6,7:1.
+  /// El oscuro, también neutro: casi negro, con los botones claros y el
+  /// texto oscuro encima. El texto secundario sobre las tarjetas da 7:1.
   static const oscuro = PaletaSnapIt(
     brillo: Brightness.dark,
-    primario: Color(0xFF3B82F6),
-    sobrePrimario: Color(0xFF0B1220),
-    superficie: Color(0xFF0F1115),
-    superficieAlterna: Color(0xFF181B21),
-    borde: Color(0xFF2A2F38),
-    texto: Color(0xFFE6E8EB),
-    textoSecundario: Color(0xFF9AA3AE),
+    primario: Color(0xFFE5E5E5),
+    sobrePrimario: Color(0xFF171717),
+    superficie: Color(0xFF0A0A0A),
+    superficieAlterna: Color(0xFF171717),
+    borde: Color(0xFF262626),
+    texto: Color(0xFFFAFAFA),
+    textoSecundario: Color(0xFFA3A3A3),
     peligro: Color(0xFFF87171),
     sobrePeligro: Color(0xFF1A0505),
   );

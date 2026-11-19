@@ -9,7 +9,7 @@ void main() {
     severidad: Severidad.grave,
     descripcion: '  Pozo frente a la escuela  ',
     punto: const LatLng(-38.95, -68.05),
-    puntoMovido: true,
+    origenPunto: OrigenPunto.mapa,
     // 14:30 en Argentina.
     registradoEn: DateTime.utc(2026, 10, 10, 17, 30),
   );

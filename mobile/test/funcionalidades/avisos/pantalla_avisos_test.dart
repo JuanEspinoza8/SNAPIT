@@ -38,10 +38,7 @@ Map<String, Object?> avisoJson(
 ServidorFalso servidorConAvisos([List<Map<String, Object?>>? avisos]) {
   return ServidorFalso(
     (pedido) => switch (pedido.path) {
-      '/incidentes/feed' => json(200, {
-        'incidentes': <Object>[],
-        'siguiente': null,
-      }),
+      '/social/feed' => json(200, {'reportes': <Object>[], 'siguiente': null}),
       '/notificaciones' => json(200, {'notificaciones': avisos ?? <Object>[]}),
       final ruta when ruta.startsWith('/notificaciones/') => json(204, ''),
       '/dispositivos' => json(204, ''),

@@ -123,9 +123,12 @@ class Etiqueta extends StatelessWidget {
           children: [
             Icon(icono, size: 16, color: colorTexto),
             const SizedBox(width: Espacio.xs),
-            Text(
-              texto,
-              style: tema.textTheme.labelMedium?.copyWith(color: colorTexto),
+            // En una fila angosta (o con letra grande) baja a otra línea.
+            Flexible(
+              child: Text(
+                texto,
+                style: tema.textTheme.labelMedium?.copyWith(color: colorTexto),
+              ),
             ),
           ],
         ),

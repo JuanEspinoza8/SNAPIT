@@ -20,10 +20,7 @@ void main() {
     (pedido) => switch (pedido.path) {
       '/auth/salir' => json(204, ''),
       '/incidentes' => json(200, {'incidentes': <Object>[]}),
-      '/incidentes/feed' => json(200, {
-        'incidentes': <Object>[],
-        'siguiente': null,
-      }),
+      '/social/feed' => json(200, {'reportes': <Object>[], 'siguiente': null}),
       '/reportes/mios' => json(200, {'reportes': <Object>[]}),
       _ => json(200, {'usuario': usuarioJson(rol: rol)}),
     },
@@ -39,7 +36,7 @@ void main() {
 
     expect(find.byType(NavigationDestination), findsNWidgets(5));
     expect(find.byType(PantallaFeed), findsOneWidget);
-    expect(find.text('Todavía no hay incidentes'), findsOneWidget);
+    expect(find.text('Todavía no hay publicaciones'), findsOneWidget);
 
     await tester.tap(find.text('Mapa'));
     await tester.pumpAndSettle();
@@ -82,8 +79,8 @@ void main() {
         '/incidentes' => json(200, {
           'incidentes': [incidenteJson(9)],
         }),
-        '/incidentes/feed' => json(200, {
-          'incidentes': <Object>[],
+        '/social/feed' => json(200, {
+          'reportes': <Object>[],
           'siguiente': null,
         }),
         _ => json(200, {'usuario': usuarioJson()}),

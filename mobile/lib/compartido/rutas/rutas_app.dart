@@ -67,7 +67,11 @@ final rutasProvider = Provider<GoRouter>((ref) {
   final rutas = GoRouter(
     initialLocation: Rutas.arranque,
     refreshListenable: sesion,
-    redirect: (_, estado) => redireccion(sesion.value, estado.matchedLocation),
+    redirect: (_, estado) => redireccion(
+      sesion.value,
+      estado.matchedLocation,
+      volver: estado.uri.queryParameters['volver'],
+    ),
     routes: [
       GoRoute(
         path: Rutas.arranque,
@@ -130,8 +134,14 @@ final rutasProvider = Provider<GoRouter>((ref) {
 });
 
 /// A dónde tiene que ir la app según la sesión. Null: se queda en [ruta].
+/// [volver] es la pantalla desde la que se fue al ingreso (por ejemplo, para
+/// dar me gusta sin sesión): al ingresar se vuelve ahí, si es un detalle.
 @visibleForTesting
-String? redireccion(AsyncValue<Usuario?> sesion, String ruta) {
+String? redireccion(
+  AsyncValue<Usuario?> sesion,
+  String ruta, {
+  String? volver,
+}) {
   // Mientras se revisa la sesión guardada, o si no se pudo revisar.
   if (sesion.isLoading || sesion.hasError) {
     return ruta == Rutas.arranque ? null : Rutas.arranque;
@@ -143,6 +153,9 @@ String? redireccion(AsyncValue<Usuario?> sesion, String ruta) {
     return esDeCuenta || ruta == Rutas.mapa || _esDetalle(ruta)
         ? null
         : Rutas.ingreso;
+  }
+  if (ruta == Rutas.ingreso && volver != null && _esDetalle(volver)) {
+    return volver;
   }
   return esDeCuenta || ruta == Rutas.arranque || ruta == Rutas.mapa
       ? Rutas.principal

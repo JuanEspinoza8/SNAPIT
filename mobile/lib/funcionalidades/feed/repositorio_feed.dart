@@ -10,23 +10,25 @@ final repositorioFeedProvider = Provider<RepositorioFeed>(
   (ref) => RepositorioFeed(ref.watch(clienteApiProvider)),
 );
 
-/// `GET /incidentes/feed`. Pública, igual que el mapa: va sin sesión para que
-/// un token vencido no dispare una renovación.
+/// `GET /social/feed`: las publicaciones de los vecinos. Pública, igual que
+/// el mapa: sin sesión va sin token, para que uno vencido no dispare una
+/// renovación. Con sesión lo manda, así cada publicación dice si ya le diste
+/// me gusta.
 class RepositorioFeed {
   RepositorioFeed(this._dio);
 
-  /// En el celular entran dos o tres tarjetas por pantalla: diez alcanzan
+  /// En el celular entran una o dos publicaciones por pantalla: diez alcanzan
   /// para que el scroll no espere a la red.
   static const porPagina = 10;
 
   final Dio _dio;
 
-  Future<PaginaFeed> pagina({String? cursor}) async {
+  Future<PaginaFeed> pagina({String? cursor, bool conSesion = false}) async {
     try {
       final respuesta = await _dio.get<Map<String, dynamic>>(
-        '/incidentes/feed',
+        '/social/feed',
         queryParameters: {'limite': porPagina, 'cursor': ?cursor},
-        options: Options(extra: {InterceptorSesion.sinSesion: true}),
+        options: Options(extra: {InterceptorSesion.sinSesion: !conSesion}),
       );
       return PaginaFeed.desdeJson(respuesta.data!);
     } catch (e) {

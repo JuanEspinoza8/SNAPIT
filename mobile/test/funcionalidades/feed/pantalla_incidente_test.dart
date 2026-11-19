@@ -30,6 +30,20 @@ Map<String, Object?> fichaJson({Object? fotoCierre, String? resueltoEn}) => {
   'resueltoEn': resueltoEn,
 };
 
+/// Un reporte de la lista del problema (`GET /social/incidentes/3/reportes`).
+Map<String, Object?> reporteDelProblemaJson(int id, int numero) => {
+  'id': id,
+  'incidenteId': 3,
+  'descripcion': null,
+  'creadoEn': '2026-10-06T15:15:33.494Z',
+  'autor': {'numero': numero, 'nombre': 'Vecino $numero'},
+  'fotos': [
+    {'id': id * 10, 'url': '/api/fotos/${id * 10}'},
+  ],
+  'cantidadMeGusta': numero,
+  'cantidadComentarios': 0,
+};
+
 ServidorFalso servidorCon(Map<String, Object?> ficha, {String rol = 'VECINO'}) {
   var siguiendo = false;
   return ServidorFalso((RequestOptions pedido) {
@@ -38,8 +52,8 @@ ServidorFalso servidorCon(Map<String, Object?> ficha, {String rol = 'VECINO'}) {
         return json(200, {'usuario': usuarioJson(rol: rol)});
       case '/incidentes':
         return json(200, {'incidentes': <Object>[]});
-      case '/incidentes/feed':
-        return json(200, {'incidentes': <Object>[], 'siguiente': null});
+      case '/social/feed':
+        return json(200, {'reportes': <Object>[], 'siguiente': null});
       case '/incidentes/3':
         return json(200, ficha);
       case '/incidentes/3/seguimiento':
@@ -50,9 +64,12 @@ ServidorFalso servidorCon(Map<String, Object?> ficha, {String rol = 'VECINO'}) {
         if (pedido.method == 'DELETE') siguiendo = false;
         return json(204, '');
       case '/social/incidentes/3/reportes':
-        return json(200, {'reportes': <Object>[]});
-      case '/social/incidentes/3/comentarios':
-        return json(200, {'comentarios': <Object>[]});
+        return json(200, {
+          'reportes': [
+            reporteDelProblemaJson(31, 1),
+            reporteDelProblemaJson(32, 2),
+          ],
+        });
       default:
         return errorApi(404, 'RUTA_NO_ENCONTRADA', 'No existe');
     }
@@ -111,7 +128,47 @@ void main() {
     expect(foto('Foto 1 de 2 de Vereda rota'), findsOneWidget);
     expect(find.text('Antes'), findsNothing);
     expect(find.textContaining('Después'), findsNothing);
-    expect(find.text('Resuelto'), findsNothing);
+    // En los datos no hay fecha de resolución.
+    expect(find.byIcon(Icons.check_circle_outline), findsNothing);
+  });
+
+  testWidgets('dice en qué paso está su atención, sin comentarios propios', (
+    tester,
+  ) async {
+    await abrirFicha(tester, servidorCon(fichaJson()));
+
+    await tester.dragUntilVisible(
+      find.text('Estado del problema'),
+      find.byType(ListView).first,
+      const Offset(0, -300),
+    );
+    expect(
+      find.bySemanticsLabel('En revisión, cumplido, 6 de octubre de 2026'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('En ejecución, cumplido, estado actual'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Resuelto, pendiente'), findsOneWidget);
+    expect(find.textContaining('Comentarios'), findsNothing);
+    expect(find.textContaining('Fotos de los vecinos'), findsNothing);
+  });
+
+  testWidgets('lo reportaron dos vecinos: lista sus reportes, y uno abre su '
+      'publicación', (tester) async {
+    await abrirFicha(tester, servidorCon(fichaJson()));
+
+    await tester.dragUntilVisible(
+      find.text('Vecino 2'),
+      find.byType(ListView).first,
+      const Offset(0, -300),
+    );
+    expect(find.text('Reportes (2)'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('2 me gusta, 0 comentarios')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('resuelto muestra el antes y el después con la fecha', (
@@ -138,14 +195,15 @@ void main() {
     );
 
     // En los datos, debajo de «Vecinos que lo reportaron».
+    // La primera es la de los datos; la otra, la del paso «Resuelto».
     await tester.dragUntilVisible(
-      find.text('8 de noviembre de 2026'),
+      find.text('8 de noviembre de 2026').first,
       find.byType(ListView).first,
       const Offset(0, -300),
     );
     expect(
       find.ancestor(
-        of: find.text('8 de noviembre de 2026'),
+        of: find.text('8 de noviembre de 2026').first,
         matching: find.byWidgetPredicate(
           (w) =>
               w is Column &&
@@ -220,8 +278,8 @@ void main() {
         ServidorFalso(
           (RequestOptions pedido) => switch (pedido.path) {
             '/auth/yo' => json(200, {'usuario': usuarioJson()}),
-            '/incidentes/feed' => json(200, {
-              'incidentes': <Object>[],
+            '/social/feed' => json(200, {
+              'reportes': <Object>[],
               'siguiente': null,
             }),
             '/incidentes/3' => errorApi(status, codigo, mensaje),

@@ -24,10 +24,11 @@ const avisoPublicacion =
 /// Cargar un reporte (F02): foto, categoría, gravedad, descripción y el punto
 /// del GPS, que se puede corregir en el mapa.
 class PantallaReportar extends ConsumerStatefulWidget {
-  const PantallaReportar({super.key, required this.alVerEnMapa});
+  const PantallaReportar({super.key, required this.alEnviar});
 
-  /// Después de enviar, lleva al mapa centrado en el punto del reporte.
-  final ValueChanged<LatLng> alVerEnMapa;
+  /// Después de enviar: si el reporte quedó verificado. La pantalla principal
+  /// vuelve al inicio y avisa arriba que se envió.
+  final ValueChanged<bool> alEnviar;
 
   @override
   ConsumerState<PantallaReportar> createState() => _PantallaReportarState();
@@ -52,11 +53,6 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
   /// Errores que devolvió el servidor, por campo. Se borra el de un campo
   /// cuando el vecino lo cambia.
   var _erroresServidor = <CampoReporte, String>{};
-
-  /// El punto del reporte recién enviado. Mientras no es null se ve la
-  /// confirmación en lugar del formulario.
-  LatLng? _enviadoEn;
-  var _enviadoVerificado = false;
 
   @override
   void initState() {
@@ -154,11 +150,8 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
       final enviado = await _reporte.enviar();
       if (!mounted) return;
       _descripcion.clear();
-      setState(() {
-        _enviadoEn = borrador.punto;
-        _enviadoVerificado = enviado.verificado;
-        _mostrarFaltantes = false;
-      });
+      setState(() => _mostrarFaltantes = false);
+      widget.alEnviar(enviado.verificado);
     } catch (e) {
       final error = ErrorApi.desde(e);
       if (!mounted) return;
@@ -175,11 +168,6 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
     }
   }
 
-  void _reportarOtro() {
-    setState(() => _enviadoEn = null);
-    _buscarUbicacion();
-  }
-
   /// El aviso general del envío, con los detalles que no van debajo de
   /// ningún campo de la pantalla.
   String _mensajeEnvio(ErrorApi error) {
@@ -192,14 +180,6 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
 
   @override
   Widget build(BuildContext context) {
-    if (_enviadoEn case final punto?) {
-      return _Enviado(
-        verificado: _enviadoVerificado,
-        alVerEnMapa: () => widget.alVerEnMapa(punto),
-        alReportarOtro: _reportarOtro,
-      );
-    }
-
     final borrador = ref.watch(reporteEnCursoProvider);
     final faltantes = _mostrarFaltantes
         ? borrador.faltantes
@@ -296,7 +276,7 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
             const _Titulo('Ubicación'),
             _SeccionUbicacion(
               punto: borrador.punto,
-              movido: borrador.puntoMovido,
+              origen: borrador.origenPunto,
               buscando: _buscandoUbicacion,
               problema: _problemaUbicacion,
               alReintentar: _buscarUbicacion,
@@ -621,7 +601,7 @@ class _CampoCategoria extends ConsumerWidget {
 class _SeccionUbicacion extends StatelessWidget {
   const _SeccionUbicacion({
     required this.punto,
-    required this.movido,
+    required this.origen,
     required this.buscando,
     required this.problema,
     required this.alReintentar,
@@ -630,7 +610,7 @@ class _SeccionUbicacion extends StatelessWidget {
   });
 
   final LatLng? punto;
-  final bool movido;
+  final OrigenPunto origen;
   final bool buscando;
   final ProblemaUbicacion? problema;
   final VoidCallback alReintentar;
@@ -724,12 +704,14 @@ class _SeccionUbicacion extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Espacio.sm),
-        Text(
-          movido
-              ? 'Elegiste el punto en el mapa.'
-              : 'Tomada del GPS. Si no coincide con el problema, mové el punto.',
-          style: textoSecundario,
-        ),
+        Text(switch (origen) {
+          OrigenPunto.mapa => 'Elegiste el punto en el mapa.',
+          OrigenPunto.foto =>
+            'Es donde se sacó la foto. Si no coincide con el problema, mové '
+                'el punto.',
+          OrigenPunto.gps =>
+            'Tomada del GPS. Si no coincide con el problema, mové el punto.',
+        }, style: textoSecundario),
         const SizedBox(height: Espacio.sm),
         OutlinedButton.icon(
           onPressed: () => alMover(punto),
@@ -793,66 +775,6 @@ class _AvisoUbicacion extends StatelessWidget {
         ],
         OutlinedButton(onPressed: alReintentar, child: Text(reintentar)),
       ],
-    );
-  }
-}
-
-class _Enviado extends StatelessWidget {
-  const _Enviado({
-    required this.verificado,
-    required this.alVerEnMapa,
-    required this.alReportarOtro,
-  });
-
-  final bool verificado;
-  final VoidCallback alVerEnMapa;
-  final VoidCallback alReportarOtro;
-
-  @override
-  Widget build(BuildContext context) {
-    final tema = Theme.of(context);
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(Espacio.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              size: Espacio.xxxl,
-              color: tema.colorScheme.primary,
-            ),
-            const SizedBox(height: Espacio.lg),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                'Reporte enviado',
-                textAlign: TextAlign.center,
-                style: tema.textTheme.titleLarge,
-              ),
-            ),
-            const SizedBox(height: Espacio.sm),
-            Text(
-              verificado
-                  ? 'Se verificó y ya está en el mapa.'
-                  : 'Ya está en el mapa y queda pendiente de revisión hasta '
-                        'que se verifique.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: Espacio.xl),
-            FilledButton(
-              onPressed: alVerEnMapa,
-              child: const Text('Ver en el mapa'),
-            ),
-            const SizedBox(height: Espacio.sm),
-            OutlinedButton(
-              onPressed: alReportarOtro,
-              child: const Text('Reportar otro problema'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

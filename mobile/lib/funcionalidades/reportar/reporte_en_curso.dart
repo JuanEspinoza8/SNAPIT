@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../compartido/foto/ubicacion_foto.dart';
 import '../../compartido/sesion/sesion.dart';
 import '../mapa/repositorio_mapa.dart';
 import '../mis_reportes/repositorio_mis_reportes.dart';
@@ -35,6 +36,22 @@ class ReporteEnCurso extends Notifier<BorradorReporte> {
     );
     state = state.conFotoNueva(foto);
     _pedirSugerencia(foto);
+    _ubicarPorLaFoto(foto);
+  }
+
+  /// Si la foto trae dónde se sacó (EXIF), el punto va ahí: es donde el
+  /// vecino vio el problema, aunque reporte desde otro lado. Un punto que el
+  /// vecino eligió en el mapa no se toca; uno que venía de la foto anterior,
+  /// sí, porque ya no corresponde: queda el GPS por buscar.
+  Future<void> _ubicarPorLaFoto(FotoReporte foto) async {
+    final ubicacion = await ref.read(lectorUbicacionFotoProvider)(foto.ruta);
+    if (!ref.mounted || !identical(state.foto, foto)) return;
+    if (state.origenPunto == OrigenPunto.mapa) return;
+    if (ubicacion != null) {
+      state = state.copyWith(punto: ubicacion, origenPunto: OrigenPunto.foto);
+    } else if (state.origenPunto == OrigenPunto.foto) {
+      state = state.sinPunto();
+    }
   }
 
   Future<void> _pedirSugerencia(FotoReporte foto) async {
@@ -75,11 +92,14 @@ class ReporteEnCurso extends Notifier<BorradorReporte> {
   void ponerDescripcion(String texto) =>
       state = state.copyWith(descripcion: texto);
 
-  void ponerPuntoDelGps(LatLng punto) =>
-      state = state.copyWith(punto: punto, puntoMovido: false);
+  /// El GPS no pisa el punto de la foto ni el que eligió el vecino.
+  void ponerPuntoDelGps(LatLng punto) {
+    if (state.punto != null && state.origenPunto != OrigenPunto.gps) return;
+    state = state.copyWith(punto: punto, origenPunto: OrigenPunto.gps);
+  }
 
   void moverPunto(LatLng punto) =>
-      state = state.copyWith(punto: punto, puntoMovido: true);
+      state = state.copyWith(punto: punto, origenPunto: OrigenPunto.mapa);
 
   /// Envía el borrador completo. Si sale bien, lo vacía y recarga el mapa y
   /// mis reportes para que aparezca el reporte; si falla, lo deja como estaba
