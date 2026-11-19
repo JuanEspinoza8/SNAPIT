@@ -45,11 +45,19 @@ export async function confirmar(sesion: UsuarioSesion, parametros: unknown) {
   } catch (error) {
     // El bloqueo ya ordena dos pedidos a la vez del mismo vecino. Si igual chocaran, la clave única
     // (incidente, usuario) descarta el segundo.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw yaConfirmado();
-    }
+    if (esConfirmacionRepetida(error)) throw yaConfirmado();
     throw error;
   }
+}
+
+/** Solo el choque con confirmacion_unica: cualquier otra clave única que falle es un error de verdad. */
+export function esConfirmacionRepetida(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') return false;
+  const campos = [error.meta?.target].flat().join(',');
+  return (
+    campos.includes('confirmacion_unica') ||
+    (campos.includes('incidente_id') && campos.includes('usuario_id'))
+  );
 }
 
 /** Si el vecino ya confirmó el incidente que se ve en la ficha (o uno que después se le unió). */

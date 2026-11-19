@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { Area, Categoria, EstadoIncidente } from '@prisma/client';
+import { Prisma, type Area, type Categoria, type EstadoIncidente } from '@prisma/client';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
+import { esConfirmacionRepetida } from '../src/modulos/incidentes/confirmacion.js';
 import {
   borrarReportesDe,
   crearIncidente,
@@ -180,6 +181,55 @@ describe('POST /api/incidentes/:id/confirmaciones', () => {
     const res = await (await vecino()).confirmar(2_000_000_000);
     expect(res.status).toBe(404);
     expect(res.body.error.codigo).toBe('INCIDENTE_NO_ENCONTRADO');
+  });
+
+  it('un id que no es un número da 400', async () => {
+    const ana = await vecino();
+    expect((await ana.confirmar('abc' as unknown as number)).status).toBe(400);
+    expect((await ana.consultar('abc' as unknown as number)).status).toBe(400);
+  });
+
+  it('dos pedidos a la vez del mismo vecino: uno da 201 y el otro 409, y queda una sola confirmación', async () => {
+    const id = await incidente();
+    const ana = await vecino();
+
+    const respuestas = await Promise.all([ana.confirmar(id), ana.confirmar(id)]);
+
+    expect(respuestas.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(await confirmacionesDe(ana.id)).toHaveLength(1);
+  });
+
+  it('un duplicado cuyo principal está resuelto da 409', async () => {
+    const principal = await incidente({ estado: 'RESUELTO' });
+    const duplicado = await incidente({ principalId: principal });
+    const ana = await vecino();
+
+    const res = await ana.confirmar(duplicado);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.codigo).toBe('INCIDENTE_CERRADO');
+    expect(await confirmacionesDe(ana.id)).toEqual([]);
+  });
+});
+
+describe('esConfirmacionRepetida', () => {
+  it('reconoce el choque con confirmacion_unica y no otros errores', async () => {
+    const id = await incidente();
+    const ana = await vecino();
+    await prisma.confirmacionIncidente.create({ data: { incidenteId: id, usuarioId: ana.id } });
+
+    const repetida = await prisma.confirmacionIncidente
+      .create({ data: { incidenteId: id, usuarioId: ana.id } })
+      .catch((error: unknown) => error);
+
+    expect(esConfirmacionRepetida(repetida)).toBe(true);
+    expect(esConfirmacionRepetida(new Error('otro'))).toBe(false);
+    const otraClave = new Prisma.PrismaClientKnownRequestError('x', {
+      code: 'P2002',
+      clientVersion: 'test',
+      meta: { target: ['email'] },
+    });
+    expect(esConfirmacionRepetida(otraClave)).toBe(false);
   });
 });
 
