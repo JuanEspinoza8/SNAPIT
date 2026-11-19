@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { Modal } from '../../compartido/componentes/Modal.js';
+import { VistaPreviaFoto } from '../../compartido/componentes/VistaPreviaFoto.js';
 import { problemaConLaFoto, TIPOS_FOTO } from '../../compartido/foto.js';
 import { BotonEnviar, CampoTexto, Confirmacion, ErrorDelServidor } from './AccionesFicha.js';
 import { fechaHora } from './formato.js';
@@ -242,7 +243,7 @@ export function DialogoCierre({
             {error && <p className="text-sm text-peligro">{error}</p>}
           </div>
           {vistaPrevia && (
-            <img
+            <VistaPreviaFoto
               src={vistaPrevia}
               alt="Vista previa de la foto del después"
               className="max-h-56 rounded-md border border-borde object-contain"

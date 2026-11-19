@@ -1,13 +1,14 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { AvisoFlotante } from '../src/compartido/componentes/AvisoFlotante.js';
 import { ProveedorCliente } from '../src/compartido/red/clienteContexto.js';
 import { PaginaReportar } from '../src/funcionalidades/reportar/paginaReportar.js';
-import { renderRuta } from './apoyo.js';
+import { jpegConGps, jpegSinGps } from './jpegConGps.js';
 
 // Leaflet no corre en jsdom: el mapa se reemplaza por un botón que marca un punto fijo.
 vi.mock('../src/funcionalidades/reportar/MapaElegirPunto.js', () => ({
@@ -65,21 +66,17 @@ afterEach(() => {
   enviados.length = 0;
 });
 
-/** En /mapa muestra con qué estado llegó la navegación, para ver qué le pasa «Ver en el mapa». */
-function DestinoMapa() {
-  const { state } = useLocation();
-  return <p>Mapa con {JSON.stringify(state)}</p>;
-}
-
-function renderReportarYMapa() {
+/** Reportar y el inicio, con el aviso flotante como lo pone el layout: al enviar, se vuelve al inicio. */
+function renderReportar() {
   const consulta = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={consulta}>
       <ProveedorCliente>
         <MemoryRouter initialEntries={['/reportar']}>
+          <AvisoFlotante />
           <Routes>
             <Route path="/reportar" element={<PaginaReportar />} />
-            <Route path="/mapa" element={<DestinoMapa />} />
+            <Route path="/" element={<h1>Inicio</h1>} />
           </Routes>
         </MemoryRouter>
       </ProveedorCliente>
@@ -100,9 +97,55 @@ async function completar(usuario: ReturnType<typeof userEvent.setup>) {
   await usuario.click(screen.getByRole('button', { name: 'Marcar el punto' }));
 }
 
+describe('el punto a partir de la foto', () => {
+  const fotoConGps = () =>
+    new File([jpegConGps({ lat: -38.9, lon: -68.1 })], 'pozo.jpg', { type: 'image/jpeg' });
+
+  it('si la foto trae su ubicación, marca ahí el punto y se envía con él', async () => {
+    const usuario = userEvent.setup();
+    renderReportar();
+    await screen.findByRole('option', { name: 'Cordón sin rampa' });
+
+    await usuario.upload(screen.getByLabelText('Foto'), fotoConGps());
+    expect(await screen.findByText(/Lo marcamos donde se sacó la foto/)).toBeInTheDocument();
+    await usuario.selectOptions(screen.getByLabelText('Categoría'), '3');
+    await usuario.selectOptions(screen.getByLabelText('Gravedad'), 'GRAVE');
+    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
+
+    expect(await screen.findByText('Reporte enviado')).toBeInTheDocument();
+    expect(Number(enviados[0]!.get('lat'))).toBeCloseTo(-38.9, 4);
+    expect(Number(enviados[0]!.get('lon'))).toBeCloseTo(-68.1, 4);
+  });
+
+  it('no pisa un punto marcado a mano, pero ofrece usar el de la foto', async () => {
+    const usuario = userEvent.setup();
+    renderReportar();
+    await usuario.click(screen.getByRole('button', { name: 'Marcar el punto' }));
+
+    await usuario.upload(screen.getByLabelText('Foto'), fotoConGps());
+
+    const usar = await screen.findByRole('button', { name: 'Usar donde se sacó la foto' });
+    expect(screen.getByText(/Elegiste -38\.95160, -68\.05910/)).toBeInTheDocument();
+    await usuario.click(usar);
+    expect(screen.getByText(/Lo marcamos donde se sacó la foto/)).toBeInTheDocument();
+  });
+
+  it('si la foto no trae ubicación, pide marcar el punto', async () => {
+    const usuario = userEvent.setup();
+    renderReportar();
+
+    await usuario.upload(
+      screen.getByLabelText('Foto'),
+      new File([jpegSinGps()], 'pozo.jpg', { type: 'image/jpeg' }),
+    );
+
+    expect(await screen.findByText(/La foto no trae su ubicación/)).toBeInTheDocument();
+  });
+});
+
 describe('cargar un reporte desde la web', () => {
   it('avisa que la foto y la descripción se publican sin el nombre', () => {
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
 
     expect(screen.getByLabelText('Descripción (opcional)')).toHaveAccessibleDescription(
       'La foto y la descripción se ven en el inicio, sin tu nombre.',
@@ -111,7 +154,7 @@ describe('cargar un reporte desde la web', () => {
 
   it('no envía sin foto ni sin punto, y marca lo que falta', async () => {
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
 
     await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
 
@@ -124,7 +167,7 @@ describe('cargar un reporte desde la web', () => {
 
   it('con todo cargado menos el punto, no envía', async () => {
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
     await usuario.upload(
       screen.getByLabelText('Foto'),
@@ -140,23 +183,32 @@ describe('cargar un reporte desde la web', () => {
     expect(enviados).toHaveLength(0);
   });
 
-  it('una foto que no es JPG ni PNG se rechaza al elegirla', async () => {
+  it('una HEIC de iPhone se acepta aunque el navegador no le conozca el tipo', async () => {
+    const usuario = userEvent.setup({ applyAccept: false });
+    renderReportar();
+
+    await usuario.upload(screen.getByLabelText('Foto'), new File(['foto'], 'IMG_0001.HEIC', { type: '' }));
+
+    expect(screen.queryByText(/Tiene que ser una foto/)).not.toBeInTheDocument();
+  });
+
+  it('una foto que no es de un formato aceptado se rechaza al elegirla', async () => {
     // Sin applyAccept: false, user-event descarta el archivo por el accept del input.
     const usuario = userEvent.setup({ applyAccept: false });
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
 
     await usuario.upload(
       screen.getByLabelText('Foto'),
       new File(['foto'], 'pozo.gif', { type: 'image/gif' }),
     );
 
-    expect(await screen.findByText('Tiene que ser una foto JPG o PNG')).toBeInTheDocument();
+    expect(await screen.findByText('Tiene que ser una foto JPG, PNG, WebP o HEIC')).toBeInTheDocument();
     expect(screen.queryByAltText('Vista previa de la foto del problema')).not.toBeInTheDocument();
   });
 
   it('si no hay categorías, avisa que no se puede reportar', async () => {
     servidor.use(http.get('*/api/categorias', () => HttpResponse.json({ categorias: [] })));
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
 
     expect(
       await screen.findByText(
@@ -167,15 +219,13 @@ describe('cargar un reporte desde la web', () => {
 
   it('envía el reporte como SITIO_WEB con todos los campos', async () => {
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await completar(usuario);
 
     await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
 
-    expect(await screen.findByRole('heading', { name: 'Reporte enviado' })).toBeInTheDocument();
-    expect(
-      screen.getByText('Ya está en el mapa y queda pendiente de revisión hasta que se verifique.'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Reporte enviado')).toBeInTheDocument();
+    expect(screen.getByText('Queda pendiente de aprobación antes de publicarse.')).toBeInTheDocument();
     expect(enviados).toHaveLength(1);
     const formulario = enviados[0]!;
     expect(formulario.get('origen')).toBe('SITIO_WEB');
@@ -205,13 +255,13 @@ describe('cargar un reporte desde la web', () => {
       ),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await completar(usuario);
 
     await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
 
     expect(await screen.findByText('La categoría no existe')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Reporte enviado' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Reporte enviado')).not.toBeInTheDocument();
     // Lo cargado sigue en pantalla.
     expect(screen.getByLabelText('Descripción (opcional)')).toHaveValue('Pozo grande');
     expect(screen.getByLabelText('Categoría')).toHaveValue('3');
@@ -220,28 +270,31 @@ describe('cargar un reporte desde la web', () => {
   it('si el reporte llega verificado, lo dice', async () => {
     servidor.use(http.post('*/api/reportes', () => respuestaCreado('VERIFICADO')));
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await completar(usuario);
 
     await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
 
-    expect(await screen.findByText('Se verificó y ya está en el mapa.')).toBeInTheDocument();
+    expect(await screen.findByText('Se verificó y ya está publicado.')).toBeInTheDocument();
   });
 
-  it('«Ver en el mapa» lleva al mapa con el punto del reporte', async () => {
+  it('al enviar vuelve al inicio con un aviso arriba, que se cierra con la cruz', async () => {
     const usuario = userEvent.setup();
-    renderReportarYMapa();
+    renderReportar();
     await completar(usuario);
+
     await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
 
-    await usuario.click(await screen.findByRole('link', { name: 'Ver en el mapa' }));
-
-    expect(await screen.findByText('Mapa con {"foco":{"lat":-38.9516,"lon":-68.0591}}')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument();
+    const aviso = screen.getByRole('status');
+    expect(within(aviso).getByText('Reporte enviado')).toBeInTheDocument();
+    await usuario.click(within(aviso).getByRole('button', { name: 'Cerrar el aviso' }));
+    expect(screen.queryByText('Reporte enviado')).not.toBeInTheDocument();
   });
 
   it('una foto de más de 20 MB se rechaza al elegirla', async () => {
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     const pesada = new File(['foto'], 'pozo.jpg', { type: 'image/jpeg' });
     Object.defineProperty(pesada, 'size', { value: 21 * 1024 * 1024 });
 
@@ -259,7 +312,7 @@ describe('cargar un reporte desde la web', () => {
       ),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await completar(usuario);
 
     await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
@@ -279,7 +332,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
       http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
 
     await usuario.upload(
@@ -309,7 +362,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
       http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
     await usuario.upload(
       screen.getByLabelText('Foto'),
@@ -332,7 +385,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
   it('si la IA no está disponible, avisa y se elige a mano sin sugerencia', async () => {
     servidor.use(http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')));
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
 
     await completar(usuario);
     expect(await screen.findByText(/La IA no está disponible en este momento/)).toBeInTheDocument();
@@ -353,7 +406,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
       }),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
     await usuario.upload(
       screen.getByLabelText('Foto'),
@@ -375,7 +428,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
   it('con otra foto vacía lo que había completado la IA y conserva lo que eligió el vecino', async () => {
     servidor.use(http.post('*/api/ia/clasificar-foto', () => HttpResponse.json(sugerencia), { once: true }));
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
     await usuario.upload(
       screen.getByLabelText('Foto'),
@@ -411,7 +464,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
       }),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
     await usuario.upload(
       screen.getByLabelText('Foto'),
@@ -441,7 +494,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
       ),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
 
     await usuario.upload(
@@ -468,7 +521,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
       ),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
 
     await usuario.upload(
@@ -485,7 +538,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
   it('si el vecino ya había elegido todo, no dice que la IA completó algo', async () => {
     servidor.use(http.post('*/api/ia/clasificar-foto', () => HttpResponse.json(sugerencia)));
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await screen.findByRole('option', { name: 'Cordón sin rampa' });
     await usuario.selectOptions(screen.getByLabelText('Categoría'), '3');
     await usuario.selectOptions(screen.getByLabelText('Gravedad'), 'GRAVE');
@@ -509,7 +562,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
       http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')),
     );
     const usuario = userEvent.setup();
-    renderRuta('/reportar', <PaginaReportar />);
+    renderReportar();
     await completar(usuario);
     expect(screen.getByText('Analizando la foto con IA…')).toBeInTheDocument();
 

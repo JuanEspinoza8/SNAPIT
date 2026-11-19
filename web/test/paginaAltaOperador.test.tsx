@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PaginaAltaOperador } from '../src/funcionalidades/administracion/paginaAltaOperador.js';
 import type { Usuario } from '../src/compartido/sesion/usuario.js';
@@ -45,7 +45,7 @@ async function llenarOperador(persona = userEvent.setup()) {
   await persona.type(screen.getByLabelText('Correo'), 'olga@ejemplo.com');
   await persona.type(screen.getByLabelText('Clave inicial'), 'clave-inicial-1');
   await persona.selectOptions(screen.getByLabelText('Organismo'), '1');
-  await persona.selectOptions(screen.getByLabelText('Área'), '1');
+  await persona.selectOptions(screen.getByLabelText('Área (opcional)'), '1');
 }
 
 describe('alta de operadores', () => {
@@ -57,7 +57,7 @@ describe('alta de operadores', () => {
     await screen.findByRole('option', { name: 'Municipalidad de Neuquén' });
     await persona.selectOptions(screen.getByLabelText('Organismo'), '1');
 
-    expect(screen.getByLabelText('Área')).toBeEnabled();
+    expect(screen.getByLabelText('Área (opcional)')).toBeEnabled();
     expect(screen.getByRole('option', { name: 'Bacheo' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Veredas' })).toBeInTheDocument();
   });
@@ -103,13 +103,13 @@ describe('alta de operadores', () => {
     expect(await screen.findByText('olga@ejemplo.com')).toBeInTheDocument();
   });
 
-  it('un operador sin área no envía: marca el campo', async () => {
+  it('un operador puede quedar sin área: se manda sin área', async () => {
     conTodo();
-    let llamadas = 0;
+    const enviados: unknown[] = [];
     servidor.use(
-      http.post('*/api/admin/usuarios', () => {
-        llamadas += 1;
-        return new HttpResponse(null, { status: 201 });
+      http.post('*/api/admin/usuarios', async ({ request }) => {
+        enviados.push(await request.json());
+        return HttpResponse.json({ usuario: { ...operadorActual, areaId: null } }, { status: 201 });
       }),
     );
     const persona = userEvent.setup();
@@ -122,8 +122,8 @@ describe('alta de operadores', () => {
     await persona.selectOptions(screen.getByLabelText('Organismo'), '1');
     await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
 
-    expect(await screen.findByText('Es obligatoria')).toBeInTheDocument();
-    expect(llamadas).toBe(0);
+    await waitFor(() => expect(enviados).toHaveLength(1));
+    expect(enviados[0]).toMatchObject({ rol: 'OPERADOR', organismoId: 1, areaId: null });
   });
 
   it('muestra el detalle del servidor en su campo sin perder lo cargado', async () => {
@@ -258,13 +258,13 @@ describe('alta de operadores', () => {
 
   it('al cambiar de organismo se olvida el área del anterior', async () => {
     const otro = { id: 2, nombre: 'Ente Provincial de Energía', areas: [{ id: 7, nombre: 'Redes' }] };
-    let llamadas = 0;
+    const enviados: unknown[] = [];
     servidor.use(
       http.get('*/api/admin/organismos', () => HttpResponse.json({ organismos: [organismo, otro] })),
       http.get('*/api/admin/usuarios', () => HttpResponse.json({ usuarios: [operadorActual] })),
-      http.post('*/api/admin/usuarios', () => {
-        llamadas += 1;
-        return new HttpResponse(null, { status: 201 });
+      http.post('*/api/admin/usuarios', async ({ request }) => {
+        enviados.push(await request.json());
+        return HttpResponse.json({ usuario: operadorActual }, { status: 201 });
       }),
     );
     const persona = userEvent.setup();
@@ -273,11 +273,13 @@ describe('alta de operadores', () => {
     await llenarOperador(persona);
     await persona.selectOptions(screen.getByLabelText('Organismo'), '2');
 
-    expect(screen.getByLabelText('Área')).toHaveValue('');
+    expect(screen.getByLabelText('Área (opcional)')).toHaveValue('');
     await persona.click(screen.getByRole('button', { name: 'Dar de alta' }));
 
-    expect(screen.getByText('Es obligatoria')).toBeInTheDocument();
-    expect(llamadas).toBe(0);
+    // El área de Bacheo era del otro organismo: sale sin área.
+    await waitFor(() =>
+      expect(enviados).toEqual([expect.objectContaining({ organismoId: 2, areaId: null })]),
+    );
   });
 
   it('un error en un campo que la pantalla no tiene se ve en el aviso general', async () => {
@@ -354,5 +356,89 @@ describe('alta de operadores', () => {
     expect(await within(filaArea).findByText('Municipalidad de Neuquén · área inactiva')).toBeInTheDocument();
     const filaOrganismo = screen.getByText('otro@ejemplo.com').closest('li')!;
     expect(within(filaOrganismo).getByText('Organismo inactivo')).toBeInTheDocument();
+  });
+});
+
+describe('editar y dar de baja usuarios', () => {
+  const vecino: Usuario = {
+    id: 7,
+    email: 'vecina@ejemplo.com',
+    nombre: 'Vecina',
+    rol: 'VECINO',
+    organismoId: null,
+    areaId: null,
+  };
+
+  it('edita el rol y dónde trabaja, avisando que se cierran sus sesiones', async () => {
+    conTodo([vecino]);
+    const modificaciones: { id: string; cuerpo: unknown }[] = [];
+    servidor.use(
+      http.put('*/api/admin/usuarios/:id', async ({ params, request }) => {
+        modificaciones.push({ id: String(params.id), cuerpo: await request.json() });
+        return HttpResponse.json({ usuario: { ...vecino, rol: 'OPERADOR', organismoId: 1 } });
+      }),
+    );
+    const persona = userEvent.setup();
+    renderRuta('/administracion', <PaginaAltaOperador />);
+
+    await persona.click(await screen.findByRole('button', { name: 'Editar a Vecina' }));
+    const ventana = screen.getByRole('dialog', { name: 'Editar a Vecina' });
+    await persona.selectOptions(within(ventana).getByLabelText('Rol'), 'OPERADOR');
+    await persona.selectOptions(within(ventana).getByLabelText('Organismo'), '1');
+    await persona.selectOptions(within(ventana).getByLabelText('Área (opcional)'), '2');
+    expect(within(ventana).getByText(/se cierran sus sesiones/)).toBeInTheDocument();
+    await persona.click(within(ventana).getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(modificaciones).toEqual([
+      { id: '7', cuerpo: { nombre: 'Vecina', rol: 'OPERADOR', organismoId: 1, areaId: 2 } },
+    ]);
+  });
+
+  it('un error del servidor se ve en la ventana, sin cerrarla', async () => {
+    conTodo([vecino]);
+    servidor.use(
+      http.put('*/api/admin/usuarios/:id', () =>
+        HttpResponse.json(
+          {
+            error: {
+              codigo: 'ULTIMO_ADMINISTRADOR',
+              mensaje: 'Es el único administrador: no puede dejar de serlo',
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    const persona = userEvent.setup();
+    renderRuta('/administracion', <PaginaAltaOperador />);
+
+    await persona.click(await screen.findByRole('button', { name: 'Editar a Vecina' }));
+    const ventana = screen.getByRole('dialog', { name: 'Editar a Vecina' });
+    await persona.click(within(ventana).getByRole('button', { name: 'Guardar' }));
+
+    expect(await within(ventana).findByText(/Es el único administrador/)).toBeInTheDocument();
+  });
+
+  it('dar de baja pide confirmación y después la manda', async () => {
+    conTodo([vecino]);
+    const bajas: string[] = [];
+    servidor.use(
+      http.delete('*/api/admin/usuarios/:id', ({ params }) => {
+        bajas.push(String(params.id));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const persona = userEvent.setup();
+    renderRuta('/administracion', <PaginaAltaOperador />);
+
+    await persona.click(await screen.findByRole('button', { name: 'Dar de baja a Vecina' }));
+    expect(screen.getByText(/No va a poder ingresar/)).toBeInTheDocument();
+    await persona.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(bajas).toEqual([]);
+
+    await persona.click(screen.getByRole('button', { name: 'Dar de baja a Vecina' }));
+    await persona.click(screen.getByRole('button', { name: 'Sí, dar de baja' }));
+    await waitFor(() => expect(bajas).toEqual(['7']));
   });
 });

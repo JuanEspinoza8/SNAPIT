@@ -123,7 +123,7 @@ describe('ver mis reportes', () => {
     expect(await screen.findByText('Desestimado')).toBeInTheDocument();
     await waitFor(() => expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:foto-local'));
     expect(screen.queryByText('Foto no disponible')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Vereda rota/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^(?!Eliminar).*Vereda rota/ })).not.toBeInTheDocument();
   });
 
   it('un reporte sin fotos muestra el recuadro', async () => {
@@ -179,7 +179,7 @@ describe('ver mis reportes', () => {
     const usuario = userEvent.setup();
     renderRuta('/mis-reportes', <ListaMisReportes />);
 
-    await usuario.click(await screen.findByRole('button', { name: /Cordón sin rampa/ }));
+    await usuario.click(await screen.findByRole('button', { name: /^(?!Eliminar).*Cordón sin rampa/ }));
 
     const panel = await screen.findByRole('complementary', { name: 'Ficha del incidente' });
     expect(within(panel).getByRole('heading', { name: 'Cordón sin rampa' })).toBeInTheDocument();
@@ -281,5 +281,62 @@ describe('al cambiar de sesión en la misma pestaña', () => {
 
     responderB();
     expect(await screen.findByText('Reporte de B')).toBeInTheDocument();
+  });
+});
+
+describe('eliminar un reporte propio', () => {
+  beforeEach(() => {
+    localStorage.setItem('snapit:tokenAcceso', 'acceso-del-vecino');
+    localStorage.setItem('snapit:tokenRenovacion', 'renovacion-del-vecino');
+  });
+
+  it('pide confirmación, lo elimina y deja de verse en la lista', async () => {
+    let reportes = [reporte({ id: 1 }), reporte({ id: 2, categoria: { id: 4, nombre: 'Vereda rota' } })];
+    const eliminados: string[] = [];
+    servidor.use(
+      http.get('*/api/reportes/mios', () => HttpResponse.json({ reportes })),
+      http.delete('*/api/reportes/:id', ({ params }) => {
+        eliminados.push(String(params.id));
+        reportes = reportes.filter((r) => r.id !== Number(params.id));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderRuta('/mis-reportes', <ListaMisReportes />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Eliminar tu reporte de Vereda rota' }));
+    const confirmacion = screen.getByRole('alertdialog', { name: 'Eliminar tu reporte de Vereda rota' });
+    expect(confirmacion).toHaveTextContent('No se puede deshacer');
+    expect(eliminados).toEqual([]);
+    await userEvent.click(within(confirmacion).getByRole('button', { name: 'Sí, eliminar' }));
+
+    await waitFor(() => expect(screen.queryByText('Vereda rota')).not.toBeInTheDocument());
+    expect(eliminados).toEqual(['2']);
+    expect(screen.getByText('Cordón sin rampa')).toBeInTheDocument();
+  });
+
+  it('si es el único reporte de su problema, explica por qué no se puede y el reporte queda', async () => {
+    conReportes(reporte({ id: 1 }));
+    servidor.use(
+      http.delete('*/api/reportes/:id', () =>
+        HttpResponse.json(
+          {
+            error: {
+              codigo: 'UNICO_REPORTE',
+              mensaje: 'Es el único reporte de este problema: no se puede eliminar sin dejarlo vacío',
+            },
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderRuta('/mis-reportes', <ListaMisReportes />);
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Eliminar tu reporte de Cordón sin rampa' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Sí, eliminar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Es el único reporte de este problema');
+    expect(screen.getByText('Cordón sin rampa')).toBeInTheDocument();
   });
 });

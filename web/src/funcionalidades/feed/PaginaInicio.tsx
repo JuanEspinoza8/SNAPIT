@@ -5,7 +5,7 @@ import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { BotonReportar } from '../../compartido/componentes/BotonReportar.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { useFeed } from './consultas.js';
-import { TarjetaIncidente } from './TarjetaIncidente.js';
+import { Publicacion } from './Publicacion.js';
 
 // Leaflet es pesado y en un celular el mapa ni se muestra: se baja recién si hay lugar para él.
 const MapaPuntos = lazy(() => import('./MapaPuntos.js').then((modulo) => ({ default: modulo.MapaPuntos })));
@@ -20,8 +20,8 @@ const suscribirAncho = (alCambiar: () => void) => {
 const esAncha = () => window.matchMedia?.(ANCHA).matches ?? false;
 
 /**
- * La pantalla de inicio: los incidentes de la ciudad uno debajo del otro, del más nuevo al más viejo. En
- * pantalla ancha, al lado, un mapa con los que ya se cargaron. Al acercarse al final pide la página
+ * La pantalla de inicio: lo que reportaron los vecinos, una publicación debajo de la otra, de la más nueva a la más
+ * vieja (solo los reportes ya publicados). En pantalla ancha, al lado, un mapa con las que ya se cargaron. Al acercarse al final pide la página
  * siguiente; el botón «Cargar más» queda para el teclado y para los navegadores sin IntersectionObserver.
  */
 export function PaginaInicio() {
@@ -46,18 +46,18 @@ export function PaginaInicio() {
     return () => observador.disconnect();
   }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
-  const tarjetas = feed.data?.pages.flatMap((pagina) => pagina.incidentes) ?? [];
-  const puntos = tarjetas.map((t) => ({
-    id: t.id,
-    lat: t.lat,
-    lon: t.lon,
-    estado: t.estado,
-    titulo: t.categoria.nombre,
+  const publicaciones = feed.data?.pages.flatMap((pagina) => pagina.reportes) ?? [];
+  const puntos = publicaciones.map((p) => ({
+    id: p.id,
+    lat: p.lat,
+    lon: p.lon,
+    estado: p.incidente.estado,
+    titulo: p.categoria.nombre,
   }));
 
   return (
     <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,36rem)_1fr]">
-      <section aria-label="Incidentes de la ciudad" className="flex flex-col gap-4">
+      <section aria-label="Publicaciones de los vecinos" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-semibold">Inicio</h1>
           <BotonReportar />
@@ -73,20 +73,20 @@ export function PaginaInicio() {
           />
         )}
 
-        {feed.data && tarjetas.length === 0 && (
+        {feed.data && publicaciones.length === 0 && (
           <div className="rounded-lg border border-borde bg-superficie-alterna p-8 text-center">
-            <p className="font-semibold">Todavía no hay incidentes</p>
+            <p className="font-semibold">Todavía no hay publicaciones</p>
             <p className="text-sm text-texto-secundario">
-              Cuando un vecino reporte un problema, va a aparecer acá.
+              Cuando se publique el reporte de un vecino, va a aparecer acá.
             </p>
           </div>
         )}
 
-        {tarjetas.length > 0 && (
+        {publicaciones.length > 0 && (
           <ol className="flex flex-col gap-6">
-            {tarjetas.map((tarjeta) => (
-              <li key={tarjeta.id}>
-                <TarjetaIncidente tarjeta={tarjeta} alResaltar={setResaltado} />
+            {publicaciones.map((publicacion) => (
+              <li key={publicacion.id}>
+                <Publicacion publicacion={publicacion} alResaltar={setResaltado} />
               </li>
             ))}
           </ol>
@@ -104,22 +104,22 @@ export function PaginaInicio() {
               {isFetchingNextPage ? 'Cargando más…' : isFetchNextPageError ? 'Reintentar' : 'Cargar más'}
             </button>
           )}
-          {feed.data && !hasNextPage && tarjetas.length > 0 && (
-            <p className="text-sm text-texto-secundario">No hay más incidentes por ahora</p>
+          {feed.data && !hasNextPage && publicaciones.length > 0 && (
+            <p className="text-sm text-texto-secundario">No hay más publicaciones por ahora</p>
           )}
         </div>
       </section>
 
       {/* Solo en pantalla ancha. Para el lector de pantalla es un extra: la lista ya tiene todo. */}
       {ancha && (
-        <aside aria-label="Mapa de los incidentes del inicio">
+        <aside aria-label="Mapa de las publicaciones del inicio">
           <div className="sticky top-4 h-[calc(100dvh-8rem)] overflow-hidden rounded-lg border border-borde">
             {puntos.length > 0 && (
               <Suspense fallback={<div className="h-full w-full animate-pulse bg-superficie-alterna" />}>
                 <MapaPuntos
                   puntos={puntos}
                   destacado={resaltado}
-                  alElegir={(id) => void navegar(`/incidente/${id}`)}
+                  alElegir={(id) => void navegar(`/reporte/${id}`)}
                 />
               </Suspense>
             )}

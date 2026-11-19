@@ -98,14 +98,16 @@ describe('rutas de la aplicación', () => {
     expect(await screen.findByRole('heading', { name: 'Bandeja' })).toBeInTheDocument();
   });
 
-  it('la revisión sigue siendo solo del operador: el administrador vuelve a la administración', async () => {
+  it('el administrador también entra a la revisión: ve todo lo del operador', async () => {
     servidor.use(
-      http.get('*/api/admin/organismos', () => HttpResponse.json({ organismos: [] })),
-      http.get('*/api/admin/usuarios', () => HttpResponse.json({ usuarios: [] })),
+      http.get('*/api/reportes/pendientes', () => HttpResponse.json({ reportes: [] })),
+      http.get('*/api/reportes/desestimados-pendientes', () => HttpResponse.json({ reportes: [] })),
+      http.get('*/api/reportes', () => HttpResponse.json({ reportes: [] })),
+      http.get('*/api/ia/procesos', () => HttpResponse.json({ procesos: [] })),
     );
     abrir('/revision', 'ADMINISTRADOR');
 
-    expect(await screen.findByRole('heading', { name: 'Alta de operadores' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Revisión de reportes' })).toBeInTheDocument();
   });
 
   it('un link viejo a «Mis reportes» lleva al perfil, donde están los reportes', async () => {

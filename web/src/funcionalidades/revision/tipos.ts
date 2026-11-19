@@ -1,21 +1,28 @@
-/** Formas que devuelven GET /api/reportes/pendientes y POST /api/reportes/:id/revision (docs/api.md). */
+/** Formas que devuelven la revisión y la cola de verificación con IA (docs/api.md). */
 
 import type { EstadoVerificacion } from '../../compartido/formato/verificacion.js';
 
-// La única decisión posible del operador: verificar o desestimar.
+// La única decisión posible del operador: verificar (publicar) o desestimar.
 export type DecisionRevision = 'VERIFICADO' | 'DESESTIMADO';
 
 export type Severidad = 'LEVE' | 'MODERADA' | 'GRAVE';
 
-// Por qué el reporte quedó con ese nivel. El servidor ya manda el detalle
-// explicado en texto: la web solo lo tiene que mostrar.
+/** Un control automático del reporte (F04). El servidor ya manda el detalle en texto: la web lo muestra. */
 export interface SenalVerificacion {
-  tipo: string; // EXIF_AUSENTE, HASH_DUPLICADO, REPUTACION, etc.
-  valor: number; // cuánto sumó o restó (+20, -40, 0...)
-  detalle: string | null; // la explicación en texto claro (puede faltar)
+  tipo: string; // EXIF_COINCIDE, EXIF_AUSENTE, FECHA_ANTIGUA o HASH_DUPLICADO
+  valor: number; // 1 se cumple, -1 no se cumple, 0 la foto no trae con qué comprobarlo
+  detalle: string | null;
 }
 
-// Un reporte de la lista de pendientes, tal cual lo devuelve el servidor.
+/** Lo que vio la IA la última vez que miró la foto. Sin categoría si no es un problema de la vía pública. */
+export interface PropuestaIa {
+  categoriaId: number | null;
+  severidad: Severidad | null;
+  explicacion: string | null;
+  creadoEn: string;
+}
+
+// Un reporte pendiente (GET /api/reportes/pendientes y /desestimados-pendientes), tal cual lo manda el servidor.
 export interface ReportePendiente {
   id: number;
   registradoEn: string;
@@ -26,7 +33,7 @@ export interface ReportePendiente {
   lat: number;
   lon: number;
   origen: 'SITIO_WEB' | 'APP_MOVIL';
-  nivelConfianza: number; // de 0 a 100
+  nivelConfianza: number;
   senales: SenalVerificacion[];
   fotos: { id: number; url: string }[];
   incidente: {
@@ -37,7 +44,6 @@ export interface ReportePendiente {
     propioId?: number | null;
   } | null;
   vecino: { reputacion: number; reportesConfirmados: number; reportesDesestimados: number };
-  /** Si la IA ya lo procesó y lo dejó para revisión: qué propuso y por qué. */
   propuestaIa: PropuestaIa | null;
 }
 
@@ -46,15 +52,10 @@ export type { EstadoVerificacion };
 /** Un reporte del organismo en cualquier estado (GET /api/reportes). */
 export interface ReporteDelOrganismo extends ReportePendiente {
   estadoVerificacion: EstadoVerificacion;
-  /** Cuándo lo publicó la IA al procesar la cola, o null si no fue ella. */
+  /** Cuándo lo publicó la IA, o null si no fue ella. */
   publicadoPorIaEn: string | null;
-}
-
-export interface PropuestaIa {
-  categoriaId: number;
-  severidad: Severidad;
-  explicacion: string | null;
-  creadoEn: string;
+  /** La IA lo marcó para desestimar y espera que un operador lo confirme. */
+  marcadoParaDesestimar: boolean;
 }
 
 // Lo que responde el servidor después de decidir (POST /api/reportes/:id/revision).
@@ -65,29 +66,20 @@ export interface ResultadoRevision {
   vecino: { reputacion: number };
 }
 
+// POST /api/reportes/desestimados-pendientes/confirmacion.
+export interface ResultadoConfirmacion {
+  desestimados: number[];
+  omitidos: { id: number; motivo: string }[];
+}
+
 // Para mostrar en pantalla: "GRAVE" no se lee bien, "Grave" sí.
-export const severidadEnTexto: Record<ReportePendiente['severidadDeclarada'], string> = {
+export const severidadEnTexto: Record<Severidad, string> = {
   LEVE: 'Leve',
   MODERADA: 'Moderada',
   GRAVE: 'Grave',
 };
 
-// El nombre de cada señal de la verificación (F04), para mostrarla junto a su detalle.
-export const SENALES: Record<string, string> = {
-  EXIF_COINCIDE: 'Ubicación de la foto',
-  EXIF_AUSENTE: 'Foto sin ubicación',
-  HASH_DUPLICADO: 'Foto repetida',
-  ORIGEN_APP: 'Cámara de la app',
-  REPUTACION: 'Reputación del vecino',
-  FECHA_ANTIGUA: 'Foto antigua',
-};
-
-export const origenEnTexto: Record<ReportePendiente['origen'], string> = {
-  SITIO_WEB: 'Sitio web',
-  APP_MOVIL: 'App móvil',
-};
-
-// --- Procesamiento de la cola con IA (POST /api/ia/procesar-cola y GET /api/ia/procesos) ---
+// --- Procesamiento con IA (POST /api/ia/procesar-cola y GET /api/ia/procesos) ---
 
 export type EstadoEvento = 'EN_PROCESO' | 'CLASIFICADO' | 'PUBLICADO' | 'REVISION_MANUAL' | 'ERROR';
 
@@ -104,12 +96,28 @@ export interface EventoCola {
     foto: { id: number; url: string } | null;
     incidenteId: number | null;
   };
+  /** Lo que respondió la IA: viene solo en los pasos CLASIFICADO. */
   propuesta: {
     registroIaId: number | null;
+    esProblemaViaPublica: boolean | null;
     categoriaId: number | null;
     severidad: Severidad | null;
+    mismoProblema: boolean | null;
+    datosPersonales: boolean | null;
     explicacion: string | null;
   } | null;
+}
+
+export interface ResumenProceso {
+  total: number;
+  procesados: number;
+  publicados: number;
+  publicadosConSugerencia: number;
+  derivados: number;
+  desestimados: number;
+  errores: number;
+  tiempoMedioMs: number | null;
+  costoUsd: number | null;
 }
 
 export interface ProcesoCola {
@@ -117,17 +125,7 @@ export interface ProcesoCola {
   enCurso: boolean;
   iniciadoEn: string;
   eventos: EventoCola[];
-  resumen: {
-    total: number;
-    procesados: number;
-    publicados: number;
-    /** De los publicados, en cuántos el vecino había aceptado la sugerencia de la IA al cargarlo. */
-    publicadosConSugerencia: number;
-    derivados: number;
-    errores: number;
-    tiempoMedioMs: number | null;
-    costoUsd: number | null;
-  };
+  resumen: ResumenProceso;
 }
 
 export interface ProcesoReciente {
@@ -136,6 +134,7 @@ export interface ProcesoReciente {
   reportes: number;
   publicados: number;
   derivados: number;
+  desestimados: number;
   errores: number;
   enCurso: boolean;
 }

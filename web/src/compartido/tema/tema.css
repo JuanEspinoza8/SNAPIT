@@ -1,12 +1,13 @@
 @theme {
-  /* Colores del sistema de diseño: mobile/lib/compartido/tema/tema_app.dart */
-  --color-primario: #1f5e7a;
-  --color-sobre-primario: #ffffff;
+  /* Colores del sistema de diseño: mobile/lib/compartido/tema/tema_app.dart. Neutros, sin color en los
+     botones (la paleta neutra de shadcn/ui): el color queda para lo que informa, como los estados. */
+  --color-primario: #171717;
+  --color-sobre-primario: #fafafa;
   --color-superficie: #ffffff;
-  --color-superficie-alterna: #f6f7f9;
-  --color-borde: #d9dee5;
-  --color-texto: #1a202c;
-  --color-texto-secundario: #5a6474;
+  --color-superficie-alterna: #fafafa;
+  --color-borde: #e5e5e5;
+  --color-texto: #0a0a0a;
+  --color-texto-secundario: #737373;
   --color-peligro: #b42318;
 
   /* Colores de los estados de un incidente (enum EstadoIncidente).
@@ -52,20 +53,33 @@
   --text-2xl--line-height: 2rem;
   --text-3xl: 2rem;
   --text-3xl--line-height: 2.5rem;
+
+  /* El aviso flotante (AvisoFlotante.tsx) baja un poco desde arriba al aparecer. */
+  --animate-aparecer-arriba: aparecer-arriba 250ms ease-out;
+  @keyframes aparecer-arriba {
+    from {
+      opacity: 0;
+      transform: translateY(-0.75rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
-/* «Noche neutra», el tema oscuro: mismos valores que PaletaSnapIt.oscuro en
+/* El tema oscuro, también neutro: mismos valores que PaletaSnapIt.oscuro en
    mobile/lib/compartido/tema/tema_app.dart. Las utilidades de Tailwind leen estas variables, así que
-   alcanza con redefinirlas. El azul con texto blanco no llega a AA (3,7:1): lo que va sobre el azul
-   es casi negro (5:1). Los estados, las gravedades y los colores fijos no cambian. */
+   alcanza con redefinirlas. Los botones van claros con texto oscuro. Los estados, las gravedades y los
+   colores fijos no cambian. */
 :root[data-tema='oscuro'] {
   color-scheme: dark;
-  --color-primario: #3b82f6;
-  --color-sobre-primario: #0b1220;
-  --color-superficie: #0f1115;
-  --color-superficie-alterna: #181b21;
-  --color-borde: #2a2f38;
-  --color-texto: #e6e8eb;
-  --color-texto-secundario: #9aa3ae;
+  --color-primario: #e5e5e5;
+  --color-sobre-primario: #171717;
+  --color-superficie: #0a0a0a;
+  --color-superficie-alterna: #171717;
+  --color-borde: #262626;
+  --color-texto: #fafafa;
+  --color-texto-secundario: #a3a3a3;
   --color-peligro: #f87171;
 }

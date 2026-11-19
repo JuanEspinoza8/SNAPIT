@@ -41,6 +41,7 @@ function reporte(
     propuestaIa: null,
     estadoVerificacion: datos.verificacion ?? 'VERIFICADO',
     publicadoPorIaEn: null,
+    marcadoParaDesestimar: false,
   };
 }
 

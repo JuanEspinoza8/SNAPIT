@@ -4,56 +4,42 @@ import { useCliente } from '../../compartido/red/clienteContexto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { crearRepositorioIa } from '../../compartido/red/repositorioIa.js';
 import { crearRepositorioReportes } from '../../compartido/red/repositorioReportes.js';
-import type { Decision } from './estadoFila.js';
 import type { DecisionRevision, ReportePendiente } from './tipos.js';
 
 // Mientras la IA procesa, el log se vuelve a pedir cada tanto. Al terminar, deja de pedirse.
 const INTERVALO_MS = 1500;
 
+const LISTAS = ['reportesPendientes', 'desestimadosPendientes', 'reportesDelOrganismo'];
+
+/** Todo error sale como ErrorApi: así la pantalla lo muestra igual siempre. */
+const conError = <T>(promesa: Promise<T>) =>
+  promesa.catch((error: unknown) => Promise.reject(aErrorApi(error)));
+
 /**
- * Todo lo de la revisión: los pendientes, la decisión manual y el procesamiento con IA. Vive en la página y no
- * en cada sección: así, al ir a otra sección y volver, lo resuelto sigue a la vista hasta «Limpiar resueltos».
+ * Todo lo de la revisión: las tres listas, las decisiones del operador y el procesamiento con IA. Vive en la
+ * página y no en cada pestaña: así, al ir a otra y volver, lo que hizo la IA sigue a la vista hasta «Listo».
  */
 export function useRevision() {
   const cliente = useCliente();
   const consulta = useQueryClient();
   const reportes = useMemo(() => crearRepositorioReportes(cliente), [cliente]);
   const ia = useMemo(() => crearRepositorioIa(cliente), [cliente]);
-  const [procesoId, setProcesoId] = useState<string | null>(null);
+  const actualizarListas = () => {
+    for (const lista of LISTAS) void consulta.invalidateQueries({ queryKey: [lista] });
+  };
 
   const pendientes = useQuery({
     queryKey: ['reportesPendientes'],
-    queryFn: async () => {
-      try {
-        return await reportes.pendientes();
-      } catch (error) {
-        // Todo error sale como ErrorApi: así la pantalla lo muestra igual siempre.
-        throw aErrorApi(error);
-      }
-    },
+    queryFn: () => conError(reportes.pendientes()),
   });
-
-  // Las filas se acumulan: un reporte que deja de estar pendiente sigue a la vista con su estado final.
-  // Se ajustan al llegar una lista nueva, durante el render (el patrón de React para derivar de otro estado).
-  const [filas, setFilas] = useState<ReportePendiente[]>([]);
-  const [listaVista, setListaVista] = useState<ReportePendiente[] | undefined>(undefined);
-  if (pendientes.data !== listaVista) {
-    setListaVista(pendientes.data);
-    if (pendientes.data) setFilas(sumar(filas, pendientes.data));
-  }
-  // Lo decidido a mano desde esta pantalla: la fila queda con su resultado hasta «Limpiar resueltos».
-  const [decisiones, setDecisiones] = useState<Map<number, Decision>>(new Map());
-
-  // Todos los reportes del organismo, en cualquier estado (la sección «Todos los reportes» y su total).
+  const desestimados = useQuery({
+    queryKey: ['desestimadosPendientes'],
+    queryFn: () => conError(reportes.desestimadosPendientes()),
+  });
   const todos = useQuery({
     queryKey: ['reportesDelOrganismo'],
-    queryFn: () => reportes.delOrganismo().catch((error: unknown) => Promise.reject(aErrorApi(error))),
+    queryFn: () => conError(reportes.delOrganismo()),
   });
-  // Lo que cambia los estados (una decisión o un procesamiento con IA) también cambia este listado.
-  const actualizarListas = () => {
-    void consulta.invalidateQueries({ queryKey: ['reportesPendientes'] });
-    void consulta.invalidateQueries({ queryKey: ['reportesDelOrganismo'] });
-  };
 
   const revisar = useMutation({
     mutationFn: ({
@@ -65,34 +51,38 @@ export function useRevision() {
       decision: DecisionRevision;
       comentario: string;
     }) => reportes.revisar(id, decision, comentario),
-    // El reporte quedó decidido: las listas se vuelven a pedir.
     onSuccess: actualizarListas,
     onError: (error) => {
-      // 409: otro operador lo revisó primero. La lista se refresca y el reporte deja de estar pendiente.
+      // 409: otro operador lo revisó primero. Las listas se refrescan y el reporte deja de estar pendiente.
       if (aErrorApi(error).codigo === 'REPORTE_YA_REVISADO') actualizarListas();
     },
   });
 
-  // Al abrir la pantalla se muestra el último procesamiento con IA (o el que sigue en curso).
+  const confirmar = useMutation({
+    mutationFn: () => reportes.confirmarDesestimados(),
+    onSuccess: actualizarListas,
+  });
+
+  // El procesamiento que se muestra: el lanzado desde acá o, al abrir la pantalla, el último del organismo.
+  const [procesoId, setProcesoId] = useState<string | null>(null);
   const recientes = useQuery({
     queryKey: ['procesosIa'],
-    queryFn: () => ia.procesos().catch((error: unknown) => Promise.reject(aErrorApi(error))),
+    queryFn: () => conError(ia.procesos()),
   });
   const idMostrado = procesoId ?? recientes.data?.[0]?.id ?? null;
-
   const proceso = useQuery({
     queryKey: ['procesoIa', idMostrado],
-    queryFn: () => ia.proceso(idMostrado!).catch((error: unknown) => Promise.reject(aErrorApi(error))),
+    queryFn: () => conError(ia.proceso(idMostrado!)),
     enabled: idMostrado !== null,
     refetchInterval: (query) => (query.state.data?.enCurso === false ? false : INTERVALO_MS),
   });
-
-  // Cuando la IA termina, la lista de pendientes cambió: los que publicó ya no están.
   const enCurso = proceso.data?.enCurso ?? false;
+
+  // Al terminar, las listas cambiaron: lo publicado sale de los pendientes y lo marcado pasa a desestimados.
   useEffect(() => {
-    if (!proceso.data || enCurso) return;
-    void consulta.invalidateQueries({ queryKey: ['reportesPendientes'] });
-    void consulta.invalidateQueries({ queryKey: ['reportesDelOrganismo'] });
+    if (proceso.data && !enCurso) {
+      for (const lista of LISTAS) void consulta.invalidateQueries({ queryKey: [lista] });
+    }
   }, [enCurso, proceso.data, consulta]);
 
   const procesar = useMutation({
@@ -103,30 +93,39 @@ export function useRevision() {
     },
   });
 
-  // Si falla la lista de procesamientos o el que se muestra, se dice, en vez de «todavía no se procesó la cola».
-  const errorProceso = proceso.data ? null : idMostrado === null ? recientes.error : proceso.error;
+  // Las filas de la sesión: los pendientes y los que la IA resolvió acá, que siguen a la vista con su resultado
+  // hasta «Listo». Se ajustan al llegar una lista nueva, durante el render (el patrón de React para derivar de
+  // otro estado: no con un efecto).
+  const [filas, setFilas] = useState<ReportePendiente[]>([]);
+  const [listaVista, setListaVista] = useState<ReportePendiente[] | undefined>(undefined);
+  if (pendientes.data !== listaVista) {
+    setListaVista(pendientes.data);
+    if (pendientes.data) setFilas(sumar(filas, pendientes.data));
+  }
+  const procesoDeSesion = procesoId !== null && proceso.data?.id === procesoId ? proceso.data : undefined;
+  const pendientesAhora = new Set(pendientes.data?.map((reporte) => reporte.id) ?? []);
+  const conPasos = new Set(procesoDeSesion?.eventos.map((evento) => evento.reporte.id) ?? []);
+  // Uno que dejó de estar pendiente sin pasar por la IA (lo decidió una persona) ya no tiene nada que mostrar.
+  const filasVisibles = filas.filter((fila) => pendientesAhora.has(fila.id) || conPasos.has(fila.id));
 
   return {
     pendientes,
-    filas,
-    decisiones,
-    anotarDecision: (id: number, decision: Decision) =>
-      setDecisiones((actuales) => new Map(actuales).set(id, decision)),
+    desestimados,
     todos,
+    filas: filasVisibles,
     revisar,
-    proceso,
-    errorProceso,
-    reintentarProceso: () => void (idMostrado === null ? recientes.refetch() : proceso.refetch()),
+    confirmar,
     procesar,
+    proceso: proceso.data,
+    procesoDeSesion,
     enCurso,
-    /** El procesamiento lanzado desde esta pantalla (no uno anterior): sus pasos se ven en cada pendiente. */
-    procesoDeSesion: procesoId !== null && proceso.data?.id === procesoId ? proceso.data : undefined,
-    /** Saca de la lista lo resuelto y olvida el procesamiento y las decisiones de esta pantalla. */
-    limpiarResueltos: () => {
+    errorProceso: proceso.data ? null : idMostrado === null ? recientes.error : proceso.error,
+    /** Olvida lo que hizo la IA en esta pantalla: quedan solo los pendientes. */
+    listo: () => {
       setFilas(pendientes.data ?? []);
-      setDecisiones(new Map());
       setProcesoId(null);
     },
+    hayResueltos: filasVisibles.some((fila) => !pendientesAhora.has(fila.id)),
   };
 }
 

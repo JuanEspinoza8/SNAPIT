@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
-import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import { ESTADOS_VERIFICACION } from '../../compartido/formato/verificacion.js';
 import { aErrorApi } from '../../compartido/red/error.js';
+import { Etiqueta, fechaCorta, Lista, Miniatura, Vacio } from './piezas.js';
 import { severidadEnTexto, type EstadoVerificacion, type ReporteDelOrganismo } from './tipos.js';
 import type { useRevision } from './useRevision.js';
 
@@ -32,126 +32,88 @@ export function SeccionTodos({ consulta, alAbrir }: Props) {
     (reporte) => categoriaId === null || reporte.categoria.id === categoriaId,
   );
   const cuantos = (valor: Filtro) =>
-    valor === 'TODOS'
-      ? deLaCategoria.length
-      : deLaCategoria.filter((reporte) => reporte.estadoVerificacion === valor).length;
+    deLaCategoria.filter((reporte) => valor === 'TODOS' || reporte.estadoVerificacion === valor).length;
   const visibles = deLaCategoria.filter(
     (reporte) => filtro === 'TODOS' || reporte.estadoVerificacion === filtro,
   );
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-borde bg-superficie p-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-semibold text-texto">Todos los reportes</h2>
-          <p className="text-xs text-texto-secundario">
-            Los reportes de tu organismo en cualquier estado, del más nuevo al más viejo.
-          </p>
+        {/* Botones que se marcan, no pestañas: filtran la misma lista. */}
+        <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1">
+          {FILTROS.map(({ valor, texto }) => (
+            <button
+              key={valor}
+              type="button"
+              aria-pressed={filtro === valor}
+              onClick={() => setFiltro(valor)}
+              className={`rounded-full px-3 py-1 text-sm ${
+                filtro === valor
+                  ? 'bg-superficie-alterna font-semibold text-texto'
+                  : 'text-texto-secundario hover:text-texto'
+              }`}
+            >
+              {texto}{' '}
+              <span className="text-xs text-texto-secundario">{consulta.data ? cuantos(valor) : '…'}</span>
+            </button>
+          ))}
         </div>
-        <label className="flex items-center gap-2 text-sm text-texto-secundario">
-          Categoría
-          <select
-            value={categoriaId ?? ''}
-            onChange={(evento) => setCategoriaId(evento.target.value ? Number(evento.target.value) : null)}
-            className="rounded-md border border-borde bg-superficie px-2 py-1 text-sm text-texto"
-          >
-            <option value="">Todas</option>
-            {categorias.data?.map((categoria) => (
-              <option key={categoria.id} value={categoria.id}>
-                {categoria.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {/* Botones que se marcan, no pestañas: filtran la misma lista, no cambian de panel. */}
-      <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1">
-        {FILTROS.map(({ valor, texto }) => (
-          <button
-            key={valor}
-            type="button"
-            aria-pressed={filtro === valor}
-            onClick={() => setFiltro(valor)}
-            className={`rounded-md px-3 py-2 text-sm ${
-              filtro === valor
-                ? 'bg-superficie-alterna font-semibold text-primario'
-                : 'text-texto-secundario hover:bg-superficie-alterna'
-            }`}
-          >
-            {texto} <span className="text-xs">({consulta.data ? cuantos(valor) : '…'})</span>
-          </button>
-        ))}
+        <select
+          aria-label="Categoría"
+          value={categoriaId ?? ''}
+          onChange={(evento) => setCategoriaId(evento.target.value ? Number(evento.target.value) : null)}
+          className="rounded-md border border-borde bg-superficie px-2 py-1 text-sm text-texto"
+        >
+          <option value="">Todas las categorías</option>
+          {categorias.data?.map((categoria) => (
+            <option key={categoria.id} value={categoria.id}>
+              {categoria.nombre}
+            </option>
+          ))}
+        </select>
       </div>
 
       {consulta.isPending && <Cargando />}
       {consulta.isError && (
         <AvisoError error={aErrorApi(consulta.error)} alReintentar={() => void consulta.refetch()} />
       )}
-      {consulta.data && visibles.length === 0 && (
-        <p className="text-sm text-texto-secundario">No hay reportes con estos filtros.</p>
-      )}
+      {consulta.data && visibles.length === 0 && <Vacio>No hay reportes con estos filtros.</Vacio>}
 
-      <ul className="flex flex-col gap-2">
+      <Lista>
         {visibles.map((reporte) => (
-          <FilaReporte key={reporte.id} reporte={reporte} alAbrir={() => alAbrir(reporte)} />
+          <li key={reporte.id}>
+            <button
+              type="button"
+              onClick={() => alAbrir(reporte)}
+              className="flex w-full items-center gap-3 py-3 text-left hover:bg-superficie-alterna"
+            >
+              <Miniatura fotoId={reporte.fotos[0]?.id} />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <p className="truncate text-sm font-semibold text-texto">
+                  {reporte.categoria.nombre} · {severidadEnTexto[reporte.severidadDeclarada]}
+                </p>
+                <p className="truncate text-xs text-texto-secundario">
+                  #{reporte.id} · {reporte.direccion ?? 'Dirección pendiente'} ·{' '}
+                  {fechaCorta(reporte.registradoEn)}
+                </p>
+              </div>
+              <EstadoReporte reporte={reporte} />
+            </button>
+          </li>
         ))}
-      </ul>
+      </Lista>
     </div>
   );
 }
 
-function FilaReporte({ reporte, alAbrir }: { reporte: ReporteDelOrganismo; alAbrir: () => void }) {
-  const foto = reporte.fotos[0];
+/** El estado del reporte, con el mismo nombre que en la ficha, y quién lo decidió si fue la IA. */
+export function EstadoReporte({ reporte }: { reporte: ReporteDelOrganismo }) {
+  if (reporte.marcadoParaDesestimar) return <Etiqueta punto="bg-peligro">Para desestimar</Etiqueta>;
   return (
-    <li>
-      <button
-        type="button"
-        onClick={alAbrir}
-        className="flex w-full gap-3 rounded-md border border-borde p-2 text-left hover:border-primario hover:bg-superficie-alterna"
-      >
-        {foto ? (
-          <FotoConSesion
-            fotoId={foto.id}
-            className="h-16 w-24 shrink-0 rounded-md object-cover"
-            siFalla={<span className="h-16 w-24 shrink-0 rounded-md bg-superficie-alterna" />}
-          />
-        ) : (
-          <span className="h-16 w-24 shrink-0 rounded-md bg-superficie-alterna" />
-        )}
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="truncate text-sm font-semibold text-texto">
-            #{reporte.id} · {reporte.categoria.nombre}
-          </p>
-          <p className="text-xs text-texto-secundario">
-            {severidadEnTexto[reporte.severidadDeclarada]} · confianza {reporte.nivelConfianza} ·{' '}
-            {reporte.direccion ?? 'dirección pendiente'}
-          </p>
-          {reporte.descripcion && <p className="line-clamp-1 text-xs text-texto">{reporte.descripcion}</p>}
-        </div>
-        <div className="flex shrink-0 flex-col items-end justify-between gap-1">
-          <span className="text-xs text-texto-secundario">{fechaCorta(reporte.registradoEn)}</span>
-          <EtiquetaEstado reporte={reporte} />
-          {reporte.publicadoPorIaEn && (
-            <span className="text-xs text-texto-secundario">
-              Publicado por la IA el {fechaCorta(reporte.publicadoPorIaEn)}
-            </span>
-          )}
-        </div>
-      </button>
-    </li>
-  );
-}
-
-/** El estado del reporte, con el mismo nombre que en la ficha y en incidentes, y colores neutros. */
-export function EtiquetaEstado({ reporte }: { reporte: ReporteDelOrganismo }) {
-  return (
-    <span className="whitespace-nowrap rounded-md border border-borde bg-superficie-alterna px-2 py-1 text-xs font-semibold text-texto">
+    <Etiqueta>
       {ESTADOS_VERIFICACION[reporte.estadoVerificacion]}
-    </span>
+      {reporte.publicadoPorIaEn && <span className="font-normal text-texto-secundario">por la IA</span>}
+    </Etiqueta>
   );
-}
-
-export function fechaCorta(fecha: string) {
-  return new Date(fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
 }

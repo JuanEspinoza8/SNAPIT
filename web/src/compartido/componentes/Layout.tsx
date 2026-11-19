@@ -4,6 +4,7 @@ import { useSesion } from '../sesion/sesionContexto.js';
 import { esAdministrador, esOperador, esVecino } from '../sesion/usuario.js';
 import type { Usuario } from '../sesion/usuario.js';
 import { useTema } from '../tema/tema.js';
+import { AvisoFlotante } from './AvisoFlotante.js';
 import logo from '../../assets/logo.png';
 
 // El inicio (el feed) y el mapa son públicos: están en el menú de todos los roles y también sin sesión.
@@ -45,6 +46,8 @@ function seccionesDe(usuario: Usuario): Seccion[] {
       INICIO,
       MAPA,
       { ruta: '/bandeja', texto: 'Bandeja' },
+      { ruta: '/revision', texto: 'Revisión' },
+      { ruta: '/incidentes', texto: 'Incidentes' },
       { ruta: '/administracion', texto: 'Administración' },
       perfil(usuario),
     ];
@@ -52,7 +55,18 @@ function seccionesDe(usuario: Usuario): Seccion[] {
   return [INICIO, MAPA];
 }
 
-/** Pasa del tema oscuro al claro y al revés. Dice a cuál lleva, no en cuál está. */
+/**
+ * Los enlaces del menú: al pasar el mouse, el texto se oscurece y aparece una línea fina debajo, que crece desde el
+ * centro. La sección activa la tiene fija. Sin movimiento si el sistema pide reducirlo.
+ */
+const ENLACE_MENU =
+  'relative rounded-md px-3 py-2 text-sm transition-colors duration-200 ' +
+  'after:pointer-events-none after:absolute after:inset-x-3 after:bottom-1 after:h-0.5 after:rounded-full ' +
+  'after:bg-texto after:transition-transform after:duration-300 after:ease-out motion-reduce:after:transition-none';
+const ENLACE_INACTIVO = 'text-texto-secundario after:scale-x-0 hover:text-texto hover:after:scale-x-100';
+const ENLACE_ACTIVO = 'font-semibold text-texto after:scale-x-100';
+
+/** Pasa del tema oscuro al claro y al revés. Dice a cuál lleva, no en cuál está. Al pasar el mouse, gira. */
 function BotonTema() {
   const { tema, alternar } = useTema();
   const otro = tema === 'oscuro' ? 'claro' : 'oscuro';
@@ -62,9 +76,14 @@ function BotonTema() {
       onClick={alternar}
       aria-label={`Usar el tema ${otro}`}
       title={`Usar el tema ${otro}`}
-      className="rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
+      className="group rounded-md px-3 py-2 text-sm text-texto-secundario transition-colors duration-200 hover:bg-superficie-alterna hover:text-texto"
     >
-      <span aria-hidden="true">{tema === 'oscuro' ? '☀' : '☾'}</span>
+      <span
+        aria-hidden="true"
+        className="inline-block transition-transform duration-300 ease-out motion-safe:group-hover:rotate-45"
+      >
+        {tema === 'oscuro' ? '☀' : '☾'}
+      </span>
     </button>
   );
 }
@@ -83,7 +102,10 @@ export function Layout() {
         <div
           className={`mx-auto flex w-full ${ANCHO} flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3`}
         >
-          <Link to="/" className="rounded-md focus-visible:outline-2 focus-visible:outline-primario">
+          <Link
+            to="/"
+            className="rounded-md transition-opacity duration-200 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-primario"
+          >
             {/* El logo ya trae su fondo negro: se lee igual en el tema claro y en el oscuro. */}
             <img src={logo} alt="SnapIt, ir al inicio" className="h-9 w-auto" />
           </Link>
@@ -101,11 +123,7 @@ export function Layout() {
                   // El nombre puede tener hasta 120 caracteres: se recorta para no salirse del ancho de un
                   // celular. Los demás textos del menú entran sobrados.
                   className={({ isActive }) =>
-                    `max-w-40 truncate rounded-md px-3 py-2 text-sm sm:max-w-64 ${
-                      isActive
-                        ? 'bg-superficie-alterna font-semibold text-primario'
-                        : 'text-texto-secundario hover:bg-superficie-alterna'
-                    }`
+                    `${ENLACE_MENU} max-w-40 truncate sm:max-w-64 ${isActive ? ENLACE_ACTIVO : ENLACE_INACTIVO}`
                   }
                 >
                   {seccion.texto}
@@ -115,7 +133,7 @@ export function Layout() {
               <button
                 type="button"
                 onClick={() => void salir()}
-                className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-peligro hover:bg-superficie-alterna"
+                className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-peligro transition-colors duration-200 hover:bg-peligro/10"
               >
                 Salir
               </button>
@@ -123,28 +141,19 @@ export function Layout() {
           ) : (
             estado === 'sinSesion' && (
               <nav className="flex flex-wrap items-center gap-1">
-                <Link
-                  to={INICIO.ruta}
-                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
-                >
+                <Link to={INICIO.ruta} className={`${ENLACE_MENU} ${ENLACE_INACTIVO} whitespace-nowrap`}>
                   {INICIO.texto}
                 </Link>
-                <Link
-                  to={MAPA.ruta}
-                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
-                >
+                <Link to={MAPA.ruta} className={`${ENLACE_MENU} ${ENLACE_INACTIVO} whitespace-nowrap`}>
                   {MAPA.texto}
                 </Link>
                 <BotonTema />
-                <Link
-                  to="/ingreso"
-                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-alterna"
-                >
+                <Link to="/ingreso" className={`${ENLACE_MENU} ${ENLACE_INACTIVO} whitespace-nowrap`}>
                   Ingresar
                 </Link>
                 <Link
                   to="/registro"
-                  className="whitespace-nowrap rounded-md bg-primario px-3 py-2 text-sm font-semibold text-sobre-primario hover:opacity-90"
+                  className="whitespace-nowrap rounded-md bg-primario px-3 py-2 text-sm font-semibold text-sobre-primario transition duration-200 hover:opacity-90 hover:shadow-md motion-safe:hover:-translate-y-px"
                 >
                   Registrarse
                 </Link>
@@ -162,6 +171,8 @@ export function Layout() {
           Tu sesión venció. Volvé a ingresar.
         </div>
       )}
+
+      <AvisoFlotante />
 
       <main className={`mx-auto w-full ${ANCHO} flex-1 px-4 py-6`}>
         <Outlet />

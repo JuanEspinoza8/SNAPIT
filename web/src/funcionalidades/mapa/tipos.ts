@@ -32,6 +32,8 @@ export interface FichaIncidente {
   fotoCierre: { id: number; url: string } | null;
   /** Cuándo se resolvió, o null. */
   resueltoEn: string | null;
+  /** El área a la que quedó derivado. Null mientras está en revisión. */
+  derivadoA?: { id: number; nombre: string } | null;
 }
 
 export interface FiltrosMapa {

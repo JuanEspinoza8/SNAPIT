@@ -1,11 +1,18 @@
 import type { Usuario } from '../sesion/usuario.js';
 import type { ClienteApi } from './cliente.js';
-import type { DatosAltaUsuario, Organismo } from '../../funcionalidades/administracion/tipos.js';
+import type {
+  DatosAltaUsuario,
+  DatosModificacionUsuario,
+  Organismo,
+} from '../../funcionalidades/administracion/tipos.js';
 
 export interface RepositorioAdmin {
   listarOrganismos(): Promise<{ organismos: Organismo[] }>;
   crearUsuario(datos: DatosAltaUsuario): Promise<{ usuario: Usuario }>;
   listarUsuarios(): Promise<{ usuarios: Usuario[] }>;
+  modificarUsuario(id: number, datos: DatosModificacionUsuario): Promise<{ usuario: Usuario }>;
+  /** Baja lógica: deja de poder ingresar, pero lo que hizo queda a su nombre. */
+  darDeBaja(id: number): Promise<void>;
 }
 
 // Todas las rutas de /api/admin son autenticadas y solo para administradores
@@ -21,6 +28,12 @@ export function crearRepositorioAdmin(cliente: ClienteApi): RepositorioAdmin {
     },
     listarUsuarios() {
       return cliente.pedir('/admin/usuarios');
+    },
+    modificarUsuario(id, datos) {
+      return cliente.pedir(`/admin/usuarios/${id}`, { metodo: 'PUT', cuerpo: datos });
+    },
+    async darDeBaja(id) {
+      await cliente.pedir(`/admin/usuarios/${id}`, { metodo: 'DELETE' });
     },
   };
 }
