@@ -421,6 +421,7 @@ describe('GET /api/incidentes/:id', () => {
       primerReporteEn: '2026-10-01T12:00:00.000Z',
       cantidadReportes: 3,
       cantidadVecinos: 2,
+      cantidadConfirmaciones: 0,
       direccion: null,
       fotos: [foto1, foto2, foto3].map((f) => ({ id: f.id, url: `/api/fotos/${f.id}` })),
       // Sin cierre: no hay foto del después ni fecha de resolución (F09).

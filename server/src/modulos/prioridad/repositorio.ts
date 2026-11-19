@@ -6,6 +6,7 @@ import {
   positivo,
 } from '../../compartido/parametros.js';
 import { prisma } from '../../compartido/prisma.js';
+import { CONFIRMACIONES_DEL_INCIDENTE, REPORTES_DEL_INCIDENTE } from '../incidentes/repositorio.js';
 import type { ParametrosPrioridad, PuntoCercano, ResultadoPrioridad } from './calculo.js';
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se calcula igual con estos. Los topes
@@ -46,15 +47,15 @@ export function leerIncidente(tx: Prisma.TransactionClient, id: number) {
 }
 
 /**
- * Vecinos distintos que confirmaron el incidente o alguno de los que se le unieron: el mismo criterio que
- * REPORTES_DEL_INCIDENTE. Un vecino que confirmó los dos antes de unirlos cuenta una vez.
+ * Las confirmaciones que suman evidencia: vecinos distintos que confirmaron el incidente o alguno de los que se
+ * le unieron, sin los que tienen un reporte que ya cuenta en cantidad_reportes (REPORTES_DEL_INCIDENTE). Así
+ * cada vecino cuenta una vez. Si después le desestiman el reporte, su confirmación pasa a contar.
  */
 export async function contarConfirmaciones(tx: Prisma.TransactionClient, id: number) {
   const [fila] = await tx.$queryRaw<{ cantidad: bigint }[]>`
     SELECT count(DISTINCT c.usuario_id) AS cantidad
-    FROM confirmacion_incidente c
-    JOIN incidente i ON i.id = c.incidente_id
-    WHERE i.id = ${id} OR i.incidente_principal_id = ${id}`;
+    ${CONFIRMACIONES_DEL_INCIDENTE(id)}
+      AND NOT EXISTS (SELECT 1 ${REPORTES_DEL_INCIDENTE(id)} AND r.usuario_id = c.usuario_id)`;
   return Number(fila?.cantidad ?? 0);
 }
 
