@@ -321,7 +321,7 @@ describe('POST /api/consultas/interpretar', () => {
 
     it.each([
       [{}, 'Es obligatorio'],
-      [{ texto: 42 }, 'Es obligatorio'],
+      [{ texto: 42 }, 'Tiene que ser un texto'],
       [{ texto: 'a'.repeat(501) }, 'Tiene que tener hasta 500 caracteres'],
     ])('un cuerpo inválido responde 400 sin llamar a la IA (%#)', async (cuerpo, mensaje) => {
       const res = await preguntar(cuerpo);

@@ -140,6 +140,27 @@ describe('validarPropuesta', () => {
     expect(avisos).toEqual(['El estado «DESESTIMADO» no se muestra en el mapa: no se filtra por estado.']);
   });
 
+  it('reconoce un estado por cómo se lo llama en el mapa, sin tildes ni mayúsculas', () => {
+    expect(validarPropuesta(propuesta({ estado: 'En ejecución' }), listas).filtros.estado).toBe(
+      'EN_EJECUCION',
+    );
+    expect(validarPropuesta(propuesta({ estado: 'EN EJECUCION' }), listas).filtros.estado).toBe(
+      'EN_EJECUCION',
+    );
+    expect(validarPropuesta(propuesta({ estado: 'en revisión' }), listas).filtros.estado).toBe('REGISTRADO');
+  });
+
+  it('acota en el aviso el texto largo que la IA devolvió', () => {
+    const largo = 'x'.repeat(300);
+    const { avisos } = validarPropuesta(
+      propuesta({ categoria: largo, barrio: largo, estado: largo }),
+      listas,
+    );
+    expect(avisos).toHaveLength(3);
+    for (const aviso of avisos) expect(aviso.length).toBeLessThan(160);
+    expect(avisos[0]).toContain(`${'x'.repeat(60)}…`);
+  });
+
   it('un período que termina antes de empezar se descarta entero', () => {
     const { filtros, avisos } = validarPropuesta(
       propuesta({ desde: '2026-11-13', hasta: '2026-11-01', categoria: 'Pozo en la calzada' }),

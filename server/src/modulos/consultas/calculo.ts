@@ -1,4 +1,4 @@
-import { ZONA_HORARIA } from '../../tareas/prioridadDiaria.js';
+import { ZONA_HORARIA } from '../../compartido/zonaHoraria.js';
 import { ESTADOS_VISIBLES } from '../incidentes/esquemas.js';
 
 // Las funciones puras de la consulta en lenguaje natural (F15): validar lo que propuso la IA contra las listas
@@ -51,6 +51,21 @@ export function normalizar(texto: string) {
 // Un texto vacío es lo mismo que no haber propuesto nada.
 const pedido = (texto: string | null) => (texto?.trim() ? texto.trim() : null);
 
+// Lo que la IA devolvió y no está en las listas se copia en el aviso: se acota para que no meta un texto largo.
+const LARGO_MAXIMO_AVISO = 60;
+const enAviso = (texto: string) =>
+  texto.length > LARGO_MAXIMO_AVISO ? `${texto.slice(0, LARGO_MAXIMO_AVISO)}…` : texto;
+
+/** Un estado se reconoce por su código (EN_EJECUCION) o por cómo se lo llama en el mapa (en ejecución). */
+function buscarEstado(pedido: string | null) {
+  if (!pedido) return undefined;
+  const buscado = normalizar(pedido.replaceAll('_', ' '));
+  return ESTADOS_VISIBLES.find(
+    (opcion) =>
+      buscado === normalizar(opcion.replaceAll('_', ' ')) || buscado === normalizar(ETIQUETAS_ESTADO[opcion]),
+  );
+}
+
 /**
  * Se queda con lo que propuso la IA que está en las listas. Lo demás se descarta y se avisa, para que la
  * búsqueda no use algo que no existe. Las fechas ya vienen con el formato validado.
@@ -63,7 +78,7 @@ export function validarPropuesta(propuesta: Propuesta, listas: Listas): Interpre
     ? listas.categorias.find((opcion) => normalizar(opcion.nombre) === normalizar(categoriaPedida))
     : undefined;
   if (categoriaPedida && !categoria) {
-    avisos.push(`No hay una categoría «${categoriaPedida}»: no se filtra por categoría.`);
+    avisos.push(`No hay una categoría «${enAviso(categoriaPedida)}»: no se filtra por categoría.`);
   }
 
   const barrioPedido = pedido(propuesta.barrio);
@@ -71,13 +86,15 @@ export function validarPropuesta(propuesta: Propuesta, listas: Listas): Interpre
     ? listas.barrios.find((opcion) => normalizar(opcion) === normalizar(barrioPedido))
     : undefined;
   if (barrioPedido && !barrio) {
-    avisos.push(`No hay un barrio «${barrioPedido}» con problemas en el mapa: no se filtra por barrio.`);
+    avisos.push(
+      `No hay un barrio «${enAviso(barrioPedido)}» con problemas en el mapa: no se filtra por barrio.`,
+    );
   }
 
   const estadoPedido = pedido(propuesta.estado);
-  const estado = ESTADOS_VISIBLES.find((opcion) => opcion === estadoPedido?.toUpperCase());
+  const estado = buscarEstado(estadoPedido);
   if (estadoPedido && !estado) {
-    avisos.push(`El estado «${estadoPedido}» no se muestra en el mapa: no se filtra por estado.`);
+    avisos.push(`El estado «${enAviso(estadoPedido)}» no se muestra en el mapa: no se filtra por estado.`);
   }
 
   let { desde, hasta } = propuesta;
