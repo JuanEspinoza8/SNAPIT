@@ -178,6 +178,38 @@ describe('prioridad del incidente', () => {
     });
   });
 
+  it('no suma la confirmación de quien ya lo reportó, salvo que le desestimen el reporte', async () => {
+    await reportar();
+    const pendiente = await reportar({ pendiente: true });
+    const { usuarioId: autor } = await prisma.reporte.findUniqueOrThrow({ where: { id: pendiente.id } });
+    await prisma.confirmacionIncidente.create({
+      data: { incidenteId: pendiente.incidenteId, usuarioId: autor },
+    });
+
+    await recalcular(pendiente.incidenteId);
+
+    // Cada vecino cuenta una vez: n = 2 reportes. 25 × ln 3 / ln 16
+    expect((await prioridad(pendiente.incidenteId)).factores[1]).toEqual({
+      factor: 'EVIDENCIAS',
+      valor: 9.91,
+      detalle: 'Lo reportaron 2 veces: +9,9',
+    });
+
+    const operador = await crearUsuario({ rol: 'OPERADOR', organismoId: area.organismoId, areaId: area.id });
+    const revision = await request(app)
+      .post(`/api/reportes/${pendiente.id}/revision`)
+      .set('Authorization', `Bearer ${crearTokenAcceso(operador)}`)
+      .send({ decision: 'DESESTIMADO', comentario: 'La foto no muestra el problema' });
+    expect(revision.status).toBe(200);
+
+    // Su reporte ya no cuenta, y su confirmación sí: n = 1 + 1.
+    expect((await prioridad(pendiente.incidenteId)).factores[1]).toEqual({
+      factor: 'EVIDENCIAS',
+      valor: 9.91,
+      detalle: 'Lo reportaron 1 vez y lo confirmó 1 vecino: +9,9',
+    });
+  });
+
   it('conserva el ajuste manual de un operador al recalcular', async () => {
     const { incidenteId } = await reportar();
     const operador = await crearUsuario({ rol: 'OPERADOR', organismoId: area.organismoId, areaId: area.id });

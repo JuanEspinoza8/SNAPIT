@@ -48,6 +48,32 @@ export function vigenciaSegunCategoria(
   if (categoria.tipoVigenciaDefault !== 'TEMPORAL') {
     return { tipoVigencia: categoria.tipoVigenciaDefault, vigenteHasta: null };
   }
+  return { tipoVigencia: 'TEMPORAL', vigenteHasta: vencimiento(categoria, desde, diasPorDefecto) };
+}
+
+/**
+ * La vigencia después de que un vecino confirma que el problema sigue (§7.6): un temporal pasa a vencer a los
+ * días de su categoría contados desde `ahora`, salvo que ya venciera más tarde, porque confirmar nunca acorta
+ * la vigencia. Un permanente queda igual. Decide el tipo del incidente, no el que la categoría da a los nuevos.
+ */
+export function vigenciaRenovada(
+  vigencia: Vigencia,
+  categoria: Pick<Categoria, 'diasCaducidadDefault'>,
+  ahora: Date,
+  diasPorDefecto: number,
+): Vigencia {
+  if (vigencia.tipoVigencia !== 'TEMPORAL') return vigencia;
+  const renovada = vencimiento(categoria, ahora, diasPorDefecto);
+  const actual = vigencia.vigenteHasta;
+  return { tipoVigencia: 'TEMPORAL', vigenteHasta: actual && actual > renovada ? actual : renovada };
+}
+
+/** Cuándo vence un temporal contado desde `desde`: a los días de su categoría o, si no tiene, a los por defecto. */
+function vencimiento(
+  categoria: Pick<Categoria, 'diasCaducidadDefault'>,
+  desde: Date,
+  diasPorDefecto: number,
+) {
   const dias = categoria.diasCaducidadDefault ?? diasPorDefecto;
-  return { tipoVigencia: 'TEMPORAL', vigenteHasta: new Date(desde.getTime() + dias * DIA_MS) };
+  return new Date(desde.getTime() + dias * DIA_MS);
 }
