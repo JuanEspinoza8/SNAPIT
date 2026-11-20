@@ -10,7 +10,8 @@ OverlayEntry? _actual;
 /// Un aviso corto arriba de todo, como «Reporte enviado»: baja desde arriba,
 /// se va solo a los pocos segundos, y se puede cerrar tocándolo o
 /// deslizándolo hacia arriba. Va sobre la capa raíz, así que sigue a la vista
-/// aunque se cambie de pantalla.
+/// aunque se cambie de pantalla. Con las animaciones apagadas en el celular,
+/// aparece y se va sin moverse.
 void mostrarAvisoArriba(
   BuildContext context, {
   required String titulo,
@@ -57,16 +58,26 @@ class _AvisoArriba extends StatefulWidget {
 
 class _AvisoArribaState extends State<_AvisoArriba>
     with SingleTickerProviderStateMixin {
-  late final _animacion = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 250),
-  )..forward();
+  late final _animacion = AnimationController(vsync: this);
+  var _aparecio = false;
   Timer? _temporizador;
 
   @override
   void initState() {
     super.initState();
     _temporizador = Timer(widget.duracion, _cerrar);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _animacion.duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 250);
+    if (!_aparecio) {
+      _aparecio = true;
+      _animacion.forward();
+    }
   }
 
   @override
@@ -108,9 +119,9 @@ class _AvisoArribaState extends State<_AvisoArriba>
                   child: Material(
                     elevation: 6,
                     color: tema.colorScheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(Espacio.xl),
+                    borderRadius: BorderRadius.circular(radioBorde),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(Espacio.xl),
+                      borderRadius: BorderRadius.circular(radioBorde),
                       onTap: _cerrar,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
