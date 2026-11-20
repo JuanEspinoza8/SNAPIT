@@ -12,7 +12,7 @@ import 'modelos.dart';
 import 'widgets_social.dart';
 
 /// Un reporte publicado en el feed, como un posteo: quién lo hizo, la foto,
-/// el me gusta y los comentarios, qué problema es y a qué área se derivó.
+/// el me gusta y los comentarios, qué problema es y a qué área le corresponde.
 /// Abajo, la línea a su incidente: el problema en general, con su estado y
 /// cuántos vecinos lo reportaron. Si se resolvió, lo dice arriba.
 ///
@@ -61,9 +61,20 @@ class TarjetaPublicacion extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            p.autor.nombre,
-                            style: tema.textTheme.labelLarge,
+                          // «Resuelto» va junto al nombre: con letra grande
+                          // baja a otra línea en vez de desbordarse.
+                          Wrap(
+                            spacing: Espacio.sm,
+                            runSpacing: Espacio.xs,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                p.autor.nombre,
+                                style: tema.textTheme.labelLarge,
+                              ),
+                              if (p.resuelto)
+                                const EtiquetaEstado(EstadoVisible.resuelto),
+                            ],
                           ),
                           Text(
                             [haceCuanto(p.creadoEn), ?p.direccion].join(' · '),
@@ -74,10 +85,6 @@ class TarjetaPublicacion extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (p.resuelto) ...[
-                      const SizedBox(width: Espacio.sm),
-                      const EtiquetaEstado(EstadoVisible.resuelto),
-                    ],
                   ],
                 ),
               ),
@@ -195,18 +202,27 @@ class _LineaAlProblema extends StatelessWidget {
         onTap: () => context.push(Rutas.incidente(publicacion.incidenteId)),
         child: Padding(
           padding: const EdgeInsets.all(Espacio.md),
+          // Con letra grande, el estado baja a otra línea en vez de
+          // desbordarse.
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.link, size: 18, color: tema.colorScheme.primary),
               const SizedBox(width: Espacio.sm),
               Expanded(
-                child: Text(
-                  '$vecinos vecinos reportaron este problema',
-                  style: tema.textTheme.bodySmall,
+                child: Wrap(
+                  spacing: Espacio.sm,
+                  runSpacing: Espacio.xs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      '$vecinos vecinos reportaron este problema',
+                      style: tema.textTheme.bodySmall,
+                    ),
+                    EtiquetaEstado(publicacion.estadoIncidente),
+                  ],
                 ),
               ),
-              const SizedBox(width: Espacio.sm),
-              EtiquetaEstado(publicacion.estadoIncidente),
             ],
           ),
         ),

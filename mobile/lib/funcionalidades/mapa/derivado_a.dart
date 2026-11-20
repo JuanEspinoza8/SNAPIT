@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// A qué área quedó derivado un incidente publicado (`derivadoA` en la
-/// ficha y el feed). Mientras está en revisión viene null y no se muestra
-/// nada: todavía no se derivó a nadie.
+/// A qué área le corresponde un incidente publicado (`derivadoA` en la ficha
+/// y el feed). No dice «derivado»: al publicarse nadie lo derivó todavía, eso
+/// lo hace el operador. Mientras está en revisión viene null y no se muestra
+/// nada.
 class DerivadoA extends StatelessWidget {
   const DerivadoA(this.area, {super.key});
 
@@ -15,7 +16,7 @@ class DerivadoA extends StatelessWidget {
     final tema = Theme.of(context);
     return Text.rich(
       TextSpan(
-        text: 'Derivado al área de ',
+        text: 'Le corresponde al área de ',
         children: [
           TextSpan(
             text: area,

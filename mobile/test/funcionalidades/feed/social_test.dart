@@ -9,28 +9,7 @@ import 'package:snapit/funcionalidades/feed/social.dart';
 
 import '../../apoyo/app_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
-
-Map<String, Object?> autorJson(int numero) => {
-  'numero': numero,
-  'nombre': 'Vecino $numero',
-};
-
-const snapitJson = {'numero': null, 'nombre': 'SnapIt', 'sistema': true};
-
-Map<String, Object?> comentarioJson(
-  int id,
-  String texto, {
-  required Map<String, Object?> autor,
-  bool editado = false,
-  bool esMio = false,
-}) => {
-  'id': id,
-  'texto': texto,
-  'creadoEn': '2026-10-07T15:15:33.494Z',
-  'editadoEn': editado ? '2026-10-08T15:15:33.494Z' : null,
-  'autor': autor,
-  'esMio': esMio,
-};
+import '../../apoyo/social.dart';
 
 /// La publicación 31 (del Vecino 1, en el incidente 3), con sus me gusta y
 /// sus comentarios. Responde a dar me gusta, comentar, editar y eliminar como
@@ -44,7 +23,8 @@ class ServidorPublicacion {
            [
              comentarioJson(
                1,
-               '¡Gracias por tu reporte! Ya fue derivado al área de Veredas.',
+               '¡Gracias por tu reporte! Ya está publicado. Le corresponde al '
+               'área de Veredas.',
                autor: snapitJson,
              ),
              comentarioJson(2, 'Confirmo, sigue igual', autor: autorJson(2)),
@@ -204,7 +184,7 @@ void main() {
       // La etiqueta del estado y el paso del recorrido.
       expect(find.text('Derivado al área'), findsNWidgets(2));
       expect(
-        find.text('Derivado al área de Veredas', findRichText: true),
+        find.text('Le corresponde al área de Veredas', findRichText: true),
         findsOneWidget,
       );
       expect(find.text('Lanín 120, Villa Ceferino'), findsOneWidget);
@@ -216,6 +196,28 @@ void main() {
       expect(find.text('Seguir'), findsOneWidget);
       // Lo reportó solo este vecino: no hay a dónde más ir.
       expect(find.textContaining('reportaron este problema'), findsNothing);
+    });
+
+    testWidgets('con letra grande (2×) en un celular de 360 dp no se '
+        'desborda', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      tester.view.physicalSize = const Size(1080, 3 * 9000);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final contenedor = await abrirApp(
+        tester,
+        (ServidorPublicacion()..vecinos = 3).servidor,
+      );
+      contenedor.read(rutasProvider).push(Rutas.reporte(31));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Comentarios (3)'), findsOneWidget);
+      expect(
+        find.text('Otros 2 vecinos reportaron este problema'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('si lo reportaron otros vecinos, lleva a la ficha que junta '
@@ -244,6 +246,37 @@ void main() {
       );
 
       await tester.tap(find.bySemanticsLabel('Quitar me gusta, 6 me gusta'));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Me gusta, 5 me gusta'), findsOneWidget);
+      expect(servidor.escrituras.map((e) => e.$1), ['POST', 'DELETE']);
+    });
+
+    testWidgets('con TalkBack se da y se quita el me gusta tocando dos veces', (
+      tester,
+    ) async {
+      final servidor = ServidorPublicacion();
+      await abrir(tester, servidor);
+      final darlo = find.bySemanticsLabel('Me gusta, 5 me gusta');
+
+      expect(
+        tester.getSemantics(darlo),
+        matchesSemantics(
+          label: 'Me gusta, 5 me gusta',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasToggledState: true,
+          hasTapAction: true,
+        ),
+      );
+      // Como TalkBack: la acción va al nodo, no a un punto de la pantalla.
+      tester.semantics.tap(find.semantics.byLabel('Me gusta, 5 me gusta'));
+      await tester.pumpAndSettle();
+      expect(servidor.escrituras.single.$1, 'POST');
+
+      tester.semantics.tap(
+        find.semantics.byLabel('Quitar me gusta, 6 me gusta'),
+      );
       await tester.pumpAndSettle();
       expect(find.bySemanticsLabel('Me gusta, 5 me gusta'), findsOneWidget);
       expect(servidor.escrituras.map((e) => e.$1), ['POST', 'DELETE']);
@@ -373,7 +406,8 @@ void main() {
     await abrir(tester, servidor);
     expect(find.text('Ingresá para comentar'), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('Me gusta, 5 me gusta'));
+    // Con TalkBack también lleva al ingreso.
+    tester.semantics.tap(find.semantics.byLabel('Me gusta, 5 me gusta'));
     await tester.pumpAndSettle();
     expect(find.byType(PantallaIngreso), findsOneWidget);
     expect(servidor.escrituras, isEmpty);

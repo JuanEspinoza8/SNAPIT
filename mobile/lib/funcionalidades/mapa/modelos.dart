@@ -151,8 +151,7 @@ class FichaIncidente {
   /// Null mientras no esté resuelto.
   final DateTime? resueltoEn;
 
-  /// El nombre del área a la que quedó derivado. Null mientras está en
-  /// revisión.
+  /// El nombre del área que le corresponde. Null mientras está en revisión.
   final String? derivadoA;
 }
 

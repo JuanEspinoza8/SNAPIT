@@ -171,7 +171,7 @@ void main() {
     expect(find.text('Grave'), findsOneWidget);
     expect(find.text('Pozo enorme'), findsOneWidget);
     expect(
-      find.text('Derivado al área de Bacheo', findRichText: true),
+      find.text('Le corresponde al área de Bacheo', findRichText: true),
       findsWidgets,
     );
     expect(find.bySemanticsLabel('Me gusta, 7 me gusta'), findsOneWidget);
@@ -189,6 +189,37 @@ void main() {
     expect(find.text('Vereda rota'), findsOneWidget);
     expect(find.text('3 vecinos reportaron este problema'), findsOneWidget);
     expect(find.text('En ejecución'), findsOneWidget);
+  });
+
+  testWidgets('con letra grande (2×) en un celular de 360 dp no se desborda, '
+      'también con varios vecinos', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    // Alto de sobra para que todas las tarjetas se armen sin scrollear.
+    tester.view.physicalSize = const Size(1080, 3 * 6000);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await abrirApp(
+      tester,
+      ServidorFeed([
+        [
+          publicacionJson(
+            1,
+            vecinos: 3,
+            estado: 'EN_EJECUCION',
+            descripcion: 'Pozo enorme frente a la escuela',
+            meGusta: 12,
+            comentarios: 4,
+          ),
+          publicacionJson(2, vecinos: 2, estado: 'RESUELTO', numeroAutor: 2),
+          publicacionJson(3, categoria: 'Cordón sin rampa'),
+        ],
+      ]).servidor,
+    );
+
+    expect(find.byType(TarjetaPublicacion), findsNWidgets(3));
+    expect(find.text('3 vecinos reportaron este problema'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('un problema resuelto lo dice arriba de la publicación', (
