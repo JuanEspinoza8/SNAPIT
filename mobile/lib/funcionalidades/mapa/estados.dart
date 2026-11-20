@@ -182,16 +182,14 @@ class MarcaGrupo extends StatelessWidget {
       height: tamanio,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: tema.colorScheme.primary,
+        color: fijos.marcadorTrazo,
         shape: BoxShape.circle,
         border: Border.all(color: fijos.marcadorBorde, width: 3),
         boxShadow: [_sombraMarcador(fijos)],
       ),
       child: Text(
         '$cantidad',
-        style: tema.textTheme.labelMedium?.copyWith(
-          color: tema.colorScheme.onPrimary,
-        ),
+        style: tema.textTheme.labelMedium?.copyWith(color: fijos.marcadorBorde),
       ),
     );
   }

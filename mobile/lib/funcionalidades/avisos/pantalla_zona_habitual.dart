@@ -64,6 +64,7 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final fijos = tema.extension<ColoresFijos>()!;
 
     return Scaffold(
       appBar: AppBar(title: Text(_editando ? 'Editar zona' : 'Nueva zona')),
@@ -104,18 +105,16 @@ class _PantallaZonaHabitualState extends ConsumerState<PantallaZonaHabitual> {
                           point: _centro,
                           radius: _radio,
                           useRadiusInMeter: true,
-                          color: tema.colorScheme.primary.withValues(
-                            alpha: 0.18,
-                          ),
-                          borderColor: tema.colorScheme.primary,
+                          color: fijos.marcadorTrazo.withValues(alpha: 0.18),
+                          borderColor: fijos.marcadorTrazo,
                           borderStrokeWidth: 2,
                         ),
                         CircleMarker(
                           point: _centro,
                           radius: 6,
-                          color: tema.colorScheme.primary,
-                          borderColor: tema.colorScheme.primary,
-                          borderStrokeWidth: 1,
+                          color: fijos.marcadorTrazo,
+                          borderColor: fijos.marcadorBorde,
+                          borderStrokeWidth: 2,
                         ),
                       ],
                     ),

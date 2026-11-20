@@ -44,7 +44,7 @@ class PaletaSnapIt {
     texto: Color(0xFFFAFAFA),
     textoSecundario: Color(0xFFA3A3A3),
     peligro: Color(0xFFF87171),
-    sobrePeligro: Color(0xFF1A0505),
+    sobrePeligro: Color(0xFF0A0A0A),
   );
 
   final Brightness brillo;
@@ -191,6 +191,7 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
     required this.velo,
     required this.sobreVelo,
     required this.marcadorBorde,
+    required this.marcadorTrazo,
   });
 
   static const valores = ColoresFijos(
@@ -198,6 +199,7 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
     velo: Color(0x99000000),
     sobreVelo: Color(0xFFFFFFFF),
     marcadorBorde: Color(0xFFFFFFFF),
+    marcadorTrazo: Color(0xFF1A202C),
   );
 
   /// Texto e íconos sobre los estados y las gravedades: con todos da AA.
@@ -208,8 +210,11 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
   final Color velo;
   final Color sobreVelo;
 
-  /// Borde de los marcadores: el mapa es claro en los dos temas.
+  /// Lo que va sobre el mapa, que es claro en los dos temas: [marcadorTrazo]
+  /// para la línea del recorrido, los pines y los grupos, y [marcadorBorde]
+  /// para su contorno y el texto encima.
   final Color marcadorBorde;
+  final Color marcadorTrazo;
 
   @override
   ColoresFijos copyWith({
@@ -217,12 +222,14 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
     Color? velo,
     Color? sobreVelo,
     Color? marcadorBorde,
+    Color? marcadorTrazo,
   }) {
     return ColoresFijos(
       sobreEstado: sobreEstado ?? this.sobreEstado,
       velo: velo ?? this.velo,
       sobreVelo: sobreVelo ?? this.sobreVelo,
       marcadorBorde: marcadorBorde ?? this.marcadorBorde,
+      marcadorTrazo: marcadorTrazo ?? this.marcadorTrazo,
     );
   }
 
@@ -234,6 +241,7 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
       velo: Color.lerp(velo, other.velo, t)!,
       sobreVelo: Color.lerp(sobreVelo, other.sobreVelo, t)!,
       marcadorBorde: Color.lerp(marcadorBorde, other.marcadorBorde, t)!,
+      marcadorTrazo: Color.lerp(marcadorTrazo, other.marcadorTrazo, t)!,
     );
   }
 }

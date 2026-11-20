@@ -196,6 +196,7 @@ class _PantallaRecorridoState extends ConsumerState<PantallaRecorrido> {
         ? null
         : ref.watch(recorridoProvider(consulta));
     final camino = recorrido?.value;
+    final fijos = Theme.of(context).extension<ColoresFijos>()!;
 
     // Cada recorrido nuevo se encuadra una vez; después la persona mueve el
     // mapa como quiera.
@@ -265,8 +266,10 @@ class _PantallaRecorridoState extends ConsumerState<PantallaRecorrido> {
                         polylines: [
                           Polyline(
                             points: camino.traza,
-                            color: Theme.of(context).colorScheme.primary,
+                            color: fijos.marcadorTrazo,
                             strokeWidth: 6,
+                            borderColor: fijos.marcadorBorde,
+                            borderStrokeWidth: 2,
                           ),
                         ],
                       ),
@@ -309,17 +312,13 @@ class _PantallaRecorridoState extends ConsumerState<PantallaRecorrido> {
   }
 
   Marker _marca(LatLng punto, IconData icono, String etiqueta) {
-    final color = Theme.of(context).colorScheme.primary;
     return Marker(
       point: punto,
       width: altoTactil,
       height: altoTactil,
       // La punta del pin del destino toca el punto.
       alignment: icono == Icons.place ? Alignment.topCenter : Alignment.center,
-      child: Semantics(
-        label: etiqueta,
-        child: Icon(icono, color: color, size: Espacio.xxl),
-      ),
+      child: Semantics(label: etiqueta, child: PinMapa(icono)),
     );
   }
 }
