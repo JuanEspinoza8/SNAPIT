@@ -134,6 +134,7 @@ void main() {
         'primerReporteEn': '2026-10-06T15:15:33.494Z',
         'cantidadReportes': 2,
         'cantidadVecinos': 2,
+        'cantidadConfirmaciones': 3,
         'direccion': null,
         'fotos': [
           {'id': 1, 'url': '/api/fotos/1'},
@@ -145,6 +146,7 @@ void main() {
       expect(ficha.estado, EstadoVisible.verificado);
       expect(ficha.direccion, isNull);
       expect(ficha.fotoIds, [1, 4]);
+      expect(ficha.cantidadConfirmaciones, 3);
       expect(ficha.fotoCierreId, isNull);
       expect(ficha.resueltoEn, isNull);
     });
@@ -163,6 +165,7 @@ void main() {
       'primerReporteEn': '2026-10-06T15:15:33.494Z',
       'cantidadReportes': 1,
       'cantidadVecinos': 1,
+      'cantidadConfirmaciones': 1,
       'direccion': null,
       'fotos': [
         {'id': 1, 'url': '/api/fotos/1'},

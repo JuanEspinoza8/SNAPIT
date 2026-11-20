@@ -6,12 +6,17 @@ import 'package:latlong2/latlong.dart';
 import '../../compartido/errores/aviso_error.dart';
 import '../../compartido/formato/fechas.dart';
 import '../../compartido/mapa/capa_osm.dart';
+import '../../compartido/red/error_api.dart';
+import '../../compartido/sesion/sesion.dart';
+import '../../compartido/sesion/usuario.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../avisos/avisos.dart';
 import '../avisos/repositorio_avisos.dart';
 import '../mapa/derivado_a.dart';
 import '../mapa/estados.dart';
 import '../mapa/modelos.dart';
+import 'confirmaciones.dart';
+import 'widgets_social.dart';
 
 // Lo que muestra el problema (el incidente): lo usan su ficha
 // (PantallaIncidente) y cada publicación (PantallaReporte), que muestra el
@@ -168,6 +173,134 @@ class BotonSeguirState extends ConsumerState<BotonSeguir> {
     }
   }
 }
+
+/// «Sigue estando» (F12): el vecino confirma, una sola vez, que el problema
+/// sigue ahí, y debajo se ve cuántos lo confirmaron. Sin sesión invita a
+/// ingresar y después vuelve acá; el operador y el administrador solo ven el
+/// contador, porque el servidor no los deja confirmar. No va en un problema
+/// resuelto.
+class SigueEstando extends ConsumerStatefulWidget {
+  const SigueEstando(this.ficha, {super.key});
+
+  final FichaIncidente ficha;
+
+  @override
+  ConsumerState<SigueEstando> createState() => _SigueEstandoState();
+}
+
+class _SigueEstandoState extends ConsumerState<SigueEstando> {
+  var _enviando = false;
+
+  /// El contador que devolvió el servidor al confirmar. Volver a pedir la
+  /// ficha para tenerlo pondría toda la pantalla a cargar.
+  int? _cantidad;
+
+  int get _incidenteId => widget.ficha.id;
+
+  @override
+  void didUpdateWidget(SigueEstando anterior) {
+    super.didUpdateWidget(anterior);
+    // Una ficha pedida de nuevo ya trae el contador al día.
+    if (anterior.ficha != widget.ficha) _cantidad = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final secundario = tema.textTheme.bodyMedium?.copyWith(
+      color: tema.colorScheme.onSurfaceVariant,
+    );
+    final accion = switch (ref.watch(sesionProvider).value?.rol) {
+      null => OutlinedButton.icon(
+        onPressed: () => irAlIngreso(context),
+        icon: const Icon(Icons.login),
+        label: const Text('Ingresá para confirmar que sigue'),
+      ),
+      Rol.vecino => _accionDelVecino(secundario),
+      Rol.operador || Rol.administrador => null,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (accion != null) ...[accion, const SizedBox(height: Espacio.sm)],
+        Text(
+          _textoContador(_cantidad ?? widget.ficha.cantidadConfirmaciones),
+          style: secundario,
+        ),
+      ],
+    );
+  }
+
+  Widget _accionDelVecino(TextStyle? secundario) {
+    final confirmacion = ref.watch(confirmacionProvider(_incidenteId));
+    // Sin saber si ya confirmó, el botón podría ofrecer algo que el servidor
+    // va a rechazar: mejor decirlo y dejar que vuelva a preguntar.
+    if (confirmacion.hasError && !confirmacion.isLoading) {
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              'No se pudo saber si ya lo confirmaste.',
+              style: secundario,
+            ),
+          ),
+          TextButton(
+            onPressed: () => ref.invalidate(confirmacionProvider(_incidenteId)),
+            child: const Text('Reintentar'),
+          ),
+        ],
+      );
+    }
+    // Deshabilitado, TalkBack también dice que no se puede tocar.
+    if (confirmacion.value ?? false) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.check),
+        label: const Text('Ya confirmaste que sigue'),
+      );
+    }
+    final ocupado = confirmacion.isLoading || _enviando;
+    return OutlinedButton.icon(
+      onPressed: ocupado ? null : _confirmar,
+      icon: ocupado
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.visibility_outlined),
+      label: const Text('Sigue estando'),
+    );
+  }
+
+  Future<void> _confirmar() async {
+    setState(() => _enviando = true);
+    try {
+      final cantidad = await ref
+          .read(repositorioConfirmacionesProvider)
+          .confirmar(_incidenteId);
+      if (!mounted) return;
+      setState(() => _cantidad = cantidad);
+      ref.invalidate(confirmacionProvider(_incidenteId));
+    } on ErrorApi catch (error) {
+      if (!mounted) return;
+      mostrarError(context, error);
+      // Ya lo había confirmado (desde otro celular, o en un incidente que se
+      // le unió): el botón pasa a decirlo.
+      if (error.codigo == 'YA_CONFIRMADO') {
+        ref.invalidate(confirmacionProvider(_incidenteId));
+      }
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+}
+
+String _textoContador(int cantidad) => switch (cantidad) {
+  0 => 'Nadie confirmó todavía que sigue',
+  1 => '1 vecino confirmó que sigue',
+  _ => '$cantidad vecinos confirmaron que sigue',
+};
 
 class _Dato extends StatelessWidget {
   const _Dato(this.icono, this.nombre, this.valor);
