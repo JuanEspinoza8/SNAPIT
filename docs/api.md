@@ -414,7 +414,7 @@ Para el cálculo cuenta como un desestimado ([calculos.md](calculos.md#agrupaci�
 |---|---|
 | Un reporte de otro vecino, o con otro rol | **403** `SIN_PERMISO` |
 | No existe o ya está eliminado | **404** `REPORTE_NO_ENCONTRADO` |
-| Es el único reporte visible de su incidente (sin contar los unidos) | **409** `UNICO_REPORTE` |
+| Es el único reporte visible de su incidente (sin contar los unidos ni los marcados para desestimar) | **409** `UNICO_REPORTE` |
 | Un desestimado | **204**: ya no contaba, solo deja de verse en Mis reportes |
 
 ### `POST /api/reportes`

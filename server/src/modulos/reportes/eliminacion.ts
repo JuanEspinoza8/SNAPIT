@@ -6,6 +6,7 @@ import { recalcularEstado, severidadesDeclaradas } from '../agrupacion/repositor
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
 import { esquemaId } from '../incidentes/esquemas.js';
+import { MARCADO_PARA_DESESTIMAR } from '../incidentes/repositorio.js';
 import * as verificacion from '../verificacion/repositorio.js';
 import { transaccion } from './repositorio.js';
 
@@ -51,14 +52,15 @@ export async function eliminarReporte(sesion: UsuarioSesion, parametros: unknown
     if (incidentes.length > 0) await verificacion.bloquearIncidentes(tx, incidentes);
 
     if (propioId !== null) {
-      const otros = await tx.reporte.count({
-        where: {
-          incidenteId: propioId,
-          id: { not: id },
-          estadoVerificacion: { not: 'DESESTIMADO' },
-          eliminadoEn: null,
-        },
-      });
+      // Los que se ven: un marcado para desestimar no cuenta, porque mientras espera no se muestra.
+      const [{ otros }] = (await tx.$queryRaw<{ otros: number }[]>`
+        SELECT count(*)::int AS otros
+        FROM reporte r
+        WHERE r.incidente_id = ${propioId}
+          AND r.id <> ${id}
+          AND r.estado_verificacion <> 'DESESTIMADO'
+          AND r.eliminado_en IS NULL
+          AND NOT ${MARCADO_PARA_DESESTIMAR()}`) as [{ otros: number }];
       if (otros === 0) {
         throw new ErrorApp(
           409,

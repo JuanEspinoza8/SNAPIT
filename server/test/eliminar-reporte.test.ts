@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
@@ -37,6 +38,29 @@ const tokenDelVecino = async (vecinoId: number) =>
 
 const eliminar = (id: number, token: string) =>
   request(app).delete(`/api/reportes/${id}`).set('Authorization', `Bearer ${token}`);
+
+/** Lo deja como la IA cuando la foto no muestra un problema de la vía pública: marcado para desestimar. */
+async function marcarParaDesestimar(reporteId: number) {
+  const registro = await prisma.registroIa.create({
+    data: {
+      tipo: 'CLASIFICACION_IMAGEN',
+      proveedor: 'ANTHROPIC',
+      modelo: 'claude-haiku-5-5',
+      salida: { esProblemaViaPublica: false, explicacion: 'Es un perro en un patio.' },
+      duracionMs: 2000,
+    },
+  });
+  await prisma.eventoVerificacionIa.create({
+    data: {
+      procesoId: randomUUID(),
+      organismoId,
+      reporteId,
+      estado: 'REVISION_MANUAL',
+      detalle: 'Queda en los desestimados pendientes',
+      registroIaId: registro.id,
+    },
+  });
+}
 
 describe('DELETE /api/reportes/:id', () => {
   it('su autor lo elimina: deja de contar como un desestimado y la reputación no cambia', async () => {
@@ -84,6 +108,30 @@ describe('DELETE /api/reportes/:id', () => {
     expect(res.status).toBe(409);
     expect(res.body.error.codigo).toBe('UNICO_REPORTE');
     expect((await prisma.reporte.findUniqueOrThrow({ where: { id: solo.id } })).eliminadoEn).toBeNull();
+  });
+
+  it('si el otro reporte está marcado para desestimar, el que se ve es el único → 409 UNICO_REPORTE', async () => {
+    const visible = await reportar();
+    const marcado = await reportar({ pendiente: true });
+    expect(marcado.incidenteId).toBe(visible.incidenteId);
+    await marcarParaDesestimar(marcado.id);
+
+    const res = await eliminar(visible.id, await tokenDelVecino(visible.vecinoId));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.codigo).toBe('UNICO_REPORTE');
+  });
+
+  it('si después de eliminar uno, al que queda lo marcan para desestimar, el incidente deja de verse', async () => {
+    const eliminado = await reportar();
+    const pendiente = await reportar({ pendiente: true });
+    expect((await eliminar(eliminado.id, await tokenDelVecino(eliminado.vecinoId))).status).toBe(204);
+    expect((await request(app).get(`/api/incidentes/${eliminado.incidenteId}`)).status).toBe(200);
+
+    await marcarParaDesestimar(pendiente.id);
+
+    // Sin ninguna foto que mostrar, no queda en el mapa vacío.
+    expect((await request(app).get(`/api/incidentes/${eliminado.incidenteId}`)).status).toBe(404);
   });
 
   it('un desestimado se puede eliminar: ya no contaba, solo deja de verse', async () => {

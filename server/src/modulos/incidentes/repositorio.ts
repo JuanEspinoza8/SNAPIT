@@ -22,8 +22,9 @@ export const MARCADO_PARA_DESESTIMAR = (r: Prisma.Sql = Prisma.raw('r')) => Pris
 
 /**
  * Lo que se ve en el mapa público: ni desestimados, ni caducados, ni los unidos a otro incidente.
- * Un temporal cuya vigencia ya pasó cuenta como caducado aunque todavía no se haya marcado. Tampoco uno cuyos
- * reportes válidos están todos marcados para desestimar (MARCADO_PARA_DESESTIMAR); uno sin reportes sí se ve.
+ * Un temporal cuya vigencia ya pasó cuenta como caducado aunque todavía no se haya marcado. Tampoco uno que tiene
+ * reportes marcados para desestimar (MARCADO_PARA_DESESTIMAR) y ninguno más que se vea: los eliminados por su autor
+ * no cuentan. Uno sin reportes sí se ve.
  * Va con el alias `i`. La usan también las fotos públicas (reportes/repositorio.ts).
  */
 export const INCIDENTE_VISIBLE = Prisma.sql`
@@ -38,6 +39,7 @@ export const INCIDENTE_VISIBLE = Prisma.sql`
     AND NOT EXISTS (SELECT 1 FROM reporte rv JOIN incidente iv ON iv.id = rv.incidente_id
                     WHERE (iv.id = i.id OR iv.incidente_principal_id = i.id)
                       AND rv.estado_verificacion <> 'DESESTIMADO'
+                      AND rv.eliminado_en IS NULL
                       AND NOT ${MARCADO_PARA_DESESTIMAR(Prisma.raw('rv'))})
   )`;
 
