@@ -142,7 +142,26 @@ void main() {
           },
         ),
       );
+      expect(reporte.caducadoEn, DateTime.utc(2026, 11, 1, 3));
       expect(reporte.tieneFicha, isFalse);
+    });
+
+    test('sin fecha de caducado, o sin incidente, sigue vigente', () {
+      final vigente = ReporteMio.desdeJson(
+        reporteJson(
+          incidente: const {
+            'id': 9,
+            'estado': 'VERIFICADO',
+            'caducadoEn': null,
+          },
+        ),
+      );
+      expect(vigente.caducadoEn, isNull);
+      expect(vigente.caducado, isFalse);
+      expect(
+        ReporteMio.desdeJson(reporteJson(incidente: null)).caducado,
+        isFalse,
+      );
     });
   });
 

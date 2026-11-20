@@ -124,6 +124,11 @@ class _Contenido extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CabeceraProblema(ficha),
+              // Resuelto ya no hay nada que confirmar: el servidor lo rechaza.
+              if (ficha.estado != EstadoVisible.resuelto) ...[
+                const SizedBox(height: Espacio.lg),
+                SigueEstando(ficha),
+              ],
               if (esVecino) ...[
                 const SizedBox(height: Espacio.lg),
                 BotonSeguir(ficha.id),

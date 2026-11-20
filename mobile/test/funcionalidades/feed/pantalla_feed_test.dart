@@ -99,6 +99,7 @@ class ServidorFeed {
           'primerReporteEn': '2026-10-06T15:15:33.494Z',
           'cantidadReportes': 1,
           'cantidadVecinos': 1,
+          'cantidadConfirmaciones': 1,
           'direccion': null,
           'fotos': [
             {'id': 5, 'url': '/api/fotos/5'},

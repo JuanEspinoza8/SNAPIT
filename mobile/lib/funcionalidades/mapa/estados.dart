@@ -95,22 +95,33 @@ class Etiqueta extends StatelessWidget {
     super.key,
     required this.texto,
     required this.icono,
-    required this.color,
+    required Color this.color,
   });
+
+  /// Sin color de estado: borde y texto secundario. Para lo que no es un
+  /// estado, como cuándo caducó un incidente.
+  const Etiqueta.neutra({super.key, required this.texto, required this.icono})
+    : color = null;
 
   final String texto;
   final IconData icono;
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final fondo = color;
     // Igual en los dos temas: los colores de estado y gravedad están elegidos
     // para llevarlo con contraste AA.
-    final colorTexto = tema.extension<ColoresFijos>()!.sobreEstado;
+    final colorTexto = fondo == null
+        ? tema.colorScheme.onSurfaceVariant
+        : tema.extension<ColoresFijos>()!.sobreEstado;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color,
+        color: fondo,
+        border: fondo == null
+            ? Border.all(color: tema.colorScheme.outline)
+            : null,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Padding(
