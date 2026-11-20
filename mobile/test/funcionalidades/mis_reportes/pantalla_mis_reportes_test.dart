@@ -22,6 +22,7 @@ const fichaJson = {
   'primerReporteEn': '2026-10-06T15:15:33.494Z',
   'cantidadReportes': 1,
   'cantidadVecinos': 1,
+  'cantidadConfirmaciones': 1,
   'direccion': null,
   'fotos': [
     {'id': 1, 'url': '/api/fotos/1'},
@@ -280,6 +281,76 @@ void main() {
     expect(servidor.servidor.cantidad('/social/reportes/15'), 0);
     expect(servidor.servidor.cantidad('/incidentes/9'), 0);
     expect(find.byIcon(Icons.chevron_right), findsNothing);
+  });
+
+  testWidgets('con el incidente caducado dice cuándo caducó, con texto e '
+      'ícono', (tester) async {
+    await abrirMisReportes(
+      tester,
+      ServidorMisReportes([
+        reporteJson(
+          estadoVerificacion: 'VERIFICADO',
+          incidente: const {
+            'id': 9,
+            'estado': 'DERIVADO',
+            'enRevision': false,
+            // Medianoche del 1 de noviembre en Argentina.
+            'caducadoEn': '2026-11-01T03:00:00.000Z',
+          },
+        ),
+      ]),
+    );
+
+    final texto = find.text('Caducó el 1 de noviembre de 2026');
+    final etiqueta = find.ancestor(of: texto, matching: find.byType(Row));
+    expect(
+      find.descendant(
+        of: etiqueta.first,
+        matching: find.byIcon(Icons.event_busy),
+      ),
+      findsOneWidget,
+    );
+    // Caducar no es un estado: borde y texto secundario, sin color de estado.
+    final esquema = Theme.of(tester.element(texto)).colorScheme;
+    final caja = tester.widget<DecoratedBox>(
+      find.ancestor(of: texto, matching: find.byType(DecoratedBox)).first,
+    );
+    final decoracion = caja.decoration as BoxDecoration;
+    expect(decoracion.color, isNull);
+    expect(decoracion.border, Border.all(color: esquema.outline));
+    expect(tester.widget<Text>(texto).style?.color, esquema.onSurfaceVariant);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.event_busy)).color,
+      esquema.onSurfaceVariant,
+    );
+    // En vez del estado del incidente, que ya no se puede ver.
+    expect(find.text('Derivado'), findsNothing);
+    // TalkBack lo lee con el resto de la fila.
+    expect(
+      find.bySemanticsLabel(RegExp('Caducó el 1 de noviembre de 2026')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('si el reporte propio se desestimó, dice eso aunque el '
+      'incidente haya caducado', (tester) async {
+    await abrirMisReportes(
+      tester,
+      ServidorMisReportes([
+        reporteJson(
+          estadoVerificacion: 'DESESTIMADO',
+          incidente: const {
+            'id': 9,
+            'estado': 'VERIFICADO',
+            'enRevision': false,
+            'caducadoEn': '2026-11-01T03:00:00.000Z',
+          },
+        ),
+      ]),
+    );
+
+    expect(find.text('Desestimado'), findsOneWidget);
+    expect(find.textContaining('Caducó'), findsNothing);
   });
 
   testWidgets(
