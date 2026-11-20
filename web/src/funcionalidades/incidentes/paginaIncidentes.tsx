@@ -4,6 +4,7 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { Modal } from '../../compartido/componentes/Modal.js';
+import { formatearFecha } from '../../compartido/formato/fechas.js';
 import { ESTADOS_VERIFICACION } from '../../compartido/formato/verificacion.js';
 import { useCliente } from '../../compartido/red/clienteContexto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
@@ -22,10 +23,15 @@ interface Incidente {
   direccion: string | null;
   lat: number;
   lon: number;
+  /** Cuándo caducó o venció (F12): ya no se puede unir, ni como duplicado ni como principal. */
+  caducadoEn: string | null;
   reportes: ReporteDelOrganismo[];
 }
 
 const ABIERTOS = new Set(['REGISTRADO', 'VERIFICADO', 'DERIVADO', 'EN_EJECUCION']);
+
+/** Si se puede unir: abierto y vigente, como lo pide el servidor (409 `INCIDENTE_CERRADO`). */
+const sePuedeUnir = (incidente: Incidente) => ABIERTOS.has(incidente.estado) && !incidente.caducadoEn;
 
 function agruparPorIncidente(reportes: ReporteDelOrganismo[]) {
   const porId = new Map<number, Incidente>();
@@ -47,6 +53,7 @@ function agruparPorIncidente(reportes: ReporteDelOrganismo[]) {
       direccion: reporte.direccion,
       lat: reporte.lat,
       lon: reporte.lon,
+      caducadoEn: reporte.incidente.caducadoEn ?? null,
       reportes: [reporte],
     });
   }
@@ -175,11 +182,12 @@ export function PaginaIncidentes() {
                   </p>
                   <p className="text-sm text-texto-secundario">
                     {incidente.direccion ?? 'Sin dirección todavía'} · {estadoEnTexto(incidente.estado)} ·{' '}
+                    {incidente.caducadoEn && `caducó el ${formatearFecha(incidente.caducadoEn)} · `}
                     <span className="font-semibold">{reportesTotales}</span> reporte(s)
                     {unidos.length > 0 && ' contando los unidos'}
                   </p>
                 </div>
-                {ABIERTOS.has(incidente.estado) && unidos.length === 0 && (
+                {sePuedeUnir(incidente) && unidos.length === 0 && (
                   <button
                     type="button"
                     onClick={() => {
@@ -251,7 +259,7 @@ export function PaginaIncidentes() {
         >
           <FormularioUnir
             incidente={accion.incidente}
-            candidatos={principales.filter((i) => i.id !== accion.incidente.id && ABIERTOS.has(i.estado))}
+            candidatos={principales.filter((i) => i.id !== accion.incidente.id && sePuedeUnir(i))}
             tieneUnidos={(id) => unidosA(id).length > 0}
             reportesDe={(incidente) =>
               incidente.reportes.length + unidosA(incidente.id).reduce((n, u) => n + u.reportes.length, 0)
@@ -421,7 +429,9 @@ function FormularioUnir(props: {
   return (
     <div className="space-y-4">
       {candidatos.length === 0 ? (
-        <p className="text-sm text-texto-secundario">No hay otros incidentes abiertos para unir.</p>
+        <p className="text-sm text-texto-secundario">
+          No hay otros incidentes abiertos y vigentes para unir.
+        </p>
       ) : (
         <fieldset className="space-y-1">
           <legend className="text-sm font-semibold text-texto">Con cuál es el mismo problema</legend>

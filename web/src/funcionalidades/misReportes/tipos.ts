@@ -35,6 +35,12 @@ export function estadoParaElVecino(reporte: ReporteMio): EstadoIncidente {
   return reporte.estadoVerificacion === 'VERIFICADO' ? 'VERIFICADO' : 'REGISTRADO';
 }
 
+/** Cuándo caducó el problema del reporte (F12), o null. Si se desestimó, se muestra eso y no la caducidad. */
+export function caducoEl(reporte: ReporteMio): string | null {
+  if (estadoParaElVecino(reporte) === 'DESESTIMADO') return null;
+  return reporte.incidente?.caducadoEn ?? null;
+}
+
 /** La ficha es la del mapa público: un incidente desestimado o caducado no la tiene (da 404). */
 export function tieneFicha(reporte: ReporteMio): boolean {
   return (

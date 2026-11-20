@@ -3,6 +3,7 @@ import type { OpcionesPeticion } from '../../compartido/red/cliente.js';
 import { useCliente } from '../../compartido/red/clienteContexto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { useSesion } from '../../compartido/sesion/sesionContexto.js';
+import type { FichaIncidente } from '../mapa/tipos.js';
 import type { Comentario, PaginaPublicaciones, ReportePublico } from './tipos.js';
 
 /** De a cuántas publicaciones pide el feed: alcanza para llenar la pantalla y un poco más. */
@@ -120,6 +121,52 @@ export function useMeGusta(reporteId: number) {
     mutationFn: (dar: boolean) =>
       pedir(`social/reportes/${reporteId}/me-gusta`, { metodo: dar ? 'POST' : 'DELETE' }),
     onSuccess: refrescar,
+  });
+}
+
+/** Si el vecino ya confirmó que el problema sigue (F12). Solo se pregunta por un vecino: a nadie más le contesta. */
+export function useConfirmacion(incidenteId: number, activa: boolean) {
+  const { pedir, quien } = usePedir();
+  return useQuery({
+    queryKey: ['incidente', incidenteId, 'confirmacion', quien],
+    queryFn: () => pedir<{ confirmado: boolean }>(`incidentes/${incidenteId}/confirmacion`),
+    enabled: activa,
+  });
+}
+
+/**
+ * Confirmar que el problema sigue. Al salir bien, la ficha toma el contador nuevo y el botón queda como ya
+ * confirmado. Si el servidor dice que ya lo había confirmado (por ejemplo, desde la app), queda igual y se vuelve a
+ * pedir la ficha para que el contador cuente esa confirmación.
+ */
+export function useConfirmar(incidenteId: number) {
+  const pedir = usePedirConSesion();
+  const consulta = useQueryClient();
+  const { usuario } = useSesion();
+  const ficha = ['incidente', incidenteId];
+  const marcarConfirmado = () =>
+    consulta.setQueryData(['incidente', incidenteId, 'confirmacion', usuario?.id ?? null], {
+      confirmado: true,
+    });
+
+  return useMutation({
+    mutationFn: () =>
+      pedir<{ incidenteId: number; cantidadConfirmaciones: number }>(
+        `incidentes/${incidenteId}/confirmaciones`,
+        { metodo: 'POST' },
+      ),
+    onSuccess: ({ cantidadConfirmaciones }) => {
+      consulta.setQueryData<FichaIncidente>(
+        ficha,
+        (actual) => actual && { ...actual, cantidadConfirmaciones },
+      );
+      marcarConfirmado();
+    },
+    onError: (error) => {
+      if (aErrorApi(error).codigo !== 'YA_CONFIRMADO') return;
+      marcarConfirmado();
+      void consulta.invalidateQueries({ queryKey: ficha, exact: true });
+    },
   });
 }
 

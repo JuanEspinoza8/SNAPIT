@@ -199,6 +199,22 @@ describe('ver mis reportes', () => {
     expect(await screen.findByText('Cordón sin rampa')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Cordón sin rampa/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^(?!Eliminar).*Cordón sin rampa/ })).not.toBeInTheDocument();
+    // En lugar del estado en que quedó, desde cuándo no sigue (en hora de Argentina).
+    expect(screen.getByText('Caducó el 1 de noviembre de 2026')).toBeInTheDocument();
+    expect(screen.queryByText('Verificado')).not.toBeInTheDocument();
+  });
+
+  it('si el reporte se desestimó, dice eso aunque su problema haya caducado', async () => {
+    conReportes(
+      reporte({
+        estadoVerificacion: 'DESESTIMADO',
+        incidente: { id: 2, estado: 'VERIFICADO', enRevision: false, caducadoEn: '2026-11-01T03:00:00.000Z' },
+      }),
+    );
+    renderRuta('/mis-reportes', <ListaMisReportes />);
+
+    expect(await screen.findByText('Desestimado')).toBeInTheDocument();
+    expect(screen.queryByText(/Caducó/)).not.toBeInTheDocument();
   });
 
   it('al tocar uno que espera revisión, abre la ficha de su problema en la misma página', async () => {

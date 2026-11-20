@@ -50,6 +50,8 @@ export interface ReportePendiente {
     cantidadReportes: number;
     /** El incidente propio del reporte. Si es distinto de `id`, se unió al incidente `id` (F05). */
     propioId?: number | null;
+    /** Cuándo caducó o venció el incidente `id` (F12), o null. */
+    caducadoEn?: string | null;
   } | null;
   vecino: { reputacion: number; reportesConfirmados: number; reportesDesestimados: number };
   propuestaIa: PropuestaIa | null;

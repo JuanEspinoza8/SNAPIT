@@ -293,6 +293,7 @@ export const handlers = [
       primerReporteEn: incidente.primerReporteEn,
       cantidadReportes: incidente.cantidadReportes,
       cantidadVecinos: 1,
+      cantidadConfirmaciones: 0,
       direccion: null,
       fotos: [],
       fotoCierre: null,
