@@ -1,12 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snapit/compartido/rutas/rutas_app.dart';
+import 'package:snapit/funcionalidades/cuenta/pantalla_ingreso.dart';
 import 'package:snapit/funcionalidades/feed/pantalla_incidente.dart';
 import 'package:snapit/funcionalidades/feed/visor_fotos.dart';
 
 import '../../apoyo/app_de_prueba.dart';
 import '../../apoyo/servidor_falso.dart';
+import '../../apoyo/social.dart';
 
 const cierre = {'id': 12, 'url': '/api/fotos/12'};
 
@@ -44,12 +47,48 @@ Map<String, Object?> reporteDelProblemaJson(int id, int numero) => {
   'cantidadComentarios': 0,
 };
 
-ServidorFalso servidorCon(Map<String, Object?> ficha, {String rol = 'VECINO'}) {
+/// Responde como el servidor con la ficha del incidente 3, sus reportes y
+/// [comentarios], los del problema en general: se pueden escribir, editar y
+/// eliminar, y la lista cambia como en el servidor real.
+ServidorFalso servidorCon(
+  Map<String, Object?> ficha, {
+  String rol = 'VECINO',
+  List<Map<String, Object?>>? comentarios,
+}) {
   var siguiendo = false;
+  final delProblema = comentarios ?? [];
   return ServidorFalso((RequestOptions pedido) {
+    switch ((pedido.method, pedido.path)) {
+      case ('GET', '/social/incidentes/3/comentarios'):
+        return json(200, {'incidenteId': 3, 'comentarios': delProblema});
+      case ('POST', '/social/incidentes/3/comentarios'):
+        final nuevo = comentarioJson(
+          9,
+          (pedido.data as Map)['texto'] as String,
+          autor: autorJson(3),
+          esMio: true,
+        );
+        delProblema.add(nuevo);
+        return json(201, nuevo);
+      case ('PATCH', final ruta) when ruta.startsWith('/social/comentarios/'):
+        final id = int.parse(ruta.split('/').last);
+        final i = delProblema.indexWhere((c) => c['id'] == id);
+        delProblema[i] = {
+          ...delProblema[i],
+          'texto': (pedido.data as Map)['texto'],
+          'editadoEn': '2026-10-09T15:15:33.494Z',
+        };
+        return json(200, delProblema[i]);
+      case ('DELETE', final ruta) when ruta.startsWith('/social/comentarios/'):
+        final id = int.parse(ruta.split('/').last);
+        delProblema.removeWhere((c) => c['id'] == id);
+        return json(204, '');
+    }
     switch (pedido.path) {
       case '/auth/yo':
         return json(200, {'usuario': usuarioJson(rol: rol)});
+      case '/auth/ingreso':
+        return ingresoCorrecto(rol: rol);
       case '/incidentes':
         return json(200, {'incidentes': <Object>[]});
       case '/social/feed':
@@ -79,9 +118,14 @@ ServidorFalso servidorCon(Map<String, Object?> ficha, {String rol = 'VECINO'}) {
 void main() {
   setUp(guardarSesion);
 
-  // Un celular de 360 × 780.
-  Future<void> abrirFicha(WidgetTester tester, ServidorFalso servidor) async {
-    tester.view.physicalSize = const Size(1080, 2340);
+  // Un celular de 360 × 780. Con [alto] más grande, la ficha entra entera
+  // sin scrollear.
+  Future<void> abrirFicha(
+    WidgetTester tester,
+    ServidorFalso servidor, {
+    double alto = 780,
+  }) async {
+    tester.view.physicalSize = Size(1080, alto * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     final contenedor = await abrirApp(tester, servidor);
@@ -132,9 +176,7 @@ void main() {
     expect(find.byIcon(Icons.check_circle_outline), findsNothing);
   });
 
-  testWidgets('dice en qué paso está su atención, sin comentarios propios', (
-    tester,
-  ) async {
+  testWidgets('dice en qué paso está su atención', (tester) async {
     await abrirFicha(tester, servidorCon(fichaJson()));
 
     await tester.dragUntilVisible(
@@ -151,7 +193,6 @@ void main() {
       findsOneWidget,
     );
     expect(find.bySemanticsLabel('Resuelto, pendiente'), findsOneWidget);
-    expect(find.textContaining('Comentarios'), findsNothing);
     expect(find.textContaining('Fotos de los vecinos'), findsNothing);
   });
 
@@ -169,6 +210,28 @@ void main() {
       find.bySemanticsLabel(RegExp('2 me gusta, 0 comentarios')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('con letra grande (2×) en un celular de 360 dp no se desborda', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await abrirFicha(
+      tester,
+      servidorCon(
+        fichaJson(fotoCierre: cierre, resueltoEn: '2026-11-08T18:20:00.000Z'),
+        comentarios: [
+          comentarioJson(1, 'Sigue igual', autor: autorJson(2), editado: true),
+          comentarioJson(2, 'El mío', autor: autorJson(3), esMio: true),
+        ],
+      ),
+      alto: 9000,
+    );
+
+    expect(find.text('Reportes (2)'), findsOneWidget);
+    expect(find.text('Comentarios (2)'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('resuelto muestra el antes y el después con la fecha', (
@@ -321,6 +384,184 @@ void main() {
       await tester.tap(find.text('Reintentar'));
       await tester.pumpAndSettle();
       expect(servidor.cantidad('/incidentes/3'), 2);
+    });
+  });
+
+  group('comentarios del problema', () {
+    final caja = find.widgetWithText(TextField, 'Escribí un comentario');
+    List<(String, String, Object?)> escrituras(ServidorFalso servidor) => [
+      for (final p in servidor.pedidos)
+        if (p.metodo != 'GET' && p.ruta.startsWith('/social'))
+          (p.metodo, p.ruta, (p.datos as Map?)?['texto']),
+    ];
+
+    testWidgets('los lee y comenta: sale sin los espacios de los bordes y '
+        'aparece en la lista', (tester) async {
+      final servidor = servidorCon(
+        fichaJson(),
+        comentarios: [comentarioJson(1, 'Sigue igual', autor: autorJson(2))],
+      );
+      await abrirFicha(tester, servidor, alto: 3000);
+      expect(find.text('Comentarios (1)'), findsOneWidget);
+      expect(find.text('Sigue igual'), findsOneWidget);
+
+      await tester.enterText(caja, '  Ya lo vi  ');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Comentar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ya lo vi'), findsOneWidget);
+      expect(find.text('Comentarios (2)'), findsOneWidget);
+      expect(escrituras(servidor), [
+        ('POST', '/social/incidentes/3/comentarios', 'Ya lo vi'),
+      ]);
+    });
+
+    testWidgets('TalkBack lee cada comentario de una vez', (tester) async {
+      await abrirFicha(
+        tester,
+        servidorCon(
+          fichaJson(),
+          comentarios: [comentarioJson(1, 'Sigue igual', autor: autorJson(2))],
+        ),
+        alto: 3000,
+      );
+
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Vecino 2\n[^\n]+\nSigue igual$')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('si el servidor lo rechaza, lo dice y no mueve nada', (
+      tester,
+    ) async {
+      final servidor = servidorCon(
+        fichaJson(),
+        comentarios: [comentarioJson(1, 'Sigue igual', autor: autorJson(2))],
+      );
+      final responder = servidor.responder;
+      servidor.responder = (pedido) =>
+          pedido.method == 'POST' &&
+              pedido.path == '/social/incidentes/3/comentarios'
+          ? errorApi(500, 'ERROR_INTERNO', 'Ocurrió un error en el servidor')
+          : responder(pedido);
+      await abrirFicha(tester, servidor, alto: 3000);
+
+      await tester.enterText(caja, 'Ya lo vi');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Comentar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ocurrió un error en el servidor'), findsOneWidget);
+      expect(find.text('Comentarios (1)'), findsOneWidget);
+      // Lo escrito sigue en la caja, para reintentar.
+      expect(tester.widget<TextField>(caja).controller?.text, 'Ya lo vi');
+    });
+
+    testWidgets('más de 1000 caracteres no se puede enviar', (tester) async {
+      await abrirFicha(tester, servidorCon(fichaJson()), alto: 3000);
+      expect(find.text('Todavía no hay comentarios.'), findsOneWidget);
+
+      await tester.enterText(caja, 'a' * 1001);
+      await tester.pump();
+
+      expect(find.text('1001/1000'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Comentar'))
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('edita su comentario y lo elimina después de confirmar', (
+      tester,
+    ) async {
+      final servidor = servidorCon(
+        fichaJson(),
+        comentarios: [
+          comentarioJson(1, 'Sigue igual', autor: autorJson(2)),
+          comentarioJson(3, 'El mío', autor: autorJson(3), esMio: true),
+        ],
+      );
+      await abrirFicha(tester, servidor, alto: 3000);
+      // Solo el propio tiene el menú.
+      expect(find.byTooltip('Opciones de tu comentario'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Opciones de tu comentario'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Editar'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Comentario'),
+        'El mío, corregido',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Guardar'));
+      await tester.pumpAndSettle();
+      expect(find.text('El mío, corregido'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Opciones de tu comentario'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Eliminar'));
+      await tester.pumpAndSettle();
+      expect(find.text('¿Eliminar tu comentario?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Eliminar'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('El mío, corregido'), findsNothing);
+      expect(find.text('Comentarios (1)'), findsOneWidget);
+      expect(escrituras(servidor), [
+        ('PATCH', '/social/comentarios/3', 'El mío, corregido'),
+        ('DELETE', '/social/comentarios/3', null),
+      ]);
+    });
+
+    testWidgets('el operador los lee, pero no comenta ni los edita', (
+      tester,
+    ) async {
+      await abrirFicha(
+        tester,
+        servidorCon(
+          fichaJson(),
+          rol: 'OPERADOR',
+          comentarios: [comentarioJson(1, 'Sigue igual', autor: autorJson(2))],
+        ),
+        alto: 3000,
+      );
+
+      expect(find.text('Sigue igual'), findsOneWidget);
+      expect(caja, findsNothing);
+      expect(find.text('Ingresá para comentar'), findsNothing);
+      expect(find.byTooltip('Opciones de tu comentario'), findsNothing);
+    });
+
+    testWidgets('sin sesión pide ingresar y al ingresar vuelve a la ficha '
+        'con la caja', (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final servidor = servidorCon(fichaJson());
+      await abrirFicha(tester, servidor, alto: 3000);
+      expect(caja, findsNothing);
+
+      await tester.tap(find.text('Ingresá para comentar'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PantallaIngreso), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Correo'),
+        'vecino1@snapit.test',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Clave'),
+        'una-clave-cualquiera',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Ingresar'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PantallaIncidente), findsOneWidget);
+      expect(caja, findsOneWidget);
+      expect(escrituras(servidor), isEmpty);
     });
   });
 

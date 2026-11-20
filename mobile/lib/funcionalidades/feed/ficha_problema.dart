@@ -159,6 +159,7 @@ class BotonSeguirState extends ConsumerState<BotonSeguir> {
       } else {
         await repositorio.seguir(widget.incidenteId);
       }
+      if (!mounted) return;
       ref.invalidate(seguimientoProvider(widget.incidenteId));
     } catch (error) {
       if (mounted) mostrarError(context, error);

@@ -19,8 +19,9 @@ import 'widgets_social.dart';
 
 /// La ficha del problema (el incidente): sus fotos (el antes y el después, si
 /// se resolvió), en qué está su atención, sus datos y dónde está. Si lo
-/// reportó más de un vecino, la lista de esos reportes. Lo social (me gusta y
-/// comentarios) va en cada publicación, no acá.
+/// reportó más de un vecino, la lista de esos reportes. Al final, los
+/// comentarios sobre el problema en general (#152); los me gusta y los
+/// comentarios de cada foto van en su publicación.
 class PantallaIncidente extends ConsumerWidget {
   const PantallaIncidente(this.id, {super.key});
 
@@ -137,6 +138,8 @@ class _Contenido extends ConsumerWidget {
                 const SizedBox(height: Espacio.xl),
                 _Reportes(ficha.id),
               ],
+              const Divider(height: Espacio.xxl),
+              SeccionComentarios.deIncidente(ficha.id),
             ],
           ),
         ),
@@ -283,6 +286,7 @@ class _FilaReporte extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    final secundario = tema.colorScheme.onSurfaceVariant;
     final meGusta = reporte.cantidadMeGusta;
     final comentarios = reporte.cantidadComentarios;
     return ListTile(
@@ -309,11 +313,24 @@ class _FilaReporte extends StatelessWidget {
           ),
         ],
       ),
-      subtitle: Text(
-        '${haceCuanto(reporte.creadoEn)} · ♥ $meGusta · 💬 $comentarios',
-        semanticsLabel:
+      // Los íconos no se leen: TalkBack dice la línea entera.
+      subtitle: Semantics(
+        label:
             '${haceCuanto(reporte.creadoEn)}, $meGusta me gusta, '
             '$comentarios comentarios',
+        child: ExcludeSemantics(
+          child: Wrap(
+            spacing: Espacio.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('${haceCuanto(reporte.creadoEn)} ·'),
+              Icon(Icons.favorite_border, size: 16, color: secundario),
+              Text('$meGusta ·'),
+              Icon(Icons.chat_bubble_outline, size: 16, color: secundario),
+              Text('$comentarios'),
+            ],
+          ),
+        ),
       ),
     );
   }

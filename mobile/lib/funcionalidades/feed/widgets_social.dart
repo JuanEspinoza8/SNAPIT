@@ -128,16 +128,21 @@ class _BotonMeGustaState extends ConsumerState<BotonMeGusta> {
         ),
       );
     }
+    final VoidCallback? alTocar = _enviando
+        ? null
+        : () => permisos.conSesion ? _cambiar() : irAlIngreso(context);
+    // El botón queda fuera del árbol de TalkBack para que lea una sola cosa:
+    // la acción de tocar va acá, si no TalkBack no lo puede activar.
     return Semantics(
       container: true,
       button: true,
+      enabled: alTocar != null,
       toggled: dado,
       label: dado ? 'Quitar me gusta, $texto' : 'Me gusta, $texto',
+      onTap: alTocar,
       child: ExcludeSemantics(
         child: TextButton.icon(
-          onPressed: _enviando
-              ? null
-              : () => permisos.conSesion ? _cambiar() : irAlIngreso(context),
+          onPressed: alTocar,
           icon: Icon(
             dado ? Icons.favorite : Icons.favorite_border,
             color: dado
@@ -157,6 +162,7 @@ class _BotonMeGustaState extends ConsumerState<BotonMeGusta> {
       final cantidad = await ref
           .read(repositorioSocialProvider)
           .meGusta(reporte.id, dar: !reporte.yaMeGusta);
+      if (!mounted) return;
       _refrescar(
         ref,
         reporte.id,
@@ -171,18 +177,82 @@ class _BotonMeGustaState extends ConsumerState<BotonMeGusta> {
   }
 }
 
-/// Los comentarios de una publicación, del más viejo al más nuevo (el de
-/// SnapIt queda primero), con la caja para comentar. Cada vecino edita o
-/// elimina los suyos.
-class ComentariosDelReporte extends ConsumerWidget {
-  const ComentariosDelReporte(this.reporteId, {super.key});
+/// De qué son los comentarios: la publicación de un vecino (su foto) o el
+/// problema en general (el incidente). Cambia de dónde se leen, a dónde va uno
+/// nuevo y qué se refresca después; editar y eliminar son iguales.
+sealed class _Hilo {
+  const _Hilo(this.id);
 
-  final int reporteId;
+  final int id;
+
+  FutureProvider<List<Comentario>> get comentarios;
+
+  Future<void> comentar(RepositorioSocial repositorio, String texto);
+
+  /// Después de comentar, editar o eliminar. [cambio] es cuántos comentarios
+  /// hay de más (o de menos), para los contadores.
+  void refrescar(WidgetRef ref, {int cambio = 0});
+}
+
+final class _DeReporte extends _Hilo {
+  const _DeReporte(super.id);
+
+  @override
+  FutureProvider<List<Comentario>> get comentarios =>
+      comentariosDeReporteProvider(id);
+
+  @override
+  Future<void> comentar(RepositorioSocial repositorio, String texto) =>
+      repositorio.comentarReporte(id, texto);
+
+  @override
+  void refrescar(WidgetRef ref, {int cambio = 0}) {
+    final reporte = ref.read(reporteProvider(id)).value;
+    _refrescar(
+      ref,
+      id,
+      cantidadComentarios: cambio == 0 || reporte == null
+          ? null
+          : reporte.cantidadComentarios + cambio,
+    );
+  }
+}
+
+final class _DeIncidente extends _Hilo {
+  const _DeIncidente(super.id);
+
+  @override
+  FutureProvider<List<Comentario>> get comentarios =>
+      comentariosDeIncidenteProvider(id);
+
+  @override
+  Future<void> comentar(RepositorioSocial repositorio, String texto) =>
+      repositorio.comentarIncidente(id, texto);
+
+  // Los del problema no suman en ningún contador: alcanza con la lista.
+  @override
+  void refrescar(WidgetRef ref, {int cambio = 0}) =>
+      ref.invalidate(comentarios);
+}
+
+/// Los comentarios, del más viejo al más nuevo (el de SnapIt queda primero),
+/// con la caja para comentar. Cada vecino edita o elimina los suyos; el
+/// operador y el administrador solo los leen (moderan desde la web).
+class SeccionComentarios extends ConsumerWidget {
+  /// Los de la foto de un vecino, en su publicación.
+  SeccionComentarios.deReporte(int reporteId, {super.key})
+    : _hilo = _DeReporte(reporteId);
+
+  /// Los del problema en general, en su ficha.
+  SeccionComentarios.deIncidente(int incidenteId, {super.key})
+    : _hilo = _DeIncidente(incidenteId);
+
+  final _Hilo _hilo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tema = Theme.of(context);
-    final comentarios = ref.watch(comentariosDeReporteProvider(reporteId));
+    final comentarios = ref.watch(_hilo.comentarios);
     final permisos = _permisos(ref);
     final secundario = tema.textTheme.bodySmall?.copyWith(
       color: tema.colorScheme.onSurfaceVariant,
@@ -206,9 +276,7 @@ class ComentariosDelReporte extends ConsumerWidget {
           ),
           AsyncData(:final value) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final c in value) _FilaComentario(c, reporteId: reporteId),
-            ],
+            children: [for (final c in value) _FilaComentario(c, hilo: _hilo)],
           ),
           AsyncError(:final error) when !comentarios.isLoading => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -216,8 +284,7 @@ class ComentariosDelReporte extends ConsumerWidget {
               MensajeError(ErrorApi.desde(error).mensaje),
               const SizedBox(height: Espacio.sm),
               OutlinedButton(
-                onPressed: () =>
-                    ref.invalidate(comentariosDeReporteProvider(reporteId)),
+                onPressed: () => ref.invalidate(_hilo.comentarios),
                 child: const Text('Reintentar'),
               ),
             ],
@@ -233,7 +300,7 @@ class ComentariosDelReporte extends ConsumerWidget {
         },
         const SizedBox(height: Espacio.md),
         if (permisos.vecino)
-          _CajaComentario(reporteId)
+          _CajaComentario(_hilo)
         else if (!permisos.conSesion)
           Align(
             alignment: Alignment.centerLeft,
@@ -282,9 +349,9 @@ bool _sePuedeEnviar(String texto) {
 }
 
 class _CajaComentario extends ConsumerStatefulWidget {
-  const _CajaComentario(this.reporteId);
+  const _CajaComentario(this.hilo);
 
-  final int reporteId;
+  final _Hilo hilo;
 
   @override
   ConsumerState<_CajaComentario> createState() => _CajaComentarioState();
@@ -326,18 +393,13 @@ class _CajaComentarioState extends ConsumerState<_CajaComentario> {
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _enviando = true);
     try {
-      await ref
-          .read(repositorioSocialProvider)
-          .comentar(widget.reporteId, _texto.text.trim());
-      _texto.clear();
-      final reporte = ref.read(reporteProvider(widget.reporteId)).value;
-      _refrescar(
-        ref,
-        widget.reporteId,
-        cantidadComentarios: reporte == null
-            ? null
-            : reporte.cantidadComentarios + 1,
+      await widget.hilo.comentar(
+        ref.read(repositorioSocialProvider),
+        _texto.text.trim(),
       );
+      if (!mounted) return;
+      _texto.clear();
+      widget.hilo.refrescar(ref, cambio: 1);
     } catch (error) {
       if (mounted) mostrarError(context, error);
     } finally {
@@ -347,10 +409,10 @@ class _CajaComentarioState extends ConsumerState<_CajaComentario> {
 }
 
 class _FilaComentario extends ConsumerWidget {
-  const _FilaComentario(this.comentario, {required this.reporteId});
+  const _FilaComentario(this.comentario, {required this.hilo});
 
   final Comentario comentario;
-  final int reporteId;
+  final _Hilo hilo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -365,26 +427,30 @@ class _FilaComentario extends ConsumerWidget {
         children: [
           AvatarAutor(comentario.autor),
           const SizedBox(width: Espacio.md),
+          // TalkBack lee el comentario entero de una vez: quién, cuándo y
+          // qué dijo. El menú queda aparte.
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: Espacio.sm,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _NombreAutor(comentario.autor),
-                    Text(
-                      comentario.editado
-                          ? '${haceCuanto(comentario.creadoEn)} · editado'
-                          : haceCuanto(comentario.creadoEn),
-                      style: secundario,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(comentario.texto),
-              ],
+            child: MergeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: Espacio.sm,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _NombreAutor(comentario.autor),
+                      Text(
+                        comentario.editado
+                            ? '${haceCuanto(comentario.creadoEn)} · editado'
+                            : haceCuanto(comentario.creadoEn),
+                        style: secundario,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(comentario.texto),
+                ],
+              ),
             ),
           ),
           if (comentario.esMio)
@@ -414,7 +480,8 @@ class _FilaComentario extends ConsumerWidget {
       await ref
           .read(repositorioSocialProvider)
           .editarComentario(comentario.id, texto);
-      _refrescar(ref, reporteId);
+      if (!context.mounted) return;
+      hilo.refrescar(ref);
     } catch (error) {
       if (context.mounted) mostrarError(context, error);
     }
@@ -443,14 +510,8 @@ class _FilaComentario extends ConsumerWidget {
       await ref
           .read(repositorioSocialProvider)
           .eliminarComentario(comentario.id);
-      final reporte = ref.read(reporteProvider(reporteId)).value;
-      _refrescar(
-        ref,
-        reporteId,
-        cantidadComentarios: reporte == null
-            ? null
-            : reporte.cantidadComentarios - 1,
-      );
+      if (!context.mounted) return;
+      hilo.refrescar(ref, cambio: -1);
     } catch (error) {
       if (context.mounted) mostrarError(context, error);
     }

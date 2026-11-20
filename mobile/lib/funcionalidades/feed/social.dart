@@ -137,6 +137,14 @@ final comentariosDeReporteProvider = FutureProvider.autoDispose
           .comentariosDeReporte(id, conSesion: ref.watch(_conSesionProvider)),
     );
 
+/// Los comentarios del problema en general, no de una foto.
+final comentariosDeIncidenteProvider = FutureProvider.autoDispose
+    .family<List<Comentario>, int>(
+      (ref, id) => ref
+          .watch(repositorioSocialProvider)
+          .comentariosDeIncidente(id, conSesion: ref.watch(_conSesionProvider)),
+    );
+
 /// Van bajo `/social` para no chocar con las del operador. Leer es público:
 /// sin sesión va sin token, como el mapa, para que uno vencido no dispare una
 /// renovación. Dar me gusta y comentar necesita la sesión de un vecino.
@@ -165,6 +173,16 @@ class RepositorioSocial {
     conSesion,
   );
 
+  Future<List<Comentario>> comentariosDeIncidente(
+    int id, {
+    bool conSesion = false,
+  }) => _lista(
+    '/social/incidentes/$id/comentarios',
+    'comentarios',
+    Comentario.desdeJson,
+    conSesion,
+  );
+
   Future<ReportePublico> reporte(int id, {bool conSesion = false}) async =>
       ReportePublico.desdeJson(
         await _pedir('GET', '/social/reportes/$id', conSesion: conSesion),
@@ -179,11 +197,20 @@ class RepositorioSocial {
     return datos['cantidadMeGusta'] as int;
   }
 
-  Future<Comentario> comentar(int reporteId, String texto) async =>
+  Future<Comentario> comentarReporte(int reporteId, String texto) async =>
       Comentario.desdeJson(
         await _pedir(
           'POST',
           '/social/reportes/$reporteId/comentarios',
+          datos: {'texto': texto},
+        ),
+      );
+
+  Future<Comentario> comentarIncidente(int incidenteId, String texto) async =>
+      Comentario.desdeJson(
+        await _pedir(
+          'POST',
+          '/social/incidentes/$incidenteId/comentarios',
           datos: {'texto': texto},
         ),
       );

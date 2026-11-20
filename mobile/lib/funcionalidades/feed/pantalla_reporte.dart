@@ -158,7 +158,7 @@ class _Contenido extends ConsumerWidget {
                 ],
               ],
               const Divider(height: Espacio.xxl),
-              ComentariosDelReporte(reporte.id),
+              SeccionComentarios.deReporte(reporte.id),
             ],
           ),
         ),
