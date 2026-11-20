@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const ESTADOS_VISIBLES = ['REGISTRADO', 'VERIFICADO', 'DERIVADO', 'EN_EJECUCION', 'RESUELTO'] as const;
 
 /** Acepta "2026-10-06" o una fecha con hora ISO 8601. */
-const fecha = z.union([z.iso.date(), z.iso.datetime({ offset: true })], {
+export const fecha = z.union([z.iso.date(), z.iso.datetime({ offset: true })], {
   error: 'Tiene que ser una fecha, por ejemplo 2026-10-06',
 });
 
@@ -67,8 +67,9 @@ export type Filtros = z.output<typeof esquemaFiltros>;
 
 // Una fecha sola se toma en hora de Argentina: "desde" arranca a las 0:00 y "hasta" incluye todo ese día.
 const soloFecha = /^\d{4}-\d{2}-\d{2}$/;
-const inicioDe = (texto: string) => new Date(soloFecha.test(texto) ? `${texto}T00:00:00-03:00` : texto);
-const finDe = (texto: string) =>
+export const inicioDe = (texto: string) =>
+  new Date(soloFecha.test(texto) ? `${texto}T00:00:00-03:00` : texto);
+export const finDe = (texto: string) =>
   soloFecha.test(texto)
     ? new Date(new Date(`${texto}T00:00:00-03:00`).getTime() + 86_400_000 - 1)
     : new Date(texto);
