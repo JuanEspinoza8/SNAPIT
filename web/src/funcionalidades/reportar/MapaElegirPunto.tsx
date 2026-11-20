@@ -18,10 +18,11 @@ interface Props {
   alElegirPunto: (lat: number, lon: number) => void;
 }
 
+// El mapa es claro en los dos temas: el punto va con el color fijo de los marcadores, no con el primario del tema.
 function iconoPunto() {
   return L.divIcon({
     className: '',
-    html: '<div class="marcador-punto bg-primario"></div>',
+    html: '<div class="marcador-punto bg-marcador-trazo"></div>',
     iconSize: [26, 26],
   });
 }

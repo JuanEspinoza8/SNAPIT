@@ -9,6 +9,8 @@
   --color-texto: #0a0a0a;
   --color-texto-secundario: #737373;
   --color-peligro: #b42318;
+  /* Texto sobre peligro (el botón que confirma una eliminación). Cambia con el tema, como el peligro. */
+  --color-sobre-peligro: #ffffff;
 
   /* Colores de los estados de un incidente (enum EstadoIncidente).
      Mismos valores que mobile/lib/compartido/tema/tema_app.dart */
@@ -82,4 +84,5 @@
   --color-texto: #fafafa;
   --color-texto-secundario: #a3a3a3;
   --color-peligro: #f87171;
+  --color-sobre-peligro: #0a0a0a;
 }
