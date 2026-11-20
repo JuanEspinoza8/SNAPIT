@@ -206,6 +206,9 @@ let reportesDesestimados: ReportePendiente[] = [
       severidad: null,
       explicacion: 'Es un perro acostado en el patio de una casa: no se ve ningún problema en la calle.',
       creadoEn: '2026-10-18T12:00:00.000Z',
+      datosPersonales: false,
+      mismoProblema: null,
+      esProblemaViaPublica: false,
     },
   },
 ];
@@ -416,10 +419,17 @@ export const handlers = [
   http.get(`${apiUrl}/reportes/desestimados-pendientes`, () =>
     HttpResponse.json({ reportes: reportesDesestimados }),
   ),
-  http.post(`${apiUrl}/reportes/desestimados-pendientes/confirmacion`, () => {
-    const desestimados = reportesDesestimados.map((reporte) => reporte.id);
-    reportesDesestimados = [];
-    return HttpResponse.json({ desestimados, omitidos: [] });
+  // Desestima los de `ids` que siguen marcados; los demás se omiten con el motivo, como el servidor.
+  http.post(`${apiUrl}/reportes/desestimados-pendientes/confirmacion`, async ({ request }) => {
+    const { ids = [] } = (await request.json()) as { ids?: number[] };
+    const marcados = new Set(reportesDesestimados.map((reporte) => reporte.id));
+    reportesDesestimados = reportesDesestimados.filter((reporte) => !ids.includes(reporte.id));
+    return HttpResponse.json({
+      desestimados: ids.filter((id) => marcados.has(id)),
+      omitidos: ids
+        .filter((id) => !marcados.has(id))
+        .map((id) => ({ id, motivo: 'Ya no está marcado para desestimar' })),
+    });
   }),
 
   http.post(`${apiUrl}/reportes/:id/revision`, async ({ params, request }) => {

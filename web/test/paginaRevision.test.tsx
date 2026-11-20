@@ -61,6 +61,9 @@ const perro = () =>
       severidad: null,
       explicacion: 'Es un perro en un patio.',
       creadoEn: '2026-10-18T10:00:00.000Z',
+      datosPersonales: false,
+      mismoProblema: null,
+      esProblemaViaPublica: false,
     },
   });
 
@@ -97,11 +100,19 @@ const servidor = setupServer(
   ),
   http.get('*/api/reportes/pendientes', () => HttpResponse.json({ reportes: pendientes })),
   http.get('*/api/reportes/desestimados-pendientes', () => HttpResponse.json({ reportes: desestimados })),
+  // Como el servidor: desestima los de `ids` que siguen marcados y omite los demás, con el motivo.
   http.post('*/api/reportes/desestimados-pendientes/confirmacion', async ({ request }) => {
-    confirmaciones.push(await request.json());
-    const ids = desestimados.map((r) => r.id);
-    desestimados = [];
-    return HttpResponse.json({ desestimados: ids, omitidos: [] });
+    const cuerpo = (await request.json()) as { ids?: number[] };
+    confirmaciones.push(cuerpo);
+    const marcados = new Set(desestimados.map((r) => r.id));
+    const pedidos = cuerpo.ids ?? [...marcados];
+    desestimados = desestimados.filter((r) => !pedidos.includes(r.id));
+    return HttpResponse.json({
+      desestimados: pedidos.filter((id) => marcados.has(id)),
+      omitidos: pedidos
+        .filter((id) => !marcados.has(id))
+        .map((id) => ({ id, motivo: 'Ya no está marcado para desestimar' })),
+    });
   }),
   http.get('*/api/reportes', () => HttpResponse.json({ reportes: todos })),
   http.post('*/api/reportes/:id/revision', async ({ params, request }) => {
@@ -177,6 +188,9 @@ describe('pendientes', () => {
           severidad: 'LEVE',
           explicacion: 'Se ve una baldosa rota.',
           creadoEn: '2026-10-16T15:00:00.000Z',
+          datosPersonales: false,
+          mismoProblema: null,
+          esProblemaViaPublica: true,
         },
       }),
     ];
@@ -184,16 +198,44 @@ describe('pendientes', () => {
 
     const detalle = await abrirDetalle(usuario);
 
-    expect(within(detalle).getByText('Ubicación de la foto')).toBeInTheDocument();
-    expect(within(detalle).getByLabelText('Se cumple')).toBeInTheDocument();
-    expect(within(detalle).getByLabelText('No se cumple')).toBeInTheDocument();
-    expect(within(detalle).getByLabelText('Sin dato')).toBeInTheDocument();
+    // Cada control dice en palabras si se cumple: el color solo acompaña.
+    const control = (nombre: string) => within(detalle).getByText(nombre).closest('li')!;
+    expect(control('Ubicación de la foto')).toHaveTextContent('Se cumple');
+    expect(control('Antigüedad')).toHaveTextContent('Sin dato');
+    expect(control('Foto repetida')).toHaveTextContent('No se cumple');
     expect(within(detalle).getByText(/de otro vecino/)).toBeInTheDocument();
     expect(within(detalle).getByText('Vereda rota')).toBeInTheDocument();
     expect(within(detalle).getByText(/no coincide con el vecino/)).toBeInTheDocument();
     expect(within(detalle).getByText('Se ve una baldosa rota.')).toBeInTheDocument();
     expect(within(detalle).getByText('2 reportes publicados · 1 desestimado')).toBeInTheDocument();
     expect(within(detalle).getByTestId('mapa-chico')).toHaveTextContent('-38.9531,-68.0478');
+  });
+
+  it('si la IA vio una cara o una patente, el detalle lo avisa antes de publicar', async () => {
+    const usuario = userEvent.setup();
+    const propuesta = {
+      categoriaId: 3,
+      severidad: 'MODERADA' as const,
+      explicacion: 'Se ve la rampa rota y un auto estacionado.',
+      creadoEn: '2026-10-16T15:00:00.000Z',
+      mismoProblema: null,
+      esProblemaViaPublica: true,
+    };
+    pendientes = [
+      pendiente({ propuestaIa: { ...propuesta, datosPersonales: true } }),
+      pozo(),
+      pendiente({ id: 21, propuestaIa: { ...propuesta, datosPersonales: null } }),
+    ];
+    abrir();
+
+    const detalle = await abrirDetalle(usuario);
+    expect(within(detalle).getByRole('note')).toHaveTextContent(
+      'Se ve una cara o una patente: mirá la foto antes de publicarla.',
+    );
+    await usuario.keyboard('{Escape}');
+
+    // Si no lo informó (null) o no se ve nada, no hay aviso.
+    expect(within(await abrirDetalle(usuario, 21)).queryByRole('note')).not.toBeInTheDocument();
   });
 
   it('publicar manda la decisión con el comentario, cierra el detalle y lo saca de la lista', async () => {
@@ -216,8 +258,10 @@ describe('pendientes', () => {
 
     await usuario.click(within(detalle).getByRole('button', { name: 'Desestimar' }));
     expect(within(detalle).getByText(/La reputación del vecino va a bajar/)).toBeInTheDocument();
+    expect(within(detalle).getByRole('button', { name: 'Sí, desestimar' })).toHaveFocus();
     await usuario.click(within(detalle).getByRole('button', { name: 'Cancelar' }));
     expect(decisiones).toEqual([]);
+    expect(within(detalle).getByRole('button', { name: 'Desestimar' })).toHaveFocus();
 
     await usuario.click(within(detalle).getByRole('button', { name: 'Desestimar' }));
     await usuario.click(within(detalle).getByRole('button', { name: 'Sí, desestimar' }));
@@ -372,6 +416,9 @@ describe('procesar con IA', () => {
           severidad: 'LEVE',
           explicacion: null,
           creadoEn: '2026-10-19T10:00:00.000Z',
+          datosPersonales: null,
+          mismoProblema: null,
+          esProblemaViaPublica: true,
         },
       }),
     ];
@@ -410,8 +457,83 @@ describe('desestimados por la IA', () => {
     expect(screen.getByText(/La reputación de sus vecinos va a bajar/)).toBeInTheDocument();
     await usuario.click(screen.getByRole('button', { name: 'Sí, desestimar' }));
 
-    await waitFor(() => expect(confirmaciones).toEqual([{}]));
+    await waitFor(() => expect(confirmaciones).toEqual([{ ids: [18] }]));
     expect(await screen.findByText('No hay reportes apartados por la IA.')).toBeInTheDocument();
+  });
+
+  it('manda solo los que muestra la lista, no los que la IA marcó después', async () => {
+    const usuario = userEvent.setup();
+    desestimados = [perro()];
+    abrir();
+    await irA(usuario, /Desestimados por la IA/);
+    await fila(18);
+    // Mientras tanto, la IA marcó otro: el servidor lo tiene, pero la lista todavía no lo muestra.
+    desestimados = [perro(), pendiente({ id: 25 })];
+
+    await usuario.click(screen.getByRole('button', { name: 'Desestimar todos (1)' }));
+    await usuario.click(screen.getByRole('button', { name: 'Sí, desestimar' }));
+
+    await waitFor(() => expect(confirmaciones).toEqual([{ ids: [18] }]));
+    expect(await fila(25)).toBeInTheDocument();
+  });
+
+  it('dice el motivo de cada uno que no se desestimó', async () => {
+    const usuario = userEvent.setup();
+    desestimados = [perro(), pendiente({ id: 25 })];
+    abrir();
+    await irA(usuario, /Desestimados por la IA/);
+    await fila(25);
+    // Otra persona rescató el 25 mientras tanto.
+    desestimados = [perro()];
+
+    await usuario.click(screen.getByRole('button', { name: 'Desestimar todos (2)' }));
+    await usuario.click(screen.getByRole('button', { name: 'Sí, desestimar' }));
+
+    expect(await screen.findByText('Uno no se desestimó:')).toBeInTheDocument();
+    expect(screen.getByText('#25: Ya no está marcado para desestimar')).toBeInTheDocument();
+    expect(confirmaciones).toEqual([{ ids: [18, 25] }]);
+  });
+
+  it('mientras la IA procesa no se puede desestimar todos', async () => {
+    desestimados = [perro()];
+    proceso = {
+      id: 'p1',
+      enCurso: true,
+      iniciadoEn: '2026-10-20T16:00:00.000Z',
+      eventos: [],
+      resumen: {
+        total: 1,
+        procesados: 0,
+        publicados: 0,
+        publicadosConSugerencia: 0,
+        derivados: 0,
+        desestimados: 0,
+        errores: 0,
+        tiempoMedioMs: null,
+        costoUsd: null,
+      },
+    };
+    const usuario = userEvent.setup();
+    abrir();
+    await irA(usuario, /Desestimados por la IA/);
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Desestimar todos (1)' })).toBeDisabled());
+    expect(screen.getByText(/La IA está procesando/)).toBeInTheDocument();
+  });
+
+  it('al confirmar, el foco va a «Sí, desestimar», y al cancelar vuelve al botón', async () => {
+    const usuario = userEvent.setup();
+    desestimados = [perro()];
+    abrir();
+    await irA(usuario, /Desestimados por la IA/);
+    await fila(18);
+
+    await usuario.click(screen.getByRole('button', { name: 'Desestimar todos (1)' }));
+    expect(screen.getByRole('button', { name: 'Sí, desestimar' })).toHaveFocus();
+    await usuario.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+    expect(screen.getByRole('button', { name: 'Desestimar todos (1)' })).toHaveFocus();
+    expect(confirmaciones).toEqual([]);
   });
 
   it('rescatar uno es publicarlo igual desde su detalle', async () => {

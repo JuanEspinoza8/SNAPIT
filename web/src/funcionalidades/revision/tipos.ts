@@ -14,12 +14,20 @@ export interface SenalVerificacion {
   detalle: string | null;
 }
 
-/** Lo que vio la IA la última vez que miró la foto. Sin categoría si no es un problema de la vía pública. */
+/**
+ * Lo que vio la IA la última vez que miró la foto. Sin categoría si no es un problema de la vía pública. Los tres
+ * booleanos vienen null si la IA no los informó.
+ */
 export interface PropuestaIa {
   categoriaId: number | null;
   severidad: Severidad | null;
   explicacion: string | null;
   creadoEn: string;
+  /** Se ve una cara o una patente: hay que mirar la foto antes de publicarla. */
+  datosPersonales: boolean | null;
+  /** Si muestra el mismo problema que la foto de referencia del incidente; null si no había con qué comparar. */
+  mismoProblema: boolean | null;
+  esProblemaViaPublica: boolean | null;
 }
 
 // Un reporte pendiente (GET /api/reportes/pendientes y /desestimados-pendientes), tal cual lo manda el servidor.

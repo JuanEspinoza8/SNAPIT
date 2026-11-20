@@ -58,8 +58,9 @@ export function useRevision() {
     },
   });
 
+  // Siempre con los ids que ve el operador: sin ids, el servidor desestimaría también los que la IA marcó después.
   const confirmar = useMutation({
-    mutationFn: () => reportes.confirmarDesestimados(),
+    mutationFn: (ids: number[]) => reportes.confirmarDesestimados(ids),
     onSuccess: actualizarListas,
   });
 

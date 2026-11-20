@@ -19,8 +19,8 @@ export interface RepositorioReportes {
   pendientes(): Promise<ReportePendiente[]>;
   /** Los que la IA marcó para desestimar: esperan que un operador lo confirme. */
   desestimadosPendientes(): Promise<ReportePendiente[]>;
-  /** Desestima los marcados de `ids`, o todos si no se pasan. */
-  confirmarDesestimados(ids?: number[]): Promise<ResultadoConfirmacion>;
+  /** Desestima los marcados de `ids`: los que el operador tiene a la vista. */
+  confirmarDesestimados(ids: number[]): Promise<ResultadoConfirmacion>;
   /** Todos los reportes del organismo, en cualquier estado, del más nuevo al más viejo. */
   delOrganismo(): Promise<ReporteDelOrganismo[]>;
   /** Verifica o desestima un reporte pendiente, con comentario opcional. */
@@ -67,7 +67,7 @@ export function crearRepositorioReportes(cliente: ClienteApi): RepositorioReport
     confirmarDesestimados(ids) {
       return cliente.pedir<ResultadoConfirmacion>('/reportes/desestimados-pendientes/confirmacion', {
         metodo: 'POST',
-        cuerpo: ids ? { ids } : {},
+        cuerpo: { ids },
       });
     },
     async delOrganismo() {

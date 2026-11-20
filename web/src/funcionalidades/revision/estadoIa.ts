@@ -47,6 +47,13 @@ export interface Control {
   detalle: string | null;
 }
 
+/** El resultado de un control en palabras: el color, si lo hay, solo acompaña. */
+export const RESULTADO_CONTROL: Record<Control['resultado'], string> = {
+  BIEN: 'Se cumple',
+  MAL: 'No se cumple',
+  SIN_DATO: 'Sin dato',
+};
+
 const CONTROLES: { nombre: string; tipos: string[] }[] = [
   { nombre: 'Ubicación de la foto', tipos: ['EXIF_COINCIDE', 'EXIF_AUSENTE'] },
   { nombre: 'Antigüedad', tipos: ['FECHA_ANTIGUA'] },

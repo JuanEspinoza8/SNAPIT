@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
+import { useFocoConfirmacion } from '../../compartido/componentes/useFocoConfirmacion.js';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import type { ErrorApi } from '../../compartido/red/error.js';
-import { controles, type Control } from './estadoIa.js';
+import { controles, RESULTADO_CONTROL, type Control } from './estadoIa.js';
 import { MapaChico } from './MapaChico.js';
-import { botonPeligro, botonPrimario, botonSecundario, fechaCorta } from './piezas.js';
+import { botonPeligro, botonPrimario, botonSecundario, Etiqueta, fechaCorta } from './piezas.js';
 import { severidadEnTexto, type DecisionRevision, type ReportePendiente } from './tipos.js';
 
 /** Lo necesario para decidir. Sin esto, el detalle es de solo lectura (un reporte ya decidido). */
@@ -116,9 +117,16 @@ function LoQueVioLaIa({ reporte, marcado }: { reporte: ReportePendiente; marcado
   const categorias = useCategorias();
   const propuesta = reporte.propuestaIa;
   if (!propuesta) return <p className="text-texto-secundario">Todavía no miró la foto.</p>;
+  // Las fotos publicadas las ve cualquiera: una cara o una patente se mira antes de publicar.
+  const privacidad = propuesta.datosPersonales === true && (
+    <p role="note" className="rounded-md border border-peligro px-3 py-2 font-semibold text-texto">
+      Se ve una cara o una patente: mirá la foto antes de publicarla.
+    </p>
+  );
   if (marcado || propuesta.categoriaId === null) {
     return (
       <>
+        {privacidad}
         <p className="font-semibold text-peligro">No muestra un problema de la vía pública.</p>
         {propuesta.explicacion && <p className="text-texto-secundario">{propuesta.explicacion}</p>}
       </>
@@ -131,6 +139,7 @@ function LoQueVioLaIa({ reporte, marcado }: { reporte: ReportePendiente; marcado
     propuesta.categoriaId === reporte.categoria.id && propuesta.severidad === reporte.severidadDeclarada;
   return (
     <>
+      {privacidad}
       <p className="text-texto">
         Ve <span className="font-semibold">{nombre}</span>
         {propuesta.severidad && ` · ${severidadEnTexto[propuesta.severidad]}`}
@@ -144,23 +153,21 @@ function LoQueVioLaIa({ reporte, marcado }: { reporte: ReportePendiente; marcado
   );
 }
 
-const MARCAS: Record<Control['resultado'], { simbolo: string; clase: string; texto: string }> = {
-  BIEN: { simbolo: '✓', clase: 'text-estado-resuelto', texto: 'Se cumple' },
-  MAL: { simbolo: '✕', clase: 'text-peligro', texto: 'No se cumple' },
-  SIN_DATO: { simbolo: '–', clase: 'text-texto-secundario', texto: 'Sin dato' },
+// El punto de color ayuda a encontrar de un vistazo el que no se cumple; lo que vale es el texto.
+const PUNTOS: Record<Control['resultado'], string> = {
+  BIEN: 'bg-estado-resuelto',
+  MAL: 'bg-peligro',
+  SIN_DATO: 'bg-borde',
 };
 
 function FilaControl({ control }: { control: Control }) {
-  const marca = MARCAS[control.resultado];
   return (
-    <li className="flex gap-2">
-      <span className={`w-4 shrink-0 text-center font-semibold ${marca.clase}`} aria-label={marca.texto}>
-        {marca.simbolo}
-      </span>
-      <div className="min-w-0">
+    <li className="flex flex-col gap-0.5">
+      <div className="flex flex-wrap items-center gap-2">
         <p className="text-texto">{control.nombre}</p>
-        {control.detalle && <p className="text-xs text-texto-secundario">{control.detalle}</p>}
+        <Etiqueta punto={PUNTOS[control.resultado]}>{RESULTADO_CONTROL[control.resultado]}</Etiqueta>
       </div>
+      {control.detalle && <p className="text-xs text-texto-secundario">{control.detalle}</p>}
     </li>
   );
 }
@@ -178,6 +185,7 @@ function Decision({ decidir, marcado }: { decidir: Decidir; marcado: boolean }) 
   const [comentario, setComentario] = useState('');
   // Desestimar baja la reputación del vecino: se pide confirmar antes de mandarlo.
   const [confirmando, setConfirmando] = useState(false);
+  const { botonAbrir, botonConfirmar } = useFocoConfirmacion(confirmando);
   const { enviando, error, bloqueado, yaResuelto, alDecidir } = decidir;
   const deshabilitado = bloqueado || yaResuelto || enviando !== null;
 
@@ -216,10 +224,11 @@ function Decision({ decidir, marcado }: { decidir: Decidir; marcado: boolean }) 
             Cancelar
           </button>
           <button
+            ref={botonConfirmar}
             type="button"
             disabled={deshabilitado}
             onClick={() => alDecidir('DESESTIMADO', comentario)}
-            className="rounded-md bg-peligro px-3 py-2 text-sm font-semibold text-sobre-primario hover:opacity-90 disabled:opacity-50"
+            className="rounded-md bg-peligro px-3 py-2 text-sm font-semibold text-sobre-peligro hover:opacity-90 disabled:opacity-50"
           >
             {enviando === 'DESESTIMADO' ? 'Desestimando…' : 'Sí, desestimar'}
           </button>
@@ -227,6 +236,7 @@ function Decision({ decidir, marcado }: { decidir: Decidir; marcado: boolean }) 
       ) : (
         <div className="flex justify-end gap-2">
           <button
+            ref={botonAbrir}
             type="button"
             disabled={deshabilitado}
             onClick={() => setConfirmando(true)}
