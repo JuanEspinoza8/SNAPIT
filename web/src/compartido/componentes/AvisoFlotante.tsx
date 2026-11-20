@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 /** Un aviso corto que una pantalla le deja a la siguiente al navegar, por ejemplo «Reporte enviado». */
@@ -22,49 +22,48 @@ function avisoDe(estado: unknown): Aviso | null {
 
 /**
  * El aviso que llegó con la navegación, arriba y al centro, sobre la página. Se va solo a los pocos segundos o
- * con la cruz. Al irse se borra del estado de la navegación: si se recarga la página, no vuelve a salir.
+ * con «Cerrar». Apenas llega se borra del estado de la navegación y queda solo en pantalla: el navegador guarda
+ * ese estado al recargar, así que si quedara ahí, el aviso volvería a salir.
  */
 export function AvisoFlotante() {
   const ubicacion = useLocation();
   const navegar = useNavigate();
-  const aviso = avisoDe(ubicacion.state);
+  const llegado = avisoDe(ubicacion.state);
   const { pathname, search, hash, key } = ubicacion;
-  // Cada render arma otro objeto: el temporizador depende de si hay aviso y de qué navegación lo trajo.
-  const hayAviso = aviso !== null;
+  const [visible, setVisible] = useState<{ aviso: Aviso; navegacion: string } | null>(null);
 
+  // Cada navegación con aviso lo muestra una vez. Se guarda durante el render, como se deriva un estado de otro.
+  if (llegado && visible?.navegacion !== key) setVisible({ aviso: llegado, navegacion: key });
+
+  const hayQueBorrar = llegado !== null;
   useEffect(() => {
-    if (!hayAviso) return;
-    const temporizador = setTimeout(
-      () => void navegar({ pathname, search, hash }, { replace: true, state: null }),
-      DURACION_MS,
-    );
-    return () => clearTimeout(temporizador);
-  }, [hayAviso, key, navegar, pathname, search, hash]);
+    if (hayQueBorrar) void navegar({ pathname, search, hash }, { replace: true, state: null });
+  }, [hayQueBorrar, navegar, pathname, search, hash]);
 
-  if (!aviso) return null;
+  const mostrado = visible?.navegacion;
+  useEffect(() => {
+    if (mostrado === undefined) return;
+    const temporizador = setTimeout(() => setVisible(null), DURACION_MS);
+    return () => clearTimeout(temporizador);
+  }, [mostrado]);
+
+  if (!visible) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-4 z-[2000] flex justify-center px-4">
       <div
         role="status"
-        className="pointer-events-auto flex w-full max-w-md animate-aparecer-arriba items-center gap-3 rounded-2xl border border-borde bg-superficie-alterna/95 px-4 py-3 shadow-lg backdrop-blur"
+        className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-lg border border-borde bg-superficie-alterna px-4 py-3 shadow-md motion-safe:animate-aparecer-arriba"
       >
-        <span
-          aria-hidden="true"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-estado-resuelto text-sm font-bold text-white"
-        >
-          ✓
-        </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-texto">{aviso.titulo}</p>
-          <p className="text-sm text-texto-secundario">{aviso.texto}</p>
+          <p className="text-sm font-semibold text-texto">{visible.aviso.titulo}</p>
+          <p className="text-sm text-texto-secundario">{visible.aviso.texto}</p>
         </div>
         <button
           type="button"
-          aria-label="Cerrar el aviso"
-          onClick={() => void navegar({ pathname, search, hash }, { replace: true, state: null })}
-          className="rounded-md px-2 py-1 text-texto-secundario hover:bg-superficie"
+          onClick={() => setVisible(null)}
+          className="rounded-md px-3 py-1 text-sm font-semibold text-texto-secundario hover:bg-superficie hover:text-texto"
         >
-          ✕
+          Cerrar
         </button>
       </div>
     </div>

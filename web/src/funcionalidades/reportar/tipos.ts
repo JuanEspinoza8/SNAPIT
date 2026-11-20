@@ -22,5 +22,6 @@ export interface ReporteEnviado {
   id: number;
   incidenteId: number | null;
   nivelConfianza: number;
-  estadoVerificacion: 'VERIFICADO' | 'PENDIENTE_REVISION' | 'DESESTIMADO';
+  /** Siempre pendiente: lo publica la verificación con IA o un operador. */
+  estadoVerificacion: 'PENDIENTE_REVISION';
 }

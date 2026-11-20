@@ -84,8 +84,12 @@ function renderReportar() {
   );
 }
 
-const respuestaCreado = (estadoVerificacion: string) =>
-  HttpResponse.json({ id: 1, incidenteId: 1, nivelConfianza: 80, estadoVerificacion }, { status: 201 });
+// Todo reporte llega pendiente: lo publica la verificación con IA o un operador.
+const respuestaCreado = () =>
+  HttpResponse.json(
+    { id: 1, incidenteId: 1, nivelConfianza: 80, estadoVerificacion: 'PENDIENTE_REVISION' },
+    { status: 201 },
+  );
 
 /** Completa foto, categoría, gravedad, descripción y punto. */
 async function completar(usuario: ReturnType<typeof userEvent.setup>) {
@@ -267,18 +271,7 @@ describe('cargar un reporte desde la web', () => {
     expect(screen.getByLabelText('Categoría')).toHaveValue('3');
   });
 
-  it('si el reporte llega verificado, lo dice', async () => {
-    servidor.use(http.post('*/api/reportes', () => respuestaCreado('VERIFICADO')));
-    const usuario = userEvent.setup();
-    renderReportar();
-    await completar(usuario);
-
-    await usuario.click(screen.getByRole('button', { name: 'Enviar reporte' }));
-
-    expect(await screen.findByText('Se verificó y ya está publicado.')).toBeInTheDocument();
-  });
-
-  it('al enviar vuelve al inicio con un aviso arriba, que se cierra con la cruz', async () => {
+  it('al enviar vuelve al inicio con un aviso arriba: queda pendiente, y se cierra con «Cerrar»', async () => {
     const usuario = userEvent.setup();
     renderReportar();
     await completar(usuario);
@@ -288,7 +281,8 @@ describe('cargar un reporte desde la web', () => {
     expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument();
     const aviso = screen.getByRole('status');
     expect(within(aviso).getByText('Reporte enviado')).toBeInTheDocument();
-    await usuario.click(within(aviso).getByRole('button', { name: 'Cerrar el aviso' }));
+    expect(within(aviso).getByText('Queda pendiente de aprobación antes de publicarse.')).toBeInTheDocument();
+    await usuario.click(within(aviso).getByRole('button', { name: 'Cerrar' }));
     expect(screen.queryByText('Reporte enviado')).not.toBeInTheDocument();
   });
 
@@ -329,7 +323,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
   it('completa la categoría y la gravedad, y manda la sugerencia con el reporte', async () => {
     servidor.use(
       http.post('*/api/ia/clasificar-foto', () => HttpResponse.json(sugerencia)),
-      http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')),
+      http.post('*/api/reportes', () => respuestaCreado()),
     );
     const usuario = userEvent.setup();
     renderReportar();
@@ -359,7 +353,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
   it('el vecino puede cambiarla: se ve qué había sugerido y la sugerencia viaja igual', async () => {
     servidor.use(
       http.post('*/api/ia/clasificar-foto', () => HttpResponse.json(sugerencia)),
-      http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')),
+      http.post('*/api/reportes', () => respuestaCreado()),
     );
     const usuario = userEvent.setup();
     renderReportar();
@@ -383,7 +377,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
   });
 
   it('si la IA no está disponible, avisa y se elige a mano sin sugerencia', async () => {
-    servidor.use(http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')));
+    servidor.use(http.post('*/api/reportes', () => respuestaCreado()));
     const usuario = userEvent.setup();
     renderReportar();
 
@@ -559,7 +553,7 @@ describe('sugerencia de la IA al elegir la foto (F06)', () => {
     servidor.use(
       // No responde nunca: el vecino envía antes.
       http.post('*/api/ia/clasificar-foto', () => new Promise<never>(() => {})),
-      http.post('*/api/reportes', () => respuestaCreado('PENDIENTE_REVISION')),
+      http.post('*/api/reportes', () => respuestaCreado()),
     );
     const usuario = userEvent.setup();
     renderReportar();

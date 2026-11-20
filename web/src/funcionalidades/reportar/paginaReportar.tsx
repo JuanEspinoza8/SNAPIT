@@ -188,14 +188,11 @@ export function PaginaReportar() {
       },
       {
         // Vuelve al inicio con un aviso arriba: el reporte queda pendiente hasta que se revise.
-        onSuccess: (enviado) =>
+        onSuccess: () =>
           void navegar('/', {
             state: conAviso({
               titulo: 'Reporte enviado',
-              texto:
-                enviado.estadoVerificacion === 'VERIFICADO'
-                  ? 'Se verificó y ya está publicado.'
-                  : 'Queda pendiente de aprobación antes de publicarse.',
+              texto: 'Queda pendiente de aprobación antes de publicarse.',
             }),
           }),
         // No se toca nada de lo cargado: solo se muestran los errores del servidor.
