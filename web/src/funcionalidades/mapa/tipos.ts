@@ -26,6 +26,8 @@ export interface FichaIncidente {
   primerReporteEn: string;
   cantidadReportes: number;
   cantidadVecinos: number;
+  /** Cuántos vecinos confirmaron que sigue (F12), contando los incidentes que se le unieron. */
+  cantidadConfirmaciones: number;
   direccion: string | null;
   fotos: { id: number; url: string }[];
   /** El después (F09): la foto que cerró el incidente. Null mientras no esté resuelto. */
