@@ -1639,7 +1639,7 @@ Responde **201** con `{ "usuario": { ... } }`. El correo queda confirmado, así 
 | 409 | `EMAIL_EN_USO` | Ya hay una cuenta con ese correo |
 
 ### `GET /api/admin/usuarios`
-Responde **200** con `{ "usuarios": [ { ... } ] }`: todos los usuarios que no están dados de baja, de cualquier rol, ordenados por nombre. Cada uno tiene la forma del [objeto `usuario`](#el-objeto-usuario). No incluye al usuario de SnapIt (`sistema@snapit.app`), que firma los comentarios del sistema y no se administra.
+Responde **200** con `{ "usuarios": [ { ... } ] }`: todos los usuarios que no están dados de baja, de cualquier rol, ordenados por nombre. Cada uno tiene la forma del [objeto `usuario`](#el-objeto-usuario). No incluye al usuario de SnapIt (`sistema@snapit.invalid`), que firma los comentarios del sistema y no se administra.
 
 ### `PUT /api/admin/usuarios/:id`
 Cambia el nombre, el rol y dónde trabaja un usuario. El correo y la clave no se tocan desde acá.

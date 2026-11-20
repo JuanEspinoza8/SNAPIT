@@ -204,6 +204,22 @@ describe('semilla', { timeout: 60_000 }, () => {
     );
   });
 
+  it('a una base que tiene a SnapIt con el correo anterior (sistema@snapit.app) se lo cambia, sin crear otro', async () => {
+    const { id } = await prisma.usuario.update({
+      where: { email: USUARIO_SISTEMA.email },
+      data: { email: 'sistema@snapit.app' },
+    });
+
+    await cargarSemilla(prisma, { usuariosPrueba: false });
+
+    expect(await prisma.usuario.findUnique({ where: { email: 'sistema@snapit.app' } })).toBeNull();
+    expect(await prisma.usuario.findUniqueOrThrow({ where: { email: USUARIO_SISTEMA.email } })).toMatchObject(
+      {
+        id,
+      },
+    );
+  });
+
   it('un polígono que se cruza a sí mismo frena la carga y no cambia nada', async () => {
     await cargarSemilla(prisma, { usuariosPrueba: true });
     const antes = await leerSemilla();

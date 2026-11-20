@@ -64,7 +64,7 @@ Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar
 | Operador (sin área: ve todo el organismo) | `operador@snapit.test` |
 | Vecinos | `vecino1@snapit.test`, `vecino2@snapit.test`, `vecino3@snapit.test` |
 
-Además, siempre (también en producción) carga el usuario de **SnapIt** (`sistema@snapit.app`), con el que el sistema firma sus comentarios, por ejemplo el agradecimiento al publicar un reporte. Nadie inicia sesión con él: su clave es aleatoria.
+Además, siempre (también en producción) carga el usuario de **SnapIt** (`sistema@snapit.invalid`), con el que el sistema firma sus comentarios, por ejemplo el agradecimiento al publicar un reporte. Nadie inicia sesión con él: su clave es aleatoria, y el servidor no deja ingresar ni pedir la clave con su correo (`.invalid` es un dominio reservado, al que no llega ningún correo).
 
 > **Nunca uses `prisma migrate dev` ni `prisma db push`.** El modelo está congelado: `0_init` es el `db/schema.sql` entregado y cada cambio acordado con el grupo va en una migración escrita a mano (ver [CONTRIBUTING.md](CONTRIBUTING.md)). `schema.prisma` no puede expresar los índices GIST ni los nombres de las restricciones, así que esos comandos generan una migración que borra los índices espaciales y renombra las claves del modelo entregado. Para aplicar migraciones, solo `prisma migrate deploy`.
 
