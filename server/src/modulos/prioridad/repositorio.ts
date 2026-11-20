@@ -48,14 +48,17 @@ export function leerIncidente(tx: Prisma.TransactionClient, id: number) {
 
 /**
  * Las confirmaciones que suman evidencia: vecinos distintos que confirmaron el incidente o alguno de los que se
- * le unieron, sin los que tienen un reporte que ya cuenta en cantidad_reportes (REPORTES_DEL_INCIDENTE). Así
- * cada vecino cuenta una vez. Si después le desestiman el reporte, su confirmación pasa a contar.
+ * le unieron, sin los que tienen un reporte que ya cuenta en cantidad_reportes (REPORTES_DEL_INCIDENTE, sin los
+ * eliminados por su autor). Así cada vecino cuenta una vez. Si después le desestiman el reporte, o lo elimina, su
+ * confirmación pasa a contar.
  */
 export async function contarConfirmaciones(tx: Prisma.TransactionClient, id: number) {
   const [fila] = await tx.$queryRaw<{ cantidad: bigint }[]>`
     SELECT count(DISTINCT c.usuario_id) AS cantidad
     ${CONFIRMACIONES_DEL_INCIDENTE(id)}
-      AND NOT EXISTS (SELECT 1 ${REPORTES_DEL_INCIDENTE(id)} AND r.usuario_id = c.usuario_id)`;
+      AND NOT EXISTS (
+        SELECT 1 ${REPORTES_DEL_INCIDENTE(id)} AND r.eliminado_en IS NULL AND r.usuario_id = c.usuario_id
+      )`;
   return Number(fila?.cantidad ?? 0);
 }
 
