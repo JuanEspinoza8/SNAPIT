@@ -97,14 +97,16 @@ class SelectorFotoFalso implements SelectorFoto {
 /// la ubicación por [ubicacion] (por defecto, sin permiso) y, si se pasa, la
 /// cámara y la galería por [selectorFoto]. Los avisos push usan
 /// [servicioPush] (por defecto, uno falso que no pide permiso). La ubicación
-/// que trae cada foto la da [ubicacionFoto] (por defecto, ninguna): así no se
-/// leen archivos de verdad.
+/// que trae cada foto la da [ubicacionFoto] (por defecto, ninguna), o
+/// [lectorUbicacionFoto] si cambia de una foto a otra: así no se leen
+/// archivos de verdad.
 ProviderContainer contenedorDePrueba(
   ServidorFalso servidor, {
   ServicioUbicacion? ubicacion,
   SelectorFoto? selectorFoto,
   ServicioPushFalso? servicioPush,
   LatLng? ubicacionFoto,
+  Future<LatLng?> Function(String ruta)? lectorUbicacionFoto,
 }) {
   final push = servicioPush ?? ServicioPushFalso();
   final contenedor = ProviderContainer(
@@ -117,7 +119,9 @@ ProviderContainer contenedorDePrueba(
       }),
       if (selectorFoto != null)
         selectorFotoProvider.overrideWithValue(selectorFoto),
-      lectorUbicacionFotoProvider.overrideWithValue((_) async => ubicacionFoto),
+      lectorUbicacionFotoProvider.overrideWithValue(
+        lectorUbicacionFoto ?? (_) async => ubicacionFoto,
+      ),
     ],
   );
   addTearDown(contenedor.dispose);
@@ -134,6 +138,7 @@ Future<ProviderContainer> abrirApp(
   SelectorFoto? selectorFoto,
   ServicioPushFalso? servicioPush,
   LatLng? ubicacionFoto,
+  Future<LatLng?> Function(String ruta)? lectorUbicacionFoto,
 }) async {
   final contenedor = contenedorDePrueba(
     servidor,
@@ -141,6 +146,7 @@ Future<ProviderContainer> abrirApp(
     selectorFoto: selectorFoto,
     servicioPush: servicioPush,
     ubicacionFoto: ubicacionFoto,
+    lectorUbicacionFoto: lectorUbicacionFoto,
   );
   await tester.pumpWidget(
     UncontrolledProviderScope(container: contenedor, child: const AppSnapIt()),

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:snapit/compartido/mapa/capa_osm.dart';
 import 'package:snapit/funcionalidades/mapa/ubicacion.dart';
 import 'package:snapit/funcionalidades/reportar/borrador_reporte.dart';
 import 'package:snapit/funcionalidades/reportar/pantalla_elegir_punto.dart';
@@ -136,6 +137,7 @@ void main() {
     UbicacionFalsa? ubicacion,
     SelectorFotoFalso? selector,
     LatLng? ubicacionFoto,
+    Future<LatLng?> Function(String ruta)? lectorUbicacionFoto,
   }) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
@@ -147,6 +149,7 @@ void main() {
       ubicacion: ubicacion ?? UbicacionFalsa(gps),
       selectorFoto: selector ?? SelectorFotoFalso(foto),
       ubicacionFoto: ubicacionFoto,
+      lectorUbicacionFoto: lectorUbicacionFoto,
     );
     await tester.tap(find.text('Reportar'));
     await tester.pumpAndSettle();
@@ -362,22 +365,82 @@ void main() {
 
       expect(find.textContaining('Tomada del GPS'), findsOneWidget);
     });
-  });
 
-  testWidgets('si el reporte llega verificado, lo dice', (tester) async {
-    final servidor = ServidorDeReportes()
-      ..reportes = (_) => json(201, {
-        'id': 15,
-        'incidenteId': 9,
-        'nivelConfianza': 80,
-        'estadoVerificacion': 'VERIFICADO',
-      });
-    await abrirReportar(tester, servidor);
-    await completar(tester);
+    testWidgets('con el permiso del GPS negado, el punto de la foto se ve, se '
+        'puede mover y se envía', (tester) async {
+      final servidor = ServidorDeReportes();
+      await abrirReportar(
+        tester,
+        servidor,
+        ubicacion: UbicacionFalsa(null, ProblemaUbicacion.sinPermiso),
+        ubicacionFoto: dondeSeSaco,
+      );
+      final aviso = find.textContaining(
+        'Para reportar hace falta saber dónde está',
+      );
+      expect(aviso, findsOneWidget);
 
-    await enviar(tester);
+      await completar(tester);
 
-    expect(find.text('Se verificó y ya está publicado.'), findsOneWidget);
+      expect(aviso, findsNothing);
+      expect(find.textContaining('Es donde se sacó la foto'), findsOneWidget);
+      expect(find.byType(PinMapa), findsOneWidget);
+      expect(find.text('Mover el punto'), findsOneWidget);
+      await enviar(tester);
+      final enviado = campos(servidor.enviados.single);
+      expect(
+        double.parse(enviado['lat']!),
+        closeTo(dondeSeSaco.latitude, 1e-6),
+      );
+    });
+
+    testWidgets('si se cambia a una foto sin ubicación, vuelve a leer el GPS', (
+      tester,
+    ) async {
+      final servidor = ServidorDeReportes();
+      final ubicacion = UbicacionFalsa(gps);
+      LatLng? enLaFoto = dondeSeSaco;
+      await abrirReportar(
+        tester,
+        servidor,
+        ubicacion: ubicacion,
+        lectorUbicacionFoto: (_) async => enLaFoto,
+      );
+      await completar(tester);
+      expect(find.textContaining('Es donde se sacó la foto'), findsOneWidget);
+      expect(ubicacion.pedidosParaReportar, 1);
+
+      enLaFoto = null;
+      await tocar(tester, find.text('Galería'));
+
+      expect(ubicacion.pedidosParaReportar, 2);
+      expect(find.textContaining('Tomada del GPS'), findsOneWidget);
+      await enviar(tester);
+      final enviado = campos(servidor.enviados.single);
+      expect(enviado['lat'], '${gps.latitude}');
+      expect(enviado['lon'], '${gps.longitude}');
+    });
+
+    testWidgets('con el permiso negado, una foto sin ubicación vuelve al '
+        'aviso sin pedir el permiso otra vez', (tester) async {
+      final ubicacion = UbicacionFalsa(null, ProblemaUbicacion.sinPermiso);
+      LatLng? enLaFoto = dondeSeSaco;
+      await abrirReportar(
+        tester,
+        ServidorDeReportes(),
+        ubicacion: ubicacion,
+        lectorUbicacionFoto: (_) async => enLaFoto,
+      );
+      await completar(tester);
+      expect(find.text('Mover el punto'), findsOneWidget);
+
+      enLaFoto = null;
+      await tocar(tester, find.text('Galería'));
+
+      expect(find.text('Mover el punto'), findsNothing);
+      expect(find.text('Permitir ubicación'), findsOneWidget);
+      expect(ubicacion.pedidosParaReportar, 1);
+    });
   });
 
   testWidgets('volver del mapa sin elegir deja el punto del GPS', (

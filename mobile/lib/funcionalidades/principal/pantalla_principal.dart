@@ -345,7 +345,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
 
   /// Después de enviar un reporte vuelve al inicio con un aviso arriba.
   /// «Reportar» se cierra: al volver arranca vacío y lee de nuevo el GPS.
-  void _alEnviarReporte(bool verificado) {
+  void _alEnviarReporte() {
     setState(() {
       _seccion = _inicio;
       _abiertas.remove(_reportar);
@@ -353,9 +353,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     mostrarAvisoArriba(
       context,
       titulo: 'Reporte enviado',
-      texto: verificado
-          ? 'Se verificó y ya está publicado.'
-          : 'Queda pendiente de aprobación antes de publicarse.',
+      texto: 'Queda pendiente de aprobación antes de publicarse.',
     );
   }
 

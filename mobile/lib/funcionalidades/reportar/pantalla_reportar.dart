@@ -26,9 +26,9 @@ const avisoPublicacion =
 class PantallaReportar extends ConsumerStatefulWidget {
   const PantallaReportar({super.key, required this.alEnviar});
 
-  /// Después de enviar: si el reporte quedó verificado. La pantalla principal
-  /// vuelve al inicio y avisa arriba que se envió.
-  final ValueChanged<bool> alEnviar;
+  /// Después de enviar: la pantalla principal vuelve al inicio y avisa
+  /// arriba que se envió.
+  final VoidCallback alEnviar;
 
   @override
   ConsumerState<PantallaReportar> createState() => _PantallaReportarState();
@@ -147,11 +147,11 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
       _erroresServidor = {};
     });
     try {
-      final enviado = await _reporte.enviar();
+      await _reporte.enviar();
       if (!mounted) return;
       _descripcion.clear();
       setState(() => _mostrarFaltantes = false);
-      widget.alEnviar(enviado.verificado);
+      widget.alEnviar();
     } catch (e) {
       final error = ErrorApi.desde(e);
       if (!mounted) return;
@@ -178,14 +178,34 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
     return [error.mensaje, ...sueltos].join('. ');
   }
 
+  /// Si el GPS no anda porque se negó el permiso: el aviso ya dice cómo
+  /// darlo, y no se vuelve a pedir solo.
+  bool get _sinPermiso =>
+      _problemaUbicacion == ProblemaUbicacion.sinPermiso ||
+      _problemaUbicacion == ProblemaUbicacion.sinPermisoParaSiempre;
+
   @override
   Widget build(BuildContext context) {
+    // Una foto nueva sin ubicación se llevó el punto de la anterior: se vuelve
+    // a leer el GPS.
+    ref.listen(reporteEnCursoProvider, (antes, ahora) {
+      final perdioElDeLaFoto =
+          antes?.punto != null &&
+          antes?.origenPunto == OrigenPunto.foto &&
+          ahora.punto == null &&
+          ahora.foto != null;
+      if (perdioElDeLaFoto && !_sinPermiso) _buscarUbicacion();
+    });
+
     final borrador = ref.watch(reporteEnCursoProvider);
     final faltantes = _mostrarFaltantes
         ? borrador.faltantes
         : const <CampoReporte, String>{};
     String? errorDe(CampoReporte campo) =>
         _erroresServidor[campo] ?? faltantes[campo];
+    // El aviso del GPS solo se ve si falta el punto, y ya explica qué hacer.
+    final conAvisoUbicacion =
+        _problemaUbicacion != null && borrador.punto == null;
 
     return IgnorePointer(
       // Mientras sale el reporte no se puede cambiar nada: lo que se envía es
@@ -285,9 +305,7 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
               alMover: _moverPunto,
             ),
             _ErrorCampo(
-              _problemaUbicacion == null
-                  ? errorDe(CampoReporte.ubicacion)
-                  : null,
+              conAvisoUbicacion ? null : errorDe(CampoReporte.ubicacion),
             ),
             const SizedBox(height: Espacio.xl),
             if (faltantes.isNotEmpty) ...[
@@ -624,34 +642,34 @@ class _SeccionUbicacion extends StatelessWidget {
       color: tema.colorScheme.onSurfaceVariant,
     );
 
-    if (buscando) {
-      return Semantics(
-        liveRegion: true,
-        child: Row(
-          children: [
-            const SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: Espacio.md),
-            Expanded(
-              child: Text('Buscando tu ubicación…', style: textoSecundario),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (problema case final problema?) {
-      return _AvisoUbicacion(
-        problema: problema,
-        alReintentar: alReintentar,
-        alAbrirAjustes: () => alAbrirAjustes(problema),
-      );
-    }
-
+    // Con el punto puesto (por ejemplo, el de la foto) el reporte se puede
+    // enviar: se muestra aunque el GPS no ande o todavía lo esté buscando.
     final punto = this.punto;
     if (punto == null) {
+      if (buscando) {
+        return Semantics(
+          liveRegion: true,
+          child: Row(
+            children: [
+              const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: Espacio.md),
+              Expanded(
+                child: Text('Buscando tu ubicación…', style: textoSecundario),
+              ),
+            ],
+          ),
+        );
+      }
+      if (problema case final problema?) {
+        return _AvisoUbicacion(
+          problema: problema,
+          alReintentar: alReintentar,
+          alAbrirAjustes: () => alAbrirAjustes(problema),
+        );
+      }
       return OutlinedButton(
         onPressed: alReintentar,
         child: const Text('Buscar mi ubicación'),
@@ -688,10 +706,9 @@ class _SeccionUbicacion extends StatelessWidget {
                           height: Espacio.xxxl,
                           // La punta del pin sobre el punto.
                           alignment: Alignment.topCenter,
-                          child: Icon(
+                          child: const PinMapa(
                             Icons.location_on,
-                            size: Espacio.xxxl,
-                            color: tema.colorScheme.primary,
+                            tamanio: Espacio.xxxl,
                           ),
                         ),
                       ],
