@@ -131,5 +131,54 @@ void main() {
       expect(reporte.estado, EstadoIncidente.desestimado);
       expect(reporte.tieneFicha, isTrue);
     });
+
+    test('no con el incidente caducado: ya no está en el mapa', () {
+      final reporte = ReporteMio.desdeJson(
+        reporteJson(
+          incidente: const {
+            'id': 9,
+            'estado': 'VERIFICADO',
+            'caducadoEn': '2026-11-01T03:00:00.000Z',
+          },
+        ),
+      );
+      expect(reporte.tieneFicha, isFalse);
+    });
+  });
+
+  group('publicado', () {
+    ReporteMio reporte(String verificacion, Map<String, Object?>? incidente) =>
+        ReporteMio.desdeJson(
+          reporteJson(estadoVerificacion: verificacion, incidente: incidente),
+        );
+    const visible = {'id': 9, 'estado': 'DERIVADO', 'caducadoEn': null};
+
+    test('sí verificado y con su problema en el mapa', () {
+      expect(reporte('VERIFICADO', visible).publicado, isTrue);
+    });
+
+    test('no mientras está en revisión o si se desestimó', () {
+      expect(reporte('PENDIENTE_REVISION', visible).publicado, isFalse);
+      expect(reporte('DESESTIMADO', visible).publicado, isFalse);
+    });
+
+    test('no si su problema se desestimó, caducó o no tiene incidente', () {
+      expect(
+        reporte('VERIFICADO', const {
+          'id': 9,
+          'estado': 'DESESTIMADO',
+        }).publicado,
+        isFalse,
+      );
+      expect(
+        reporte('VERIFICADO', const {
+          'id': 9,
+          'estado': 'VERIFICADO',
+          'caducadoEn': '2026-11-01T03:00:00.000Z',
+        }).publicado,
+        isFalse,
+      );
+      expect(reporte('VERIFICADO', null).publicado, isFalse);
+    });
   });
 }

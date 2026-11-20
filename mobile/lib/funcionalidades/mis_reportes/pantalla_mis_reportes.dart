@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../compartido/errores/aviso_error.dart';
 import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/formato/fechas.dart';
 import '../../compartido/red/error_api.dart';
+import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../feed/estado_feed.dart';
 import '../mapa/estados.dart';
@@ -13,8 +15,10 @@ import '../mapa/modelos.dart';
 import 'modelos.dart';
 import 'repositorio_mis_reportes.dart';
 
-/// Los reportes del vecino con el estado de cada uno. Tocar uno abre la ficha
-/// de su incidente, la misma del mapa. Cada uno se puede eliminar (#152).
+/// Los reportes del vecino con el estado de cada uno. Tocar uno publicado abre
+/// su publicación, con el agradecimiento de SnapIt y los comentarios a su
+/// foto; uno que todavía no se publicó, la ficha de su incidente, la misma
+/// del mapa. Cada uno se puede eliminar (#152).
 class PantallaMisReportes extends ConsumerWidget {
   const PantallaMisReportes({super.key, required this.alReportar});
 
@@ -79,15 +83,17 @@ class _FilaReporte extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tema = Theme.of(context);
     final secundario = tema.colorScheme.onSurfaceVariant;
-    final abreFicha = reporte.tieneFicha;
+    final VoidCallback? alTocar = reporte.publicado
+        ? () => context.push(Rutas.reporte(reporte.id))
+        : reporte.tieneFicha
+        ? () => mostrarFicha(context, reporte.incidenteId!)
+        : null;
 
     // TalkBack lee la fila entera de una vez: categoría, fecha y estado. El
     // menú va aparte, para que se pueda elegir solo.
     final fila = MergeSemantics(
       child: InkWell(
-        onTap: abreFicha
-            ? () => mostrarFicha(context, reporte.incidenteId!)
-            : null,
+        onTap: alTocar,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: Espacio.lg,
@@ -116,7 +122,7 @@ class _FilaReporte extends ConsumerWidget {
                   ],
                 ),
               ),
-              if (abreFicha) Icon(Icons.chevron_right, color: secundario),
+              if (alTocar != null) Icon(Icons.chevron_right, color: secundario),
             ],
           ),
         ),
@@ -159,6 +165,7 @@ class _FilaReporte extends ConsumerWidget {
     if (confirmado != true || !context.mounted) return;
     try {
       await ref.read(repositorioMisReportesProvider).eliminar(reporte.id);
+      if (!context.mounted) return;
       ref.invalidate(misReportesProvider);
       ref.invalidate(feedProvider);
     } catch (error) {

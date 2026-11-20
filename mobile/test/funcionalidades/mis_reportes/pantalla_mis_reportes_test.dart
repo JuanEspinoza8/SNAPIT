@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snapit/funcionalidades/feed/pantalla_reporte.dart';
 import 'package:snapit/funcionalidades/mis_reportes/repositorio_mis_reportes.dart';
 
 import '../../apoyo/app_de_prueba.dart';
 import '../../apoyo/reportes_mios.dart';
 import '../../apoyo/servidor_falso.dart';
+import '../../apoyo/social.dart';
 
 const fichaJson = {
   'id': 9,
@@ -55,6 +57,33 @@ class ServidorMisReportes {
         return json(200, {'incidentes': <Object>[]});
       case '/incidentes/9':
         return json(200, fichaJson);
+      case '/incidentes/9/seguimiento':
+        return json(200, {'siguiendo': false});
+      // La publicación del reporte 15, como la ve su autor.
+      case '/social/reportes/15':
+        return json(200, {
+          'id': 15,
+          'incidenteId': 9,
+          'descripcion': 'Pozo grande frente a la escuela',
+          'creadoEn': '2026-10-06T15:15:33.494Z',
+          'autor': autorJson(1),
+          'fotos': [
+            {'id': 1, 'url': '/api/fotos/1'},
+          ],
+          'cantidadMeGusta': 0,
+          'cantidadComentarios': 1,
+          'yaMeGusta': false,
+        });
+      case '/social/reportes/15/comentarios':
+        return json(200, {
+          'comentarios': [
+            comentarioJson(
+              1,
+              '¡Gracias por tu reporte! Ya está publicado.',
+              autor: snapitJson,
+            ),
+          ],
+        });
       case '/reportes/mios':
         return mios?.call(pedido) ?? json(200, {'reportes': reportes});
       case final ruta
@@ -164,7 +193,39 @@ void main() {
     },
   );
 
-  testWidgets('tocar un reporte abre la ficha de su incidente', (tester) async {
+  testWidgets('tocar uno publicado abre su publicación, con el agradecimiento '
+      'de SnapIt', (tester) async {
+    final servidor = ServidorMisReportes([
+      reporteJson(
+        estadoVerificacion: 'VERIFICADO',
+        incidente: const {
+          'id': 9,
+          'estado': 'VERIFICADO',
+          'enRevision': false,
+          'caducadoEn': null,
+        },
+      ),
+    ]);
+    // Alto de sobra para que la publicación entre entera sin scrollear.
+    tester.view.physicalSize = const Size(1080, 3 * 3000);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await abrirMisReportes(tester, servidor);
+
+    await tester.tap(fila('Cordón sin rampa'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PantallaReporte), findsOneWidget);
+    expect(servidor.servidor.cantidad('/social/reportes/15'), 1);
+    expect(
+      find.text('¡Gracias por tu reporte! Ya está publicado.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('tocar uno que no se publicó abre la ficha de su incidente', (
+    tester,
+  ) async {
     final servidor = ServidorMisReportes([reporteJson()]);
     await abrirMisReportes(tester, servidor);
 
@@ -193,6 +254,30 @@ void main() {
     await tester.tap(find.text('Cordón sin rampa'));
     await tester.pumpAndSettle();
 
+    expect(servidor.servidor.cantidad('/incidentes/9'), 0);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+  });
+
+  testWidgets('con el incidente caducado no abre nada: ya no está en el mapa', (
+    tester,
+  ) async {
+    final servidor = ServidorMisReportes([
+      reporteJson(
+        estadoVerificacion: 'VERIFICADO',
+        incidente: const {
+          'id': 9,
+          'estado': 'VERIFICADO',
+          'enRevision': false,
+          'caducadoEn': '2026-11-01T03:00:00.000Z',
+        },
+      ),
+    ]);
+    await abrirMisReportes(tester, servidor);
+
+    await tester.tap(find.text('Cordón sin rampa'));
+    await tester.pumpAndSettle();
+
+    expect(servidor.servidor.cantidad('/social/reportes/15'), 0);
     expect(servidor.servidor.cantidad('/incidentes/9'), 0);
     expect(find.byIcon(Icons.chevron_right), findsNothing);
   });
