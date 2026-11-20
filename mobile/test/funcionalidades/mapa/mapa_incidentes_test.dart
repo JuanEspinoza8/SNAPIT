@@ -70,6 +70,7 @@ ServidorFalso servidorDelMapa([List<Map<String, Object?>>? incidentes]) {
     (pedido) => switch (pedido.path) {
       '/incidentes' => json(200, {'incidentes': incidentes ?? dosIncidentes}),
       '/categorias' => json(200, categoriasJson),
+      '/barrios' => json(200, {'barrios': ['Centro', 'Villa Ceferino']}),
       final ruta when ruta.startsWith('/incidentes/') => json(
         200,
         fichaJson(int.parse(ruta.split('/').last)),
@@ -289,7 +290,7 @@ void main() {
     await tester.tap(find.text('Bache').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Todos'));
+    await tester.tap(find.text('Todos').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Verificado').last);
     await tester.pumpAndSettle();

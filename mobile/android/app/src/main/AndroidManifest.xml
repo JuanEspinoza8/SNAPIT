@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <!-- Avisos push (F10): desde Android 13 el usuario tiene que habilitarlos. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- Sin backup: al restaurarlo, los tokens cifrados vuelven sin su clave
          y flutter_secure_storage no los puede leer. -->
     <application
