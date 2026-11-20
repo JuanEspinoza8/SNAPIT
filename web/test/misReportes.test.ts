@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { estadoParaElVecino, estaPublicado, tieneFicha } from '../src/funcionalidades/misReportes/tipos.js';
+import {
+  caducoEl,
+  estadoParaElVecino,
+  estaPublicado,
+  tieneFicha,
+} from '../src/funcionalidades/misReportes/tipos.js';
 import type { ReporteMio } from '../src/funcionalidades/misReportes/tipos.js';
 
 const reporte = (parcial: Partial<ReporteMio>): ReporteMio => ({
@@ -87,5 +92,24 @@ describe('estaPublicado', () => {
       ),
     ).toBe(false);
     expect(estaPublicado(reporte({ estadoVerificacion: 'VERIFICADO' }))).toBe(false);
+  });
+});
+
+describe('caducoEl', () => {
+  const caducado = { id: 1, estado: 'VERIFICADO' as const, enRevision: false, caducadoEn: '2026-11-01' };
+
+  it('da la fecha en que caducó su problema', () => {
+    expect(caducoEl(reporte({ estadoVerificacion: 'VERIFICADO', incidente: caducado }))).toBe('2026-11-01');
+  });
+
+  it('nada si el problema sigue vigente o no hay incidente', () => {
+    expect(caducoEl(reporte({ incidente: { ...caducado, caducadoEn: null } }))).toBeNull();
+    expect(caducoEl(reporte({ incidente: { id: 1, estado: 'DERIVADO', enRevision: false } }))).toBeNull();
+    expect(caducoEl(reporte({}))).toBeNull();
+  });
+
+  it('nada si se desestimó el reporte o su incidente: se muestra «Desestimado»', () => {
+    expect(caducoEl(reporte({ estadoVerificacion: 'DESESTIMADO', incidente: caducado }))).toBeNull();
+    expect(caducoEl(reporte({ incidente: { ...caducado, estado: 'DESESTIMADO' } }))).toBeNull();
   });
 });
