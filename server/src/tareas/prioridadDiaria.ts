@@ -1,11 +1,11 @@
 import cron from 'node-cron';
+import { ZONA_HORARIA } from '../compartido/zonaHoraria.js';
 import { logger } from '../config/logger.js';
 import { listarAbiertos } from '../modulos/prioridad/repositorio.js';
 import { recalcularIncidentes } from '../modulos/prioridad/servicio.js';
 
 export const HORARIO = '0 3 * * *';
-// Sin la zona, en Docker (que usa UTC) correría a las 00:00 de acá.
-export const ZONA_HORARIA = 'America/Argentina/Buenos_Aires';
+export { ZONA_HORARIA };
 
 /**
  * Recalcula la prioridad de los incidentes abiertos: la antigüedad cambia todos los días (F07). Devuelve el

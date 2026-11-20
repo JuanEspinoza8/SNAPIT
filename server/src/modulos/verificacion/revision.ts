@@ -63,6 +63,7 @@ function aRespuesta(fila: repositorio.FilaPendiente) {
             estado: fila.incidenteEstado,
             cantidadReportes: fila.cantidadReportes,
             propioId: fila.propioId,
+            caducadoEn: fila.caducadoEn,
           },
     // El historial, no quién es: para decidir alcanza con saber cuánto acertó antes.
     vecino: {

@@ -1,6 +1,6 @@
 import { type OrigenReporte, Prisma, type Severidad, type TipoVigencia } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
-import { INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
+import { CADUCO_EN, INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
 import type { ResultadoConfianza, Senal } from '../verificacion/calculo.js';
 import { conTareasAlConfirmar } from '../../compartido/despuesDeConfirmar.js';
 
@@ -214,6 +214,7 @@ export interface FilaMiReporte {
   categoriaNombre: string;
   incidenteId: number | null;
   incidenteEstado: string | null;
+  incidenteCaducadoEn: Date | null;
   fotos: number[];
 }
 
@@ -231,8 +232,9 @@ export function listarDeUsuario(usuarioId: number) {
            r.estado_verificacion::text AS "estadoVerificacion",
            c.id AS "categoriaId",
            c.nombre AS "categoriaNombre",
-           p.id AS "incidenteId",
-           p.estado::text AS "incidenteEstado",
+           i.id AS "incidenteId",
+           i.estado::text AS "incidenteEstado",
+           ${CADUCO_EN} AS "incidenteCaducadoEn",
            COALESCE(
              (SELECT array_agg(f.id ORDER BY f.id) FROM fotografia f WHERE f.reporte_id = r.id),
              '{}'
@@ -240,7 +242,7 @@ export function listarDeUsuario(usuarioId: number) {
     FROM reporte r
     JOIN categoria c ON c.id = r.categoria_id
     LEFT JOIN incidente propio ON propio.id = r.incidente_id
-    LEFT JOIN incidente p ON p.id = coalesce(propio.incidente_principal_id, propio.id)
+    LEFT JOIN incidente i ON i.id = coalesce(propio.incidente_principal_id, propio.id)
     WHERE r.usuario_id = ${usuarioId}
     ORDER BY r.registrado_en DESC, r.id DESC`;
 }
