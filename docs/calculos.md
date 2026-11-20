@@ -96,7 +96,7 @@ El **nivel de confianza** (`nivel_confianza`) es el porcentaje de controles que 
 | Foto sin EXIF (por ejemplo, reenviada por WhatsApp) | 0 | 0 | 1 | 33 |
 | Foto con GPS lejos del punto, vieja y repetida | −1 | −1 | −1 | 0 |
 
-**Solo la ubicación prueba algo:** que la foto se sacó en el lugar. La antigüedad y la foto repetida sirven para descartar. Por eso la IA publica sola únicamente si la ubicación coincide y no hay ningún control en contra.
+**Solo la ubicación prueba algo:** que la foto se sacó en el lugar. La antigüedad y la foto repetida sirven para descartar. Por eso la IA publica sola únicamente si la ubicación coincide y no hay ningún control en contra, o si la foto no trae ubicación pero muestra el mismo problema que un reporte ya verificado del incidente (corroborado, fila 7 de la tabla de decisión).
 
 La reputación del vecino y si la foto se sacó con la cámara de la app ya no cuentan: los tipos `ORIGEN_APP` y `REPUTACION` siguen en el enum `tipo_senal` (modelo congelado), pero no se generan más. La reputación se sigue calculando (ver abajo) y el operador la ve al revisar. Los parámetros del puntaje anterior (`confianza_base`, `umbral_verificado` y los `valor_*`) y `demo.revision_manual` ya no existen: la semilla los borra.
 
