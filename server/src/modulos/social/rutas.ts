@@ -46,6 +46,10 @@ rutasSocial.post('/reportes/:id/comentarios', autenticar, permitirRoles('VECINO'
   res.status(201).json(await servicio.comentarReporte(req.usuario!, req.params, req.body));
 });
 
+rutasSocial.post('/incidentes/:id/comentarios', autenticar, permitirRoles('VECINO'), async (req, res) => {
+  res.status(201).json(await servicio.comentarIncidente(req.usuario!, req.params, req.body));
+});
+
 // Editar: solo su autor. Eliminar: su autor, o un operador o administrador (moderación). servicio.ts lo controla.
 rutasSocial.patch('/comentarios/:id', autenticar, async (req, res) => {
   res.json(await servicio.editarComentario(req.usuario!, req.params, req.body));

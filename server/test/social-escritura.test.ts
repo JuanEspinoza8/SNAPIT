@@ -204,3 +204,90 @@ describe('comentarios', () => {
     expect(detalle.body.cantidadComentarios).toBe(0);
   });
 });
+
+describe('comentarios en el incidente', () => {
+  const comentar = (incidenteId: number, texto: string, token?: string) => {
+    const pedido = request(app).post(`/api/social/incidentes/${incidenteId}/comentarios`).send({ texto });
+    return token ? pedido.set('Authorization', token) : pedido;
+  };
+
+  it('un vecino comenta el problema: sale con su número y se lee en el incidente, no en el reporte', async () => {
+    const reporte = await crearReporte();
+    const { token } = await sesion();
+
+    const res = await comentar(reporte.incidenteId, '  Sigue igual en toda la cuadra  ', token);
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      texto: 'Sigue igual en toda la cuadra',
+      editadoEn: null,
+      esMio: true,
+      autor: { numero: 2, nombre: 'Vecino 2', sistema: false },
+    });
+    const delIncidente = await request(app)
+      .get(`/api/social/incidentes/${reporte.incidenteId}/comentarios`)
+      .set('Authorization', token);
+    expect(delIncidente.body.comentarios).toEqual([
+      expect.objectContaining({ id: res.body.id, esMio: true }),
+    ]);
+    const delReporte = await request(app).get(`/api/social/reportes/${reporte.id}/comentarios`);
+    expect(delReporte.body.comentarios).toEqual([]);
+  });
+
+  it('sin sesión → 401; operador → 403; texto vacío o largo → 400; incidente que no se ve → 404', async () => {
+    const reporte = await crearReporte();
+    const desestimado = await crearReporte({ incidente: 'DESESTIMADO' });
+    const { token } = await sesion();
+
+    expect((await comentar(reporte.incidenteId, 'Hola')).status).toBe(401);
+    expect((await comentar(reporte.incidenteId, 'Hola', (await sesion('OPERADOR')).token)).status).toBe(403);
+    expect((await comentar(reporte.incidenteId, 'Hola', (await sesion('ADMINISTRADOR')).token)).status).toBe(
+      403,
+    );
+    expect((await comentar(reporte.incidenteId, '   ', token)).status).toBe(400);
+    expect((await comentar(reporte.incidenteId, 'a'.repeat(1001), token)).status).toBe(400);
+    expect((await comentar(desestimado.incidenteId, 'Hola', token)).status).toBe(404);
+    expect((await comentar(2_000_000_000, 'Hola', token)).status).toBe(404);
+  });
+
+  it('en un incidente unido a otro, el comentario va al principal', async () => {
+    const principal = await crearReporte();
+    const unido = await crearReporte();
+    await prisma.incidente.update({
+      where: { id: unido.incidenteId },
+      data: { incidentePrincipalId: principal.incidenteId },
+    });
+    const { token } = await sesion();
+
+    const res = await comentar(unido.incidenteId, 'Es el mismo pozo', token);
+
+    expect(res.status).toBe(201);
+    const guardado = await prisma.comentario.findUniqueOrThrow({ where: { id: res.body.id } });
+    expect(guardado.incidenteId).toBe(principal.incidenteId);
+  });
+
+  it('su autor lo edita y lo elimina; un operador también lo elimina', async () => {
+    const reporte = await crearReporte();
+    const autor = await sesion();
+    const creado = await comentar(reporte.incidenteId, 'Primera versión', autor.token);
+    const url = `/api/social/comentarios/${creado.body.id}`;
+
+    const editado = await request(app)
+      .patch(url)
+      .set('Authorization', autor.token)
+      .send({ texto: 'Corregido' });
+    const ajeno = await request(app)
+      .delete(url)
+      .set('Authorization', (await sesion()).token);
+    const moderado = await request(app)
+      .delete(url)
+      .set('Authorization', (await sesion('OPERADOR')).token);
+
+    expect(editado.status).toBe(200);
+    expect(editado.body).toMatchObject({ texto: 'Corregido', esMio: true });
+    expect(ajeno.status).toBe(403);
+    expect(moderado.status).toBe(204);
+    const lista = await request(app).get(`/api/social/incidentes/${reporte.incidenteId}/comentarios`);
+    expect(lista.body.comentarios).toEqual([]);
+  });
+});

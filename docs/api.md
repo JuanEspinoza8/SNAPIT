@@ -1069,7 +1069,8 @@ Da o quita el me gusta del vecino de la sesión. Darlo dos veces no lo duplica, 
 ### `POST /api/social/reportes/:id/comentarios`
 Comenta un reporte. Cuerpo `{ "texto": "..." }`, de 1 a 1000 caracteres (se recortan los espacios de los bordes). Responde **201** con el comentario, con la misma forma que en la lista (`esMio: true`).
 
-Los comentarios van **solo en los reportes**: la ficha del incidente ya no tiene comentarios propios. Los que se hicieron antes en un incidente se siguen leyendo con `GET /api/social/incidentes/:id/comentarios`.
+### `POST /api/social/incidentes/:id/comentarios`
+Comenta el problema en general, en la ficha del incidente. Mismo cuerpo, mismas reglas y misma respuesta que el anterior. En un incidente unido a otro, el comentario va al **principal**, que es donde se lee. Un incidente desestimado, caducado o inexistente responde **404** `INCIDENTE_NO_ENCONTRADO`.
 
 ### `PATCH /api/social/comentarios/:id`
 Su autor lo edita. Cuerpo `{ "texto": "..." }`, con las mismas reglas. Responde **200** con el comentario, con `editadoEn` completo.
@@ -1077,7 +1078,7 @@ Su autor lo edita. Cuerpo `{ "texto": "..." }`, con las mismas reglas. Responde 
 ### `DELETE /api/social/comentarios/:id`
 Lo elimina su autor, o un operador o un administrador si es ofensivo (moderación). Baja lógica (`comentario.eliminado_en`). Responde **204**.
 
-Errores de las cuatro:
+Errores de las cinco:
 
 | Caso | Respuesta |
 |---|---|
@@ -1086,6 +1087,7 @@ Errores de las cuatro:
 | Editar un comentario ajeno, o eliminarlo sin ser su autor, operador ni administrador | **403** `SIN_PERMISO` |
 | Texto vacío o de más de 1000 caracteres | **400** `DATOS_INVALIDOS` |
 | Un reporte que no se ve (como en la lectura) | **404** `REPORTE_NO_ENCONTRADO` |
+| Un incidente que no se ve (como en la lectura) | **404** `INCIDENTE_NO_ENCONTRADO` |
 | Un comentario eliminado, inexistente o de un reporte o incidente que ya no se ve | **404** `COMENTARIO_NO_ENCONTRADO` |
 
 ## Avisos al vecino

@@ -134,6 +134,10 @@ export function comentarReporte(reporteId: number, usuarioId: number, texto: str
   return prisma.comentario.create({ data: { reporteId, usuarioId, texto }, select: COLUMNAS_COMENTARIO });
 }
 
+export function comentarIncidente(incidenteId: number, usuarioId: number, texto: string) {
+  return prisma.comentario.create({ data: { incidenteId, usuarioId, texto }, select: COLUMNAS_COMENTARIO });
+}
+
 /** Un comentario no eliminado, con lo que hace falta para saber si se ve y quién lo puede tocar. */
 export function buscarComentario(id: number) {
   return prisma.comentario.findFirst({

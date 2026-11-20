@@ -135,6 +135,18 @@ export async function comentarReporte(sesion: UsuarioSesion, parametros: unknown
 }
 
 /**
+ * Un comentario sobre el problema en general, en la ficha del incidente. En un incidente unido va al principal,
+ * que es donde se lee. Un incidente que no se ve, 404.
+ */
+export async function comentarIncidente(sesion: UsuarioSesion, parametros: unknown, cuerpo: unknown) {
+  const { id } = validar(esquemaId, parametros);
+  const incidente = await buscarVisible(id);
+  const { texto } = validar(esquemaComentario, cuerpo);
+  const comentario = await repositorio.comentarIncidente(incidente.id, sesion.id, texto);
+  return presentarComentario(await numerar(incidente.id), sesion.id)(comentario);
+}
+
+/**
  * Un comentario que todavía se ve, con el incidente que ve el público para numerar a su autor. Si se eliminó, o
  * su reporte o su incidente ya no se ven, 404.
  */
