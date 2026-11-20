@@ -90,12 +90,18 @@ export interface FilaPendiente {
   reputacion: string;
   reportesConfirmados: number;
   reportesDesestimados: number;
-  /** La última clasificación de la IA al procesar la cola (ia/cola.ts), o null si todavía no lo procesó. */
+  /**
+   * La última clasificación de la IA al procesar la cola (ia/cola.ts), o null si todavía no lo procesó. Los tres
+   * últimos campos son null si la IA no los informó; `datosPersonales` avisa que se ve una cara o una patente.
+   */
   propuestaIa: {
     categoriaId: number;
     severidad: Severidad;
     explicacion: string | null;
     creadoEn: string;
+    esProblemaViaPublica: boolean | null;
+    mismoProblema: boolean | null;
+    datosPersonales: boolean | null;
   } | null;
   estadoVerificacion: EstadoVerificacion;
   /** Cuándo lo publicó la IA al procesar la cola, o null si no fue ella. */
@@ -252,7 +258,10 @@ export function listarDelOrganismo(organismoId: number, filtros: FiltrosReportes
                      'categoriaId', (ri.salida->>'categoriaId')::int,
                      'severidad', ri.salida->>'severidad',
                      'explicacion', ri.salida->>'explicacion',
-                     'creadoEn', e.creado_en)
+                     'creadoEn', e.creado_en,
+                     'esProblemaViaPublica', (ri.salida->>'esProblemaViaPublica')::boolean,
+                     'mismoProblema', (ri.salida->>'mismoProblema')::boolean,
+                     'datosPersonales', (ri.salida->>'datosPersonales')::boolean)
             FROM evento_verificacion_ia e
             JOIN registro_ia ri ON ri.id = e.registro_ia_id
             WHERE e.reporte_id = r.id AND e.estado = 'CLASIFICADO'

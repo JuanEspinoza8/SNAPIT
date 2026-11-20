@@ -503,7 +503,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el incidente no esté en el mapa.
 - `vecino`: su historial, no quién es.
 - `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`). `caducadoEn` dice cuándo caducó o venció el principal, o `null`, como en `GET /api/reportes/mios`: «Unir» no propone los que tienen fecha.
-- `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última respuesta: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
+- `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última respuesta: `{ categoriaId, severidad, explicacion, creadoEn, esProblemaViaPublica, mismoProblema, datosPersonales }`. `null` si todavía no lo procesó. Los tres últimos son `null` si la IA no los informó; `datosPersonales: true` quiere decir que en la foto se ve una cara o una patente, y la pantalla lo avisa antes de publicarla. `mismoProblema` es `null` también cuando no había foto de referencia.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
 - No trae los pendientes de un incidente resuelto o desestimado: ya no se revisan (ver «Incidente cerrado» en `docs/calculos.md`). Siguen en `GET /api/reportes`, pendientes.
 - Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.

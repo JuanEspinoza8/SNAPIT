@@ -238,7 +238,21 @@ describe('POST /api/ia/procesar-cola', () => {
       severidad: 'GRAVE',
       explicacion: EXPLICACION,
       creadoEn: expect.any(String),
+      esProblemaViaPublica: true,
+      mismoProblema: null,
+      datosPersonales: false,
     });
+  });
+
+  it('si se ve una cara o una patente, la propuesta que ve el operador lo avisa', async () => {
+    const reporte = await reportar('GRAVE', 1);
+    verificar.mockImplementationOnce(async () => respuesta({ datosPersonales: true }));
+
+    await procesarYEsperar();
+
+    const cola = await request(app).get('/api/reportes/pendientes').set('Authorization', `Bearer ${token}`);
+    const pendiente = cola.body.reportes.find((r: { id: number }) => r.id === reporte.id);
+    expect(pendiente.propuestaIa).toMatchObject({ datosPersonales: true, esProblemaViaPublica: true });
   });
 
   it('sin la ubicación de la foto ni otro reporte verificado con qué compararla, lo decide un operador', async () => {
