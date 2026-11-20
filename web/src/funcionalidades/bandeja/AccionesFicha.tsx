@@ -432,8 +432,8 @@ export function Confirmacion(props: {
           type="button"
           disabled={props.enviando}
           onClick={props.alConfirmar}
-          className={`rounded-md px-4 py-2 text-sm font-semibold text-sobre-primario hover:opacity-90 disabled:opacity-50 ${
-            props.peligrosa ? 'bg-peligro' : 'bg-primario'
+          className={`rounded-md px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-50 ${
+            props.peligrosa ? 'bg-peligro text-sobre-peligro' : 'bg-primario text-sobre-primario'
           }`}
         >
           {props.enviando ? 'Guardando…' : props.texto}

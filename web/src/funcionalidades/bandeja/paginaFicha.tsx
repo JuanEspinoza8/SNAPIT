@@ -152,12 +152,11 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
             Desestimar…
           </BotonAccion>
         )}
-        {/* Unir y separar quedaron en su propia pestaña (#69), que es solo del operador: la ficha no los repite. */}
-        {usuario?.rol === 'OPERADOR' && (
-          <Link to="/incidentes" className="px-3 py-2 text-sm font-semibold text-primario hover:underline">
-            Unir o separar en Incidentes
-          </Link>
-        )}
+        {/* Unir y separar quedaron en su propia pestaña (#69), del operador y del administrador, como esta
+            ficha: la ficha no los repite. */}
+        <Link to="/incidentes" className="px-3 py-2 text-sm font-semibold text-primario hover:underline">
+          Unir o separar en Incidentes
+        </Link>
       </div>
       {errorCatalogo && validas.cambiarCategoria && (
         <AvisoError

@@ -94,7 +94,7 @@ describe('layout', () => {
     expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
   });
 
-  it('un administrador ve la administración y la bandeja, pero no la revisión ni lo del vecino', async () => {
+  it('un administrador ve todo lo del operador y la administración, pero no lo del vecino', async () => {
     montar('/', 'ADMINISTRADOR');
 
     expect(await screen.findByRole('link', { name: 'Administración' })).toHaveAttribute(
@@ -104,8 +104,8 @@ describe('layout', () => {
     expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
     expect(screen.getByRole('link', { name: 'Bandeja' })).toHaveAttribute('href', '/bandeja');
     expect(screen.getByRole('link', { name: 'Nombre: tu perfil' })).toHaveAttribute('href', '/perfil');
-    expect(screen.queryByRole('link', { name: 'Revisión' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Incidentes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Revisión' })).toHaveAttribute('href', '/revision');
+    expect(screen.getByRole('link', { name: 'Incidentes' })).toHaveAttribute('href', '/incidentes');
     expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
   });
 

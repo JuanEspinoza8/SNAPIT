@@ -1,11 +1,21 @@
 /// <reference types="node" />
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-// Se leen como texto: Vitest no procesa el CSS, y un import con ?raw llega vacío.
-const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), 'utf8');
+// Se leen como texto: Vitest no procesa el CSS, y un import con ?raw llega vacío. La ruta va en una variable: con
+// un texto fijo, Vite cambia `new URL(..., import.meta.url)` por la URL de un recurso.
+const enDisco = (ruta: string) => fileURLToPath(new URL(ruta, import.meta.url));
+const leer = (ruta: string) => readFileSync(enDisco(ruta), 'utf8');
 const tema = leer('../src/compartido/tema/tema.css');
+const estilos = leer('../src/estilos.css');
 const indexHtml = leer('../index.html');
+
+/** El código de las pantallas, para ver cómo se combinan los colores (sin los datos simulados). */
+const pantallas = readdirSync(enDisco('../src/'), { recursive: true, encoding: 'utf8' })
+  .map((ruta) => ruta.replaceAll('\\', '/'))
+  .filter((ruta) => /\.tsx?$/.test(ruta) && !ruta.includes('/mocks/'))
+  .map((ruta) => ({ ruta, codigo: leer(`../src/${ruta}`) }));
 
 /** Los colores `--color-x: #rrggbb` de un pedazo de tema.css. */
 function colores(bloque: string): Record<string, string> {
@@ -45,7 +55,8 @@ const TEXTO_SOBRE_FONDO = [
   ['peligro', 'superficie'],
   ['peligro', 'superficie-alterna'],
   ['sobre-primario', 'primario'],
-  ['sobre-primario', 'peligro'],
+  // El botón que confirma una eliminación.
+  ['sobre-peligro', 'peligro'],
 ] as const;
 
 const CON_TEXTO_SOBRE_ESTADO = [
@@ -70,6 +81,64 @@ describe.each([
 
   it.each(CON_TEXTO_SOBRE_ESTADO)('el texto sobre %s da 4,5:1 o más', (fondo) => {
     expect(contraste(paleta['sobre-estado']!, paleta[fondo]!)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('cómo se combinan en las pantallas', () => {
+  it('nada usa blanco o negro sueltos: van los tokens, que cambian con el tema', () => {
+    const sueltos = pantallas.flatMap(({ ruta, codigo }) =>
+      [...codigo.matchAll(/\b(?:text|bg|border)-(?:white|black)\b/g)].map(([clase]) => `${ruta}: ${clase}`),
+    );
+    expect(sueltos).toEqual([]);
+  });
+
+  // Un estado o una gravedad como color de texto (no de fondo) va sobre la superficie, que cambia con el tema.
+  const estadosComoTexto = [
+    ...new Set(
+      pantallas.flatMap(({ codigo }) =>
+        [...codigo.matchAll(/\btext-((?:estado|gravedad)-[a-z-]+)/g)].map(([, token]) => token!),
+      ),
+    ),
+  ];
+
+  it.each([
+    ['claro', claro],
+    ['oscuro', oscuro],
+  ])('los estados usados como texto dan 4,5:1 o más sobre las superficies del tema %s', (_tema, paleta) => {
+    for (const token of estadosComoTexto) {
+      for (const fondo of ['superficie', 'superficie-alterna']) {
+        expect(contraste(paleta[token]!, paleta[fondo]!), `${token} sobre ${fondo}`).toBeGreaterThanOrEqual(
+          4.5,
+        );
+      }
+    }
+  });
+});
+
+describe('lo que va sobre el mapa, que es claro en los dos temas', () => {
+  // El fondo del mapa de OpenStreetMap: el blanco de las calles y el crema de las manzanas.
+  const FONDOS_DEL_MAPA = ['#ffffff', '#f2efe9'];
+
+  it.each(FONDOS_DEL_MAPA)('el trazo de los marcadores da 3:1 o más sobre %s', (fondo) => {
+    expect(contraste(claro['marcador-trazo']!, fondo)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('el número de los grupos se lee sobre su círculo', () => {
+    expect(contraste(claro['marcador-borde']!, claro['marcador-trazo']!)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('ningún marcador usa el primario, que en el oscuro es claro', () => {
+    const reglas = [...estilos.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, selector]) =>
+      selector!.includes('marcador'),
+    );
+    expect(reglas.length).toBeGreaterThan(0);
+    for (const [, selector, cuerpo] of reglas) expect(cuerpo, selector).not.toContain('primario');
+
+    const iconos = pantallas.flatMap(({ ruta, codigo }) =>
+      [...codigo.matchAll(/html:\s*(['`])([\s\S]*?)\1/g)].map(([, , html]) => ({ ruta, html: html! })),
+    );
+    expect(iconos.length).toBeGreaterThan(0);
+    for (const { ruta, html } of iconos) expect(html, ruta).not.toContain('primario');
   });
 });
 

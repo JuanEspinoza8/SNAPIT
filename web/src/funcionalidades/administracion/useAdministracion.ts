@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCliente } from '../../compartido/red/clienteContexto.js';
 import { crearRepositorioAdmin } from '../../compartido/red/repositorioAdmin.js';
-import type { DatosAltaUsuario } from './tipos.js';
+import type { DatosAltaUsuario, DatosModificacionUsuario } from './tipos.js';
 
 export function useAdministracion() {
   const cliente = useCliente();
@@ -26,5 +26,18 @@ export function useAdministracion() {
     },
   });
 
-  return { organismos, usuarios, crearUsuario };
+  const refrescarUsuarios = () => void consulta.invalidateQueries({ queryKey: ['admin', 'usuarios'] });
+
+  const modificarUsuario = useMutation({
+    mutationFn: ({ id, datos }: { id: number; datos: DatosModificacionUsuario }) =>
+      repositorio.modificarUsuario(id, datos),
+    onSuccess: refrescarUsuarios,
+  });
+
+  const darDeBaja = useMutation({
+    mutationFn: (id: number) => repositorio.darDeBaja(id),
+    onSuccess: refrescarUsuarios,
+  });
+
+  return { organismos, usuarios, crearUsuario, modificarUsuario, darDeBaja };
 }

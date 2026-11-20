@@ -1,9 +1,7 @@
 import { useRef, useState } from 'react';
-import { AvisoError } from '../../compartido/componentes/AvisoError.js';
-import { haceCuanto } from '../../compartido/formato/fechas.js';
-import type { ErrorApi } from '../../compartido/red/error.js';
+import avatarSnapit from '../../assets/avatar-snapit.png';
 import { apiUrl } from '../../config/entorno.js';
-import type { Autor, Comentario, Foto, Gravedad } from './tipos.js';
+import type { Autor, Foto, Gravedad } from './tipos.js';
 
 /**
  * Como los estados, la gravedad se lee por el texto y las barras, no solo por el color. Las clases son
@@ -145,27 +143,20 @@ export function Carrusel({
   );
 }
 
-/** «♡ 7  💬 3», con el texto completo para el lector de pantalla. */
-export function Contadores({ meGusta, comentarios }: { meGusta: number; comentarios: number }) {
-  const texto = `${meGusta === 1 ? '1 me gusta' : `${meGusta} me gusta`}, ${
-    comentarios === 1 ? '1 comentario' : `${comentarios} comentarios`
-  }`;
-  return (
-    <span className="inline-flex items-center gap-4 text-sm font-semibold text-texto-secundario">
-      <span className="sr-only">{texto}</span>
-      <span aria-hidden="true">♡ {meGusta}</span>
-      <span aria-hidden="true">💬 {comentarios}</span>
-    </span>
-  );
-}
-
-/** El círculo con el número del vecino, que hace de foto de perfil. */
+/**
+ * El círculo con el número del vecino, que hace de foto de perfil. El de SnapIt es su logo (avatar-snapit.png:
+ * el de logo-mini.png, cuadrado para que entre entero en el círculo).
+ */
 export function Avatar({ autor, chico = false }: { autor: Autor; chico?: boolean }) {
+  const tamanio = chico ? 'h-6 w-6' : 'h-9 w-9';
+  if (autor.sistema) {
+    return <img src={avatarSnapit} alt="" className={`${tamanio} shrink-0 rounded-full object-cover`} />;
+  }
   return (
     <span
       aria-hidden="true"
       className={`inline-flex shrink-0 items-center justify-center rounded-full bg-primario font-semibold text-sobre-primario ${
-        chico ? 'h-6 w-6 text-xs' : 'h-9 w-9 text-sm'
+        chico ? `${tamanio} text-xs` : `${tamanio} text-sm`
       }`}
     >
       {autor.numero}
@@ -173,47 +164,16 @@ export function Avatar({ autor, chico = false }: { autor: Autor; chico?: boolean
   );
 }
 
-interface PropsComentarios {
-  titulo: string;
-  comentarios: Comentario[] | undefined;
-  cargando: boolean;
-  error: ErrorApi | null;
-  alReintentar: () => void;
-}
-
-/** Los comentarios de un reporte o de un incidente. Si no cargan, el resto de la página se ve igual. */
-export function SeccionComentarios({ titulo, comentarios, cargando, error, alReintentar }: PropsComentarios) {
+/** El nombre de quien comentó. SnapIt dice que es la cuenta oficial, para que no se confunda con un vecino. */
+export function NombreAutor({ autor }: { autor: Autor }) {
   return (
-    <section aria-label={titulo} className="flex flex-col gap-3">
-      <h2 className="text-xl font-semibold">{comentarios ? `${titulo} (${comentarios.length})` : titulo}</h2>
-      {cargando && (
-        <p role="status" className="text-sm text-texto-secundario">
-          Cargando los comentarios…
-        </p>
+    <span className="inline-flex items-center gap-1.5 font-semibold">
+      {autor.nombre}
+      {autor.sistema && (
+        <span className="rounded-md border border-borde px-1.5 text-xs font-semibold text-texto-secundario">
+          Cuenta oficial
+        </span>
       )}
-      {error && <AvisoError error={error} alReintentar={alReintentar} />}
-      {comentarios?.length === 0 && (
-        <p className="text-sm text-texto-secundario">Todavía no hay comentarios.</p>
-      )}
-      {comentarios && comentarios.length > 0 && (
-        <ul className="flex flex-col gap-4">
-          {comentarios.map((comentario) => (
-            <li key={comentario.id} className="flex gap-3">
-              <Avatar autor={comentario.autor} />
-              <div className="min-w-0">
-                <p className="text-sm">
-                  <span className="font-semibold">{comentario.autor.nombre}</span>{' '}
-                  <span className="text-xs text-texto-secundario">
-                    {haceCuanto(comentario.creadoEn)}
-                    {comentario.editadoEn && ' · editado'}
-                  </span>
-                </p>
-                <p className="break-words">{comentario.texto}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    </span>
   );
 }

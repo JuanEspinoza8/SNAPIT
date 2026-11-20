@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCategorias } from '../../compartido/catalogo/categorias.js';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
+import { conAviso } from '../../compartido/componentes/AvisoFlotante.js';
 import { Campo } from '../../compartido/componentes/Campo.js';
 import { CampoSelecto } from '../../compartido/componentes/CampoSelecto.js';
+import { VistaPreviaFoto } from '../../compartido/componentes/VistaPreviaFoto.js';
 import { problemaConLaFoto, TIPOS_FOTO } from '../../compartido/foto.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
-import type { EstadoNavegacionMapa } from '../mapa/tipos.js';
+import { ubicacionDeLaFoto } from '../../compartido/ubicacionFoto.js';
 import { MapaElegirPunto, type Punto } from './MapaElegirPunto.js';
 import type { Severidad } from './tipos.js';
 import { useReportar } from './useReportar.js';
@@ -47,6 +49,7 @@ const SEVERIDADES: { valor: Severidad; etiqueta: string }[] = [
 ];
 
 export function PaginaReportar() {
+  const navegar = useNavigate();
   const categorias = useCategorias();
   const reportar = useReportar();
   const ia = useSugerenciaIa();
@@ -60,6 +63,12 @@ export function PaginaReportar() {
   const [severidad, setSeveridad] = useState<Severidad | ''>('');
   const [descripcion, setDescripcion] = useState('');
   const [punto, setPunto] = useState<Punto | null>(null);
+  // De dónde salió el punto: de la ubicación que trae la foto o del mapa. Uno marcado a mano no se pisa.
+  const [origenPunto, setOrigenPunto] = useState<'foto' | 'mano' | null>(null);
+  const origen = useRef(origenPunto);
+  // La ubicación que trae la foto actual, para ofrecerla si el vecino ya marcó otro punto.
+  const [ubicacionFoto, setUbicacionFoto] = useState<Punto | null>(null);
+  const fotoActual = useRef<File | null>(null);
   const [errores, setErrores] = useState<Errores>(ERRORES_VACIOS);
   const [aviso, setAviso] = useState(false);
   // Si la IA completó algún campo: el aviso «completó lo que no habías elegido» sale solo en ese caso.
@@ -85,18 +94,28 @@ export function PaginaReportar() {
     setErrores((previos) => ({ ...previos, [campo]: error }));
   }
 
-  function reiniciar() {
-    setFoto(null);
-    setCategoriaId('');
-    setSeveridad('');
-    setDescripcion('');
-    setPunto(null);
-    setErrores(ERRORES_VACIOS);
-    setAviso(false);
-    setIaCompleto(false);
-    completadoPorIa.current = { categoria: false, severidad: false };
-    ia.reiniciar();
-    reportar.reset();
+  function ponerPunto(nuevo: Punto | null, de: 'foto' | 'mano' | null) {
+    setPunto(nuevo);
+    setOrigenPunto(de);
+    origen.current = de;
+    if (nuevo) marcar('ubicacion', null);
+  }
+
+  /**
+   * Lee dónde se sacó la foto (EXIF) y, si lo trae, marca ahí el punto: es donde el vecino vio el problema, aunque
+   * reporte desde otro lado. Un punto que el vecino marcó a mano no se toca; uno que venía de la foto anterior,
+   * sí, porque ya no corresponde.
+   */
+  function ubicarPorLaFoto(archivo: File) {
+    fotoActual.current = archivo;
+    setUbicacionFoto(null);
+    void ubicacionDeLaFoto(archivo).then((ubicacion) => {
+      if (fotoActual.current !== archivo) return;
+      setUbicacionFoto(ubicacion);
+      if (origen.current === 'mano') return;
+      if (ubicacion) ponerPunto(ubicacion, 'foto');
+      else if (origen.current === 'foto') ponerPunto(null, null);
+    });
   }
 
   /** Descarta la sugerencia de la foto anterior y vacía lo que había completado ella. */
@@ -120,6 +139,7 @@ export function PaginaReportar() {
     }
     setFoto(archivo);
     marcar('foto', null);
+    if (archivo) ubicarPorLaFoto(archivo);
     // La IA completa solo lo que el vecino todavía no eligió: él siempre tiene la última palabra (F06).
     void ia.pedir(archivo).then((propuesta) => {
       if (!propuesta) return;
@@ -167,6 +187,14 @@ export function PaginaReportar() {
         sugerencia,
       },
       {
+        // Vuelve al inicio con un aviso arriba: el reporte queda pendiente hasta que se revise.
+        onSuccess: () =>
+          void navegar('/', {
+            state: conAviso({
+              titulo: 'Reporte enviado',
+              texto: 'Queda pendiente de aprobación antes de publicarse.',
+            }),
+          }),
         // No se toca nada de lo cargado: solo se muestran los errores del servidor.
         onError: (error) => {
           const { porCampo, sinCampo } = repartirErrores(aErrorApi(error), CAMPOS_API);
@@ -177,44 +205,13 @@ export function PaginaReportar() {
     );
   }
 
-  if (reportar.isSuccess) {
-    // Desde la verificación automática (#50) un reporte puede quedar verificado al llegar.
-    const verificado = reportar.data.estadoVerificacion === 'VERIFICADO';
-    const foco: EstadoNavegacionMapa | undefined = punto ? { foco: punto } : undefined;
-    return (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-texto">Reporte enviado</h1>
-        <p className="text-texto-secundario">
-          {verificado
-            ? 'Se verificó y ya está en el mapa.'
-            : 'Ya está en el mapa y queda pendiente de revisión hasta que se verifique.'}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to="/mapa"
-            state={foco}
-            className="rounded-md bg-primario px-4 py-2 text-sm font-semibold text-sobre-primario hover:opacity-90"
-          >
-            Ver en el mapa
-          </Link>
-          <button
-            type="button"
-            onClick={reiniciar}
-            className="rounded-md border border-borde bg-superficie px-4 py-2 text-sm font-semibold text-primario hover:bg-superficie-alterna"
-          >
-            Cargar otro reporte
-          </button>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-texto">Reportar un problema</h1>
         <p className="text-texto-secundario">
-          Cargá una foto, elegí el tipo y la gravedad, y marcá el punto en el mapa.
+          Cargá una foto, elegí el tipo y la gravedad, y marcá el punto en el mapa. Si la foto trae su
+          ubicación, el punto se marca solo.
         </p>
       </div>
 
@@ -229,7 +226,7 @@ export function PaginaReportar() {
             error={errores.foto}
           />
           {vistaPrevia && (
-            <img
+            <VistaPreviaFoto
               src={vistaPrevia}
               alt="Vista previa de la foto del problema"
               className="mt-2 max-h-64 rounded-md border border-borde"
@@ -325,18 +322,29 @@ export function PaginaReportar() {
 
         <div className="space-y-1">
           <p className="text-sm font-semibold text-texto">Ubicación</p>
-          <p className="text-sm text-texto-secundario">
-            {punto
-              ? `Elegiste ${punto.lat.toFixed(5)}, ${punto.lon.toFixed(5)}. Tocá el mapa para moverlo.`
-              : 'Tocá el mapa para marcar dónde está el problema.'}
+          <p className="text-sm text-texto-secundario" role="status">
+            {origenPunto === 'foto'
+              ? 'Lo marcamos donde se sacó la foto. Si no es ahí, tocá el mapa para moverlo.'
+              : punto
+                ? `Elegiste ${punto.lat.toFixed(5)}, ${punto.lon.toFixed(5)}. Tocá el mapa para moverlo.`
+                : foto
+                  ? 'La foto no trae su ubicación: tocá el mapa para marcar dónde está el problema.'
+                  : 'Tocá el mapa para marcar dónde está el problema.'}
           </p>
+          {origenPunto === 'mano' && ubicacionFoto && (
+            <button
+              type="button"
+              onClick={() => ponerPunto(ubicacionFoto, 'foto')}
+              className="text-sm font-semibold text-primario hover:opacity-80"
+            >
+              Usar donde se sacó la foto
+            </button>
+          )}
           <div className="mt-1 h-72 overflow-hidden rounded-lg border border-borde">
             <MapaElegirPunto
               punto={punto}
-              alElegirPunto={(lat, lon) => {
-                setPunto({ lat, lon });
-                marcar('ubicacion', null);
-              }}
+              centrar={origenPunto === 'foto'}
+              alElegirPunto={(lat, lon) => ponerPunto({ lat, lon }, 'mano')}
             />
           </div>
           {errores.ubicacion && <p className="text-sm text-peligro">{errores.ubicacion}</p>}

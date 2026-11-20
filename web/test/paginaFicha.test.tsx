@@ -75,9 +75,9 @@ function fichaBase(cambios: Partial<FichaGestion> = {}): FichaGestion {
         lat: -38.9516,
         lon: -68.0591,
         origen: 'APP_MOVIL',
-        nivelConfianza: 65,
+        nivelConfianza: 100,
         estadoVerificacion: 'VERIFICADO',
-        senales: [{ tipo: 'ORIGEN_APP', valor: 15, detalle: 'La foto se sacó con la cámara de la app' }],
+        senales: [{ tipo: 'EXIF_COINCIDE', valor: 1, detalle: 'La foto se sacó a 12 m del punto reportado' }],
         fotos: [{ id: 12, url: '/api/fotos/12' }],
       },
       {
@@ -91,9 +91,9 @@ function fichaBase(cambios: Partial<FichaGestion> = {}): FichaGestion {
         lat: -38.9516,
         lon: -68.0591,
         origen: 'SITIO_WEB',
-        nivelConfianza: 20,
+        nivelConfianza: 0,
         estadoVerificacion: 'DESESTIMADO',
-        senales: [{ tipo: 'HASH_DUPLICADO', valor: -40, detalle: 'La foto ya se usó en otro reporte' }],
+        senales: [{ tipo: 'HASH_DUPLICADO', valor: -1, detalle: 'La foto ya se usó en otro reporte' }],
         fotos: [{ id: 20, url: '/api/fotos/20' }],
       },
     ],
@@ -244,17 +244,19 @@ const acciones = () =>
   ].filter((nombre) => screen.queryByRole('button', { name: nombre }) !== null);
 
 describe('ficha del incidente para el operador', () => {
-  it('muestra los reportes con su confianza y sus señales, también los desestimados de un unido', async () => {
+  it('muestra los reportes con su estado y sus controles, también los desestimados de un unido', async () => {
     montar();
     expect(await titulo()).toHaveTextContent('Incidente #7 · Pozo en la calzada');
 
     expect(screen.getByText('Reporte #12 · Pozo en la calzada · Grave')).toBeInTheDocument();
-    expect(screen.getAllByText(/\/100/).map((texto) => texto.textContent)).toEqual([
-      'Confianza 65/100 · Verificado',
-      'Confianza 20/100 · Desestimado',
-    ]);
-    expect(screen.getByText(/La foto se sacó con la cámara de la app/)).toBeInTheDocument();
-    expect(screen.getByText(/Foto repetida \(-40\)/)).toBeInTheDocument();
+    const reporte12 = screen.getByText('Reporte #12 · Pozo en la calzada · Grave').closest('li')!;
+    expect(within(reporte12).getByText('Verificado')).toBeInTheDocument();
+    expect(screen.getAllByText('Desestimado').length).toBeGreaterThan(0);
+    expect(screen.getByText(/La foto se sacó a 12 m del punto reportado/)).toBeInTheDocument();
+    const reporte20 = screen.getByText('Reporte #20 · Vereda rota · Leve').closest('li')!;
+    expect(within(reporte20).getByText('Foto repetida').closest('li')).toHaveTextContent(
+      'Foto repetida · No se cumple: La foto ya se usó en otro reporte',
+    );
     expect(screen.getByText('Del incidente #14, unido a este')).toBeInTheDocument();
 
     // Las fotos se piden con la sesión: así el operador ve también la del reporte desestimado.
@@ -297,7 +299,7 @@ describe('ficha del incidente para el operador', () => {
     );
   });
 
-  it('al administrador no, porque Incidentes es solo del operador', async () => {
+  it('al administrador también: Incidentes es del operador y del administrador', async () => {
     servidor.use(
       http.get('*/api/auth/yo', () =>
         HttpResponse.json({
@@ -315,7 +317,10 @@ describe('ficha del incidente para el operador', () => {
     await titulo();
     await waitFor(() => expect(acciones()).toContain('Desestimar…'));
 
-    expect(screen.queryByRole('link', { name: 'Unir o separar en Incidentes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Unir o separar en Incidentes' })).toHaveAttribute(
+      'href',
+      '/incidentes',
+    );
   });
 
   it('derivado y con ajuste: suma pasar a ejecución y quitar el ajuste', async () => {

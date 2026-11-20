@@ -4,11 +4,15 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Campo } from '../../compartido/componentes/Campo.js';
 import { CampoSelecto } from '../../compartido/componentes/CampoSelecto.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
+import { Modal } from '../../compartido/componentes/Modal.js';
+import { useFocoConfirmacion } from '../../compartido/componentes/useFocoConfirmacion.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
 import { validarClaveNueva, validarCorreo, validarNombre } from '../cuenta/validaciones.js';
 import type { Organismo, RolDeAlta } from './tipos.js';
+import { useSesion } from '../../compartido/sesion/sesionContexto.js';
 import type { Usuario } from '../../compartido/sesion/usuario.js';
+import { EditarUsuario } from './EditarUsuario.js';
 import { useAdministracion } from './useAdministracion.js';
 
 type Errores = {
@@ -43,7 +47,17 @@ const TEXTO_ROL: Record<Usuario['rol'], string> = {
 };
 
 export function PaginaAltaOperador() {
-  const { organismos: consultaOrganismos, usuarios: consultaUsuarios, crearUsuario } = useAdministracion();
+  const {
+    organismos: consultaOrganismos,
+    usuarios: consultaUsuarios,
+    crearUsuario,
+    modificarUsuario,
+    darDeBaja,
+  } = useAdministracion();
+  const { usuario: yo } = useSesion();
+  const [editando, setEditando] = useState<Usuario | null>(null);
+  // El usuario cuya baja se está confirmando: dar de baja no se deshace desde acá.
+  const [confirmandoBaja, setConfirmandoBaja] = useState<number | null>(null);
 
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
@@ -81,10 +95,10 @@ export function PaginaAltaOperador() {
   return (
     <section className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-texto">Alta de operadores</h1>
+        <h1 className="text-2xl font-semibold text-texto">Usuarios</h1>
         <p className="text-texto-secundario">
-          Creá la cuenta de un operador o administrador con una clave inicial. Lo cargado no se pierde si el
-          servidor rechaza algo.
+          Creá la cuenta de un operador o administrador con una clave inicial, y editá o da de baja a los
+          usuarios desde la lista. Lo cargado no se pierde si el servidor rechaza algo.
         </p>
       </div>
 
@@ -183,7 +197,7 @@ export function PaginaAltaOperador() {
           {rol === 'OPERADOR' && (
             <CampoSelecto
               id="area"
-              etiqueta="Área"
+              etiqueta="Área (opcional)"
               value={areaId}
               onChange={alCambiar('area', setAreaId)}
               error={errores.area}
@@ -191,11 +205,9 @@ export function PaginaAltaOperador() {
             >
               {!organismoElegido ? (
                 <option value="">Primero elegí un organismo</option>
-              ) : areas.length === 0 ? (
-                <option value="">El organismo no tiene áreas activas</option>
               ) : (
                 <>
-                  <option value="">Elegí un área</option>
+                  <option value="">Sin área: ve todo el organismo</option>
                   {areas.map((area) => (
                     <option key={area.id} value={area.id}>
                       {area.nombre}
@@ -226,7 +238,7 @@ export function PaginaAltaOperador() {
         </form>
 
         <div className="space-y-3">
-          <h2 className="text-xl font-semibold text-texto">Usuarios</h2>
+          <h2 className="text-xl font-semibold text-texto">Todos los usuarios</h2>
           {consultaUsuarios.isError && (
             <AvisoError
               error={aErrorApi(consultaUsuarios.error)}
@@ -238,21 +250,57 @@ export function PaginaAltaOperador() {
           {consultaUsuarios.data && (
             <ul className="divide-y divide-borde rounded-md border border-borde">
               {consultaUsuarios.data.usuarios.map((usuario) => (
-                <li key={usuario.id} className="flex items-baseline justify-between gap-4 p-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-texto">{usuario.nombre}</p>
-                    <p className="truncate text-texto-secundario">{usuario.email}</p>
+                <li key={usuario.id} className="flex flex-col gap-2 p-3 text-sm">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-texto">{usuario.nombre}</p>
+                      <p className="truncate text-texto-secundario">{usuario.email}</p>
+                    </div>
+                    <div className="shrink-0 text-right text-texto-secundario">
+                      <p>{TEXTO_ROL[usuario.rol]}</p>
+                      <p className="text-xs">
+                        {textoOrganismo(usuario, consultaOrganismos.data?.organismos)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="shrink-0 text-right text-texto-secundario">
-                    <p>{TEXTO_ROL[usuario.rol]}</p>
-                    <p className="text-xs">{textoOrganismo(usuario, consultaOrganismos.data?.organismos)}</p>
-                  </div>
+                  <AccionesUsuario
+                    usuario={usuario}
+                    confirmando={confirmandoBaja === usuario.id}
+                    // Nadie se da de baja a sí mismo desde acá.
+                    puedeDarDeBaja={usuario.id !== yo?.id}
+                    dandoDeBaja={darDeBaja.isPending}
+                    alEditar={() => {
+                      modificarUsuario.reset();
+                      setEditando(usuario);
+                    }}
+                    alPedirBaja={() => {
+                      darDeBaja.reset();
+                      setConfirmandoBaja(usuario.id);
+                    }}
+                    alCancelar={() => setConfirmandoBaja(null)}
+                    alConfirmar={() =>
+                      darDeBaja.mutate(usuario.id, { onSuccess: () => setConfirmandoBaja(null) })
+                    }
+                  />
+                  {confirmandoBaja === usuario.id && darDeBaja.isError && (
+                    <AvisoError error={aErrorApi(darDeBaja.error)} />
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+      {editando && (
+        <Modal titulo={`Editar a ${editando.nombre}`} ancho="max-w-lg" alCerrar={() => setEditando(null)}>
+          <EditarUsuario
+            usuario={editando}
+            organismos={todosLosOrganismos}
+            modificar={modificarUsuario}
+            alTerminar={() => setEditando(null)}
+          />
+        </Modal>
+      )}
     </section>
   );
 
@@ -265,7 +313,7 @@ export function PaginaAltaOperador() {
       email: validarCorreo(email),
       clave: validarClaveNueva(clave),
       organismo: rol === 'OPERADOR' && organismo === null ? 'Es obligatorio' : null,
-      area: rol === 'OPERADOR' && area === null ? 'Es obligatoria' : null,
+      area: null,
     };
     setErrores(validados);
     setAviso(false);
@@ -276,7 +324,7 @@ export function PaginaAltaOperador() {
     const base = { email: email.trim(), clave, nombre: nombre.trim() };
     crearUsuario.mutate(
       rol === 'OPERADOR'
-        ? { ...base, rol, organismoId: organismo as number, areaId: area as number }
+        ? { ...base, rol, organismoId: organismo as number, areaId: area }
         : { ...base, rol, organismoId: organismo, areaId: null },
       {
         onSuccess: () => {
@@ -294,6 +342,76 @@ export function PaginaAltaOperador() {
       },
     );
   }
+}
+
+/** Editar y dar de baja a un usuario de la lista. La baja se confirma ahí mismo, porque no se deshace desde acá. */
+function AccionesUsuario({
+  usuario,
+  confirmando,
+  puedeDarDeBaja,
+  dandoDeBaja,
+  alEditar,
+  alPedirBaja,
+  alCancelar,
+  alConfirmar,
+}: {
+  usuario: Usuario;
+  confirmando: boolean;
+  puedeDarDeBaja: boolean;
+  dandoDeBaja: boolean;
+  alEditar: () => void;
+  alPedirBaja: () => void;
+  alCancelar: () => void;
+  alConfirmar: () => void;
+}) {
+  const { botonAbrir, botonConfirmar } = useFocoConfirmacion(confirmando);
+
+  if (confirmando) {
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <p className="mr-auto text-peligro">¿Dar de baja a {usuario.nombre}? No va a poder ingresar.</p>
+        <button
+          type="button"
+          onClick={alCancelar}
+          className="rounded-md border border-borde px-3 py-1 font-semibold text-texto hover:bg-superficie-alterna"
+        >
+          Cancelar
+        </button>
+        <button
+          ref={botonConfirmar}
+          type="button"
+          disabled={dandoDeBaja}
+          onClick={alConfirmar}
+          className="rounded-md bg-peligro px-3 py-1 font-semibold text-sobre-peligro hover:opacity-90 disabled:opacity-50"
+        >
+          {dandoDeBaja ? 'Dando de baja…' : 'Sí, dar de baja'}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex justify-end gap-3">
+      <button
+        type="button"
+        onClick={alEditar}
+        className="font-semibold text-primario hover:opacity-80"
+        aria-label={`Editar a ${usuario.nombre}`}
+      >
+        Editar
+      </button>
+      {puedeDarDeBaja && (
+        <button
+          ref={botonAbrir}
+          type="button"
+          onClick={alPedirBaja}
+          className="font-semibold text-peligro hover:opacity-80"
+          aria-label={`Dar de baja a ${usuario.nombre}`}
+        >
+          Dar de baja
+        </button>
+      )}
+    </div>
+  );
 }
 
 // La lista de organismos trae solo los activos: si el del usuario no está,

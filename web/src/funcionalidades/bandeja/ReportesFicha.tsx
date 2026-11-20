@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { ESTADOS_VERIFICACION } from '../../compartido/formato/verificacion.js';
-import { SENALES, severidadEnTexto } from '../revision/tipos.js';
-import { fechaHora, numero } from './formato.js';
+import { controles, RESULTADO_CONTROL } from '../revision/estadoIa.js';
+import { severidadEnTexto } from '../revision/tipos.js';
+import { fechaHora } from './formato.js';
 import type { ReporteGestion } from './tipos.js';
 
-/** Los reportes del incidente y de sus unidos, con sus fotos, su nivel de confianza y por qué. */
+/** Los reportes del incidente y de sus unidos, con sus fotos, su estado y sus controles automáticos. */
 export function ReportesFicha({
   incidenteId,
   reportes,
@@ -83,23 +84,15 @@ function Reporte({ reporte, deUnido }: { reporte: ReporteGestion; deUnido: boole
           {fechaHora(reporte.registradoEn)} · desde{' '}
           {reporte.origen === 'APP_MOVIL' ? 'la app' : 'el sitio web'}
         </p>
-        <p className="text-texto">
-          Confianza <span className="font-semibold">{reporte.nivelConfianza}</span>/100 ·{' '}
-          {ESTADOS_VERIFICACION[reporte.estadoVerificacion]}
-        </p>
-        {reporte.senales.length > 0 && (
-          <ul className="flex flex-col gap-1 text-xs text-texto">
-            {reporte.senales.map((senal) => (
-              <li key={senal.tipo}>
-                <span className="font-semibold">
-                  {SENALES[senal.tipo] ?? senal.tipo} ({senal.valor > 0 ? '+' : ''}
-                  {numero.format(senal.valor)})
-                </span>
-                {senal.detalle && `: ${senal.detalle}`}
-              </li>
-            ))}
-          </ul>
-        )}
+        <p className="text-texto">{ESTADOS_VERIFICACION[reporte.estadoVerificacion]}</p>
+        <ul className="flex flex-col gap-1 text-xs text-texto">
+          {controles(reporte.senales).map((control) => (
+            <li key={control.nombre}>
+              <span className="font-semibold">{control.nombre}</span> · {RESULTADO_CONTROL[control.resultado]}
+              {control.detalle && `: ${control.detalle}`}
+            </li>
+          ))}
+        </ul>
       </div>
     </li>
   );

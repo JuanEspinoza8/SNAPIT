@@ -7,10 +7,11 @@ interface Props {
   lon: number;
 }
 
-// Uno solo para todos los mapas: crearlo en cada render hacía que Leaflet redibujara el marcador.
+// Uno solo para todos los mapas: crearlo en cada render hacía que Leaflet redibujara el marcador. Con el color fijo
+// de los marcadores, porque el mapa es claro en los dos temas.
 const ICONO_PUNTO = L.divIcon({
   className: '',
-  html: '<div class="marcador-punto bg-primario"></div>',
+  html: '<div class="marcador-punto bg-marcador-trazo"></div>',
   iconSize: [26, 26],
 });
 

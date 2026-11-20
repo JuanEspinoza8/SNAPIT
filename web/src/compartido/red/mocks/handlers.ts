@@ -142,14 +142,11 @@ let reportesPendientes: ReportePendiente[] = [
     lat: -38.9531,
     lon: -68.0478,
     origen: 'SITIO_WEB',
-    nivelConfianza: 40,
+    nivelConfianza: 33,
     senales: [
-      {
-        tipo: 'EXIF_AUSENTE',
-        valor: -10,
-        detalle: 'La foto se eligió de la galería y no trae la ubicación donde se sacó',
-      },
-      { tipo: 'REPUTACION', valor: 0, detalle: 'Reputación del vecino: 50 de 100' },
+      { tipo: 'EXIF_AUSENTE', valor: 0, detalle: 'La foto no trae la ubicación donde se sacó' },
+      { tipo: 'FECHA_ANTIGUA', valor: 0, detalle: 'La foto no trae la fecha en que se sacó' },
+      { tipo: 'HASH_DUPLICADO', valor: 1, detalle: 'La foto no se usó en otro reporte' },
     ],
     fotos: [{ id: 1, url: '/api/fotos/1' }],
     incidente: { id: 9, estado: 'REGISTRADO', cantidadReportes: 1 },
@@ -168,18 +165,51 @@ let reportesPendientes: ReportePendiente[] = [
     origen: 'APP_MOVIL',
     nivelConfianza: 0,
     senales: [
-      { tipo: 'HASH_DUPLICADO', valor: -40, detalle: 'La misma foto ya se usó en otro reporte' },
+      { tipo: 'EXIF_AUSENTE', valor: 0, detalle: 'La foto no trae la ubicación donde se sacó' },
+      { tipo: 'FECHA_ANTIGUA', valor: 0, detalle: 'La foto no trae la fecha en que se sacó' },
       {
-        tipo: 'EXIF_AUSENTE',
-        valor: -10,
-        detalle: 'La foto se eligió de la galería y no trae la ubicación donde se sacó',
+        tipo: 'HASH_DUPLICADO',
+        valor: -1,
+        detalle: 'La misma foto ya se usó en el reporte 3, de otro vecino',
       },
-      { tipo: 'REPUTACION', valor: -20, detalle: 'Reputación del vecino: 0 de 100' },
     ],
     fotos: [{ id: 2, url: '/api/fotos/2' }],
     incidente: null,
     vecino: { reputacion: 0, reportesConfirmados: 0, reportesDesestimados: 3 },
     propuestaIa: null,
+  },
+];
+
+// Los que la IA marcó para desestimar (GET /reportes/desestimados-pendientes).
+let reportesDesestimados: ReportePendiente[] = [
+  {
+    id: 18,
+    registradoEn: '2026-10-18T11:30:00.000Z',
+    categoria: { id: 1, nombre: 'Pozo en la calzada' },
+    severidadDeclarada: 'LEVE',
+    descripcion: null,
+    direccion: 'Belgrano 450, Área Centro Este',
+    lat: -38.952,
+    lon: -68.06,
+    origen: 'SITIO_WEB',
+    nivelConfianza: 33,
+    senales: [
+      { tipo: 'EXIF_AUSENTE', valor: 0, detalle: 'La foto no trae la ubicación donde se sacó' },
+      { tipo: 'FECHA_ANTIGUA', valor: 0, detalle: 'La foto no trae la fecha en que se sacó' },
+      { tipo: 'HASH_DUPLICADO', valor: 1, detalle: 'La foto no se usó en otro reporte' },
+    ],
+    fotos: [{ id: 4, url: '/api/fotos/4' }],
+    incidente: { id: 11, estado: 'REGISTRADO', cantidadReportes: 1 },
+    vecino: { reputacion: 50, reportesConfirmados: 0, reportesDesestimados: 0 },
+    propuestaIa: {
+      categoriaId: null,
+      severidad: null,
+      explicacion: 'Es un perro acostado en el patio de una casa: no se ve ningún problema en la calle.',
+      creadoEn: '2026-10-18T12:00:00.000Z',
+      datosPersonales: false,
+      mismoProblema: null,
+      esProblemaViaPublica: false,
+    },
   },
 ];
 
@@ -287,6 +317,24 @@ export const handlers = [
 
   http.get(`${apiUrl}/admin/usuarios`, () => HttpResponse.json({ usuarios })),
 
+  // Modificar y dar de baja cambian la lista en memoria, como el alta.
+  http.put(`${apiUrl}/admin/usuarios/:id`, async ({ params, request }) => {
+    const cambios = (await request.json()) as Partial<Usuario>;
+    const id = Number(params.id);
+    usuarios = usuarios.map((usuario) => (usuario.id === id ? { ...usuario, ...cambios } : usuario));
+    const usuario = usuarios.find((otro) => otro.id === id);
+    return usuario
+      ? HttpResponse.json({ usuario })
+      : HttpResponse.json(
+          { error: { codigo: 'USUARIO_NO_ENCONTRADO', mensaje: 'El usuario no existe' } },
+          { status: 404 },
+        );
+  }),
+  http.delete(`${apiUrl}/admin/usuarios/:id`, ({ params }) => {
+    usuarios = usuarios.filter((usuario) => usuario.id !== Number(params.id));
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   http.post(`${apiUrl}/admin/usuarios`, async ({ request }) => {
     const cuerpo = (await request.json()) as DatosAltaUsuario;
 
@@ -368,11 +416,26 @@ export const handlers = [
   }),
 
   http.get(`${apiUrl}/reportes/pendientes`, () => HttpResponse.json({ reportes: reportesPendientes })),
+  http.get(`${apiUrl}/reportes/desestimados-pendientes`, () =>
+    HttpResponse.json({ reportes: reportesDesestimados }),
+  ),
+  // Desestima los de `ids` que siguen marcados; los demás se omiten con el motivo, como el servidor.
+  http.post(`${apiUrl}/reportes/desestimados-pendientes/confirmacion`, async ({ request }) => {
+    const { ids = [] } = (await request.json()) as { ids?: number[] };
+    const marcados = new Set(reportesDesestimados.map((reporte) => reporte.id));
+    reportesDesestimados = reportesDesestimados.filter((reporte) => !ids.includes(reporte.id));
+    return HttpResponse.json({
+      desestimados: ids.filter((id) => marcados.has(id)),
+      omitidos: ids
+        .filter((id) => !marcados.has(id))
+        .map((id) => ({ id, motivo: 'Ya no está marcado para desestimar' })),
+    });
+  }),
 
   http.post(`${apiUrl}/reportes/:id/revision`, async ({ params, request }) => {
     const cuerpo = (await request.json()) as { decision?: string };
     const id = Number(params.id);
-    const reporte = reportesPendientes.find((item) => item.id === id);
+    const reporte = [...reportesPendientes, ...reportesDesestimados].find((item) => item.id === id);
     if (!reporte) {
       return HttpResponse.json(
         { error: { codigo: 'REPORTE_NO_ENCONTRADO', mensaje: 'El reporte no existe' } },
@@ -393,6 +456,7 @@ export const handlers = [
     }
     // Al decidir, el reporte sale de la lista: así la pantalla lo muestra al refrescar.
     reportesPendientes = reportesPendientes.filter((item) => item.id !== id);
+    reportesDesestimados = reportesDesestimados.filter((item) => item.id !== id);
     const estadoIncidente = cuerpo.decision === 'VERIFICADO' ? 'VERIFICADO' : 'DESESTIMADO';
     return HttpResponse.json({
       id,

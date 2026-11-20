@@ -14,7 +14,8 @@ body {
   font-size: 1rem;
 }
 
-/* Marcadores del mapa: HTML dentro de un divIcon de Leaflet. El color de fondo sale de ESTADOS (estados.ts). */
+/* Marcadores del mapa: HTML dentro de un divIcon de Leaflet. El color de fondo sale de ESTADOS (estados.ts).
+   El mapa es claro en los dos temas: lo que va encima usa los colores fijos (marcador-*), nunca los del tema. */
 .marcador-punto {
   display: inline-block;
   width: 26px;
@@ -39,8 +40,8 @@ body {
   justify-content: center;
   border: 3px solid var(--color-marcador-borde);
   border-radius: 9999px;
-  background-color: var(--color-primario);
-  color: var(--color-sobre-primario);
+  background-color: var(--color-marcador-trazo);
+  color: var(--color-marcador-borde);
   font-size: 0.875rem;
   font-weight: 600;
   box-shadow: 0 1px 4px color-mix(in srgb, var(--color-marcador-trazo) 40%, transparent);

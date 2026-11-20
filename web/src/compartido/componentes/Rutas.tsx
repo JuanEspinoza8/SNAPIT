@@ -151,11 +151,11 @@ export const rutas: RouteObject[] = [
           </RutaProtegida>
         ),
       },
-      // Revisión de los reportes de baja confianza (#52).
+      // Revisión de los reportes (#52): el administrador ve todo lo del operador.
       {
         path: 'revision',
         element: (
-          <RutaProtegida roles={['OPERADOR']}>
+          <RutaProtegida roles={['OPERADOR', 'ADMINISTRADOR']}>
             <Suspense fallback={<Cargando />}>
               <PaginaRevision />
             </Suspense>
@@ -166,7 +166,7 @@ export const rutas: RouteObject[] = [
       {
         path: 'incidentes',
         element: (
-          <RutaProtegida roles={['OPERADOR']}>
+          <RutaProtegida roles={['OPERADOR', 'ADMINISTRADOR']}>
             <Suspense fallback={<Cargando />}>
               <PaginaIncidentes />
             </Suspense>

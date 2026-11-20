@@ -1,13 +1,14 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { haceCuanto } from '../src/compartido/formato/fechas.js';
+import type { Rol } from '../src/compartido/sesion/usuario.js';
 import { PaginaIncidente } from '../src/funcionalidades/feed/PaginaIncidente.js';
 import { PaginaInicio } from '../src/funcionalidades/feed/PaginaInicio.js';
 import { PaginaReporte } from '../src/funcionalidades/feed/PaginaReporte.js';
-import type { TarjetaFeed } from '../src/funcionalidades/feed/tipos.js';
+import type { Comentario, Publicacion, ReportePublico } from '../src/funcionalidades/feed/tipos.js';
 import { renderConSesion, renderRuta } from './apoyo.js';
 
 // Leaflet necesita medir la pantalla y jsdom no la dibuja: el mapa chico se reemplaza por una lista.
@@ -23,54 +24,118 @@ vi.mock('../src/funcionalidades/feed/MapaPuntos.js', () => ({
 
 const API = 'http://localhost:3000/api';
 
-const tarjeta = (id: number, cambios: Partial<TarjetaFeed> = {}): TarjetaFeed => ({
+// Del autor solo llega su número en el incidente (docs/api.md, sección «Social»).
+const vecino1 = { numero: 1, nombre: 'Vecino 1', sistema: false };
+const vecino2 = { numero: 2, nombre: 'Vecino 2', sistema: false };
+const snapit = { numero: null, nombre: 'SnapIt', sistema: true };
+
+const publicacion = (id: number, cambios: Partial<Publicacion> = {}): Publicacion => ({
   id,
-  lat: -38.95,
-  lon: -68.06,
-  categoria: { id: 1, nombre: 'Bache' },
-  estado: 'VERIFICADO',
-  enRevision: false,
-  severidad: 'MODERADA',
-  primerReporteEn: '2026-10-06T15:15:33.494Z',
-  cantidadReportes: 1,
-  cantidadVecinos: 1,
-  direccion: 'Lanín 120, Villa Ceferino',
-  resueltoEn: null,
+  incidenteId: id * 100,
+  descripcion: null,
+  creadoEn: '2026-10-06T15:15:33.494Z',
+  autor: vecino1,
   fotos: [{ id: id * 10, url: `/api/fotos/${id * 10}` }],
-  cantidadFotos: 1,
   cantidadMeGusta: 0,
   cantidadComentarios: 0,
+  yaMeGusta: false,
+  categoria: { id: 1, nombre: 'Bache' },
+  severidad: 'MODERADA',
+  direccion: 'Lanín 120, Villa Ceferino',
+  lat: -38.95,
+  lon: -68.06,
+  derivadoA: { id: 4, nombre: 'Bacheo' },
+  incidente: { id: id * 100, estado: 'VERIFICADO', resueltoEn: null, cantidadVecinos: 1 },
   ...cambios,
 });
 
-// Del autor solo llega su número en el incidente (docs/api.md, sección «Social»).
-const vecino1 = { numero: 1, nombre: 'Vecino 1' };
-const vecino2 = { numero: 2, nombre: 'Vecino 2' };
+const reporte = (cambios: Partial<ReportePublico> = {}): ReportePublico => ({
+  id: 31,
+  incidenteId: 3,
+  descripcion: 'Frente al kiosco',
+  creadoEn: '2026-10-06T15:15:33.494Z',
+  autor: vecino1,
+  fotos: [{ id: 31, url: '/api/fotos/31' }],
+  cantidadMeGusta: 5,
+  cantidadComentarios: 1,
+  yaMeGusta: false,
+  ...cambios,
+});
+
+const comentario = (id: number, cambios: Partial<Comentario> = {}): Comentario => ({
+  id,
+  texto: 'Confirmo, sigue igual',
+  creadoEn: '2026-10-07T15:15:33.494Z',
+  editadoEn: null,
+  autor: vecino2,
+  esMio: false,
+  ...cambios,
+});
+
+/** La ficha del incidente 3 (`GET /api/incidentes/3`), que la publicación muestra como «el problema». */
+const fichaDelProblema = (cantidadVecinos = 1) => ({
+  id: 3,
+  lat: -38.95,
+  lon: -68.06,
+  categoria: { id: 2, nombre: 'Vereda rota' },
+  estado: 'DERIVADO',
+  enRevision: false,
+  severidad: 'GRAVE',
+  primerReporteEn: '2026-10-06T15:15:33.494Z',
+  cantidadReportes: cantidadVecinos,
+  cantidadVecinos,
+  direccion: 'Lanín 120, Villa Ceferino',
+  fotos: [{ id: 31, url: '/api/fotos/31' }],
+  fotoCierre: null,
+  resueltoEn: null,
+  derivadoA: { id: 2, nombre: 'Veredas' },
+});
 
 const servidor = setupServer();
 beforeAll(() => servidor.listen());
 afterEach(() => servidor.resetHandlers());
 afterAll(() => servidor.close());
 
+/** Deja una sesión de ese rol: los tokens en localStorage y `/auth/yo` simulado. */
+function ingresarComo(rol: Rol) {
+  localStorage.setItem('snapit:tokenAcceso', 'acceso');
+  localStorage.setItem('snapit:tokenRenovacion', 'renovacion');
+  servidor.use(
+    http.get('*/api/auth/yo', () =>
+      HttpResponse.json({
+        usuario: { id: 1, email: 'x@ejemplo.com', nombre: 'Nombre', rol, organismoId: null, areaId: null },
+      }),
+    ),
+  );
+}
+
+const errorDelServidor = () =>
+  HttpResponse.json({ error: { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal' } }, { status: 500 });
+
 /** El feed en dos páginas: la primera sin cursor y la segunda con `c1`. */
 function feedEnDosPaginas() {
   const cursores: (string | null)[] = [];
   servidor.use(
-    http.get(`${API}/incidentes/feed`, ({ request }) => {
+    http.get(`${API}/social/feed`, ({ request }) => {
       const cursor = new URL(request.url).searchParams.get('cursor');
       cursores.push(cursor);
       return cursor === 'c1'
         ? HttpResponse.json({
-            incidentes: [tarjeta(3, { categoria: { id: 2, nombre: 'Vereda rota' } })],
+            reportes: [publicacion(3, { categoria: { id: 2, nombre: 'Vereda rota' } })],
             siguiente: null,
           })
         : HttpResponse.json({
-            incidentes: [
-              tarjeta(1, { severidad: 'GRAVE', cantidadMeGusta: 7, cantidadComentarios: 4 }),
-              tarjeta(2, {
+            reportes: [
+              publicacion(1, {
+                severidad: 'GRAVE',
+                cantidadMeGusta: 7,
+                cantidadComentarios: 4,
+                descripcion: 'Pozo enorme',
+              }),
+              publicacion(2, {
                 categoria: { id: 3, nombre: 'Cordón sin rampa' },
-                cantidadReportes: 3,
-                cantidadVecinos: 3,
+                autor: vecino2,
+                incidente: { id: 200, estado: 'EN_EJECUCION', resueltoEn: null, cantidadVecinos: 3 },
               }),
             ],
             siguiente: 'c1',
@@ -80,25 +145,83 @@ function feedEnDosPaginas() {
   return cursores;
 }
 
-describe('inicio (feed)', () => {
-  it('muestra cada incidente con su foto, estado, gravedad, contadores y el enlace al detalle', async () => {
+describe('inicio: el feed de publicaciones', () => {
+  it('muestra cada reporte publicado como un posteo, con la línea a su problema', async () => {
     feedEnDosPaginas();
     renderRuta('/', <PaginaInicio />);
 
-    const bache = await screen.findByRole('article', { name: 'Bache' });
-    expect(within(bache).getByRole('img', { name: 'Foto 1 de 1 de Bache' })).toHaveAttribute(
+    const bache = await screen.findByRole('article', { name: 'Bache, reporte del Vecino 1' });
+    expect(within(bache).getByText('Vecino 1')).toBeInTheDocument();
+    expect(within(bache).getByRole('img', { name: /Foto 1 de 1 de Bache/ })).toHaveAttribute(
       'src',
       `${API}/fotos/10`,
     );
-    expect(within(bache).getByText('Verificado')).toBeInTheDocument();
     expect(within(bache).getByText('Grave')).toBeInTheDocument();
-    expect(within(bache).getByText('7 me gusta, 4 comentarios')).toBeInTheDocument();
-    expect(within(bache).getByText('Lo reportó 1 vecino')).toBeInTheDocument();
-    expect(within(bache).getByRole('link')).toHaveAttribute('href', '/incidente/1');
+    expect(within(bache).getByText('Pozo enorme')).toBeInTheDocument();
+    expect(within(bache).getByText(/Le corresponde al área de/)).toHaveTextContent(
+      'Le corresponde al área de Bacheo',
+    );
+    expect(within(bache).getByRole('button', { name: 'Me gusta (7 me gusta)' })).toBeInTheDocument();
+    expect(within(bache).getByRole('link', { name: 'Ver 4 comentarios' })).toHaveAttribute(
+      'href',
+      '/reporte/1',
+    );
+    // Un solo vecino: el problema ya está en la publicación, la línea solo dice su estado.
+    expect(within(bache).getByText('Estado del problema')).toBeInTheDocument();
+    expect(within(bache).queryByRole('link', { name: /problema/ })).not.toBeInTheDocument();
 
-    const agrupado = screen.getByRole('article', { name: 'Cordón sin rampa' });
-    expect(within(agrupado).getByText('Agrupado · 3 reportes del mismo problema')).toBeInTheDocument();
-    expect(within(agrupado).getByText('Lo reportaron 3 vecinos')).toBeInTheDocument();
+    // El mismo problema lo reportaron tres vecinos: lo dice la línea a su incidente, con su estado.
+    const cordon = screen.getByRole('article', { name: 'Cordón sin rampa, reporte del Vecino 2' });
+    const linea = within(cordon).getByRole('link', { name: /3 vecinos reportaron este problema/ });
+    expect(linea).toHaveAttribute('href', '/incidente/200');
+    expect(linea).toHaveTextContent('En ejecución');
+  });
+
+  it('toda la tarjeta abre la publicación, pero el me gusta hace lo suyo', async () => {
+    ingresarComo('VECINO');
+    const meGusta: string[] = [];
+    servidor.use(
+      http.get(`${API}/social/feed`, () =>
+        HttpResponse.json({ reportes: [publicacion(1, { descripcion: 'Pozo enorme' })], siguiente: null }),
+      ),
+      http.post(`${API}/social/reportes/1/me-gusta`, () => {
+        meGusta.push('POST');
+        return HttpResponse.json({ reporteId: 1, cantidadMeGusta: 1, yaMeGusta: true });
+      }),
+    );
+    renderConSesion('/', { '/': <PaginaInicio />, '/reporte/:id': <p>Detalle del reporte</p> });
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Me gusta (0 me gusta)' }));
+    expect(meGusta).toEqual(['POST']);
+    expect(screen.queryByText('Detalle del reporte')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Pozo enorme'));
+    expect(await screen.findByText('Detalle del reporte')).toBeInTheDocument();
+    expect(screen.getByTestId('ubicacion')).toHaveTextContent('/reporte/1');
+  });
+
+  it('un problema resuelto lo dice arriba de la publicación', async () => {
+    servidor.use(
+      http.get(`${API}/social/feed`, () =>
+        HttpResponse.json({
+          reportes: [
+            publicacion(1, {
+              incidente: {
+                id: 100,
+                estado: 'RESUELTO',
+                resueltoEn: '2026-11-05T15:00:00.000Z',
+                cantidadVecinos: 1,
+              },
+            }),
+          ],
+          siguiente: null,
+        }),
+      ),
+    );
+    renderRuta('/', <PaginaInicio />);
+
+    const articulo = await screen.findByRole('article', { name: 'Bache, reporte del Vecino 1' });
+    expect(articulo.querySelector('header')).toHaveTextContent('Resuelto');
   });
 
   it('ofrece reportar un problema, también sin sesión', async () => {
@@ -114,22 +237,19 @@ describe('inicio (feed)', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Cargar más' }));
 
-    expect(await screen.findByRole('article', { name: 'Vereda rota' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('article', { name: 'Vereda rota, reporte del Vecino 1' }),
+    ).toBeInTheDocument();
     expect(cursores).toEqual([null, 'c1']);
-    expect(screen.getByText('No hay más incidentes por ahora')).toBeInTheDocument();
+    expect(screen.getByText('No hay más publicaciones por ahora')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cargar más' })).not.toBeInTheDocument();
   });
 
   it('si no carga, lo dice y deja reintentar', async () => {
     let falla = true;
     servidor.use(
-      http.get(`${API}/incidentes/feed`, () =>
-        falla
-          ? HttpResponse.json(
-              { error: { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal' } },
-              { status: 500 },
-            )
-          : HttpResponse.json({ incidentes: [tarjeta(1)], siguiente: null }),
+      http.get(`${API}/social/feed`, () =>
+        falla ? errorDelServidor() : HttpResponse.json({ reportes: [publicacion(1)], siguiente: null }),
       ),
     );
     renderRuta('/', <PaginaInicio />);
@@ -138,29 +258,26 @@ describe('inicio (feed)', () => {
     falla = false;
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
 
-    expect(await screen.findByRole('article', { name: 'Bache' })).toBeInTheDocument();
+    expect(await screen.findByRole('article', { name: 'Bache, reporte del Vecino 1' })).toBeInTheDocument();
   });
 
-  it('sin incidentes muestra un mensaje', async () => {
-    servidor.use(
-      http.get(`${API}/incidentes/feed`, () => HttpResponse.json({ incidentes: [], siguiente: null })),
-    );
+  it('sin publicaciones muestra un mensaje', async () => {
+    servidor.use(http.get(`${API}/social/feed`, () => HttpResponse.json({ reportes: [], siguiente: null })));
     renderRuta('/', <PaginaInicio />);
 
-    expect(await screen.findByText('Todavía no hay incidentes')).toBeInTheDocument();
+    expect(await screen.findByText('Todavía no hay publicaciones')).toBeInTheDocument();
   });
 
   it('el carrusel pasa las fotos con las flechas', async () => {
     servidor.use(
-      http.get(`${API}/incidentes/feed`, () =>
+      http.get(`${API}/social/feed`, () =>
         HttpResponse.json({
-          incidentes: [
-            tarjeta(1, {
+          reportes: [
+            publicacion(1, {
               fotos: [
                 { id: 11, url: '/api/fotos/11' },
                 { id: 12, url: '/api/fotos/12' },
               ],
-              cantidadFotos: 4,
             }),
           ],
           siguiente: null,
@@ -175,173 +292,465 @@ describe('inicio (feed)', () => {
 
     expect(screen.getByText('2/2')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Foto siguiente' })).toBeDisabled();
-    // En la última avisa que hay más en el detalle.
-    expect(screen.getByText('+2 fotos en el detalle')).toBeInTheDocument();
   });
 });
 
-describe('detalle del incidente', () => {
-  function servirIncidente(cambios: Record<string, unknown> = {}) {
+describe('me gusta', () => {
+  /** El feed con una publicación cuyo me gusta cambia cuando el servidor lo recibe. */
+  function feedConMeGusta(responder?: () => Response) {
+    let dado = false;
+    const pedidos: string[] = [];
     servidor.use(
+      http.get(`${API}/social/feed`, () =>
+        HttpResponse.json({
+          reportes: [publicacion(1, { yaMeGusta: dado, cantidadMeGusta: dado ? 3 : 2 })],
+          siguiente: null,
+        }),
+      ),
+      http.all(`${API}/social/reportes/1/me-gusta`, ({ request }) => {
+        pedidos.push(request.method);
+        if (responder) return responder();
+        dado = request.method === 'POST';
+        return HttpResponse.json({ reporteId: 1, cantidadMeGusta: dado ? 3 : 2, yaMeGusta: dado });
+      }),
+    );
+    return pedidos;
+  }
+
+  it('el vecino lo da y lo quita, y el botón dice si está dado', async () => {
+    ingresarComo('VECINO');
+    const pedidos = feedConMeGusta();
+    renderRuta('/', <PaginaInicio />);
+
+    const boton = await screen.findByRole('button', { name: 'Me gusta (2 me gusta)' });
+    expect(boton).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(boton);
+
+    const dado = await screen.findByRole('button', { name: 'Quitar me gusta (3 me gusta)' });
+    expect(dado).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(dado);
+
+    expect(await screen.findByRole('button', { name: 'Me gusta (2 me gusta)' })).toBeInTheDocument();
+    expect(pedidos).toEqual(['POST', 'DELETE']);
+  });
+
+  it('si el servidor lo rechaza, lo dice y el contador queda como estaba', async () => {
+    ingresarComo('VECINO');
+    feedConMeGusta(errorDelServidor);
+    renderRuta('/', <PaginaInicio />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Me gusta (2 me gusta)' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Algo salió mal');
+    expect(screen.getByRole('button', { name: 'Me gusta (2 me gusta)' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('sin sesión lleva al ingreso', async () => {
+    const pedidos = feedConMeGusta();
+    renderConSesion('/', { '/': <PaginaInicio />, '/ingreso': <p>Ingreso</p> });
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Me gusta (2 me gusta)' }));
+
+    expect(await screen.findByText('Ingreso')).toBeInTheDocument();
+    expect(pedidos).toEqual([]);
+  });
+
+  it('el operador ve el contador pero no lo puede dar', async () => {
+    ingresarComo('OPERADOR');
+    feedConMeGusta();
+    renderRuta('/', <PaginaInicio />);
+
+    const articulo = await screen.findByRole('article', { name: 'Bache, reporte del Vecino 1' });
+    expect(await within(articulo).findByText('2 me gusta')).toBeInTheDocument();
+    expect(within(articulo).queryByRole('button', { name: /Me gusta/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('la publicación: comentarios', () => {
+  /** Una publicación con comentarios que cambian según lo que recibe el servidor. */
+  function servirPublicacion(iniciales: Comentario[] = [comentario(2)], cantidadVecinos = 1) {
+    let comentarios = [...iniciales];
+    const recibidos: { metodo: string; ruta: string; cuerpo: unknown }[] = [];
+    servidor.use(
+      http.get(`${API}/social/reportes/31`, () =>
+        HttpResponse.json(reporte({ cantidadComentarios: comentarios.length })),
+      ),
+      http.get(`${API}/social/reportes/31/comentarios`, () => HttpResponse.json({ comentarios })),
+      http.get(`${API}/incidentes/3`, () => HttpResponse.json(fichaDelProblema(cantidadVecinos))),
+      http.post(`${API}/social/reportes/31/comentarios`, async ({ request }) => {
+        const cuerpo = (await request.json()) as { texto: string };
+        recibidos.push({ metodo: 'POST', ruta: 'comentarios', cuerpo });
+        const nuevo = comentario(99, { texto: cuerpo.texto, autor: vecino2, esMio: true });
+        comentarios = [...comentarios, nuevo];
+        return HttpResponse.json(nuevo, { status: 201 });
+      }),
+      http.patch(`${API}/social/comentarios/:id`, async ({ params, request }) => {
+        const cuerpo = (await request.json()) as { texto: string };
+        recibidos.push({ metodo: 'PATCH', ruta: String(params.id), cuerpo });
+        comentarios = comentarios.map((c) =>
+          c.id === Number(params.id)
+            ? { ...c, texto: cuerpo.texto, editadoEn: '2026-10-09T15:15:33.494Z' }
+            : c,
+        );
+        return HttpResponse.json(comentarios.find((c) => c.id === Number(params.id)));
+      }),
+      http.delete(`${API}/social/comentarios/:id`, ({ params }) => {
+        recibidos.push({ metodo: 'DELETE', ruta: String(params.id), cuerpo: null });
+        comentarios = comentarios.filter((c) => c.id !== Number(params.id));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    return recibidos;
+  }
+
+  const abrir = () => renderConSesion('/reporte/31', { '/reporte/:id': <PaginaReporte /> });
+
+  it('muestra el autor, la foto, la descripción, el problema y los comentarios', async () => {
+    servirPublicacion([comentario(2, { editadoEn: '2026-10-08T15:15:33.494Z' })]);
+    abrir();
+
+    expect(await screen.findByText('Frente al kiosco')).toBeInTheDocument();
+    expect(screen.getByText('Reporte del')).toHaveTextContent('Reporte del Vecino 1');
+    // El problema, sin ir a otra página: qué es, en qué está, el mapa y sus datos.
+    expect(await screen.findByRole('heading', { name: 'Vereda rota', level: 1 })).toBeInTheDocument();
+    expect(screen.getByText(/Le corresponde al área de/)).toHaveTextContent(
+      'Le corresponde al área de Veredas',
+    );
+    expect(screen.getByRole('region', { name: 'Estado del problema' })).toBeInTheDocument();
+    expect(await screen.findByRole('list', { name: 'Mapa simulado' })).toHaveTextContent('Vereda rota');
+    const informacion = screen.getByRole('complementary', { name: 'Información' });
+    expect(within(informacion).getByText('Lanín 120, Villa Ceferino')).toBeInTheDocument();
+    // Lo reportó solo este vecino: no hay a dónde más ir.
+    expect(screen.queryByRole('link', { name: /reportaron este problema/ })).not.toBeInTheDocument();
+    expect(await screen.findByText('Confirmo, sigue igual')).toBeInTheDocument();
+    expect(screen.getByText(/editado/)).toBeInTheDocument();
+    // Sin sesión no hay caja: invita a ingresar.
+    expect(screen.getByRole('link', { name: 'Ingresá' })).toHaveAttribute('href', '/ingreso');
+    expect(screen.queryByLabelText('Escribí un comentario')).not.toBeInTheDocument();
+  });
+
+  it('si lo reportaron otros vecinos, lleva a la ficha que junta todos', async () => {
+    servirPublicacion([], 3);
+    abrir();
+
+    const enlace = await screen.findByRole('link', { name: /Otros 2 vecinos reportaron este problema/ });
+    expect(enlace).toHaveAttribute('href', '/incidente/3');
+  });
+
+  it('el comentario de SnapIt se ve con su nombre, su logo y que es la cuenta oficial', async () => {
+    servirPublicacion([
+      comentario(3, {
+        texto: '¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de Bacheo.',
+        autor: snapit,
+      }),
+    ]);
+    abrir();
+
+    const fila = (await screen.findByText(/Gracias por tu reporte/)).closest('li')!;
+    expect(within(fila).getByText('SnapIt')).toBeInTheDocument();
+    expect(within(fila).getByText('Cuenta oficial')).toBeInTheDocument();
+    expect(fila.querySelector('img')).toBeInTheDocument();
+    expect(within(fila).queryByText(/Vecino/)).not.toBeInTheDocument();
+  });
+
+  it('el vecino comenta: se envía sin los espacios de los bordes y aparece en la lista', async () => {
+    ingresarComo('VECINO');
+    const recibidos = servirPublicacion();
+    abrir();
+
+    await userEvent.type(await screen.findByLabelText('Escribí un comentario'), '  Sigue ahí  ');
+    await userEvent.click(screen.getByRole('button', { name: 'Comentar' }));
+
+    expect(await screen.findByText('Sigue ahí')).toBeInTheDocument();
+    expect(recibidos).toEqual([{ metodo: 'POST', ruta: 'comentarios', cuerpo: { texto: 'Sigue ahí' } }]);
+    expect(screen.getByLabelText('Escribí un comentario')).toHaveValue('');
+    expect(screen.getByRole('heading', { name: 'Comentarios (2)' })).toBeInTheDocument();
+  });
+
+  it('un comentario de más de 1000 caracteres no se puede enviar', async () => {
+    ingresarComo('VECINO');
+    servirPublicacion();
+    abrir();
+    const caja = await screen.findByLabelText('Escribí un comentario');
+
+    await userEvent.click(caja);
+    await userEvent.paste('a'.repeat(1001));
+
+    expect(screen.getByText('1001/1000')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Comentar' })).toBeDisabled();
+  });
+
+  it('edita su comentario y lo elimina con confirmación; los ajenos no se tocan', async () => {
+    ingresarComo('VECINO');
+    const recibidos = servirPublicacion([
+      comentario(2),
+      comentario(5, { texto: 'El mío', autor: vecino1, esMio: true }),
+    ]);
+    abrir();
+
+    const ajeno = (await screen.findByText('Confirmo, sigue igual')).closest('li')!;
+    expect(within(ajeno).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    expect(within(ajeno).queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument();
+
+    const mio = screen.getByText('El mío').closest('li')!;
+    await userEvent.click(within(mio).getByRole('button', { name: 'Editar' }));
+    const campo = within(mio).getByLabelText('Editar el comentario');
+    await userEvent.clear(campo);
+    await userEvent.paste('El mío, corregido');
+    await userEvent.click(within(mio).getByRole('button', { name: 'Guardar' }));
+    // Al guardar se vuelve a pedir la lista: se espera a que muestre el texto nuevo y el botón de eliminar.
+    const eliminar = await waitFor(() =>
+      within(screen.getByText('El mío, corregido').closest('li')!).getByRole('button', { name: 'Eliminar' }),
+    );
+    await userEvent.click(eliminar);
+    await userEvent.click(await screen.findByRole('button', { name: 'Sí, eliminar' }));
+
+    expect(await screen.findByRole('heading', { name: 'Comentarios (1)' })).toBeInTheDocument();
+    expect(screen.queryByText('El mío, corregido')).not.toBeInTheDocument();
+    expect(recibidos.map(({ metodo, ruta }) => `${metodo} ${ruta}`)).toEqual(['PATCH 5', 'DELETE 5']);
+  });
+
+  it('al pedir eliminar, el foco va a «Sí, eliminar», y con «No» vuelve a «Eliminar»', async () => {
+    ingresarComo('VECINO');
+    servirPublicacion([comentario(5, { texto: 'El mío', autor: vecino1, esMio: true })]);
+    abrir();
+
+    const mio = (await screen.findByText('El mío')).closest('li')!;
+    await userEvent.click(within(mio).getByRole('button', { name: 'Eliminar' }));
+    expect(within(mio).getByRole('button', { name: 'Sí, eliminar' })).toHaveFocus();
+    await userEvent.click(within(mio).getByRole('button', { name: 'No' }));
+
+    expect(within(mio).getByRole('button', { name: 'Eliminar' })).toHaveFocus();
+  });
+
+  it('el operador elimina un comentario ajeno, pero no comenta', async () => {
+    ingresarComo('OPERADOR');
+    const recibidos = servirPublicacion();
+    abrir();
+
+    const fila = (await screen.findByText('Confirmo, sigue igual')).closest('li')!;
+    expect(screen.queryByLabelText('Escribí un comentario')).not.toBeInTheDocument();
+    expect(within(fila).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    await userEvent.click(within(fila).getByRole('button', { name: 'Eliminar' }));
+    await userEvent.click(within(fila).getByRole('button', { name: 'Sí, eliminar' }));
+
+    expect(await screen.findByText('Todavía no hay comentarios.')).toBeInTheDocument();
+    expect(recibidos.map(({ metodo, ruta }) => `${metodo} ${ruta}`)).toEqual(['DELETE 2']);
+  });
+});
+
+describe('la ficha del problema (incidente)', () => {
+  /** La ficha del incidente 3, con sus reportes y sus comentarios, que cambian según lo que recibe el servidor. */
+  function servirIncidente(
+    cambios: Record<string, unknown> = {},
+    reportes = [reporte()],
+    iniciales: Comentario[] = [],
+  ) {
+    let comentarios = [...iniciales];
+    const recibidos: { metodo: string; ruta: string; cuerpo: unknown }[] = [];
+    servidor.use(
+      http.get(`${API}/social/incidentes/3/comentarios`, () =>
+        HttpResponse.json({ incidenteId: 3, comentarios }),
+      ),
+      http.post(`${API}/social/incidentes/3/comentarios`, async ({ request }) => {
+        const cuerpo = (await request.json()) as { texto: string };
+        recibidos.push({ metodo: 'POST', ruta: 'incidentes/3/comentarios', cuerpo });
+        const nuevo = comentario(99, { texto: cuerpo.texto, autor: vecino2, esMio: true });
+        comentarios = [...comentarios, nuevo];
+        return HttpResponse.json(nuevo, { status: 201 });
+      }),
+      http.patch(`${API}/social/comentarios/:id`, async ({ params, request }) => {
+        const cuerpo = (await request.json()) as { texto: string };
+        recibidos.push({ metodo: 'PATCH', ruta: String(params.id), cuerpo });
+        comentarios = comentarios.map((c) =>
+          c.id === Number(params.id)
+            ? { ...c, texto: cuerpo.texto, editadoEn: '2026-10-09T15:15:33.494Z' }
+            : c,
+        );
+        return HttpResponse.json(comentarios.find((c) => c.id === Number(params.id)));
+      }),
+      http.delete(`${API}/social/comentarios/:id`, ({ params }) => {
+        recibidos.push({ metodo: 'DELETE', ruta: String(params.id), cuerpo: null });
+        comentarios = comentarios.filter((c) => c.id !== Number(params.id));
+        return new HttpResponse(null, { status: 204 });
+      }),
       http.get(`${API}/incidentes/3`, () =>
         HttpResponse.json({
-          ...tarjeta(3, { categoria: { id: 2, nombre: 'Vereda rota' }, severidad: 'GRAVE' }),
-          cantidadVecinos: 2,
+          id: 3,
+          lat: -38.95,
+          lon: -68.06,
+          categoria: { id: 2, nombre: 'Vereda rota' },
+          estado: 'DERIVADO',
+          enRevision: false,
+          severidad: 'GRAVE',
+          primerReporteEn: '2026-10-06T15:15:33.494Z',
+          cantidadReportes: reportes.length,
+          cantidadVecinos: reportes.length,
+          direccion: 'Lanín 120, Villa Ceferino',
           fotos: [{ id: 31, url: '/api/fotos/31' }],
+          fotoCierre: null,
+          resueltoEn: null,
+          derivadoA: { id: 2, nombre: 'Veredas' },
           ...cambios,
         }),
       ),
-      http.get(`${API}/social/incidentes/3/reportes`, () =>
-        HttpResponse.json({
-          incidenteId: 3,
-          reportes: [
-            {
-              id: 31,
-              incidenteId: 3,
-              descripcion: 'Frente al kiosco',
-              creadoEn: '2026-10-06T15:15:33.494Z',
-              autor: vecino1,
-              fotos: [{ id: 31, url: '/api/fotos/31' }],
-              cantidadMeGusta: 5,
-              cantidadComentarios: 2,
-            },
-          ],
-        }),
-      ),
-      http.get(`${API}/social/incidentes/3/comentarios`, () =>
-        HttpResponse.json({
-          incidenteId: 3,
-          comentarios: [
-            {
-              id: 1,
-              texto: 'Hay una escuela cerca',
-              creadoEn: '2026-10-07T15:15:33.494Z',
-              editadoEn: null,
-              autor: vecino2,
-            },
-          ],
-        }),
-      ),
+      http.get(`${API}/social/incidentes/3/reportes`, () => HttpResponse.json({ incidenteId: 3, reportes })),
     );
+    return recibidos;
   }
 
-  it('muestra los datos, el mapa, una foto por vecino y los comentarios del incidente', async () => {
-    servirIncidente();
-    renderConSesion('/incidente/3', { '/incidente/:id': <PaginaIncidente /> });
+  const abrir = () => renderConSesion('/incidente/3', { '/incidente/:id': <PaginaIncidente /> });
+
+  it('muestra los datos, el mapa, en qué paso está su atención y los comentarios del problema', async () => {
+    servirIncidente({}, [reporte()], [comentario(2, { editadoEn: '2026-10-08T15:15:33.494Z' })]);
+    abrir();
 
     expect(await screen.findByRole('heading', { name: 'Vereda rota', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('Grave')).toBeInTheDocument();
     expect(screen.getByText('Lanín 120, Villa Ceferino')).toBeInTheDocument();
     expect(await screen.findByRole('list', { name: 'Mapa simulado' })).toHaveTextContent('Vereda rota');
 
-    const foto = await screen.findByRole('link', { name: 'Foto del Vecino 1, 5 me gusta, 2 comentarios' });
-    expect(foto).toHaveAttribute('href', '/reporte/31');
-    expect(screen.getByRole('heading', { name: 'Fotos de los vecinos (1)' })).toBeInTheDocument();
+    const recorrido = screen.getByRole('region', { name: 'Estado del problema' });
+    const pasos = within(recorrido).getAllByRole('listitem');
+    expect(pasos.map((paso) => paso.textContent)).toEqual([
+      expect.stringContaining('En revisión (cumplido)'),
+      expect.stringContaining('Verificado (cumplido)'),
+      expect.stringContaining('Derivado al área (cumplido)'),
+      expect.stringContaining('En ejecución (pendiente)'),
+      expect.stringContaining('Resuelto (pendiente)'),
+    ]);
+    expect(pasos[2]).toHaveAttribute('aria-current', 'step');
 
-    expect(await screen.findByRole('heading', { name: 'Comentarios del incidente (1)' })).toBeInTheDocument();
-    expect(screen.getByText('Hay una escuela cerca')).toBeInTheDocument();
-    expect(screen.getByText('Vecino 2')).toBeInTheDocument();
+    // Un solo vecino: no hay lista de reportes.
+    expect(screen.queryByRole('region', { name: 'Reportes de este problema' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fotos de los vecinos/)).not.toBeInTheDocument();
+
+    // Los comentarios sobre el problema en general. Sin sesión no hay caja: invita a ingresar.
+    const comentarios = screen.getByRole('region', { name: 'Comentarios' });
+    expect(await within(comentarios).findByText('Confirmo, sigue igual')).toBeInTheDocument();
+    expect(within(comentarios).getByText(/editado/)).toBeInTheDocument();
+    expect(within(comentarios).getByRole('heading', { name: 'Comentarios (1)' })).toBeInTheDocument();
+    expect(within(comentarios).getByRole('link', { name: 'Ingresá' })).toHaveAttribute('href', '/ingreso');
+    expect(within(comentarios).queryByLabelText('Escribí un comentario')).not.toBeInTheDocument();
   });
 
-  it('si los comentarios no cargan, el resto se ve y deja reintentar', async () => {
-    servirIncidente();
-    let falla = true;
-    servidor.use(
-      http.get(`${API}/social/incidentes/3/comentarios`, () =>
-        falla
-          ? HttpResponse.json(
-              { error: { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal' } },
-              { status: 500 },
-            )
-          : HttpResponse.json({ incidenteId: 3, comentarios: [] }),
-      ),
-    );
-    renderConSesion('/incidente/3', { '/incidente/:id': <PaginaIncidente /> });
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Algo salió mal');
-    expect(screen.getByRole('heading', { name: 'Vereda rota', level: 1 })).toBeInTheDocument();
-    falla = false;
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+  it('el vecino comenta el problema: va al incidente, no a una foto, y aparece en la lista', async () => {
+    ingresarComo('VECINO');
+    const recibidos = servirIncidente();
+    abrir();
 
     expect(await screen.findByText('Todavía no hay comentarios.')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Escribí un comentario'), '  Hay una escuela cerca  ');
+    await userEvent.click(screen.getByRole('button', { name: 'Comentar' }));
+
+    expect(await screen.findByText('Hay una escuela cerca')).toBeInTheDocument();
+    expect(recibidos).toEqual([
+      { metodo: 'POST', ruta: 'incidentes/3/comentarios', cuerpo: { texto: 'Hay una escuela cerca' } },
+    ]);
+    expect(screen.getByLabelText('Escribí un comentario')).toHaveValue('');
+    expect(screen.getByRole('heading', { name: 'Comentarios (1)' })).toBeInTheDocument();
   });
 
-  it('un incidente resuelto muestra el antes y el después lado a lado, con la fecha de resolución', async () => {
+  it('un comentario del problema de más de 1000 caracteres no se puede enviar', async () => {
+    ingresarComo('VECINO');
+    servirIncidente();
+    abrir();
+    const caja = await screen.findByLabelText('Escribí un comentario');
+
+    await userEvent.click(caja);
+    await userEvent.paste('a'.repeat(1001));
+
+    expect(screen.getByText('1001/1000')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Comentar' })).toBeDisabled();
+  });
+
+  it('si el servidor rechaza el comentario, lo dice y no cambia nada', async () => {
+    ingresarComo('VECINO');
+    servirIncidente({}, [reporte()], [comentario(2)]);
+    servidor.use(http.post(`${API}/social/incidentes/3/comentarios`, errorDelServidor));
+    abrir();
+
+    await userEvent.type(await screen.findByLabelText('Escribí un comentario'), 'Sigue ahí');
+    await userEvent.click(screen.getByRole('button', { name: 'Comentar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Algo salió mal');
+    expect(screen.getByLabelText('Escribí un comentario')).toHaveValue('Sigue ahí');
+    expect(screen.getByRole('heading', { name: 'Comentarios (1)' })).toBeInTheDocument();
+  });
+
+  it('edita su comentario del problema y lo elimina con confirmación', async () => {
+    ingresarComo('VECINO');
+    const recibidos = servirIncidente(
+      {},
+      [reporte()],
+      [comentario(5, { texto: 'El mío', autor: vecino1, esMio: true })],
+    );
+    abrir();
+
+    const mio = (await screen.findByText('El mío')).closest('li')!;
+    await userEvent.click(within(mio).getByRole('button', { name: 'Editar' }));
+    await userEvent.clear(within(mio).getByLabelText('Editar el comentario'));
+    await userEvent.paste('El mío, corregido');
+    await userEvent.click(within(mio).getByRole('button', { name: 'Guardar' }));
+    const eliminar = await waitFor(() =>
+      within(screen.getByText('El mío, corregido').closest('li')!).getByRole('button', { name: 'Eliminar' }),
+    );
+    await userEvent.click(eliminar);
+    await userEvent.click(screen.getByRole('button', { name: 'Sí, eliminar' }));
+
+    expect(await screen.findByText('Todavía no hay comentarios.')).toBeInTheDocument();
+    expect(recibidos.map(({ metodo, ruta }) => `${metodo} ${ruta}`)).toEqual(['PATCH 5', 'DELETE 5']);
+  });
+
+  it('el operador elimina un comentario ajeno del problema, pero no comenta', async () => {
+    ingresarComo('OPERADOR');
+    const recibidos = servirIncidente({}, [reporte()], [comentario(2)]);
+    abrir();
+
+    const fila = (await screen.findByText('Confirmo, sigue igual')).closest('li')!;
+    expect(screen.queryByLabelText('Escribí un comentario')).not.toBeInTheDocument();
+    expect(within(fila).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    await userEvent.click(within(fila).getByRole('button', { name: 'Eliminar' }));
+    await userEvent.click(within(fila).getByRole('button', { name: 'Sí, eliminar' }));
+
+    expect(await screen.findByText('Todavía no hay comentarios.')).toBeInTheDocument();
+    expect(recibidos.map(({ metodo, ruta }) => `${metodo} ${ruta}`)).toEqual(['DELETE 2']);
+  });
+
+  it('si lo reportaron varios vecinos, lista sus reportes y cada uno lleva a su publicación', async () => {
+    servirIncidente({}, [
+      reporte(),
+      reporte({ id: 32, autor: vecino2, cantidadMeGusta: 1, cantidadComentarios: 0 }),
+    ]);
+    abrir();
+
+    const lista = await screen.findByRole('region', { name: 'Reportes de este problema' });
+    expect(await within(lista).findByRole('heading', { name: 'Reportes (2)' })).toBeInTheDocument();
+    const enlaces = within(lista).getAllByRole('link');
+    expect(enlaces.map((enlace) => enlace.getAttribute('href'))).toEqual(['/reporte/31', '/reporte/32']);
+    expect(enlaces[1]).toHaveTextContent('Vecino 2');
+  });
+
+  it('un problema resuelto muestra el antes y el después, y el paso final con su fecha', async () => {
     servirIncidente({
       estado: 'RESUELTO',
       fotoCierre: { id: 90, url: '/api/fotos/90' },
       resueltoEn: '2026-11-05T15:00:00.000Z',
     });
-    renderConSesion('/incidente/3', { '/incidente/:id': <PaginaIncidente /> });
+    abrir();
 
     const comparacion = await screen.findByRole('region', { name: 'Antes y después' });
-    expect(within(comparacion).getByText('Antes')).toBeInTheDocument();
     expect(within(comparacion).getByText(/Después · resuelto el/)).toBeInTheDocument();
-    // Texto alternativo en las dos: el antes (las fotos de los reportes) y el después (la del cierre).
-    expect(within(comparacion).getByAltText(/Vereda rota, antes/)).toHaveAttribute(
-      'src',
-      expect.stringContaining('/fotos/31'),
-    );
     expect(
       within(comparacion).getByAltText('Vereda rota, después: cómo quedó al resolverse'),
     ).toHaveAttribute('src', expect.stringContaining('/fotos/90'));
-    // La fecha también va en la información, además de la etiqueta del estado.
-    const informacion = screen.getByRole('complementary', { name: 'Información' });
-    expect(within(informacion).getByText('Resuelto')).toBeInTheDocument();
-  });
-
-  it('un incidente sin cierre muestra solo las fotos de los reportes', async () => {
-    servirIncidente({ fotoCierre: null, resueltoEn: null });
-    renderConSesion('/incidente/3', { '/incidente/:id': <PaginaIncidente /> });
-
-    await screen.findByRole('heading', { name: 'Vereda rota', level: 1 });
-    expect(screen.queryByRole('region', { name: 'Antes y después' })).not.toBeInTheDocument();
-    const informacion = screen.getByRole('complementary', { name: 'Información' });
-    expect(within(informacion).queryByText('Resuelto')).not.toBeInTheDocument();
-    expect(screen.getByAltText(/Foto 1 de 1 de Vereda rota/)).toBeInTheDocument();
-  });
-});
-
-describe('foto de un vecino', () => {
-  it('muestra el autor, la descripción, los contadores y sus comentarios', async () => {
-    servidor.use(
-      http.get(`${API}/social/reportes/31`, () =>
-        HttpResponse.json({
-          id: 31,
-          incidenteId: 3,
-          descripcion: 'Frente al kiosco',
-          creadoEn: '2026-10-06T15:15:33.494Z',
-          autor: vecino1,
-          fotos: [{ id: 31, url: '/api/fotos/31' }],
-          cantidadMeGusta: 5,
-          cantidadComentarios: 1,
-        }),
-      ),
-      http.get(`${API}/social/reportes/31/comentarios`, () =>
-        HttpResponse.json({
-          comentarios: [
-            {
-              id: 2,
-              texto: 'Confirmo, sigue igual',
-              creadoEn: '2026-10-07T15:15:33.494Z',
-              editadoEn: '2026-10-08T15:15:33.494Z',
-              autor: vecino2,
-            },
-          ],
-        }),
-      ),
-    );
-    renderConSesion('/reporte/31', { '/reporte/:id': <PaginaReporte /> });
-
-    expect(await screen.findByRole('heading', { name: 'Reporte del Vecino 1' })).toBeInTheDocument();
-    expect(screen.getByText('Frente al kiosco')).toBeInTheDocument();
-    expect(screen.getByText('5 me gusta, 1 comentario')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '← Volver al incidente' })).toHaveAttribute(
-      'href',
-      '/incidente/3',
-    );
-    expect(await screen.findByText('Confirmo, sigue igual')).toBeInTheDocument();
-    expect(screen.getByText(/editado/)).toBeInTheDocument();
+    const recorrido = screen.getByRole('region', { name: 'Estado del problema' });
+    const final = within(recorrido).getAllByRole('listitem')[4]!;
+    expect(final).toHaveAttribute('aria-current', 'step');
+    expect(final).toHaveTextContent('Resuelto (cumplido)');
   });
 });
 

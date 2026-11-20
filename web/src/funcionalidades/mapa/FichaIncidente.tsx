@@ -3,6 +3,7 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { apiUrl } from '../../config/entorno.js';
 import { useFicha } from './consultas.js';
+import { DerivadoA } from './DerivadoA.js';
 import { EtiquetaEstado } from './EtiquetaEstado.js';
 import { useTraerALaVista } from './useTraerALaVista.js';
 
@@ -58,6 +59,7 @@ export function FichaIncidente({ id, alCerrar }: Props) {
           <div>
             <EtiquetaEstado estado={ficha.estado} />
           </div>
+          <DerivadoA area={ficha.derivadoA} />
           {ficha.enRevision && (
             <p className="text-sm text-texto-secundario">
               Todavía no se verificó: puede cambiar de categoría o descartarse.

@@ -1,7 +1,12 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
+import { useFocoConfirmacion } from '../../compartido/componentes/useFocoConfirmacion.js';
+import { aErrorApi } from '../../compartido/red/error.js';
 import { EtiquetaReporte } from './EtiquetaReporte.js';
-import { estadoParaElVecino, tieneFicha } from './tipos.js';
+import { estadoParaElVecino, estaPublicado, tieneFicha } from './tipos.js';
 import type { ReporteMio } from './tipos.js';
+import { useEliminarReporte } from './useMisReportes.js';
 
 const fecha = new Intl.DateTimeFormat('es-AR', {
   dateStyle: 'medium',
@@ -14,9 +19,14 @@ interface Props {
   alAbrirFicha: (id: number) => void;
 }
 
-/** Un reporte del vecino en su perfil: foto, categoría, fecha y estado. Si hay ficha, toda la fila la abre. */
+/**
+ * Un reporte del vecino en su perfil: foto, categoría, fecha y estado. Si está publicado, toda la fila lleva a su
+ * publicación, donde están el agradecimiento de SnapIt y los comentarios a su foto. Si no, pero el problema tiene
+ * ficha, la abre al lado. Debajo, «Eliminar», con confirmación (#151).
+ */
 export function FilaReporte({ reporte, alAbrirFicha }: Props) {
   const incidenteId = reporte.incidente?.id;
+  const publicado = estaPublicado(reporte);
 
   const contenido = (
     <>
@@ -39,8 +49,12 @@ export function FilaReporte({ reporte, alAbrirFicha }: Props) {
   const clases = 'flex w-full items-center gap-3 rounded-lg border border-borde bg-superficie p-3 text-left';
 
   return (
-    <li>
-      {tieneFicha(reporte) && incidenteId !== undefined ? (
+    <li className="flex flex-col gap-1">
+      {publicado ? (
+        <Link to={`/reporte/${reporte.id}`} className={`${clases} hover:bg-superficie-alterna`}>
+          {contenido}
+        </Link>
+      ) : tieneFicha(reporte) && incidenteId !== undefined ? (
         <button
           type="button"
           onClick={() => alAbrirFicha(incidenteId)}
@@ -51,7 +65,67 @@ export function FilaReporte({ reporte, alAbrirFicha }: Props) {
       ) : (
         <div className={clases}>{contenido}</div>
       )}
+      <EliminarReporte reporte={reporte} />
     </li>
+  );
+}
+
+/**
+ * «Eliminar» con su confirmación. Si el servidor no deja (por ejemplo, es el único reporte de su problema:
+ * 409 UNICO_REPORTE), se muestra su explicación y el reporte queda.
+ */
+function EliminarReporte({ reporte }: { reporte: ReporteMio }) {
+  const eliminar = useEliminarReporte();
+  const [confirmando, setConfirmando] = useState(false);
+  const { botonAbrir, botonConfirmar } = useFocoConfirmacion(confirmando);
+  const nombre = `tu reporte de ${reporte.categoria.nombre}`;
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      {confirmando ? (
+        <div
+          role="alertdialog"
+          aria-label={`Eliminar ${nombre}`}
+          className="flex flex-wrap items-center gap-2"
+        >
+          <span className="text-sm">¿Eliminar {nombre}? No se puede deshacer.</span>
+          <button
+            ref={botonConfirmar}
+            type="button"
+            onClick={() => eliminar.mutate(reporte.id, { onSettled: () => setConfirmando(false) })}
+            disabled={eliminar.isPending}
+            className="rounded-md bg-peligro px-3 py-1 text-xs font-semibold text-sobre-peligro disabled:opacity-50"
+          >
+            Sí, eliminar
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmando(false)}
+            className="rounded-md px-2 py-1 text-xs font-semibold text-texto-secundario hover:bg-superficie-alterna"
+          >
+            No
+          </button>
+        </div>
+      ) : (
+        <button
+          ref={botonAbrir}
+          type="button"
+          aria-label={`Eliminar ${nombre}`}
+          onClick={() => {
+            eliminar.reset();
+            setConfirmando(true);
+          }}
+          className="rounded-md px-2 py-1 text-xs font-semibold text-peligro hover:bg-superficie-alterna"
+        >
+          Eliminar
+        </button>
+      )}
+      {eliminar.isError && (
+        <p role="alert" className="text-sm text-peligro">
+          {aErrorApi(eliminar.error).mensaje}
+        </p>
+      )}
+    </div>
   );
 }
 

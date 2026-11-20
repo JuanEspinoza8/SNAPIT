@@ -8,8 +8,8 @@ import { FilaReporte } from './FilaReporte.js';
 import { useMisReportes } from './useMisReportes.js';
 
 /**
- * Los reportes del vecino de la sesión, del más nuevo al más viejo; si toca uno, abre la ficha al lado. Están en
- * su perfil (PaginaPerfil).
+ * Los reportes del vecino de la sesión, del más nuevo al más viejo. Uno publicado lleva a su publicación; uno que
+ * todavía no, abre al lado la ficha de su problema. Están en su perfil (PaginaPerfil).
  */
 export function ListaMisReportes() {
   const { data, isPending, isError, error, refetch, isFetching } = useMisReportes();

@@ -5,6 +5,7 @@ import type {
   DecisionRevision,
   ReporteDelOrganismo,
   ReportePendiente,
+  ResultadoConfirmacion,
   ResultadoRevision,
 } from '../../funcionalidades/revision/tipos.js';
 
@@ -12,8 +13,14 @@ export interface RepositorioReportes {
   enviar(datos: DatosReporte): Promise<ReporteEnviado>;
   /** Los reportes del vecino de la sesión, del más nuevo al más viejo. */
   mios(): Promise<ReporteMio[]>;
-  /** Los reportes de baja confianza a revisar, del más viejo al más nuevo. */
+  /** El vecino elimina su propio reporte (#150). */
+  eliminar(id: number): Promise<void>;
+  /** Los reportes que esperan revisión, del más viejo al más nuevo (sin los marcados para desestimar). */
   pendientes(): Promise<ReportePendiente[]>;
+  /** Los que la IA marcó para desestimar: esperan que un operador lo confirme. */
+  desestimadosPendientes(): Promise<ReportePendiente[]>;
+  /** Desestima los marcados de `ids`: los que el operador tiene a la vista. */
+  confirmarDesestimados(ids: number[]): Promise<ResultadoConfirmacion>;
   /** Todos los reportes del organismo, en cualquier estado, del más nuevo al más viejo. */
   delOrganismo(): Promise<ReporteDelOrganismo[]>;
   /** Verifica o desestima un reporte pendiente, con comentario opcional. */
@@ -44,9 +51,24 @@ export function crearRepositorioReportes(cliente: ClienteApi): RepositorioReport
       const { reportes } = await cliente.pedir<{ reportes: ReporteMio[] }>('/reportes/mios');
       return reportes;
     },
+    async eliminar(id) {
+      await cliente.pedir<null>(`/reportes/${id}`, { metodo: 'DELETE' });
+    },
     async pendientes() {
       const { reportes } = await cliente.pedir<{ reportes: ReportePendiente[] }>('/reportes/pendientes');
       return reportes;
+    },
+    async desestimadosPendientes() {
+      const { reportes } = await cliente.pedir<{ reportes: ReportePendiente[] }>(
+        '/reportes/desestimados-pendientes',
+      );
+      return reportes;
+    },
+    confirmarDesestimados(ids) {
+      return cliente.pedir<ResultadoConfirmacion>('/reportes/desestimados-pendientes/confirmacion', {
+        metodo: 'POST',
+        cuerpo: { ids },
+      });
     },
     async delOrganismo() {
       // Sin filtros: la pantalla filtra y cuenta por estado con la lista completa (hasta 500).

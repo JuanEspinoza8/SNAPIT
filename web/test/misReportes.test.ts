@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estadoParaElVecino, tieneFicha } from '../src/funcionalidades/misReportes/tipos.js';
+import { estadoParaElVecino, estaPublicado, tieneFicha } from '../src/funcionalidades/misReportes/tipos.js';
 import type { ReporteMio } from '../src/funcionalidades/misReportes/tipos.js';
 
 const reporte = (parcial: Partial<ReporteMio>): ReporteMio => ({
@@ -50,5 +50,42 @@ describe('tieneFicha', () => {
 
   it('no la tiene si no hay incidente', () => {
     expect(tieneFicha(reporte({}))).toBe(false);
+  });
+
+  it('no la tiene si el incidente caducó: ya no está en el mapa', () => {
+    const caducado = { id: 1, estado: 'VERIFICADO' as const, enRevision: false, caducadoEn: '2026-11-01' };
+    expect(tieneFicha(reporte({ incidente: caducado }))).toBe(false);
+  });
+});
+
+describe('estaPublicado', () => {
+  const vigente = { id: 1, estado: 'DERIVADO' as const, enRevision: false, caducadoEn: null };
+
+  it('lo está si se verificó y su incidente se ve', () => {
+    expect(estaPublicado(reporte({ estadoVerificacion: 'VERIFICADO', incidente: vigente }))).toBe(true);
+  });
+
+  it('no lo está mientras espera revisión, aunque el problema ya esté en el mapa', () => {
+    expect(estaPublicado(reporte({ estadoVerificacion: 'PENDIENTE_REVISION', incidente: vigente }))).toBe(
+      false,
+    );
+  });
+
+  it('no lo está si se desestimó el reporte o su incidente', () => {
+    expect(estaPublicado(reporte({ estadoVerificacion: 'DESESTIMADO', incidente: vigente }))).toBe(false);
+    expect(
+      estaPublicado(
+        reporte({ estadoVerificacion: 'VERIFICADO', incidente: { ...vigente, estado: 'DESESTIMADO' } }),
+      ),
+    ).toBe(false);
+  });
+
+  it('no lo está si su incidente caducó o no tiene incidente', () => {
+    expect(
+      estaPublicado(
+        reporte({ estadoVerificacion: 'VERIFICADO', incidente: { ...vigente, caducadoEn: '2026-11-01' } }),
+      ),
+    ).toBe(false);
+    expect(estaPublicado(reporte({ estadoVerificacion: 'VERIFICADO' }))).toBe(false);
   });
 });
