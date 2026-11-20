@@ -253,7 +253,10 @@ describe('ficha del incidente para el operador', () => {
     expect(within(reporte12).getByText('Verificado')).toBeInTheDocument();
     expect(screen.getAllByText('Desestimado').length).toBeGreaterThan(0);
     expect(screen.getByText(/La foto se sacó a 12 m del punto reportado/)).toBeInTheDocument();
-    expect(screen.getByText('✕ Foto repetida')).toBeInTheDocument();
+    const reporte20 = screen.getByText('Reporte #20 · Vereda rota · Leve').closest('li')!;
+    expect(within(reporte20).getByText('Foto repetida').closest('li')).toHaveTextContent(
+      'Foto repetida · No se cumple: La foto ya se usó en otro reporte',
+    );
     expect(screen.getByText('Del incidente #14, unido a este')).toBeInTheDocument();
 
     // Las fotos se piden con la sesión: así el operador ve también la del reporte desestimado.
@@ -296,7 +299,7 @@ describe('ficha del incidente para el operador', () => {
     );
   });
 
-  it('al administrador no, porque Incidentes es solo del operador', async () => {
+  it('al administrador también: Incidentes es del operador y del administrador', async () => {
     servidor.use(
       http.get('*/api/auth/yo', () =>
         HttpResponse.json({
@@ -314,7 +317,10 @@ describe('ficha del incidente para el operador', () => {
     await titulo();
     await waitFor(() => expect(acciones()).toContain('Desestimar…'));
 
-    expect(screen.queryByRole('link', { name: 'Unir o separar en Incidentes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Unir o separar en Incidentes' })).toHaveAttribute(
+      'href',
+      '/incidentes',
+    );
   });
 
   it('derivado y con ajuste: suma pasar a ejecución y quitar el ajuste', async () => {

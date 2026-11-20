@@ -434,8 +434,11 @@ describe('editar y dar de baja usuarios', () => {
 
     await persona.click(await screen.findByRole('button', { name: 'Dar de baja a Vecina' }));
     expect(screen.getByText(/No va a poder ingresar/)).toBeInTheDocument();
+    // El foco va a la confirmación y, al cancelar, vuelve al botón que la abrió.
+    expect(screen.getByRole('button', { name: 'Sí, dar de baja' })).toHaveFocus();
     await persona.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(bajas).toEqual([]);
+    expect(screen.getByRole('button', { name: 'Dar de baja a Vecina' })).toHaveFocus();
 
     await persona.click(screen.getByRole('button', { name: 'Dar de baja a Vecina' }));
     await persona.click(screen.getByRole('button', { name: 'Sí, dar de baja' }));

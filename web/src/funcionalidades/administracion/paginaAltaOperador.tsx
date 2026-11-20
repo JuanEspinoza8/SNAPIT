@@ -5,6 +5,7 @@ import { Campo } from '../../compartido/componentes/Campo.js';
 import { CampoSelecto } from '../../compartido/componentes/CampoSelecto.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { Modal } from '../../compartido/componentes/Modal.js';
+import { useFocoConfirmacion } from '../../compartido/componentes/useFocoConfirmacion.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
 import { validarClaveNueva, validarCorreo, validarNombre } from '../cuenta/validaciones.js';
@@ -94,7 +95,7 @@ export function PaginaAltaOperador() {
   return (
     <section className="space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-texto">Alta de operadores</h1>
+        <h1 className="text-2xl font-semibold text-texto">Usuarios</h1>
         <p className="text-texto-secundario">
           Creá la cuenta de un operador o administrador con una clave inicial, y editá o da de baja a los
           usuarios desde la lista. Lo cargado no se pierde si el servidor rechaza algo.
@@ -237,7 +238,7 @@ export function PaginaAltaOperador() {
         </form>
 
         <div className="space-y-3">
-          <h2 className="text-xl font-semibold text-texto">Usuarios</h2>
+          <h2 className="text-xl font-semibold text-texto">Todos los usuarios</h2>
           {consultaUsuarios.isError && (
             <AvisoError
               error={aErrorApi(consultaUsuarios.error)}
@@ -262,58 +263,25 @@ export function PaginaAltaOperador() {
                       </p>
                     </div>
                   </div>
-                  {confirmandoBaja === usuario.id ? (
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <p className="mr-auto text-peligro">
-                        ¿Dar de baja a {usuario.nombre}? No va a poder ingresar.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmandoBaja(null)}
-                        className="rounded-md border border-borde px-3 py-1 font-semibold text-texto hover:bg-superficie-alterna"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={darDeBaja.isPending}
-                        onClick={() =>
-                          darDeBaja.mutate(usuario.id, { onSuccess: () => setConfirmandoBaja(null) })
-                        }
-                        className="rounded-md bg-peligro px-3 py-1 font-semibold text-sobre-primario hover:opacity-90 disabled:opacity-50"
-                      >
-                        {darDeBaja.isPending ? 'Dando de baja…' : 'Sí, dar de baja'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          modificarUsuario.reset();
-                          setEditando(usuario);
-                        }}
-                        className="font-semibold text-primario hover:opacity-80"
-                        aria-label={`Editar a ${usuario.nombre}`}
-                      >
-                        Editar
-                      </button>
-                      {/* Nadie se da de baja a sí mismo desde acá. */}
-                      {usuario.id !== yo?.id && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            darDeBaja.reset();
-                            setConfirmandoBaja(usuario.id);
-                          }}
-                          className="font-semibold text-peligro hover:opacity-80"
-                          aria-label={`Dar de baja a ${usuario.nombre}`}
-                        >
-                          Dar de baja
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <AccionesUsuario
+                    usuario={usuario}
+                    confirmando={confirmandoBaja === usuario.id}
+                    // Nadie se da de baja a sí mismo desde acá.
+                    puedeDarDeBaja={usuario.id !== yo?.id}
+                    dandoDeBaja={darDeBaja.isPending}
+                    alEditar={() => {
+                      modificarUsuario.reset();
+                      setEditando(usuario);
+                    }}
+                    alPedirBaja={() => {
+                      darDeBaja.reset();
+                      setConfirmandoBaja(usuario.id);
+                    }}
+                    alCancelar={() => setConfirmandoBaja(null)}
+                    alConfirmar={() =>
+                      darDeBaja.mutate(usuario.id, { onSuccess: () => setConfirmandoBaja(null) })
+                    }
+                  />
                   {confirmandoBaja === usuario.id && darDeBaja.isError && (
                     <AvisoError error={aErrorApi(darDeBaja.error)} />
                   )}
@@ -374,6 +342,76 @@ export function PaginaAltaOperador() {
       },
     );
   }
+}
+
+/** Editar y dar de baja a un usuario de la lista. La baja se confirma ahí mismo, porque no se deshace desde acá. */
+function AccionesUsuario({
+  usuario,
+  confirmando,
+  puedeDarDeBaja,
+  dandoDeBaja,
+  alEditar,
+  alPedirBaja,
+  alCancelar,
+  alConfirmar,
+}: {
+  usuario: Usuario;
+  confirmando: boolean;
+  puedeDarDeBaja: boolean;
+  dandoDeBaja: boolean;
+  alEditar: () => void;
+  alPedirBaja: () => void;
+  alCancelar: () => void;
+  alConfirmar: () => void;
+}) {
+  const { botonAbrir, botonConfirmar } = useFocoConfirmacion(confirmando);
+
+  if (confirmando) {
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <p className="mr-auto text-peligro">¿Dar de baja a {usuario.nombre}? No va a poder ingresar.</p>
+        <button
+          type="button"
+          onClick={alCancelar}
+          className="rounded-md border border-borde px-3 py-1 font-semibold text-texto hover:bg-superficie-alterna"
+        >
+          Cancelar
+        </button>
+        <button
+          ref={botonConfirmar}
+          type="button"
+          disabled={dandoDeBaja}
+          onClick={alConfirmar}
+          className="rounded-md bg-peligro px-3 py-1 font-semibold text-sobre-peligro hover:opacity-90 disabled:opacity-50"
+        >
+          {dandoDeBaja ? 'Dando de baja…' : 'Sí, dar de baja'}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex justify-end gap-3">
+      <button
+        type="button"
+        onClick={alEditar}
+        className="font-semibold text-primario hover:opacity-80"
+        aria-label={`Editar a ${usuario.nombre}`}
+      >
+        Editar
+      </button>
+      {puedeDarDeBaja && (
+        <button
+          ref={botonAbrir}
+          type="button"
+          onClick={alPedirBaja}
+          className="font-semibold text-peligro hover:opacity-80"
+          aria-label={`Dar de baja a ${usuario.nombre}`}
+        >
+          Dar de baja
+        </button>
+      )}
+    </div>
+  );
 }
 
 // La lista de organismos trae solo los activos: si el del usuario no está,

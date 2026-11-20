@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { ESTADOS_VERIFICACION } from '../../compartido/formato/verificacion.js';
-import { controles } from '../revision/estadoIa.js';
+import { controles, RESULTADO_CONTROL } from '../revision/estadoIa.js';
 import { severidadEnTexto } from '../revision/tipos.js';
 import { fechaHora } from './formato.js';
 import type { ReporteGestion } from './tipos.js';
@@ -88,10 +88,7 @@ function Reporte({ reporte, deUnido }: { reporte: ReporteGestion; deUnido: boole
         <ul className="flex flex-col gap-1 text-xs text-texto">
           {controles(reporte.senales).map((control) => (
             <li key={control.nombre}>
-              <span className="font-semibold">
-                {control.resultado === 'BIEN' ? '✓' : control.resultado === 'MAL' ? '✕' : '–'}{' '}
-                {control.nombre}
-              </span>
+              <span className="font-semibold">{control.nombre}</span> · {RESULTADO_CONTROL[control.resultado]}
               {control.detalle && `: ${control.detalle}`}
             </li>
           ))}

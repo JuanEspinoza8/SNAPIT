@@ -78,14 +78,14 @@ describe('rutas de la aplicación', () => {
     abrir('/administracion', 'VECINO');
 
     expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Alta de operadores' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Usuarios', level: 1 })).not.toBeInTheDocument();
   });
 
   it('un operador que abre la administración vuelve a su bandeja', async () => {
     abrir('/administracion', 'OPERADOR');
 
     expect(await screen.findByRole('heading', { name: 'Bandeja' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Alta de operadores' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Usuarios', level: 1 })).not.toBeInTheDocument();
   });
 
   it('un administrador abre la bandeja, como deja el servidor', async () => {
@@ -155,6 +155,6 @@ describe('rutas de la aplicación', () => {
     );
     abrir('/administracion', 'ADMINISTRADOR');
 
-    expect(await screen.findByRole('heading', { name: 'Alta de operadores' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Usuarios', level: 1 })).toBeInTheDocument();
   });
 });
