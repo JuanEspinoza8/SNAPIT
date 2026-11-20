@@ -7,6 +7,7 @@ import { obtenerGestion } from '../bandeja/servicio.js';
 import { cerrarIncidente, confirmarCierre } from '../cierre/servicio.js';
 import { fijarPrioridadManual, quitarPrioridadManual } from '../prioridad/ajusteManual.js';
 import { cambiarCategoria } from './categoria.js';
+import { confirmar, consultarConfirmacion } from './confirmacion.js';
 import { esquemaFeed, esquemaFiltros, esquemaId } from './esquemas.js';
 import { cambiarEstado, comentarIncidente, derivarIncidente } from './gestion.js';
 import * as servicio from './servicio.js';
@@ -42,6 +43,15 @@ rutasIncidentes.post('/:id/seguimiento', autenticar, permitirRoles('VECINO'), as
 rutasIncidentes.delete('/:id/seguimiento', autenticar, permitirRoles('VECINO'), async (req, res) => {
   await dejarDeSeguir(req.usuario!, req.params);
   res.status(204).end();
+});
+
+// Un vecino confirma que el problema sigue (F12). El GET le dice a la ficha si ya lo confirmó.
+rutasIncidentes.get('/:id/confirmacion', autenticar, permitirRoles('VECINO'), async (req, res) => {
+  res.json(await consultarConfirmacion(req.usuario!, req.params));
+});
+
+rutasIncidentes.post('/:id/confirmaciones', autenticar, permitirRoles('VECINO'), async (req, res) => {
+  res.status(201).json(await confirmar(req.usuario!, req.params));
 });
 
 // Un operador une un incidente duplicado a su principal, o deshace la unión (F05): solo en su organismo.

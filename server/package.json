@@ -18,7 +18,8 @@
     "importar:red": "tsx scripts/importarRed.ts",
     "vincular:incidentes": "tsx scripts/vincularIncidentes.ts",
     "fotos:comprimir": "tsx src/tareas/comprimirFotos.ts",
-    "tarea:prioridad": "tsx src/tareas/recalcularPrioridad.ts"
+    "tarea:prioridad": "tsx src/tareas/recalcularPrioridad.ts",
+    "tarea:caducidad": "tsx src/tareas/caducarVencidos.ts"
   },
   "keywords": [],
   "author": "",

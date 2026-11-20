@@ -36,7 +36,7 @@ Todas las respuestas de error tienen el mismo formato:
 | 409 | Conflicto, por ejemplo un correo ya registrado |
 | 413 | El cuerpo supera 1 MB (`CUERPO_DEMASIADO_GRANDE`) |
 | 415 | Codificación o compresión del cuerpo no soportada (`FORMATO_NO_SOPORTADO`) |
-| 422 | Los datos tienen la forma correcta, pero no se puede hacer lo pedido (por ejemplo, un recorrido sin camino posible) |
+| 422 | Los datos tienen la forma correcta, pero no se puede hacer lo pedido (por ejemplo, un recorrido sin camino posible o una pregunta que no se entiende) |
 | 500 | Error inesperado (`ERROR_INTERNO`): nunca incluye detalles internos |
 | 503 | Un servicio externo no responde: la IA (`IA_NO_DISPONIBLE`) o Nominatim (`GEOCODIFICACION_NO_DISPONIBLE`) |
 
@@ -391,7 +391,7 @@ Responde **200**, del más nuevo al más viejo (por `registradoEn`):
       "descripcion": "Pozo grande frente a la escuela",
       "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
       "estadoVerificacion": "PENDIENTE_REVISION",
-      "incidente": { "id": 9, "estado": "REGISTRADO", "enRevision": true }
+      "incidente": { "id": 9, "estado": "REGISTRADO", "enRevision": true, "caducadoEn": null }
     }
   ]
 }
@@ -400,6 +400,7 @@ Responde **200**, del más nuevo al más viejo (por `registradoEn`):
 - `estadoVerificacion`: qué pasó con **este reporte** (`VERIFICADO`, `PENDIENTE_REVISION` o `DESESTIMADO`).
 - `incidente`: qué pasa con **el problema** (`REGISTRADO`, `VERIFICADO`, `DERIVADO`, `EN_EJECUCION`, `RESUELTO` o `DESESTIMADO`). Si un operador unió el incidente a otro, viene el **principal**, que es el que sigue avanzando: su `id` puede no coincidir con el `incidenteId` que devolvió el `POST`.
 - `incidente` es `null` si el reporte quedó sin incidente.
+- `incidente.caducadoEn`: cuándo caducó el incidente (el principal, si se unió a otro), o `null`. Si la tarea diaria ya lo marcó, es su `caducado_en`; si es un temporal vencido que todavía no marcó, cuándo venció (es la misma fecha). Un incidente resuelto o desestimado antes de vencer tiene `null`. Un incidente con fecha acá no está en el mapa y su ficha pública da 404, así que no conviene ofrecer abrirla.
 - `fotos`: todas las del reporte. Se bajan de `GET /api/fotos/:id` **con la sesión** (`Authorization: Bearer ...`): así también se ven las de un reporte desestimado o las de un incidente que ya no está en el mapa, que sin sesión dan 404.
 - Un vecino sin reportes recibe `{ "reportes": [] }`.
 - Los que eliminó (`DELETE /api/reportes/:id`) no vienen.
@@ -490,7 +491,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
         { "tipo": "HASH_DUPLICADO", "valor": 1, "detalle": "La foto no se usó en otro reporte" }
       ],
       "fotos": [{ "id": 12, "url": "/api/fotos/12" }],
-      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1, "propioId": 9 },
+      "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1, "propioId": 9, "caducadoEn": null },
       "vecino": { "reputacion": 50, "reportesConfirmados": 0, "reportesDesestimados": 0 },
       "propuestaIa": null
     }
@@ -501,7 +502,7 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 - `senales`: los tres controles automáticos (ubicación, antigüedad y foto repetida), con `valor` 1 si se cumple, −1 si no y 0 si no hay con qué hacerlo (ver `docs/calculos.md`).
 - `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el incidente no esté en el mapa.
 - `vecino`: su historial, no quién es.
-- `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`).
+- `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`). `caducadoEn` dice cuándo caducó o venció el principal, o `null`, como en `GET /api/reportes/mios`: «Unir» no propone los que tienen fecha.
 - `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última respuesta: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
 - No trae los pendientes de un incidente resuelto o desestimado: ya no se revisan (ver «Incidente cerrado» en `docs/calculos.md`). Siguen en `GET /api/reportes`, pendientes.
@@ -762,6 +763,7 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   "primerReporteEn": "2026-10-06T15:15:33.494Z",
   "cantidadReportes": 1,
   "cantidadVecinos": 1,
+  "cantidadConfirmaciones": 2,
   "direccion": "Lago Huechulafquen, Villa Ceferino",
   "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
   "fotoCierre": null,
@@ -773,6 +775,7 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
 - `derivadoA`: el área a la que quedó derivado, `{ "id": 4, "nombre": "Bacheo" }`, para mostrar «Derivado al área de Bacheo». Es la que le asignó el operador o, si no, la de su categoría. `null` mientras está en revisión (`enRevision`).
 - `severidad`: la gravedad consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`).
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
+- `cantidadConfirmaciones`: cuántos vecinos distintos confirmaron que el problema sigue (el botón «Sigue estando»), sumando los incidentes que se le unieron. Cuenta también a los que lo reportaron.
 - `fotos`: las de todos esos reportes, salvo las de reportes desestimados. `url` ya incluye `/api`: la web la usa tal cual (pasa por el proxy); la app, que tiene la base terminada en `/api`, arma `fotos/<id>` sobre esa base.
 - `resueltoEn`: cuándo se resolvió (F09); `null` mientras no esté `RESUELTO`.
 - `fotoCierre`: la foto del después (F09), la que cerró el incidente, para mostrarla junto a `fotos` (el antes). `null` mientras el incidente no esté `RESUELTO`: los intentos de cierre rechazados u observados no se publican.
@@ -829,6 +832,28 @@ Responde **200**:
 - `cantidadMeGusta` suma los de todos sus reportes; `cantidadComentarios`, los de sus reportes más los del incidente y los de sus unidos. Con la misma regla que las fotos: sin reportes desestimados ni eliminados, y sin comentarios eliminados. El detalle de cada uno está en [Social](#social).
 
 Un `cursor` que no se puede leer, un `limite` fuera de rango o un filtro inválido: **400** `DATOS_INVALIDOS` con `detalles`.
+
+### `POST /api/incidentes/:id/confirmaciones` · `GET /api/incidentes/:id/confirmacion`
+Un vecino confirma que el problema sigue (F12), una sola vez por incidente, y la ficha pregunta si ya lo hizo. Requieren sesión de `VECINO`: sin sesión, **401**; operador o administrador, **403**. Igual que la ficha, pedir un incidente unido a otro es pedir el principal.
+
+`POST` no lleva cuerpo. Responde **201** con el principal y el contador nuevo de la ficha:
+
+```json
+{ "incidenteId": 9, "cantidadConfirmaciones": 3 }
+```
+
+- En un incidente temporal renueva la vigencia: vence a los días de su categoría contados desde ahora, salvo que ya venciera más tarde. Uno permanente no cambia.
+- Recalcula la prioridad. La confirmación de quien ya lo reportó renueva la vigencia pero no suma evidencia (EVIDENCIAS en [`calculos.md`](calculos.md)).
+- Se puede confirmar uno pendiente de revisión (`enRevision`), porque se ve en el mapa.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 404 | `INCIDENTE_NO_ENCONTRADO` | No existe |
+| 409 | `INCIDENTE_CERRADO` | Está resuelto o desestimado |
+| 409 | `INCIDENTE_CADUCADO` | Caducó o se le venció la vigencia, aunque la tarea diaria todavía no lo haya marcado |
+| 409 | `YA_CONFIRMADO` | El vecino ya lo confirmó, o confirmó uno de los incidentes que se le unieron |
+
+`GET` responde **200** con `{ "confirmado": true }`, contando también lo que confirmó en los incidentes que se le unieron. Inexistente: **404**.
 
 ### `POST /api/incidentes/:id/union`
 Un operador marca que el incidente `:id` es el mismo problema que otro, el **principal** (F05). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, y los dos incidentes tienen que ser de su organismo.
@@ -901,6 +926,43 @@ Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA
 - **Con sesión**, el token va en el encabezado `Authorization: Bearer ...`, como en cualquier ruta protegida. Un `<img>` o `Image.network` no lo mandan: la web baja el archivo con su cliente y lo muestra desde una URL local (`FotoConSesion`), y la app lo baja con dio. Es lo que hace «mis reportes» y lo que va a usar la ficha de gestión del operador.
 - Si el token venció o no es válido, responde **401** (`TOKEN_VENCIDO` o `TOKEN_INVALIDO`) aunque la foto sea del mapa: el cliente renueva la sesión y la vuelve a pedir.
 - Caché de una hora: `Cache-Control: public, max-age=3600` sin sesión y `private, max-age=3600` con sesión (solo la guarda el navegador de quien la pidió). Todas llevan `Vary: Authorization`.
+
+## Consulta en lenguaje natural
+
+### `POST /api/consultas/interpretar`
+Traduce una pregunta con palabras propias a los filtros de [`GET /api/incidentes`](#get-apiincidentes) (F15). Requiere sesión, de cualquier rol. La IA **solo propone los filtros**: no busca ni ve ningún incidente. La búsqueda la hace después el cliente, con esos filtros, en el mapa.
+
+```json
+{ "texto": "¿Qué pozos hay en el centro este mes?" }
+```
+
+`texto` es obligatorio, de hasta 500 caracteres (sin contar los espacios de los bordes). Responde **200**:
+
+```json
+{
+  "filtros": {
+    "categoriaId": 1,
+    "estado": null,
+    "desde": "2026-11-01",
+    "hasta": "2026-11-13",
+    "barrio": "Área Centro Este"
+  },
+  "descripcion": "Entendí: categoría Pozo en la calzada, barrio Área Centro Este, reportados del 01/11/2026 al 13/11/2026.",
+  "registroIaId": 52
+}
+```
+
+- Un filtro que no aplica va en `null`: al llamar a `GET /api/incidentes` se manda solo el resto. Las fechas son días (`AAAA-MM-DD`), así que el mapa toma el día completo en hora de Argentina.
+- A la IA se le pasan la fecha de hoy, las categorías activas, los estados que se ven en el mapa y los barrios de [`GET /api/barrios`](#get-apibarrios). Lo que propone se valida contra esas listas, sin distinguir mayúsculas ni tildes, y se devuelve escrito como en la lista.
+- Lo que no está en las listas se **descarta** y se avisa al final de `descripcion`, por ejemplo: `No hay una categoría «semáforos»: no se filtra por categoría.` Lo mismo con un barrio sin problemas en el mapa, un estado que no se ve en el mapa o un período que termina antes de empezar. Si se descarta todo, la respuesta es igual 200 y busca todos los problemas.
+- `descripcion` la arma el servidor con los filtros ya validados: es lo que la app muestra para que el usuario confirme o corrija antes de buscar.
+- Cada llamada a la IA queda en `registro_ia` (tipo `CONSULTA_NATURAL`) con el usuario, salga bien o mal.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta `texto`, no es un texto o tiene más de 500 caracteres |
+| 401 | `NO_AUTENTICADO` | Sin sesión |
+| 422 | `CONSULTA_NO_ENTENDIDA` | El texto está vacío, no es una pregunta sobre problemas de la vía pública, o la IA no respondió o respondió algo inválido. El mensaje sugiere usar los filtros: la app ofrece los filtros comunes. |
 
 ## Social
 El feed de publicaciones, los me gusta y los comentarios. **Leer es público**, como el mapa; con sesión (opcional), cada reporte dice si ya le diste me gusta (`yaMeGusta`) y cada comentario si es tuyo (`esMio`). **Dar me gusta y comentar** es solo de vecinos con sesión (#149). Van bajo `/api/social` para no chocar con las del operador: `POST /api/incidentes/:id/comentarios` es la bitácora, no un comentario público. Lo de cada **reporte** (una foto de un vecino) va aparte de lo del **incidente** (el problema en general).
@@ -1481,6 +1543,69 @@ Responde **200**:
 | 409 `INCIDENTE_CERRADO` | El incidente está resuelto o desestimado |
 | 409 `MISMA_CATEGORIA` | Ya es de esa categoría |
 | 409 `CATEGORIA_CAMBIADA` | Otro operador la cambió en ese mismo momento: hay que volver a intentar |
+
+## Indicadores del organismo
+El panel de indicadores (F13). Las dos rutas requieren sesión de `OPERADOR` o `ADMINISTRADOR` (sin sesión, 401; otro rol, 403 `SIN_PERMISO`) y miden solo **su organismo**. El área de un incidente es la responsable, igual que en la bandeja: la del área a la que se derivó o, si todavía no se derivó, la de su categoría. Un incidente unido a otro no cuenta aparte: lo suyo cuenta en el principal.
+
+Las dos aceptan los mismos filtros, todos opcionales:
+
+| Parámetro | Ejemplo | Qué filtra |
+|---|---|---|
+| `desde` / `hasta` | `2026-10-01` | El período, con el mismo formato que el mapa: con solo la fecha se toma el día completo en hora de Argentina; también aceptan fecha y hora ISO 8601. Cada indicador dice qué fecha mira |
+| `areaId` | `2` | Un área del organismo (puede estar inactiva). **Si no viene, todo el organismo** |
+
+Un filtro inválido, `hasta` anterior a `desde`, una fecha anterior al año 2000, un período de más de 3 años (de `desde` a `hasta`, o a hoy si falta `hasta`) o un área de otro organismo: **400** `DATOS_INVALIDOS` con `detalles`. Un administrador sin organismo recibe todo en 0 y las listas vacías.
+
+**Abierto** quiere decir `REGISTRADO`, `VERIFICADO`, `DERIVADO` o `EN_EJECUCION` y visible en el mapa: no cuentan los unidos a otro, los caducados ni los temporales cuya vigencia ya pasó (aunque la tarea diaria todavía no los haya marcado).
+
+### `GET /api/indicadores`
+Responde **200**:
+
+```json
+{
+  "abiertosPorEstado": [
+    { "estado": "REGISTRADO", "cantidad": 1 },
+    { "estado": "VERIFICADO", "cantidad": 2 },
+    { "estado": "DERIVADO", "cantidad": 1 },
+    { "estado": "EN_EJECUCION", "cantidad": 1 }
+  ],
+  "nuevosYResueltosPorSemana": [
+    { "semana": "2026-01-05", "nuevos": 7, "resueltos": 2 },
+    { "semana": "2026-01-12", "nuevos": 3, "resueltos": 3 },
+    { "semana": "2026-01-19", "nuevos": 0, "resueltos": 0 }
+  ],
+  "tiempoDeResolucion": {
+    "porCategoria": [{ "id": 1, "nombre": "Pozo en la calzada", "cantidad": 3, "medianaDias": 4, "promedioDias": 5 }],
+    "porArea": [{ "id": 1, "nombre": "Bacheo", "cantidad": 3, "medianaDias": 4, "promedioDias": 5 }],
+    "porBarrio": [{ "barrio": "Villa Ceferino", "cantidad": 2, "medianaDias": 6.5, "promedioDias": 6.5 }]
+  },
+  "barriosConMasAbiertos": [
+    { "barrio": "Centro", "cantidad": 2 },
+    { "barrio": "Villa Ceferino", "cantidad": 1 }
+  ],
+  "reportesDesestimados": { "total": 5, "desestimados": 3, "porcentaje": 60 }
+}
+```
+
+- `abiertosPorEstado`: los incidentes abiertos **hoy** cuyo primer reporte cae en el período, por estado. Vienen siempre los cuatro estados, en el orden del circuito, aunque alguno esté en 0. Sin período, todos los abiertos.
+- `nuevosYResueltosPorSemana`: cuántos incidentes entraron y cuántos se resolvieron cada semana, de lunes a domingo en hora de Argentina. `semana` es la fecha del lunes. **Nuevo** es un incidente cuyo primer reporte cae en esa semana, sin contar los unidos a otro ni los desestimados (no eran un problema real); los caducados y los que están en revisión sí cuentan. **Resuelto** es uno que pasó a `RESUELTO` en esa semana (`resuelto_en`). Vienen todas las semanas, también las que quedan en 0, desde la de `desde` (sin `desde`, la del dato más viejo) hasta la de `hasta` (sin `hasta`, la actual). La primera y la última pueden ser parciales: solo cuenta lo que cae dentro del período. Sin datos y sin `desde`, la lista viene vacía, y también si `desde` es posterior a hoy y no hay `hasta`.
+- `tiempoDeResolucion`: cuánto tardaron en resolverse los incidentes que se resolvieron en el período (`resuelto_en`), contado desde el primer reporte (`resuelto_en − primer_reporte_en`), en días con un decimal (6 horas son 0,3 días). Por categoría, por área y por barrio; `cantidad` es cuántos resueltos entran en cada grupo. La **mediana** es el tiempo del medio (con una cantidad par, el promedio de los dos del medio): la mitad se resolvió en menos y la otra mitad en más, y un caso que tardó muchísimo no la mueve como al **promedio**. Primero el grupo con la mediana más alta (el que más tarda); ante un empate, por nombre. Un incidente sin dirección cuenta en su categoría y su área, pero en ningún barrio.
+- `barriosConMasAbiertos`: los mismos abiertos de `abiertosPorEstado`, por barrio, de más a menos (ante un empate, por nombre). Vienen todos los barrios con algún abierto; el panel puede mostrar los primeros. El barrio sale de la dirección, como en [`GET /api/barrios`](#get-apibarrios): los incidentes que todavía no tienen dirección no entran en ninguno.
+- `reportesDesestimados`: de los reportes cargados en el período (`registrado_en`), cuántos se desestimaron. `total` incluye **todos** los recibidos: también los que todavía esperan revisión y los que su autor eliminó. `porcentaje` es `desestimados / total × 100` con un decimal, y es `null` si no hay reportes. Un reporte es del área responsable del incidente que manda (el principal, si el suyo se unió a otro), como en `GET /api/reportes`.
+
+### `GET /api/indicadores/calor`
+Los puntos del mapa de calor: los mismos abiertos de `abiertosPorEstado` (abiertos hoy, con el primer reporte en el período), del primer reporte más viejo al más nuevo. Responde **200**:
+
+```json
+{
+  "puntos": [
+    { "lat": -38.9516, "lon": -68.0591, "peso": 1 },
+    { "lat": -38.9551, "lon": -68.0632, "peso": 0.25 }
+  ]
+}
+```
+
+`peso` va de 0 a 1: la prioridad del incidente (la manual, si la hay; si no, la calculada) dividida por la mayor de la lista, con dos decimales. El más urgente pesa 1. No se divide por 100 porque la prioridad puede pasar de 100 (por el peso de la categoría o por una prioridad manual). Si todos tienen prioridad 0, todos pesan 1. Sirve tal cual como intensidad de leaflet.heat.
 
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
