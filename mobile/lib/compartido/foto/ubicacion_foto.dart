@@ -15,8 +15,8 @@ final lectorUbicacionFotoProvider = Provider<Future<LatLng?> Function(String)>(
 const _bytesALeer = 256 * 1024;
 
 /// Dónde se sacó la foto, según su EXIF: con eso el reporte marca el punto
-/// solo. Null si no es un JPEG, si no trae ubicación o si no se puede leer:
-/// entonces queda el punto del GPS.
+/// solo. Null si no es un JPEG, si no trae ubicación (o le falta el
+/// hemisferio) o si no se puede leer: entonces queda el punto del GPS.
 Future<LatLng?> ubicacionDeLaFoto(String ruta) async {
   try {
     final bytes = <int>[];
@@ -93,9 +93,23 @@ LatLng? _gpsDelTiff(ByteData datos, int inicio) {
 
   final lat = grados(2);
   final lon = grados(4);
-  if (lat == null || lon == null) return null;
-  final latitud = referencia(1) == 'S' ? -lat : lat;
-  final longitud = referencia(3) == 'W' ? -lon : lon;
+  // Sin el hemisferio no se sabe el signo: mejor sin ubicación que una en la
+  // otra punta del mundo. Igual que el servidor (analisisFoto.ts).
+  final signoLat = switch (referencia(1)?.toUpperCase()) {
+    'N' => 1,
+    'S' => -1,
+    _ => null,
+  };
+  final signoLon = switch (referencia(3)?.toUpperCase()) {
+    'E' => 1,
+    'W' => -1,
+    _ => null,
+  };
+  if (lat == null || lon == null || signoLat == null || signoLon == null) {
+    return null;
+  }
+  final latitud = signoLat * lat;
+  final longitud = signoLon * lon;
   // Un GPS sin señal a veces graba 0, 0: no es un lugar.
   final valido =
       latitud.isFinite &&
