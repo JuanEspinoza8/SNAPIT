@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../compartido/errores/aviso_error.dart';
 import '../../compartido/errores/mensaje_error.dart';
 import '../../compartido/formato/fechas.dart';
 import '../../compartido/red/error_api.dart';
+import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/tema/tema_app.dart';
+import '../feed/estado_feed.dart';
 import '../mapa/estados.dart';
 import '../mapa/ficha_incidente.dart';
 import '../mapa/modelos.dart';
 import 'modelos.dart';
 import 'repositorio_mis_reportes.dart';
 
-/// Los reportes del vecino con el estado de cada uno. Tocar uno abre la ficha
-/// de su incidente, la misma del mapa.
+/// Los reportes del vecino con el estado de cada uno. Tocar uno publicado abre
+/// su publicación, con el agradecimiento de SnapIt y los comentarios a su
+/// foto; uno que todavía no se publicó, la ficha de su incidente, la misma
+/// del mapa. Cada uno se puede eliminar (#152).
 class PantallaMisReportes extends ConsumerWidget {
   const PantallaMisReportes({super.key, required this.alReportar});
 
@@ -69,23 +74,26 @@ class _Lista extends StatelessWidget {
   }
 }
 
-class _FilaReporte extends StatelessWidget {
+class _FilaReporte extends ConsumerWidget {
   const _FilaReporte(this.reporte);
 
   final ReporteMio reporte;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tema = Theme.of(context);
     final secundario = tema.colorScheme.onSurfaceVariant;
-    final abreFicha = reporte.tieneFicha;
+    final VoidCallback? alTocar = reporte.publicado
+        ? () => context.push(Rutas.reporte(reporte.id))
+        : reporte.tieneFicha
+        ? () => mostrarFicha(context, reporte.incidenteId!)
+        : null;
 
-    // TalkBack lee la fila entera de una vez: categoría, fecha y estado.
-    return MergeSemantics(
+    // TalkBack lee la fila entera de una vez: categoría, fecha y estado. El
+    // menú va aparte, para que se pueda elegir solo.
+    final fila = MergeSemantics(
       child: InkWell(
-        onTap: abreFicha
-            ? () => mostrarFicha(context, reporte.incidenteId!)
-            : null,
+        onTap: alTocar,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: Espacio.lg,
@@ -114,12 +122,55 @@ class _FilaReporte extends StatelessWidget {
                   ],
                 ),
               ),
-              if (abreFicha) Icon(Icons.chevron_right, color: secundario),
+              if (alTocar != null) Icon(Icons.chevron_right, color: secundario),
             ],
           ),
         ),
       ),
     );
+    return Row(
+      children: [
+        Expanded(child: fila),
+        PopupMenuButton<String>(
+          tooltip: 'Opciones de tu reporte de ${reporte.categoriaNombre}',
+          onSelected: (_) => _eliminar(context, ref),
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Con confirmación. Si el servidor no deja (es el único reporte de su
+  /// problema), se muestra su explicación y el reporte queda.
+  Future<void> _eliminar(BuildContext context, WidgetRef ref) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (contexto) => AlertDialog(
+        title: Text('¿Eliminar tu reporte de ${reporte.categoriaNombre}?'),
+        content: const Text('No se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(contexto, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(contexto, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true || !context.mounted) return;
+    try {
+      await ref.read(repositorioMisReportesProvider).eliminar(reporte.id);
+      if (!context.mounted) return;
+      ref.invalidate(misReportesProvider);
+      ref.invalidate(feedProvider);
+    } catch (error) {
+      if (context.mounted) mostrarError(context, error);
+    }
   }
 }
 

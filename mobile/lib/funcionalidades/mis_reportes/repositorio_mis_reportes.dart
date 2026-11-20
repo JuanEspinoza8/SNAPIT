@@ -41,6 +41,16 @@ class RepositorioMisReportes {
     }
   }
 
+  /// El vecino elimina su propio reporte (#150). Si es el único de su
+  /// problema, el servidor responde 409 `UNICO_REPORTE` con la explicación.
+  Future<void> eliminar(int id) async {
+    try {
+      await _dio.delete<void>('/reportes/$id');
+    } catch (e) {
+      throw ErrorApi.desde(e);
+    }
+  }
+
   /// Una foto de un reporte propio. Va con sesión: así el servidor también da
   /// la de un reporte desestimado o la de un incidente que ya no está en el
   /// mapa, que `Image.network` (sin token) no puede bajar. Todo error sale

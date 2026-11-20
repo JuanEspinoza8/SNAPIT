@@ -86,8 +86,8 @@ class ServidorAvisos {
         return json(200, {'usuario': _usuario()});
       case '/incidentes':
         return json(200, {'incidentes': <Object>[]});
-      case '/incidentes/feed':
-        return json(200, {'incidentes': <Object>[], 'siguiente': null});
+      case '/social/feed':
+        return json(200, {'reportes': <Object>[], 'siguiente': null});
       case '/categorias':
         return errorCategorias?.call(pedido) ??
             json(200, {'categorias': categoriasAvisosJson['categorias']});

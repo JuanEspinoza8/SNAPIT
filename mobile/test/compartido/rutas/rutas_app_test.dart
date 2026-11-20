@@ -51,4 +51,22 @@ void main() {
   test('con sesión, el mapa está en la principal', () {
     expect(redireccion(conSesion, Rutas.mapa), Rutas.principal);
   });
+
+  test('al ingresar desde una publicación o un incidente, vuelve ahí; '
+      'a otro lado, no', () {
+    final volverA = Rutas.reporte(31);
+    expect(redireccion(conSesion, Rutas.ingreso, volver: volverA), volverA);
+    expect(
+      redireccion(conSesion, Rutas.ingreso, volver: Rutas.incidente(9)),
+      Rutas.incidente(9),
+    );
+    // Solo a un detalle: otra dirección va a la principal, como siempre.
+    expect(
+      redireccion(conSesion, Rutas.ingreso, volver: Rutas.avisos),
+      Rutas.principal,
+    );
+    expect(redireccion(conSesion, Rutas.ingreso), Rutas.principal);
+    // Sin sesión todavía, se queda en el ingreso.
+    expect(redireccion(sinSesion, Rutas.ingreso, volver: volverA), isNull);
+  });
 }

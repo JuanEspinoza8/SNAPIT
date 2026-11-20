@@ -67,6 +67,7 @@ class ReporteMio {
     required this.estadoVerificacion,
     required this.incidenteId,
     required this.estadoIncidente,
+    this.caducado = false,
   });
 
   factory ReporteMio.desdeJson(Map<String, dynamic> json) {
@@ -85,6 +86,7 @@ class ReporteMio {
       estadoIncidente: incidente == null
           ? null
           : EstadoIncidente.desdeApi(incidente['estado'] as String),
+      caducado: incidente?['caducadoEn'] != null,
     );
   }
 
@@ -98,10 +100,22 @@ class ReporteMio {
   final int? incidenteId;
   final EstadoIncidente? estadoIncidente;
 
+  /// Si su incidente caducó o venció (`caducadoEn`): ya no está en el mapa.
+  final bool caducado;
+
   EstadoIncidente get estado =>
       estadoParaElVecino(estadoVerificacion, estadoIncidente);
 
-  /// La ficha es la del mapa público: un incidente desestimado no la tiene.
+  /// La ficha es la del mapa público: un incidente desestimado o caducado no
+  /// la tiene.
   bool get tieneFicha =>
-      incidenteId != null && estadoIncidente != EstadoIncidente.desestimado;
+      incidenteId != null &&
+      estadoIncidente != EstadoIncidente.desestimado &&
+      !caducado;
+
+  /// Si se ve como publicación en el inicio (`GET /social/reportes/:id`):
+  /// verificado y con su problema en el mapa. Ahí están el agradecimiento de
+  /// SnapIt y los comentarios a su foto.
+  bool get publicado =>
+      estadoVerificacion == EstadoVerificacion.verificado && tieneFicha;
 }

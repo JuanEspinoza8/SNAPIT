@@ -1,85 +1,115 @@
 import '../mapa/modelos.dart';
+import 'social.dart';
 
-// Formas de `GET /incidentes/feed` (docs/api.md, sección «Mapa público»).
+// Formas de `GET /social/feed` (docs/api.md, sección «Social»).
 
-/// Una tarjeta del feed: un incidente con sus primeras fotos.
-class TarjetaFeed {
-  const TarjetaFeed({
-    required this.id,
+/// Una publicación del feed: un reporte publicado de un vecino, con la línea
+/// a su incidente (el problema en general).
+class Publicacion extends ReportePublico {
+  const Publicacion({
+    required super.id,
+    required super.incidenteId,
+    required super.descripcion,
+    required super.creadoEn,
+    required super.autor,
+    required super.fotoIds,
+    required super.cantidadMeGusta,
+    required super.cantidadComentarios,
+    super.yaMeGusta,
+    required this.categoriaNombre,
+    required this.gravedad,
+    required this.direccion,
     required this.lat,
     required this.lon,
-    required this.categoriaNombre,
-    required this.estado,
-    required this.enRevision,
-    required this.gravedad,
-    required this.primerReporteEn,
-    required this.cantidadReportes,
+    required this.derivadoA,
+    required this.estadoIncidente,
     required this.cantidadVecinos,
-    required this.direccion,
-    required this.fotoIds,
-    required this.cantidadFotos,
-    this.cantidadMeGusta = 0,
-    this.cantidadComentarios = 0,
   });
 
-  factory TarjetaFeed.desdeJson(Map<String, dynamic> json) => TarjetaFeed(
-    id: json['id'] as int,
-    lat: (json['lat'] as num).toDouble(),
-    lon: (json['lon'] as num).toDouble(),
-    categoriaNombre: (json['categoria'] as Map)['nombre'] as String,
-    estado: EstadoVisible.desdeApi(json['estado'] as String),
-    enRevision: json['enRevision'] as bool,
-    gravedad: Gravedad.desdeApi(json['severidad'] as String),
-    primerReporteEn: DateTime.parse(json['primerReporteEn'] as String),
-    cantidadReportes: json['cantidadReportes'] as int,
-    cantidadVecinos: json['cantidadVecinos'] as int,
-    direccion: json['direccion'] as String?,
-    fotoIds: [
-      for (final foto in json['fotos'] as List) (foto as Map)['id'] as int,
-    ],
-    cantidadFotos: json['cantidadFotos'] as int,
-    cantidadMeGusta: json['cantidadMeGusta'] as int? ?? 0,
-    cantidadComentarios: json['cantidadComentarios'] as int? ?? 0,
-  );
+  factory Publicacion.desdeJson(Map<String, dynamic> json) {
+    final reporte = ReportePublico.desdeJson(json);
+    final incidente = json['incidente'] as Map<String, dynamic>;
+    return Publicacion(
+      id: reporte.id,
+      incidenteId: reporte.incidenteId,
+      descripcion: reporte.descripcion,
+      creadoEn: reporte.creadoEn,
+      autor: reporte.autor,
+      fotoIds: reporte.fotoIds,
+      cantidadMeGusta: reporte.cantidadMeGusta,
+      cantidadComentarios: reporte.cantidadComentarios,
+      yaMeGusta: reporte.yaMeGusta,
+      categoriaNombre: (json['categoria'] as Map)['nombre'] as String,
+      gravedad: Gravedad.desdeApi(json['severidad'] as String),
+      direccion: json['direccion'] as String?,
+      lat: (json['lat'] as num).toDouble(),
+      lon: (json['lon'] as num).toDouble(),
+      derivadoA: switch (json['derivadoA']) {
+        final Map area => area['nombre'] as String,
+        _ => null,
+      },
+      estadoIncidente: EstadoVisible.desdeApi(incidente['estado'] as String),
+      cantidadVecinos: incidente['cantidadVecinos'] as int,
+    );
+  }
 
-  final int id;
+  /// La del incidente: un operador la puede haber corregido.
+  final String categoriaNombre;
+
+  /// La que declaró el vecino.
+  final Gravedad gravedad;
+  final String? direccion;
   final double lat;
   final double lon;
-  final String categoriaNombre;
-  final EstadoVisible estado;
-  final bool enRevision;
-  final Gravedad gravedad;
-  final DateTime primerReporteEn;
-  final int cantidadReportes;
+
+  /// El nombre del área que atiende el problema.
+  final String? derivadoA;
+
+  /// En qué está el problema.
+  final EstadoVisible estadoIncidente;
+
+  /// Cuántos vecinos reportaron el mismo problema.
   final int cantidadVecinos;
-  final String? direccion;
 
-  /// Hasta cinco: el resto se ve en el detalle.
-  final List<int> fotoIds;
-  final int cantidadFotos;
+  bool get resuelto => estadoIncidente == EstadoVisible.resuelto;
 
-  /// La suma de todos sus reportes: el de cada foto se ve en el detalle.
-  final int cantidadMeGusta;
-
-  /// Los de sus reportes más los del incidente.
-  final int cantidadComentarios;
-
-  /// Varios reportes juntos: la tarjeta es el «post destacado» del incidente.
-  bool get agrupado => cantidadReportes > 1;
+  Publicacion con({
+    bool? yaMeGusta,
+    int? cantidadMeGusta,
+    int? cantidadComentarios,
+  }) => Publicacion(
+    id: id,
+    incidenteId: incidenteId,
+    descripcion: descripcion,
+    creadoEn: creadoEn,
+    autor: autor,
+    fotoIds: fotoIds,
+    cantidadMeGusta: cantidadMeGusta ?? this.cantidadMeGusta,
+    cantidadComentarios: cantidadComentarios ?? this.cantidadComentarios,
+    yaMeGusta: yaMeGusta ?? this.yaMeGusta,
+    categoriaNombre: categoriaNombre,
+    gravedad: gravedad,
+    direccion: direccion,
+    lat: lat,
+    lon: lon,
+    derivadoA: derivadoA,
+    estadoIncidente: estadoIncidente,
+    cantidadVecinos: cantidadVecinos,
+  );
 }
 
 class PaginaFeed {
-  const PaginaFeed({required this.tarjetas, required this.siguiente});
+  const PaginaFeed({required this.publicaciones, required this.siguiente});
 
   factory PaginaFeed.desdeJson(Map<String, dynamic> json) => PaginaFeed(
-    tarjetas: [
-      for (final tarjeta in json['incidentes'] as List)
-        TarjetaFeed.desdeJson(tarjeta as Map<String, dynamic>),
+    publicaciones: [
+      for (final publicacion in json['reportes'] as List)
+        Publicacion.desdeJson(publicacion as Map<String, dynamic>),
     ],
     siguiente: json['siguiente'] as String?,
   );
 
-  final List<TarjetaFeed> tarjetas;
+  final List<Publicacion> publicaciones;
 
   /// El cursor de la página siguiente. Null: no hay más.
   final String? siguiente;

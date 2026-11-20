@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:snapit/app.dart';
+import 'package:snapit/compartido/foto/ubicacion_foto.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
 import 'package:snapit/funcionalidades/avisos/servicio_push.dart';
 import 'package:snapit/funcionalidades/mapa/ubicacion.dart';
@@ -95,12 +96,17 @@ class SelectorFotoFalso implements SelectorFoto {
 /// Los providers reales de la app; solo la red se reemplaza por [servidor],
 /// la ubicación por [ubicacion] (por defecto, sin permiso) y, si se pasa, la
 /// cámara y la galería por [selectorFoto]. Los avisos push usan
-/// [servicioPush] (por defecto, uno falso que no pide permiso).
+/// [servicioPush] (por defecto, uno falso que no pide permiso). La ubicación
+/// que trae cada foto la da [ubicacionFoto] (por defecto, ninguna), o
+/// [lectorUbicacionFoto] si cambia de una foto a otra: así no se leen
+/// archivos de verdad.
 ProviderContainer contenedorDePrueba(
   ServidorFalso servidor, {
   ServicioUbicacion? ubicacion,
   SelectorFoto? selectorFoto,
   ServicioPushFalso? servicioPush,
+  LatLng? ubicacionFoto,
+  Future<LatLng?> Function(String ruta)? lectorUbicacionFoto,
 }) {
   final push = servicioPush ?? ServicioPushFalso();
   final contenedor = ProviderContainer(
@@ -113,6 +119,9 @@ ProviderContainer contenedorDePrueba(
       }),
       if (selectorFoto != null)
         selectorFotoProvider.overrideWithValue(selectorFoto),
+      lectorUbicacionFotoProvider.overrideWithValue(
+        lectorUbicacionFoto ?? (_) async => ubicacionFoto,
+      ),
     ],
   );
   addTearDown(contenedor.dispose);
@@ -128,12 +137,16 @@ Future<ProviderContainer> abrirApp(
   ServicioUbicacion? ubicacion,
   SelectorFoto? selectorFoto,
   ServicioPushFalso? servicioPush,
+  LatLng? ubicacionFoto,
+  Future<LatLng?> Function(String ruta)? lectorUbicacionFoto,
 }) async {
   final contenedor = contenedorDePrueba(
     servidor,
     ubicacion: ubicacion,
     selectorFoto: selectorFoto,
     servicioPush: servicioPush,
+    ubicacionFoto: ubicacionFoto,
+    lectorUbicacionFoto: lectorUbicacionFoto,
   );
   await tester.pumpWidget(
     UncontrolledProviderScope(container: contenedor, child: const AppSnapIt()),

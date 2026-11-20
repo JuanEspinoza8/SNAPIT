@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -8,12 +6,7 @@ import 'package:snapit/app.dart';
 import 'package:snapit/compartido/tema/modo_tema.dart';
 import 'package:snapit/compartido/tema/tema_app.dart';
 
-/// Contraste de WCAG 2 entre dos colores.
-double contraste(Color a, Color b) {
-  final clara = math.max(a.computeLuminance(), b.computeLuminance());
-  final oscura = math.min(a.computeLuminance(), b.computeLuminance());
-  return (clara + 0.05) / (oscura + 0.05);
-}
+import '../../apoyo/contraste.dart';
 
 void main() {
   for (final (nombre, p) in [
@@ -62,6 +55,26 @@ void main() {
         greaterThanOrEqualTo(4.5),
       );
     }
+  });
+
+  group('lo que va sobre el mapa, que es claro en los dos temas', () {
+    const fijos = ColoresFijos.valores;
+    // El blanco y el crema de las manzanas de OpenStreetMap.
+    for (final (nombre, fondo) in [
+      ('el blanco', Color(0xFFFFFFFF)),
+      ('el fondo del mapa', Color(0xFFF2EFE9)),
+    ]) {
+      test('el trazo da 3:1 o más sobre $nombre (gráficos)', () {
+        expect(contraste(fijos.marcadorTrazo, fondo), greaterThanOrEqualTo(3));
+      });
+    }
+
+    test('el número de un grupo da 4,5:1 o más sobre su círculo', () {
+      expect(
+        contraste(fijos.marcadorBorde, fijos.marcadorTrazo),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
   });
 
   test('«Moderada» no repite el color de «En revisión»', () {

@@ -85,6 +85,18 @@ enum CampoReporte {
   };
 }
 
+/// De dónde salió el punto del reporte.
+enum OrigenPunto {
+  /// Una lectura del GPS al abrir la pantalla.
+  gps,
+
+  /// La ubicación que trae la foto (EXIF): donde se sacó.
+  foto,
+
+  /// El vecino lo eligió en el mapa.
+  mapa,
+}
+
 /// El reporte mientras el vecino lo carga. Se envía con un
 /// `RepositorioReportes`; si el envío falla, queda igual para reintentar.
 @immutable
@@ -95,7 +107,7 @@ class BorradorReporte {
     this.severidad,
     this.descripcion = '',
     this.punto,
-    this.puntoMovido = false,
+    this.origenPunto = OrigenPunto.gps,
     this.registradoEn,
     this.sugerencia,
     this.estadoSugerencia = EstadoSugerencia.ninguna,
@@ -108,11 +120,13 @@ class BorradorReporte {
   final Severidad? severidad;
   final String descripcion;
 
-  /// El punto que se envía: el del GPS o el que eligió el vecino en el mapa.
+  /// El punto que se envía: el de la foto, el del GPS o el que eligió el
+  /// vecino en el mapa.
   final LatLng? punto;
+  final OrigenPunto origenPunto;
 
-  /// True si el vecino corrigió el punto del GPS.
-  final bool puntoMovido;
+  /// True si el vecino eligió el punto en el mapa.
+  bool get puntoMovido => origenPunto == OrigenPunto.mapa;
 
   /// Cuándo lo cargó el vecino. Se fija al tocar «Enviar» la primera vez y no
   /// cambia en los reintentos.
@@ -133,7 +147,7 @@ class BorradorReporte {
     Severidad? severidad,
     String? descripcion,
     LatLng? punto,
-    bool? puntoMovido,
+    OrigenPunto? origenPunto,
     DateTime? registradoEn,
     EstadoSugerencia? estadoSugerencia,
     bool? categoriaEsSugerida,
@@ -145,7 +159,7 @@ class BorradorReporte {
       severidad: severidad ?? this.severidad,
       descripcion: descripcion ?? this.descripcion,
       punto: punto ?? this.punto,
-      puntoMovido: puntoMovido ?? this.puntoMovido,
+      origenPunto: origenPunto ?? this.origenPunto,
       registradoEn: registradoEn ?? this.registradoEn,
       sugerencia: sugerencia,
       estadoSugerencia: estadoSugerencia ?? this.estadoSugerencia,
@@ -153,6 +167,20 @@ class BorradorReporte {
       severidadEsSugerida: severidadEsSugerida ?? this.severidadEsSugerida,
     );
   }
+
+  /// Sin punto, para volver a buscarlo con el GPS. `copyWith` no puede
+  /// vaciarlo: un null ahí significa «el mismo».
+  BorradorReporte sinPunto() => BorradorReporte(
+    foto: foto,
+    categoriaId: categoriaId,
+    severidad: severidad,
+    descripcion: descripcion,
+    registradoEn: registradoEn,
+    sugerencia: sugerencia,
+    estadoSugerencia: estadoSugerencia,
+    categoriaEsSugerida: categoriaEsSugerida,
+    severidadEsSugerida: severidadEsSugerida,
+  );
 
   /// Con otra foto se espera otra sugerencia. La anterior era de la foto
   /// vieja: se descarta, y con ella lo que había completado y el vecino no
@@ -163,7 +191,7 @@ class BorradorReporte {
     severidad: severidadEsSugerida ? null : severidad,
     descripcion: descripcion,
     punto: punto,
-    puntoMovido: puntoMovido,
+    origenPunto: origenPunto,
     registradoEn: registradoEn,
     estadoSugerencia: EstadoSugerencia.buscando,
   );
@@ -183,7 +211,7 @@ class BorradorReporte {
       severidad: completarSeveridad ? sugerencia.severidad : severidad,
       descripcion: descripcion,
       punto: punto,
-      puntoMovido: puntoMovido,
+      origenPunto: origenPunto,
       registradoEn: registradoEn,
       sugerencia: sugerencia,
       estadoSugerencia: EstadoSugerencia.lista,

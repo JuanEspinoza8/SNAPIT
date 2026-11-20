@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snapit/compartido/mapa/capa_osm.dart';
+import 'package:snapit/compartido/tema/tema_app.dart';
 import 'package:snapit/funcionalidades/recorrido/repositorio_recorrido.dart';
 import 'package:snapit/funcionalidades/reportar/pantalla_elegir_punto.dart';
 
@@ -125,6 +127,15 @@ void main() {
       );
       expect(find.text('650 m · 13 min caminando'), findsOneWidget);
       expect(find.byType(PolylineLayer), findsOneWidget);
+      // La app arranca en oscuro, pero el mapa es claro: la línea y los
+      // pines no usan el primario del tema, que casi no se vería encima.
+      final linea = tester
+          .widget<PolylineLayer>(find.byType(PolylineLayer))
+          .polylines
+          .single;
+      expect(linea.color, ColoresFijos.valores.marcadorTrazo);
+      expect(linea.borderColor, ColoresFijos.valores.marcadorBorde);
+      expect(find.byType(PinMapa), findsNWidgets(2));
       expect(servidor.consultasRecorrido.single, {
         'origen': puntoApi(origenEnZona),
         'destino': puntoApi(destinoEnZona),

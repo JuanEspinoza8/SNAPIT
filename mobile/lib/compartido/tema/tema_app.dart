@@ -17,34 +17,34 @@ class PaletaSnapIt {
     required this.sobrePeligro,
   });
 
-  /// La original: fondo blanco y azul petróleo.
+  /// Neutra, sin color en los botones (la paleta neutra de shadcn/ui, como
+  /// la web): el color queda para lo que informa, como los estados.
   static const claro = PaletaSnapIt(
     brillo: Brightness.light,
-    primario: Color(0xFF1F5E7A),
-    sobrePrimario: Color(0xFFFFFFFF),
+    primario: Color(0xFF171717),
+    sobrePrimario: Color(0xFFFAFAFA),
     superficie: Color(0xFFFFFFFF),
-    superficieAlterna: Color(0xFFF6F7F9),
-    borde: Color(0xFFD9DEE5),
-    texto: Color(0xFF1A202C),
-    textoSecundario: Color(0xFF5A6474),
+    superficieAlterna: Color(0xFFFAFAFA),
+    borde: Color(0xFFE5E5E5),
+    texto: Color(0xFF0A0A0A),
+    textoSecundario: Color(0xFF737373),
     peligro: Color(0xFFB42318),
     sobrePeligro: Color(0xFFFFFFFF),
   );
 
-  /// «Noche neutra»: gris carbón con acento azul. El azul con texto blanco
-  /// encima no llega a AA (3,7:1), así que lo que va sobre el azul es casi
-  /// negro (5:1). El texto secundario sobre las tarjetas da 6,7:1.
+  /// El oscuro, también neutro: casi negro, con los botones claros y el
+  /// texto oscuro encima. El texto secundario sobre las tarjetas da 7:1.
   static const oscuro = PaletaSnapIt(
     brillo: Brightness.dark,
-    primario: Color(0xFF3B82F6),
-    sobrePrimario: Color(0xFF0B1220),
-    superficie: Color(0xFF0F1115),
-    superficieAlterna: Color(0xFF181B21),
-    borde: Color(0xFF2A2F38),
-    texto: Color(0xFFE6E8EB),
-    textoSecundario: Color(0xFF9AA3AE),
+    primario: Color(0xFFE5E5E5),
+    sobrePrimario: Color(0xFF171717),
+    superficie: Color(0xFF0A0A0A),
+    superficieAlterna: Color(0xFF171717),
+    borde: Color(0xFF262626),
+    texto: Color(0xFFFAFAFA),
+    textoSecundario: Color(0xFFA3A3A3),
     peligro: Color(0xFFF87171),
-    sobrePeligro: Color(0xFF1A0505),
+    sobrePeligro: Color(0xFF0A0A0A),
   );
 
   final Brightness brillo;
@@ -191,6 +191,7 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
     required this.velo,
     required this.sobreVelo,
     required this.marcadorBorde,
+    required this.marcadorTrazo,
   });
 
   static const valores = ColoresFijos(
@@ -198,6 +199,7 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
     velo: Color(0x99000000),
     sobreVelo: Color(0xFFFFFFFF),
     marcadorBorde: Color(0xFFFFFFFF),
+    marcadorTrazo: Color(0xFF1A202C),
   );
 
   /// Texto e íconos sobre los estados y las gravedades: con todos da AA.
@@ -208,8 +210,11 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
   final Color velo;
   final Color sobreVelo;
 
-  /// Borde de los marcadores: el mapa es claro en los dos temas.
+  /// Lo que va sobre el mapa, que es claro en los dos temas: [marcadorTrazo]
+  /// para la línea del recorrido, los pines y los grupos, y [marcadorBorde]
+  /// para su contorno y el texto encima.
   final Color marcadorBorde;
+  final Color marcadorTrazo;
 
   @override
   ColoresFijos copyWith({
@@ -217,12 +222,14 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
     Color? velo,
     Color? sobreVelo,
     Color? marcadorBorde,
+    Color? marcadorTrazo,
   }) {
     return ColoresFijos(
       sobreEstado: sobreEstado ?? this.sobreEstado,
       velo: velo ?? this.velo,
       sobreVelo: sobreVelo ?? this.sobreVelo,
       marcadorBorde: marcadorBorde ?? this.marcadorBorde,
+      marcadorTrazo: marcadorTrazo ?? this.marcadorTrazo,
     );
   }
 
@@ -234,6 +241,7 @@ class ColoresFijos extends ThemeExtension<ColoresFijos> {
       velo: Color.lerp(velo, other.velo, t)!,
       sobreVelo: Color.lerp(sobreVelo, other.sobreVelo, t)!,
       marcadorBorde: Color.lerp(marcadorBorde, other.marcadorBorde, t)!,
+      marcadorTrazo: Color.lerp(marcadorTrazo, other.marcadorTrazo, t)!,
     );
   }
 }

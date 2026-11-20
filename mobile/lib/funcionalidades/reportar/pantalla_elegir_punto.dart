@@ -101,10 +101,9 @@ class _PantallaElegirPuntoState extends State<PantallaElegirPunto> {
                     child: Center(
                       child: Transform.translate(
                         offset: const Offset(0, -Espacio.xl),
-                        child: Icon(
+                        child: const PinMapa(
                           Icons.location_on,
-                          size: Espacio.xxxl,
-                          color: tema.colorScheme.primary,
+                          tamanio: Espacio.xxxl,
                         ),
                       ),
                     ),

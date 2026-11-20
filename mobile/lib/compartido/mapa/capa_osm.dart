@@ -42,8 +42,10 @@ class AtribucionOsm extends StatelessWidget {
   }
 }
 
-/// Contornos de referencia, como la zona piloto: borde gris oscuro y un relleno
-/// apenas visible, para que no se confundan con un recorrido.
+/// Contornos de referencia, como la zona piloto: borde gris y un relleno
+/// apenas visible, para que no se confundan con un recorrido. El gris es el
+/// trazo de los marcadores, semitransparente: no sigue al tema porque el mapa
+/// es claro en los dos.
 class CapaZonas extends StatelessWidget {
   const CapaZonas(this.contornos, {super.key});
 
@@ -51,17 +53,38 @@ class CapaZonas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colores = Theme.of(context).colorScheme;
+    final trazo = Theme.of(context).extension<ColoresFijos>()!.marcadorTrazo;
     return PolygonLayer(
       polygons: [
         for (final contorno in contornos)
           Polygon(
             points: contorno,
-            color: colores.onSurfaceVariant.withValues(alpha: 0.06),
-            borderColor: colores.onSurfaceVariant,
+            color: trazo.withValues(alpha: 0.06),
+            borderColor: trazo.withValues(alpha: 0.6),
             borderStrokeWidth: 2,
           ),
       ],
+    );
+  }
+}
+
+/// Un pin sobre el mapa (el punto de un reporte, el origen o el destino de un
+/// recorrido). El mapa es claro en los dos temas: va oscuro, con un contorno
+/// blanco que lo despega de las calles.
+class PinMapa extends StatelessWidget {
+  const PinMapa(this.icono, {super.key, this.tamanio = Espacio.xxl});
+
+  final IconData icono;
+  final double tamanio;
+
+  @override
+  Widget build(BuildContext context) {
+    final fijos = Theme.of(context).extension<ColoresFijos>()!;
+    return Icon(
+      icono,
+      size: tamanio,
+      color: fijos.marcadorTrazo,
+      shadows: [Shadow(color: fijos.marcadorBorde, blurRadius: 3)],
     );
   }
 }

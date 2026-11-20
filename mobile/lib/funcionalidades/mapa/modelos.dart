@@ -93,6 +93,7 @@ class FichaIncidente {
     required this.fotoIds,
     this.fotoCierreId,
     this.resueltoEn,
+    this.derivadoA,
   });
 
   factory FichaIncidente.desdeJson(Map<String, dynamic> json) => FichaIncidente(
@@ -120,6 +121,10 @@ class FichaIncidente {
       final String valor => DateTime.parse(valor),
       _ => null,
     },
+    derivadoA: switch (json['derivadoA']) {
+      final Map area => area['nombre'] as String,
+      _ => null,
+    },
   );
 
   final int id;
@@ -145,6 +150,9 @@ class FichaIncidente {
 
   /// Null mientras no esté resuelto.
   final DateTime? resueltoEn;
+
+  /// El nombre del área que le corresponde. Null mientras está en revisión.
+  final String? derivadoA;
 }
 
 class Categoria {

@@ -123,9 +123,12 @@ class Etiqueta extends StatelessWidget {
           children: [
             Icon(icono, size: 16, color: colorTexto),
             const SizedBox(width: Espacio.xs),
-            Text(
-              texto,
-              style: tema.textTheme.labelMedium?.copyWith(color: colorTexto),
+            // En una fila angosta (o con letra grande) baja a otra línea.
+            Flexible(
+              child: Text(
+                texto,
+                style: tema.textTheme.labelMedium?.copyWith(color: colorTexto),
+              ),
             ),
           ],
         ),
@@ -179,16 +182,14 @@ class MarcaGrupo extends StatelessWidget {
       height: tamanio,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: tema.colorScheme.primary,
+        color: fijos.marcadorTrazo,
         shape: BoxShape.circle,
         border: Border.all(color: fijos.marcadorBorde, width: 3),
         boxShadow: [_sombraMarcador(fijos)],
       ),
       child: Text(
         '$cantidad',
-        style: tema.textTheme.labelMedium?.copyWith(
-          color: tema.colorScheme.onPrimary,
-        ),
+        style: tema.textTheme.labelMedium?.copyWith(color: fijos.marcadorBorde),
       ),
     );
   }

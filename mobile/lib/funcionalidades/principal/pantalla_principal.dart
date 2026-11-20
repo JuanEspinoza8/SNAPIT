@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 
+import '../../compartido/interfaz/aviso_arriba.dart';
 import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/sesion/almacen_sesion.dart';
 import '../../compartido/sesion/sesion.dart';
@@ -19,7 +19,6 @@ import '../avisos/modelos.dart';
 import '../avisos/repositorio_avisos.dart';
 import '../avisos/servicio_push.dart';
 import '../feed/pantalla_feed.dart';
-import '../mapa/foco_mapa.dart';
 import '../mapa/mapa_incidentes.dart';
 import '../mapa/repositorio_mapa.dart';
 import '../mis_reportes/pantalla_mis_reportes.dart';
@@ -313,7 +312,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
               ),
             if (esVecino) ...[
               if (_abiertas.contains(_reportar))
-                PantallaReportar(alVerEnMapa: _verEnMapa)
+                PantallaReportar(alEnviar: _alEnviarReporte)
               else
                 const SizedBox.shrink(),
               if (_abiertas.contains(_misReportes))
@@ -344,9 +343,18 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     _abiertas.add(seccion);
   });
 
-  void _verEnMapa(LatLng punto) {
-    _abrir(_mapa);
-    ref.read(focoMapaProvider.notifier).enfocar(punto);
+  /// Después de enviar un reporte vuelve al inicio con un aviso arriba.
+  /// «Reportar» se cierra: al volver arranca vacío y lee de nuevo el GPS.
+  void _alEnviarReporte() {
+    setState(() {
+      _seccion = _inicio;
+      _abiertas.remove(_reportar);
+    });
+    mostrarAvisoArriba(
+      context,
+      titulo: 'Reporte enviado',
+      texto: 'Queda pendiente de aprobación antes de publicarse.',
+    );
   }
 
   void _mostrarCuenta(BuildContext context, Usuario usuario) {

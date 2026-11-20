@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:snapit/compartido/mapa/capa_osm.dart';
 import 'package:snapit/funcionalidades/mapa/ubicacion.dart';
 import 'package:snapit/funcionalidades/reportar/borrador_reporte.dart';
 import 'package:snapit/funcionalidades/reportar/pantalla_elegir_punto.dart';
@@ -135,6 +136,8 @@ void main() {
     ServidorDeReportes servidor, {
     UbicacionFalsa? ubicacion,
     SelectorFotoFalso? selector,
+    LatLng? ubicacionFoto,
+    Future<LatLng?> Function(String ruta)? lectorUbicacionFoto,
   }) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
@@ -145,6 +148,8 @@ void main() {
       servidor.servidor,
       ubicacion: ubicacion ?? UbicacionFalsa(gps),
       selectorFoto: selector ?? SelectorFotoFalso(foto),
+      ubicacionFoto: ubicacionFoto,
+      lectorUbicacionFoto: lectorUbicacionFoto,
     );
     await tester.tap(find.text('Reportar'));
     await tester.pumpAndSettle();
@@ -304,27 +309,138 @@ void main() {
     expect(servidor.enviados.single.files.single.value.filename, 'pozo.jpg');
     expect(find.text('Reporte enviado'), findsOneWidget);
     expect(
-      find.text(
-        'Ya está en el mapa y queda pendiente de revisión hasta que se verifique.',
-      ),
+      find.text('Queda pendiente de aprobación antes de publicarse.'),
       findsOneWidget,
     );
   });
 
-  testWidgets('si el reporte llega verificado, lo dice', (tester) async {
-    final servidor = ServidorDeReportes()
-      ..reportes = (_) => json(201, {
-        'id': 15,
-        'incidenteId': 9,
-        'nivelConfianza': 80,
-        'estadoVerificacion': 'VERIFICADO',
-      });
-    await abrirReportar(tester, servidor);
-    await completar(tester);
+  group('punto de la foto', () {
+    // Lejos del GPS de prueba: así se distingue de dónde salió el punto.
+    const dondeSeSaco = LatLng(-38.94, -68.07);
 
-    await enviar(tester);
+    testWidgets('si la foto trae dónde se sacó, el punto va ahí y se envía '
+        'ese', (tester) async {
+      final servidor = ServidorDeReportes();
+      await abrirReportar(tester, servidor, ubicacionFoto: dondeSeSaco);
+      await completar(tester);
 
-    expect(find.text('Se verificó y ya está en el mapa.'), findsOneWidget);
+      expect(find.textContaining('Es donde se sacó la foto'), findsOneWidget);
+      await enviar(tester);
+
+      final enviado = campos(servidor.enviados.single);
+      expect(
+        double.parse(enviado['lat']!),
+        closeTo(dondeSeSaco.latitude, 1e-6),
+      );
+      expect(
+        double.parse(enviado['lon']!),
+        closeTo(dondeSeSaco.longitude, 1e-6),
+      );
+    });
+
+    testWidgets('no pisa el punto que el vecino eligió en el mapa', (
+      tester,
+    ) async {
+      final servidor = ServidorDeReportes();
+      await abrirReportar(tester, servidor, ubicacionFoto: dondeSeSaco);
+      await tocar(tester, find.text('Mover el punto'));
+      await tester.drag(find.byType(FlutterMap), const Offset(-150, 0));
+      await tester.pumpAndSettle();
+      await tocar(tester, find.text('Usar este punto'));
+
+      await completar(tester);
+
+      expect(find.text('Elegiste el punto en el mapa.'), findsOneWidget);
+      await enviar(tester);
+      final enviado = campos(servidor.enviados.single);
+      // El del mapa: a la latitud del GPS y corrido al este, no el de la foto.
+      expect(double.parse(enviado['lat']!), closeTo(gps.latitude, 1e-5));
+      expect(double.parse(enviado['lon']!), greaterThan(gps.longitude));
+    });
+
+    testWidgets('sin ubicación en la foto queda el GPS', (tester) async {
+      final servidor = ServidorDeReportes();
+      await abrirReportar(tester, servidor);
+      await completar(tester);
+
+      expect(find.textContaining('Tomada del GPS'), findsOneWidget);
+    });
+
+    testWidgets('con el permiso del GPS negado, el punto de la foto se ve, se '
+        'puede mover y se envía', (tester) async {
+      final servidor = ServidorDeReportes();
+      await abrirReportar(
+        tester,
+        servidor,
+        ubicacion: UbicacionFalsa(null, ProblemaUbicacion.sinPermiso),
+        ubicacionFoto: dondeSeSaco,
+      );
+      final aviso = find.textContaining(
+        'Para reportar hace falta saber dónde está',
+      );
+      expect(aviso, findsOneWidget);
+
+      await completar(tester);
+
+      expect(aviso, findsNothing);
+      expect(find.textContaining('Es donde se sacó la foto'), findsOneWidget);
+      expect(find.byType(PinMapa), findsOneWidget);
+      expect(find.text('Mover el punto'), findsOneWidget);
+      await enviar(tester);
+      final enviado = campos(servidor.enviados.single);
+      expect(
+        double.parse(enviado['lat']!),
+        closeTo(dondeSeSaco.latitude, 1e-6),
+      );
+    });
+
+    testWidgets('si se cambia a una foto sin ubicación, vuelve a leer el GPS', (
+      tester,
+    ) async {
+      final servidor = ServidorDeReportes();
+      final ubicacion = UbicacionFalsa(gps);
+      LatLng? enLaFoto = dondeSeSaco;
+      await abrirReportar(
+        tester,
+        servidor,
+        ubicacion: ubicacion,
+        lectorUbicacionFoto: (_) async => enLaFoto,
+      );
+      await completar(tester);
+      expect(find.textContaining('Es donde se sacó la foto'), findsOneWidget);
+      expect(ubicacion.pedidosParaReportar, 1);
+
+      enLaFoto = null;
+      await tocar(tester, find.text('Galería'));
+
+      expect(ubicacion.pedidosParaReportar, 2);
+      expect(find.textContaining('Tomada del GPS'), findsOneWidget);
+      await enviar(tester);
+      final enviado = campos(servidor.enviados.single);
+      expect(enviado['lat'], '${gps.latitude}');
+      expect(enviado['lon'], '${gps.longitude}');
+    });
+
+    testWidgets('con el permiso negado, una foto sin ubicación vuelve al '
+        'aviso sin pedir el permiso otra vez', (tester) async {
+      final ubicacion = UbicacionFalsa(null, ProblemaUbicacion.sinPermiso);
+      LatLng? enLaFoto = dondeSeSaco;
+      await abrirReportar(
+        tester,
+        ServidorDeReportes(),
+        ubicacion: ubicacion,
+        lectorUbicacionFoto: (_) async => enLaFoto,
+      );
+      await completar(tester);
+      expect(find.text('Mover el punto'), findsOneWidget);
+
+      enLaFoto = null;
+      await tocar(tester, find.text('Galería'));
+
+      expect(find.text('Mover el punto'), findsNothing);
+      expect(find.text('Permitir ubicación'), findsOneWidget);
+      expect(ubicacion.pedidosParaReportar, 1);
+    });
   });
 
   testWidgets('volver del mapa sin elegir deja el punto del GPS', (
@@ -595,7 +711,7 @@ void main() {
       // La respuesta llega cuando el reporte ya salió.
       respuesta.complete(sugiere(3, 'MODERADA'));
       await tester.pumpAndSettle();
-      await tocar(tester, find.text('Reportar otro problema'));
+      await tocar(tester, find.text('Reportar'));
 
       expect(buscando, findsNothing);
       expect(marcas, findsNothing);
@@ -692,24 +808,31 @@ void main() {
     });
   });
 
-  testWidgets('el reporte enviado aparece en el mapa', (tester) async {
-    final servidor = ServidorDeReportes();
-    await abrirReportar(tester, servidor);
+  testWidgets('al enviar vuelve al inicio con un aviso arriba, que se cierra '
+      'al tocarlo', (tester) async {
+    await abrirReportar(tester, ServidorDeReportes());
     await completar(tester);
     await enviar(tester);
-    final pedidosAntes = servidor.servidor.cantidad('/incidentes');
 
-    await tocar(tester, find.text('Ver en el mapa'));
-    // El mapa pide los puntos cuando se queda quieto (300 ms).
-    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.bySemanticsLabel('SnapIt'), findsOneWidget);
+    expect(find.text('Enviar reporte'), findsNothing);
+    expect(find.text('Reporte enviado'), findsOneWidget);
+
+    await tester.tap(find.text('Reporte enviado'));
+    await tester.pumpAndSettle();
+    expect(find.text('Reporte enviado'), findsNothing);
+  });
+
+  testWidgets('el aviso se va solo a los pocos segundos', (tester) async {
+    await abrirReportar(tester, ServidorDeReportes());
+    await completar(tester);
+    await enviar(tester);
+    expect(find.text('Reporte enviado'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(AppBar, 'Mapa de incidentes'), findsOneWidget);
-    expect(
-      servidor.servidor.cantidad('/incidentes'),
-      greaterThan(pedidosAntes),
-    );
-    expect(find.bySemanticsLabel('Bache, En revisión'), findsOneWidget);
+    expect(find.text('Reporte enviado'), findsNothing);
   });
 
   testWidgets('también aparece si se vuelve al mapa por la pestaña', (
@@ -752,7 +875,7 @@ void main() {
     expect(find.text('En revisión'), findsOneWidget);
   });
 
-  testWidgets('«Reportar otro» arranca vacío y vuelve a leer el GPS', (
+  testWidgets('al volver a «Reportar» arranca vacío y vuelve a leer el GPS', (
     tester,
   ) async {
     final ubicacion = UbicacionFalsa(gps);
@@ -760,7 +883,7 @@ void main() {
     await completar(tester);
     await enviar(tester);
 
-    await tocar(tester, find.text('Reportar otro problema'));
+    await tocar(tester, find.text('Reportar'));
 
     expect(find.text('Sacar foto'), findsOneWidget);
     expect(find.text('Bache'), findsNothing);

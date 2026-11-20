@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:snapit/compartido/rutas/rutas_app.dart';
+import 'package:snapit/compartido/tema/tema_app.dart';
 import 'package:snapit/funcionalidades/avisos/modelos.dart';
 import 'package:snapit/funcionalidades/avisos/pantalla_zona_habitual.dart';
 import 'package:snapit/funcionalidades/mapa/mapa_incidentes.dart';
@@ -239,6 +240,21 @@ void main() {
       final borde = distancia.offset(circulo.point, radio, rumbo);
       expect(camara.visibleBounds.contains(borde), isTrue, reason: '$rumbo°');
     }
+  });
+
+  testWidgets('la zona se dibuja oscura con el centro de borde blanco, '
+      'también en el tema oscuro', (tester) async {
+    await abrirZona(tester, ServidorAvisos());
+
+    final circulos = tester
+        .widget<CircleLayer>(find.byType(CircleLayer))
+        .circles;
+    final zona = circulos.singleWhere((c) => c.useRadiusInMeter);
+    final centro = circulos.singleWhere((c) => !c.useRadiusInMeter);
+    const fijos = ColoresFijos.valores;
+    expect(zona.borderColor, fijos.marcadorTrazo);
+    expect(centro.color, fijos.marcadorTrazo);
+    expect(centro.borderColor, fijos.marcadorBorde);
   });
 
   testWidgets('el nombre se valida al salir del campo', (tester) async {
