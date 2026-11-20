@@ -772,7 +772,7 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
 }
 ```
 
-- `derivadoA`: el área a la que quedó derivado, `{ "id": 4, "nombre": "Bacheo" }`, para mostrar «Derivado al área de Bacheo». Es la que le asignó el operador o, si no, la de su categoría. `null` mientras está en revisión (`enRevision`).
+- `derivadoA`: el área que le corresponde, `{ "id": 4, "nombre": "Bacheo" }`, para mostrar «Le corresponde al área de Bacheo». Es la que le asignó el operador al derivarlo o, si todavía no lo derivó, la de su categoría: no quiere decir que ya se derivó (eso lo dice `estado`). `null` mientras está en revisión (`enRevision`).
 - `severidad`: la gravedad consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`).
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
 - `cantidadConfirmaciones`: cuántos vecinos distintos confirmaron que el problema sigue (el botón «Sigue estando»), sumando los incidentes que se le unieron. Cuenta también a los que lo reportaron.
@@ -971,7 +971,7 @@ Valen las mismas reglas que en la ficha: un incidente unido a otro responde con 
 
 **Del autor no se publica nada que lo identifique**, ni el nombre ni el id. Dentro de cada incidente es `{ "numero": 2, "nombre": "Vecino 2", "sistema": false }`: los vecinos que participan (reportaron una foto visible o comentaron en el incidente, en uno de sus unidos o en una de sus fotos) se numeran por orden de llegada, y si llegaron en el mismo instante, por id. El mismo vecino tiene el mismo número en todo el incidente, así se sigue una conversación; en otro incidente puede tener otro número, así no se puede saber si dos incidentes los reportó la misma persona. Si se unen dos incidentes o se desestima un reporte, la numeración puede correrse.
 
-**SnapIt también comenta**: cuando un reporte se publica, lo agradece en los comentarios del reporte («¡Gracias por tu reporte! Ya fue derivado al área de Bacheo.»), y cuando su incidente se resuelve lo cuenta en cada reporte publicado del problema («¡Listo! El área de Bacheo resolvió este problema. Gracias por reportarlo.»). Su autor es `{ "numero": null, "nombre": "SnapIt", "sistema": true }`: no se numera ni le corre el número a ningún vecino. Los clientes lo muestran con el logo.
+**SnapIt también comenta**: cuando un reporte se publica, lo agradece en los comentarios del reporte («¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de Bacheo.»), y cuando su incidente se resuelve lo cuenta en cada reporte publicado del problema («¡Listo! El área de Bacheo resolvió este problema. Gracias por reportarlo.»). Su autor es `{ "numero": null, "nombre": "SnapIt", "sistema": true }`: no se numera ni le corre el número a ningún vecino. Los clientes lo muestran con el logo.
 
 ### `GET /api/social/feed`
 El feed de publicaciones: **cada reporte publicado** (`VERIFICADO`, sin eliminar) de un incidente que se ve es una publicación, del más nuevo al más viejo. Un mismo problema reportado por varios vecinos sale una vez por cada uno; la línea `incidente` lleva a la ficha del problema. Acepta los mismos filtros que `GET /api/incidentes/feed` (sobre el incidente de cada reporte) y la misma paginación (`limite`, de 1 a 50, 20 por defecto, y `cursor` con el `siguiente` de la página anterior).

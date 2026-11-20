@@ -32,7 +32,7 @@ const comentariosDe = (reporteId: number) =>
   prisma.comentario.findMany({ where: { reporteId }, orderBy: { id: 'asc' } });
 
 describe('agradecimiento de SnapIt al publicar un reporte', () => {
-  it('al verificarlo, SnapIt le comenta al vecino a qué área se derivó', async () => {
+  it('al verificarlo, SnapIt le comenta al vecino qué área le corresponde', async () => {
     const { area, reporte, token } = await pendienteConOperador();
 
     const res = await revisar(reporte.id, 'VERIFICADO', token);
@@ -41,7 +41,7 @@ describe('agradecimiento de SnapIt al publicar un reporte', () => {
     expect(await comentariosDe(reporte.id)).toEqual([
       expect.objectContaining({
         usuarioId: await idUsuarioSistema(),
-        texto: `¡Gracias por tu reporte! Ya fue derivado al área de ${area.nombre}.`,
+        texto: `¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de ${area.nombre}.`,
       }),
     ]);
   });

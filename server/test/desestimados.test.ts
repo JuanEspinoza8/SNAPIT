@@ -232,7 +232,7 @@ describe('rescatar un marcado', () => {
     const comentarios = await request(app).get(`/api/social/reportes/${marcado.id}/comentarios`);
     expect(comentarios.body.comentarios).toEqual([
       expect.objectContaining({
-        texto: `¡Gracias por tu reporte! Ya fue derivado al área de ${area.nombre}.`,
+        texto: `¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de ${area.nombre}.`,
       }),
     ]);
   });

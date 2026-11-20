@@ -113,9 +113,9 @@ export async function aplicarResultado(
 const ESTADOS_CERRADOS: EstadoIncidente[] = ['RESUELTO', 'DESESTIMADO'];
 
 /**
- * El comentario de SnapIt en un reporte recién publicado. El área es solo informativa: el incidente no cambia de
- * estado ni de área (derivar de verdad es cosa del operador, incidentes/gestion.ts). Sin el usuario de SnapIt
- * (la semilla lo crea) no se comenta, pero el reporte se publica igual.
+ * El comentario de SnapIt en un reporte recién publicado. Dice qué área le corresponde, sin decir que se derivó:
+ * el incidente no cambia de estado ni de área (derivar es cosa del operador, incidentes/gestion.ts). Sin el
+ * usuario de SnapIt (la semilla lo crea) no se comenta, pero el reporte se publica igual.
  */
 async function agradecer(tx: Prisma.TransactionClient, reporteId: number) {
   const sistemaId = await idUsuarioSistema(tx);
@@ -125,8 +125,8 @@ async function agradecer(tx: Prisma.TransactionClient, reporteId: number) {
   }
   const area = await repositorio.areaDelReporte(tx, reporteId);
   const texto = area
-    ? `¡Gracias por tu reporte! Ya fue derivado al área de ${area}.`
-    : '¡Gracias por tu reporte! Ya fue derivado al área correspondiente.';
+    ? `¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de ${area}.`
+    : '¡Gracias por tu reporte! Ya está publicado.';
   await repositorio.comentarReporte(tx, { usuarioId: sistemaId, reporteId, texto });
 }
 

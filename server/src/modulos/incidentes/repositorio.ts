@@ -73,9 +73,9 @@ export const BARRIO = Prisma.sql`
   END`;
 
 /**
- * El área a la que quedó derivado un incidente publicado: la que le asignó el operador o, si no, la de su
- * categoría. Mientras está en revisión es null: todavía no se derivó a nadie. Va con los alias `i` (incidente) y
- * `c` (su categoría).
+ * El área que le corresponde a un incidente publicado: la que le asignó el operador al derivarlo o, si todavía no
+ * lo derivó, la de su categoría. Mientras está en revisión es null. Va con los alias `i` (incidente) y `c` (su
+ * categoría).
  */
 export const DERIVADO_A = Prisma.sql`
   CASE WHEN i.estado = 'REGISTRADO' THEN NULL
