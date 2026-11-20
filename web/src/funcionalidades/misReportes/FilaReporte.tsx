@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
+import { useFocoConfirmacion } from '../../compartido/componentes/useFocoConfirmacion.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { EtiquetaReporte } from './EtiquetaReporte.js';
-import { estadoParaElVecino, tieneFicha } from './tipos.js';
+import { estadoParaElVecino, estaPublicado, tieneFicha } from './tipos.js';
 import type { ReporteMio } from './tipos.js';
 import { useEliminarReporte } from './useMisReportes.js';
 
@@ -18,11 +20,13 @@ interface Props {
 }
 
 /**
- * Un reporte del vecino en su perfil: foto, categoría, fecha y estado. Si hay ficha, toda la fila la abre. Debajo,
- * «Eliminar», con confirmación (#151).
+ * Un reporte del vecino en su perfil: foto, categoría, fecha y estado. Si está publicado, toda la fila lleva a su
+ * publicación, donde están el agradecimiento de SnapIt y los comentarios a su foto. Si no, pero el problema tiene
+ * ficha, la abre al lado. Debajo, «Eliminar», con confirmación (#151).
  */
 export function FilaReporte({ reporte, alAbrirFicha }: Props) {
   const incidenteId = reporte.incidente?.id;
+  const publicado = estaPublicado(reporte);
 
   const contenido = (
     <>
@@ -46,7 +50,11 @@ export function FilaReporte({ reporte, alAbrirFicha }: Props) {
 
   return (
     <li className="flex flex-col gap-1">
-      {tieneFicha(reporte) && incidenteId !== undefined ? (
+      {publicado ? (
+        <Link to={`/reporte/${reporte.id}`} className={`${clases} hover:bg-superficie-alterna`}>
+          {contenido}
+        </Link>
+      ) : tieneFicha(reporte) && incidenteId !== undefined ? (
         <button
           type="button"
           onClick={() => alAbrirFicha(incidenteId)}
@@ -69,6 +77,7 @@ export function FilaReporte({ reporte, alAbrirFicha }: Props) {
 function EliminarReporte({ reporte }: { reporte: ReporteMio }) {
   const eliminar = useEliminarReporte();
   const [confirmando, setConfirmando] = useState(false);
+  const { botonAbrir, botonConfirmar } = useFocoConfirmacion(confirmando);
   const nombre = `tu reporte de ${reporte.categoria.nombre}`;
 
   return (
@@ -81,10 +90,11 @@ function EliminarReporte({ reporte }: { reporte: ReporteMio }) {
         >
           <span className="text-sm">¿Eliminar {nombre}? No se puede deshacer.</span>
           <button
+            ref={botonConfirmar}
             type="button"
             onClick={() => eliminar.mutate(reporte.id, { onSettled: () => setConfirmando(false) })}
             disabled={eliminar.isPending}
-            className="rounded-md bg-peligro px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+            className="rounded-md bg-peligro px-3 py-1 text-xs font-semibold text-sobre-peligro disabled:opacity-50"
           >
             Sí, eliminar
           </button>
@@ -98,6 +108,7 @@ function EliminarReporte({ reporte }: { reporte: ReporteMio }) {
         </div>
       ) : (
         <button
+          ref={botonAbrir}
           type="button"
           aria-label={`Eliminar ${nombre}`}
           onClick={() => {

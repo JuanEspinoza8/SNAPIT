@@ -169,7 +169,39 @@ describe('ver mis reportes', () => {
     expect(screen.getByRole('link', { name: 'Reportar un problema' })).toHaveAttribute('href', '/reportar');
   });
 
-  it('al tocar un reporte con incidente abre la ficha en la misma página', async () => {
+  it('un reporte publicado lleva a su publicación, con el agradecimiento y los comentarios', async () => {
+    conReportes(
+      reporte({
+        id: 15,
+        categoria: { id: 3, nombre: 'Cordón sin rampa' },
+        estadoVerificacion: 'VERIFICADO',
+        incidente: { id: 2, estado: 'VERIFICADO', enRevision: false, caducadoEn: null },
+      }),
+    );
+    renderRuta('/mis-reportes', <ListaMisReportes />);
+
+    expect(await screen.findByRole('link', { name: /Cordón sin rampa/ })).toHaveAttribute(
+      'href',
+      '/reporte/15',
+    );
+    expect(screen.queryByRole('button', { name: /^(?!Eliminar).*Cordón sin rampa/ })).not.toBeInTheDocument();
+  });
+
+  it('uno publicado de un problema que caducó no lleva a ningún lado', async () => {
+    conReportes(
+      reporte({
+        estadoVerificacion: 'VERIFICADO',
+        incidente: { id: 2, estado: 'VERIFICADO', enRevision: false, caducadoEn: '2026-11-01T03:00:00.000Z' },
+      }),
+    );
+    renderRuta('/mis-reportes', <ListaMisReportes />);
+
+    expect(await screen.findByText('Cordón sin rampa')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Cordón sin rampa/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^(?!Eliminar).*Cordón sin rampa/ })).not.toBeInTheDocument();
+  });
+
+  it('al tocar uno que espera revisión, abre la ficha de su problema en la misma página', async () => {
     conReportes(
       reporte({
         categoria: { id: 3, nombre: 'Cordón sin rampa' },
@@ -288,6 +320,19 @@ describe('eliminar un reporte propio', () => {
   beforeEach(() => {
     localStorage.setItem('snapit:tokenAcceso', 'acceso-del-vecino');
     localStorage.setItem('snapit:tokenRenovacion', 'renovacion-del-vecino');
+  });
+
+  it('al pedir confirmación el foco va a «Sí, eliminar», y con «No» vuelve a «Eliminar»', async () => {
+    conReportes(reporte({ id: 1 }));
+    renderRuta('/mis-reportes', <ListaMisReportes />);
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Eliminar tu reporte de Cordón sin rampa' }),
+    );
+    expect(screen.getByRole('button', { name: 'Sí, eliminar' })).toHaveFocus();
+    await userEvent.click(screen.getByRole('button', { name: 'No' }));
+
+    expect(screen.getByRole('button', { name: 'Eliminar tu reporte de Cordón sin rampa' })).toHaveFocus();
   });
 
   it('pide confirmación, lo elimina y deja de verse en la lista', async () => {
