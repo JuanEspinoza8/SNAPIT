@@ -174,10 +174,10 @@ function gpsDelTiff(vista: DataView, inicio: number): Punto | null {
   if (!gps) return null;
   const delGps = new Map(entradas(u32(gps.en + 8)).map((entrada) => [entrada.etiqueta, entrada.en]));
 
-  // La referencia (N/S, E/O) es un texto de un carácter, guardado dentro de la entrada.
+  // La referencia (N/S, E/W) es un texto de un carácter, guardado dentro de la entrada.
   const referencia = (etiqueta: number) => {
     const en = delGps.get(etiqueta);
-    return en === undefined ? null : String.fromCharCode(vista.getUint8(inicio + en + 8));
+    return en === undefined ? null : String.fromCharCode(vista.getUint8(inicio + en + 8)).toUpperCase();
   };
   // Grados, minutos y segundos: tres fracciones guardadas afuera de la entrada.
   const grados = (etiqueta: number) => {
@@ -190,10 +190,14 @@ function gpsDelTiff(vista: DataView, inicio: number): Punto | null {
 
   const lat = grados(2);
   const lon = grados(4);
+  const haciaLat = referencia(1);
+  const haciaLon = referencia(3);
   if (lat === null || lon === null) return null;
+  // Sin el hemisferio no se sabe el signo: mejor sin punto que uno en la otra punta del mundo (como el servidor).
+  if ((haciaLat !== 'N' && haciaLat !== 'S') || (haciaLon !== 'E' && haciaLon !== 'W')) return null;
   const punto = {
-    lat: referencia(1) === 'S' ? -lat : lat,
-    lon: referencia(3) === 'W' ? -lon : lon,
+    lat: haciaLat === 'S' ? -lat : lat,
+    lon: haciaLon === 'W' ? -lon : lon,
   };
   // Un GPS sin señal a veces graba 0, 0: no es un lugar.
   const valido =

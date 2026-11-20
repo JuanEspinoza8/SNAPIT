@@ -19,6 +19,29 @@ describe('ubicación de la foto (EXIF)', () => {
     expect(punto?.lon).toBeCloseTo(3.7038, 4);
   });
 
+  it('acepta la referencia en minúscula, como el servidor', () => {
+    const punto = leerUbicacion(
+      vista(jpegConGps({ lat: 38.95, lon: 68.06 }, { referencias: { lat: 's', lon: 'w' } })),
+    );
+
+    expect(punto?.lat).toBeCloseTo(-38.95, 4);
+    expect(punto?.lon).toBeCloseTo(-68.06, 4);
+  });
+
+  it('sin el hemisferio (falta la referencia o no es N/S y E/W) no hay ubicación: no se supone N ni E', () => {
+    const punto = { lat: 38.95, lon: 68.06 };
+
+    expect(leerUbicacion(vista(jpegConGps(punto, { referencias: { lat: '' } })))).toBeNull();
+    expect(leerUbicacion(vista(jpegConGps(punto, { referencias: { lon: '' } })))).toBeNull();
+    expect(leerUbicacion(vista(jpegConGps(punto, { referencias: { lat: 'X' } })))).toBeNull();
+    expect(leerUbicacion(vista(jpegConGps(punto, { referencias: { lon: 'O' } })))).toBeNull();
+    // Con las dos referencias, el mismo punto sí se lee.
+    expect(leerUbicacion(vista(jpegConGps(punto, { referencias: { lat: 'N', lon: 'E' } })))?.lat).toBeCloseTo(
+      38.95,
+      4,
+    );
+  });
+
   it('sin EXIF, con 0, 0 o si no es un JPEG, no hay ubicación', () => {
     expect(leerUbicacion(vista(jpegSinGps()))).toBeNull();
     expect(leerUbicacion(vista(jpegConGps({ lat: 0, lon: 0 })))).toBeNull();
