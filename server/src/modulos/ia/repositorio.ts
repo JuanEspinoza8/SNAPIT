@@ -56,8 +56,15 @@ export interface FilaEvento {
   tokensSalida: number | null;
   modelo: string | null;
   duracionMs: number | null;
-  /** Lo que respondió la IA (registro_ia.salida): categoriaId, severidad y explicacion. */
-  propuesta: { categoriaId?: number; severidad?: string; explicacion?: string } | null;
+  /** Lo que respondió la IA (registro_ia.salida), en el paso que la lleva. */
+  propuesta: {
+    esProblemaViaPublica?: boolean;
+    categoriaId?: number | null;
+    severidad?: string | null;
+    mismoProblema?: boolean | null;
+    datosPersonales?: boolean;
+    explicacion?: string;
+  } | null;
   categoriaId: number;
   categoriaNombre: string;
   severidadDeclarada: string;
@@ -88,6 +95,9 @@ export function eventosDelProceso(procesoId: string) {
     ORDER BY e.id`;
 }
 
+// Un paso que no es un desestimado pendiente: la IA no dijo que la foto no muestra un problema de la vía pública.
+const NO_DESESTIMADO = Prisma.sql`coalesce(ri.salida->>'esProblemaViaPublica', 'true') <> 'false'`;
+
 /** Los últimos procesamientos del organismo, del más nuevo al más viejo. */
 export function procesosRecientes(organismoId: number, cantidad = 10) {
   return prisma.$queryRaw<
@@ -97,17 +107,20 @@ export function procesosRecientes(organismoId: number, cantidad = 10) {
       reportes: number;
       publicados: number;
       derivados: number;
+      desestimados: number;
       errores: number;
     }[]
   >`
-    SELECT proceso_id::text AS id, min(creado_en) AS "iniciadoEn",
-           count(DISTINCT reporte_id)::int AS reportes,
-           count(*) FILTER (WHERE estado = 'PUBLICADO')::int AS publicados,
-           count(*) FILTER (WHERE estado = 'REVISION_MANUAL')::int AS derivados,
-           count(*) FILTER (WHERE estado = 'ERROR')::int AS errores
-    FROM evento_verificacion_ia
-    WHERE organismo_id = ${organismoId}
-    GROUP BY proceso_id
-    ORDER BY min(creado_en) DESC
+    SELECT e.proceso_id::text AS id, min(e.creado_en) AS "iniciadoEn",
+           count(DISTINCT e.reporte_id)::int AS reportes,
+           count(*) FILTER (WHERE e.estado = 'PUBLICADO')::int AS publicados,
+           count(*) FILTER (WHERE e.estado = 'REVISION_MANUAL' AND ${NO_DESESTIMADO})::int AS derivados,
+           count(*) FILTER (WHERE e.estado = 'REVISION_MANUAL' AND NOT ${NO_DESESTIMADO})::int AS desestimados,
+           count(*) FILTER (WHERE e.estado = 'ERROR')::int AS errores
+    FROM evento_verificacion_ia e
+    LEFT JOIN registro_ia ri ON ri.id = e.registro_ia_id
+    WHERE e.organismo_id = ${organismoId}
+    GROUP BY e.proceso_id
+    ORDER BY min(e.creado_en) DESC
     LIMIT ${cantidad}`;
 }

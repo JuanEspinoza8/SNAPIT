@@ -40,52 +40,55 @@ async function reportar(
 const senales = (reporteId: number) =>
   prisma.senalVerificacion.findMany({ where: { reporteId }, orderBy: { id: 'asc' } });
 
-describe('verificación automática al crear el reporte (F04)', () => {
-  it('guarda el nivel, el estado y cada señal con su explicación', async () => {
+describe('controles automáticos al crear el reporte (F04)', () => {
+  it('todo reporte llega pendiente, con el nivel y una señal por control con su explicación', async () => {
     const vecino = await crearUsuario({ rol: 'VECINO' });
 
-    // EXIF en el punto (+20), cámara de la app (+15), reputación inicial (0): 50 + 35 = 85.
+    // EXIF en el punto, del mismo día y una foto que no se usó antes: se cumplen los tres controles.
     const reporte = await reportar(vecino, { camara: true, foto: await fotoUnica(jpegConExif()) });
 
-    expect(reporte).toMatchObject({ nivelConfianza: 85, estadoVerificacion: 'VERIFICADO' });
+    expect(reporte).toMatchObject({ nivelConfianza: 100, estadoVerificacion: 'PENDIENTE_REVISION' });
     const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
-    expect(guardado).toMatchObject({ nivelConfianza: 85, estadoVerificacion: 'VERIFICADO' });
+    expect(guardado).toMatchObject({ nivelConfianza: 100, estadoVerificacion: 'PENDIENTE_REVISION' });
     const filas = await senales(reporte.id);
     expect(filas.map((s) => [s.tipo, Number(s.valor)])).toEqual([
-      ['EXIF_COINCIDE', 20],
-      ['ORIGEN_APP', 15],
-      ['REPUTACION', 0],
+      ['EXIF_COINCIDE', 1],
+      ['FECHA_ANTIGUA', 1],
+      ['HASH_DUPLICADO', 1],
     ]);
     expect(filas.every((s) => s.detalle && s.detalle.length > 0)).toBe(true);
   });
 
-  it('una foto de galería sin EXIF queda pendiente de revisión', async () => {
+  it('una foto sin EXIF no tiene con qué comprobar la ubicación ni la fecha', async () => {
     const vecino = await crearUsuario({ rol: 'VECINO' });
 
-    // Sin EXIF de galería (−10): 50 − 10 = 40.
     const reporte = await reportar(vecino, { foto: await fotoUnica(jpegSinExif()) });
 
-    expect(reporte).toMatchObject({ nivelConfianza: 40, estadoVerificacion: 'PENDIENTE_REVISION' });
-    expect((await senales(reporte.id)).map((s) => s.tipo)).toContain('EXIF_AUSENTE');
+    expect(reporte).toMatchObject({ nivelConfianza: 33, estadoVerificacion: 'PENDIENTE_REVISION' });
+    expect((await senales(reporte.id)).map((s) => [s.tipo, Number(s.valor)])).toEqual([
+      ['EXIF_AUSENTE', 0],
+      ['FECHA_ANTIGUA', 0],
+      ['HASH_DUPLICADO', 1],
+    ]);
   });
 
-  it('la misma foto usada en un segundo reporte resta HASH_DUPLICADO, también si es del mismo vecino', async () => {
+  it('la misma foto usada en un segundo reporte no cumple HASH_DUPLICADO, también si es del mismo vecino', async () => {
     const vecino = await crearUsuario({ rol: 'VECINO' });
 
     const foto = await fotoUnica(jpegSinExif());
     const primero = await reportar(vecino, { foto });
     const segundo = await reportar(vecino, { foto, lat: -38.99 });
 
-    expect((await senales(primero.id)).map((s) => s.tipo)).not.toContain('HASH_DUPLICADO');
-    const repetida = (await senales(segundo.id)).find((s) => s.tipo === 'HASH_DUPLICADO');
-    expect(repetida).toMatchObject({
+    const repetida = async (id: number) => (await senales(id)).find((s) => s.tipo === 'HASH_DUPLICADO');
+    expect(Number((await repetida(primero.id))?.valor)).toBe(1);
+    expect(await repetida(segundo.id)).toMatchObject({
       detalle: expect.stringContaining(`reporte ${primero.id}, del mismo vecino`),
     });
-    // 50 − 10 (sin EXIF) − 40 (repetida) = 0
+    expect(Number((await repetida(segundo.id))?.valor)).toBe(-1);
     expect(segundo.nivelConfianza).toBe(0);
   });
 
-  it('dos fotos lisas distintas no cuentan como la misma foto', async () => {
+  it('dos fotos lisas distintas no cuentan como la misma foto: no se pueden comparar', async () => {
     const [vecino, otro] = await Promise.all([
       crearUsuario({ rol: 'VECINO' }),
       crearUsuario({ rol: 'VECINO' }),
@@ -95,9 +98,9 @@ describe('verificación automática al crear el reporte (F04)', () => {
     await reportar(vecino, { camara: true, foto: await jpegLiso(0) });
     const segundo = await reportar(otro, { camara: true, foto: await jpegLiso(255), lat: -38.99 });
 
-    expect((await senales(segundo.id)).map((s) => s.tipo)).not.toContain('HASH_DUPLICADO');
-    // Cámara de la app sin GPS (+15) y reputación inicial: 50 + 15 = 65.
-    expect(segundo).toMatchObject({ nivelConfianza: 65, estadoVerificacion: 'VERIFICADO' });
+    const control = (await senales(segundo.id)).find((s) => s.tipo === 'HASH_DUPLICADO');
+    expect(Number(control?.valor)).toBe(0);
+    expect(control?.detalle).toContain('lisa u oscura');
   });
 
   it('una foto oscura con algo de información sí se detecta si se repite', async () => {
@@ -107,7 +110,8 @@ describe('verificación automática al crear el reporte (F04)', () => {
     await reportar(vecino, { foto });
     const segundo = await reportar(vecino, { foto, lat: -38.99 });
 
-    expect((await senales(segundo.id)).map((s) => s.tipo)).toContain('HASH_DUPLICADO');
+    const control = (await senales(segundo.id)).find((s) => s.tipo === 'HASH_DUPLICADO');
+    expect(Number(control?.valor)).toBe(-1);
   });
 
   it('desde el sitio web la foto no puede venir de la cámara de la app: 400', async () => {
@@ -134,23 +138,21 @@ describe('verificación automática al crear el reporte (F04)', () => {
     expect(await prisma.reporte.count({ where: { usuarioId: vecino.id } })).toBe(0);
   });
 
-  it('la reputación del vecino suma o resta', async () => {
+  it('la reputación del vecino ya no cuenta para el nivel', async () => {
     const confiable = await crearUsuario({ rol: 'VECINO' });
     await prisma.usuario.update({ where: { id: confiable.id }, data: { reputacion: 100 } });
 
     const reporte = await reportar(confiable, { foto: await fotoUnica(jpegSinExif()) });
 
-    // 50 − 10 (sin EXIF) + 20 (reputación 100) = 60
-    expect(reporte).toMatchObject({ nivelConfianza: 60, estadoVerificacion: 'VERIFICADO' });
+    expect(reporte).toMatchObject({ nivelConfianza: 33, estadoVerificacion: 'PENDIENTE_REVISION' });
   });
 
-  it('el sistema nunca deja un reporte DESESTIMADO por sí solo', async () => {
+  it('el sistema nunca deja un reporte DESESTIMADO por sí solo, ni con todos los controles en contra', async () => {
     const vecino = await crearUsuario({ rol: 'VECINO' });
-    await prisma.usuario.update({ where: { id: vecino.id }, data: { reputacion: 0 } });
 
-    // EXIF lejos del punto (−30), foto repetida (−40) y reputación 0 (−20): 50 − 90 = −40, recortado a 0.
+    // EXIF lejos del punto, foto vieja y repetida.
     await reportar(vecino);
-    const peor = await reportar(vecino, { lat: -38.99 });
+    const peor = await reportar(vecino, { lat: -38.99, registradoEn: '2026-11-15T18:00:00Z' });
 
     expect(peor.nivelConfianza).toBe(0);
     expect(peor.estadoVerificacion).toBe('PENDIENTE_REVISION');

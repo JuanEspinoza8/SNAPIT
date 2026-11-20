@@ -89,19 +89,24 @@ export function buscarCandidatos(
       AND ST_DWithin(i.ubicacion, ${punto}, ${datos.radioM})`;
 }
 
-/** Las severidades que declararon los vecinos en el incidente y en los que se le unieron, sin desestimados. */
+/**
+ * Las severidades que declararon los vecinos en el incidente y en los que se le unieron, sin desestimados ni
+ * eliminados por su autor (#150).
+ */
 export async function severidadesDeclaradas(tx: Prisma.TransactionClient, incidenteId: number) {
   const filas = await tx.$queryRaw<{ severidad: Severidad }[]>`
-    SELECT r.severidad_declarada::text AS severidad ${REPORTES_DEL_INCIDENTE(incidenteId)}`;
+    SELECT r.severidad_declarada::text AS severidad ${REPORTES_DEL_INCIDENTE(incidenteId)}
+      AND r.eliminado_en IS NULL`;
   return filas.map((fila) => fila.severidad);
 }
 
-/** Los reportes válidos y verificados del incidente, propios y de los que se le unieron. */
+/** Los reportes válidos y verificados del incidente, propios y de los que se le unieron, sin los eliminados. */
 export async function contarReportes(tx: Prisma.TransactionClient, incidenteId: number) {
   const [fila] = await tx.$queryRaw<ReportesDelIncidente[]>`
     SELECT count(*)::int AS validos,
            count(*) FILTER (WHERE r.estado_verificacion = 'VERIFICADO')::int AS verificados
-    ${REPORTES_DEL_INCIDENTE(incidenteId)}`;
+    ${REPORTES_DEL_INCIDENTE(incidenteId)}
+      AND r.eliminado_en IS NULL`;
   return fila!;
 }
 

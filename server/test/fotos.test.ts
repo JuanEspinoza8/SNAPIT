@@ -96,7 +96,7 @@ describe('GET /api/fotos/:id sin sesión', () => {
     const res = await bajar(fotoId);
 
     expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toBe('image/jpeg');
+    expect(res.headers['content-type']).toBe('image/webp');
     expect(res.headers['cache-control']).toBe('public, max-age=3600');
     expect(res.headers.vary).toContain('Authorization');
   });
@@ -167,7 +167,7 @@ describe('GET /api/fotos/:id para el dueño del reporte', () => {
     const res = await bajar(fotoId, duenio);
 
     expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toBe('image/jpeg');
+    expect(res.headers['content-type']).toBe('image/webp');
     expect(res.headers['cache-control']).toBe('private, max-age=3600');
   });
 

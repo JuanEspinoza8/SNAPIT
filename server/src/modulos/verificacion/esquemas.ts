@@ -16,6 +16,17 @@ export const esquemaRevision = z.object({
     .transform((texto) => texto || null),
 });
 
+// POST /api/reportes/desestimados-pendientes/confirmacion: sin `ids`, todos los del organismo.
+export const esquemaConfirmacion = z.object({
+  ids: z
+    .array(z.int32({ error: 'Tiene que ser el id de un reporte' }).positive({ error: 'No es válido' }), {
+      error: 'Tiene que ser una lista de ids',
+    })
+    .min(1, { error: 'Tiene que tener al menos un id' })
+    .max(1000, { error: 'Tiene que tener hasta 1000 ids' })
+    .optional(),
+});
+
 // Filtros de GET /api/reportes. En la URL todo llega como texto.
 export const esquemaFiltrosReportes = z.object({
   estado: z

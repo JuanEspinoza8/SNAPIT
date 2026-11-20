@@ -178,9 +178,12 @@ describe('aviso de verificación', () => {
     ]);
   });
 
-  it('un reporte verificado al llegar no genera avisos para su autor', async () => {
+  it('un reporte verificado sin una persona de por medio solo le deja al autor el aviso de que está en verificación', async () => {
+    // Todo reporte llega pendiente; reportar() lo verifica enseguida, como la IA, sin operador.
     const reporte = await reportar();
-    expect(await avisosDe(reporte.vecinoId)).toEqual([]);
+    expect(await avisosDe(reporte.vecinoId)).toEqual([
+      expect.objectContaining({ tipo: 'VERIFICACION', titulo: 'Tu reporte está en verificación' }),
+    ]);
   });
 
   it('un reporte desestimado le avisa al autor que no se publicó', async () => {

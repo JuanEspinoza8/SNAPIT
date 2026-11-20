@@ -330,6 +330,31 @@ describe('prioridad al confirmar', () => {
     });
   });
 
+  it('la confirmación de quien eliminó su reporte suma evidencia, como la de otro vecino', async () => {
+    const punto = { lat: -38.9 - Math.random() * 0.2, lon: -68.35 };
+    const eliminado = await reportarEn(punto, { categoriaId: categoria.id });
+    const otro = await reportarEn(punto, { categoriaId: categoria.id });
+    vecinos.push(eliminado.vecinoId, otro.vecinoId);
+    expect(otro.incidenteId).toBe(eliminado.incidenteId);
+    const token = crearTokenAcceso(
+      await prisma.usuario.findUniqueOrThrow({ where: { id: eliminado.vecinoId } }),
+    );
+    const borrado = await request(app)
+      .delete(`/api/reportes/${eliminado.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(borrado.status).toBe(204);
+
+    expect((await conToken(token).confirmar(eliminado.incidenteId)).status).toBe(201);
+
+    // Queda el reporte del otro vecino y la confirmación del que eliminó el suyo: n = 1 + 1, como arriba.
+    const evidencias = (await prioridadDe(eliminado.incidenteId)).factores[1];
+    expect({ ...evidencias, valor: Number(evidencias!.valor) }).toEqual({
+      factor: 'EVIDENCIAS',
+      valor: 9.91,
+      detalle: 'Lo reportaron 1 vez y lo confirmó 1 vecino: +9,9',
+    });
+  });
+
   it('la confirmación de quien ya lo reportó renueva la vigencia pero no cambia la prioridad', async () => {
     const { incidenteId, autor } = await reportar(obra.id);
     const antes = await prioridadDe(incidenteId);

@@ -244,12 +244,13 @@ describe('GET /api/incidentes/:id/gestion', () => {
       categoria: { id: categoria.id, nombre: categoria.nombre },
       severidadDeclarada: 'GRAVE',
       origen: 'APP_MOVIL',
-      nivelConfianza: 65,
+      // Foto sin EXIF: de los tres controles solo se cumple que no está repetida.
+      nivelConfianza: 33,
       estadoVerificacion: 'VERIFICADO',
     });
     expect(fila.senales).toContainEqual({
-      tipo: 'ORIGEN_APP',
-      valor: 15,
+      tipo: 'HASH_DUPLICADO',
+      valor: 1,
       detalle: expect.any(String),
     });
     expect(fila.fotos).toHaveLength(1);

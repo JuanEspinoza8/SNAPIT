@@ -12,6 +12,7 @@ import { registrarMovimiento } from '../incidentes/bitacora.js';
 import { transicionValida } from '../incidentes/calculo.js';
 import { esquemaId } from '../incidentes/esquemas.js';
 import { avisarCambioIncidente } from '../incidentes/eventos.js';
+import { contarResolucion } from '../social/resolucion.js';
 import { transaccion } from '../reportes/repositorio.js';
 import { distanciaMetros } from '../verificacion/calculo.js';
 import { type DatosDelCierre, decidirCierre, explicarCierre } from './calculo.js';
@@ -96,7 +97,7 @@ export async function cerrarIncidente(
   const { id } = validar(esquemaId, parametros);
   if (!archivo) throw datosInvalidos('Es obligatoria');
   const imagen = await analizarFoto(archivo);
-  if (!imagen) throw datosInvalidos('Tiene que ser una imagen JPG o PNG');
+  if (!imagen) throw datosInvalidos('Tiene que ser una foto JPG, PNG, WebP o HEIC');
 
   // Antes de consultar a la IA (que tarda y cuesta): si no se puede cerrar, no se pregunta.
   const incidente = exigirCerrable(await repositorio.leerIncidente(prisma, id, { bloquear: false }), sesion);
@@ -110,7 +111,7 @@ export async function cerrarIncidente(
   // Sin GPS o fuera del lugar, el resultado no depende de la IA: no se le pregunta.
   const enElLugar = distancia !== null && distancia <= params.distanciaMaxM;
   const { comparacion, sinComparacion } = enElLugar
-    ? await comparar(sesion.id, id, archivo)
+    ? await comparar(sesion.id, id, imagen.archivo)
     : { comparacion: null, sinComparacion: null };
 
   const resultado = decidirCierre(distancia, comparacion?.veredicto ?? null, params);
@@ -118,7 +119,7 @@ export async function cerrarIncidente(
   const detalle = explicarCierre(resultado, datos, params);
 
   // Primero el archivo y después la base, como el alta de un reporte: si la base falla, se borra el archivo.
-  const rutaArchivo = await almacenFotos.guardar(archivo, imagen.tipo);
+  const rutaArchivo = await almacenFotos.guardar(imagen.archivo, imagen.tipo);
   try {
     return await transaccion(async (tx) => {
       // Se vuelve a comprobar con el incidente bloqueado: mientras la IA comparaba pudo cambiar.
@@ -136,7 +137,7 @@ export async function cerrarIncidente(
         rutaArchivo,
         ancho: imagen.ancho,
         alto: imagen.alto,
-        tamanoBytes: archivo.length,
+        tamanoBytes: imagen.archivo.length,
         tomadaConCamaraApp: false,
         hashPerceptual: imagen.hashPerceptual,
         exifLatitud: latitud,
@@ -160,6 +161,7 @@ export async function cerrarIncidente(
           where: { id },
           data: { estado: 'RESUELTO', resueltoEn: ahora, actualizadoEn: ahora },
         });
+        await contarResolucion(tx, id);
         await registrarMovimiento(tx, {
           incidenteId: id,
           usuarioId: sesion.id,
@@ -271,6 +273,7 @@ export async function confirmarCierre(sesion: UsuarioSesion, parametros: unknown
         where: { id },
         data: { estado: 'RESUELTO', resueltoEn: ahora, actualizadoEn: ahora },
       });
+      await contarResolucion(tx, id);
       movimiento = await registrarMovimiento(tx, {
         incidenteId: id,
         usuarioId: sesion.id,

@@ -46,14 +46,14 @@ export async function compararCierre(
   const despues = await prepararFoto(fotoDespues);
   if (despues === null) {
     throw new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [
-      { campo: 'foto', mensaje: 'Tiene que ser una imagen JPG o PNG' },
+      { campo: 'foto', mensaje: 'Tiene que ser una foto JPG, PNG, WebP o HEIC' },
     ]);
   }
 
   const preparadas = await Promise.all(fotosAntes.slice(0, MAX_FOTOS_ANTES).map(prepararFoto));
   if (preparadas.some((foto) => foto === null)) {
     throw new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [
-      { campo: 'fotosAntes', mensaje: 'Tienen que ser imágenes JPG o PNG' },
+      { campo: 'fotosAntes', mensaje: 'Tienen que ser fotos JPG, PNG, WebP o HEIC' },
     ]);
   }
   const antes = preparadas.filter((foto): foto is NonNullable<typeof foto> => foto !== null);

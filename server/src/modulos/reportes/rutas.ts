@@ -4,7 +4,14 @@ import { autenticar, permitirRoles, sesionOpcional } from '../../compartido/aute
 import { recibirFoto } from '../../compartido/recibirFoto.js';
 import { validar } from '../../compartido/validar.js';
 import { separarReporte } from '../incidentes/separacion.js';
-import { listarPendientes, listarReportes, revisarReporte } from '../verificacion/revision.js';
+import {
+  confirmarDesestimados,
+  listarDesestimadosPendientes,
+  listarPendientes,
+  listarReportes,
+  revisarReporte,
+} from '../verificacion/revision.js';
+import { eliminarReporte } from './eliminacion.js';
 import { esquemaIdFoto } from './esquemas.js';
 import * as servicio from './servicio.js';
 
@@ -20,6 +27,12 @@ rutasReportes.get('/mios', autenticar, permitirRoles('VECINO'), async (req, res)
   res.json(await servicio.listarMisReportes(req.usuario!.id));
 });
 
+// El vecino elimina su propio reporte (#150). Solo su autor: eliminacion.ts lo controla.
+rutasReportes.delete('/:id', autenticar, permitirRoles('VECINO'), async (req, res) => {
+  await eliminarReporte(req.usuario!, req.params);
+  res.status(204).end();
+});
+
 // Todos los reportes del organismo de quien la pide, en cualquier estado, del más nuevo al más viejo.
 rutasReportes.get('/', autenticar, permitirRoles('OPERADOR', 'ADMINISTRADOR'), async (req, res) => {
   res.json(await listarReportes(req.usuario!, req.query));
@@ -29,6 +42,25 @@ rutasReportes.get('/', autenticar, permitirRoles('OPERADOR', 'ADMINISTRADOR'), a
 rutasReportes.get('/pendientes', autenticar, permitirRoles('OPERADOR', 'ADMINISTRADOR'), async (req, res) => {
   res.json(await listarPendientes(req.usuario!));
 });
+
+// Los que la IA marcó para desestimar: el operador los confirma (todos o algunos) o rescata uno revisándolo.
+rutasReportes.get(
+  '/desestimados-pendientes',
+  autenticar,
+  permitirRoles('OPERADOR', 'ADMINISTRADOR'),
+  async (req, res) => {
+    res.json(await listarDesestimadosPendientes(req.usuario!));
+  },
+);
+
+rutasReportes.post(
+  '/desestimados-pendientes/confirmacion',
+  autenticar,
+  permitirRoles('OPERADOR', 'ADMINISTRADOR'),
+  async (req, res) => {
+    res.json(await confirmarDesestimados(req.usuario!, req.body));
+  },
+);
 
 rutasReportes.post(
   '/:id/revision',

@@ -403,6 +403,19 @@ Responde **200**, del más nuevo al más viejo (por `registradoEn`):
 - `incidente.caducadoEn`: cuándo caducó el incidente (el principal, si se unió a otro), o `null`. Si la tarea diaria ya lo marcó, es su `caducado_en`; si es un temporal vencido que todavía no marcó, cuándo venció (es la misma fecha). Un incidente resuelto o desestimado antes de vencer tiene `null`. Un incidente con fecha acá no está en el mapa y su ficha pública da 404, así que no conviene ofrecer abrirla.
 - `fotos`: todas las del reporte. Se bajan de `GET /api/fotos/:id` **con la sesión** (`Authorization: Bearer ...`): así también se ven las de un reporte desestimado o las de un incidente que ya no está en el mapa, que sin sesión dan 404.
 - Un vecino sin reportes recibe `{ "reportes": [] }`.
+- Los que eliminó (`DELETE /api/reportes/:id`) no vienen.
+
+### `DELETE /api/reportes/:id`
+El vecino elimina su propio reporte (#150): baja lógica (`reporte.eliminado_en`). Requiere sesión de `VECINO`; ni el operador ni el administrador eliminan reportes (los desestiman en la revisión). Responde **204** sin cuerpo.
+
+Para el cálculo cuenta como un desestimado ([calculos.md](calculos.md#agrupación-de-reportes-en-incidentes)): se resta de `cantidad_reportes`, deja de pesar en la severidad y en el estado del incidente, y se recalcula la prioridad. La reputación del vecino no cambia. Si estaba pendiente, sale de la revisión y de la cola de la IA. Deja de verse en la ficha, el feed, lo social y Mis reportes.
+
+| Caso | Respuesta |
+|---|---|
+| Un reporte de otro vecino, o con otro rol | **403** `SIN_PERMISO` |
+| No existe o ya está eliminado | **404** `REPORTE_NO_ENCONTRADO` |
+| Es el único reporte visible de su incidente (sin contar los unidos ni los marcados para desestimar) | **409** `UNICO_REPORTE` |
+| Un desestimado | **204**: ya no contaba, solo deja de verse en Mis reportes |
 
 ### `POST /api/reportes`
 Un vecino carga un reporte con una foto. Requiere sesión de `VECINO` (otro rol: 403 `SIN_PERMISO`).
@@ -411,7 +424,7 @@ Va como **`multipart/form-data`**, no como JSON, porque lleva un archivo. Todos 
 
 | Campo | Obligatorio | Valor |
 |---|---|---|
-| `foto` | sí | Archivo JPG o PNG de hasta `FOTO_MAX_MB` (10 MB por defecto). Se reconoce por el contenido, no por la extensión. |
+| `foto` | sí | Una foto JPG, PNG, WebP, AVIF o HEIC (la del iPhone) de hasta `FOTO_MAX_MB` (10 MB por defecto). Se reconoce por el contenido, no por la extensión. |
 | `categoriaId` | sí | Id de una categoría activa (`GET /api/categorias`) |
 | `severidadDeclarada` | sí | `LEVE`, `MODERADA` o `GRAVE` |
 | `lat` / `lon` | sí | Grados decimales: `lat` entre -90 y 90, `lon` entre -180 y 180. Ejemplo: `-38.9516` / `-68.0591` |
@@ -428,12 +441,12 @@ Si la sugerencia no vale (falta uno de sus tres datos, es de otro vecino o de un
 Responde **201**:
 
 ```json
-{ "id": 15, "incidenteId": 9, "nivelConfianza": 0, "estadoVerificacion": "PENDIENTE_REVISION" }
+{ "id": 15, "incidenteId": 9, "nivelConfianza": 33, "estadoVerificacion": "PENDIENTE_REVISION" }
 ```
 
-- La foto se guarda **tal cual llegó**, sin recomprimir: se conserva el EXIF para la verificación (corte 50 %).
+- La foto **no se guarda tal cual llegó**: se leen su EXIF (para la verificación) y su hash, y se guarda en WebP, girada, achicada a 1920 px del lado mayor y sin metadatos (ver «Datos de cada foto» en `docs/calculos.md`).
 - El reporte se suma al incidente de la misma categoría que más se le parece por cercanía, tiempo y foto, o abre uno nuevo en estado `REGISTRADO` si ninguno alcanza el umbral (ver "Agrupación de reportes en incidentes" en [`calculos.md`](calculos.md)). `incidenteId` puede ser el de un incidente que ya existía.
-- `nivelConfianza` (0 a 100) y `estadoVerificacion` salen de la verificación automática: `VERIFICADO` desde el umbral, `PENDIENTE_REVISION` por debajo, nunca `DESESTIMADO` (ver "Verificación automática del reporte" en [`calculos.md`](calculos.md)). El cliente puede usarlos para el aviso de envío: "publicado" o "lo va a revisar un operador".
+- `estadoVerificacion` es siempre `PENDIENTE_REVISION`: lo publica la verificación con IA o un operador. `nivelConfianza` (0 a 100) es el porcentaje de los controles automáticos que se cumplen (ver "Controles automáticos del reporte" en [`calculos.md`](calculos.md)). El cliente avisa que el reporte está en verificación.
 - Si algo falla, no queda nada a medias: ni un reporte sin foto ni una foto suelta.
 - El incidente nace sin área (`area_id` vacío): es el área a la que se deriva, y eso lo hace el operador.
 - Si la categoría es temporal, el incidente vence a los días de la categoría contados desde que llega el reporte (no desde `registradoEn`).
@@ -454,7 +467,7 @@ curl -X POST http://localhost:3000/api/reportes \
 ```
 
 ### `GET /api/reportes/pendientes`
-Los reportes de baja confianza que esperan la revisión de un operador (F04). Requiere sesión de `OPERADOR` o `ADMINISTRADOR` (otro rol: 403 `SIN_PERMISO`). Solo trae los de los incidentes de **su organismo**: el del área a la que se derivó el incidente o, si todavía no se derivó, el del área de su categoría.
+Los reportes que esperan la revisión de un operador (F04): todos llegan pendientes, y quedan acá hasta que los publica la IA o un operador. Los que la IA marcó para desestimar van aparte, en `GET /api/reportes/desestimados-pendientes`. Requiere sesión de `OPERADOR` o `ADMINISTRADOR` (otro rol: 403 `SIN_PERMISO`). Solo trae los de los incidentes de **su organismo**: el del área a la que se derivó el incidente o, si todavía no se derivó, el del área de su categoría.
 
 Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 
@@ -471,10 +484,11 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
       "lat": -38.9531,
       "lon": -68.0478,
       "origen": "SITIO_WEB",
-      "nivelConfianza": 40,
+      "nivelConfianza": 33,
       "senales": [
-        { "tipo": "EXIF_AUSENTE", "valor": -10, "detalle": "La foto se eligió de la galería y no trae la ubicación donde se sacó" },
-        { "tipo": "REPUTACION", "valor": 0, "detalle": "Reputación del vecino: 50 de 100" }
+        { "tipo": "EXIF_AUSENTE", "valor": 0, "detalle": "La foto no trae la ubicación donde se sacó" },
+        { "tipo": "FECHA_ANTIGUA", "valor": 0, "detalle": "La foto no trae la fecha en que se sacó" },
+        { "tipo": "HASH_DUPLICADO", "valor": 1, "detalle": "La foto no se usó en otro reporte" }
       ],
       "fotos": [{ "id": 12, "url": "/api/fotos/12" }],
       "incidente": { "id": 9, "estado": "REGISTRADO", "cantidadReportes": 1, "propioId": 9, "caducadoEn": null },
@@ -485,11 +499,11 @@ Responde **200**, del más viejo al más nuevo (por `registradoEn`):
 }
 ```
 
-- `senales`: por qué quedó con ese nivel, en el orden en que se calcularon (ver `docs/calculos.md`).
+- `senales`: los tres controles automáticos (ubicación, antigüedad y foto repetida), con `valor` 1 si se cumple, −1 si no y 0 si no hay con qué hacerlo (ver `docs/calculos.md`).
 - `fotos`: se bajan de `GET /api/fotos/:id` **con la sesión del operador**, aunque el incidente no esté en el mapa.
 - `vecino`: su historial, no quién es.
 - `incidente`: si un operador unió el incidente del reporte a otro, viene el **principal**, y `propioId` es el incidente al que pertenece el reporte. Si `propioId` es distinto de `id`, el reporte llegó por una unión: es el id que se usa para deshacerla (`DELETE /api/incidentes/:propioId/union`). `caducadoEn` dice cuándo caducó o venció el principal, o `null`, como en `GET /api/reportes/mios`: «Unir» no propone los que tienen fecha.
-- `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última clasificación: `{ categoriaId, severidad, explicacion, creadoEn }`. `null` si todavía no lo procesó.
+- `propuestaIa`: si la IA ya lo procesó con la cola de verificación y lo dejó para revisión, su última respuesta: `{ categoriaId, severidad, explicacion, creadoEn, esProblemaViaPublica, mismoProblema, datosPersonales }`. `null` si todavía no lo procesó. Los tres últimos son `null` si la IA no los informó; `datosPersonales: true` quiere decir que en la foto se ve una cara o una patente, y la pantalla lo avisa antes de publicarla. `mismoProblema` es `null` también cuando no había foto de referencia.
 - `direccion` es `null` mientras Nominatim no la completó; `incidente` es `null` si el reporte quedó sin incidente.
 - No trae los pendientes de un incidente resuelto o desestimado: ya no se revisan (ver «Incidente cerrado» en `docs/calculos.md`). Siguen en `GET /api/reportes`, pendientes.
 - Un operador sin organismo, o sin pendientes, recibe `{ "reportes": [] }`.
@@ -506,9 +520,34 @@ Todos los reportes de los incidentes del organismo de quien lo pide, en cualquie
 Responde **200** con `{ "reportes": [...] }`: cada reporte tiene los mismos datos que en `GET /api/reportes/pendientes`, más:
 
 - `estadoVerificacion`: `PENDIENTE_REVISION`, `VERIFICADO` (publicado) o `DESESTIMADO`.
-- `publicadoPorIaEn`: cuándo lo publicó la IA al procesar la cola, o `null` si no fue ella (lo verificó el sistema al recibirlo o un operador al revisarlo: eso todavía no se distingue).
+- `publicadoPorIaEn`: cuándo lo publicó la IA al procesar la cola, o `null` si no fue ella (lo verificó un operador al revisarlo).
+- `marcadoParaDesestimar`: si la IA lo marcó para desestimar y espera que un operador lo confirme.
 
 Un filtro inválido responde 400 `DATOS_INVALIDOS`.
+
+### `GET /api/reportes/desestimados-pendientes`
+Los reportes que la IA **marcó para desestimar** porque su foto no muestra un problema de la vía pública (ver "Cola de verificación con IA" en `docs/calculos.md`). La IA nunca desestima: siguen `PENDIENTE_REVISION`, sin tocar la reputación del vecino ni avisarle nada, hasta que un operador decide. Mientras esperan **no se ven en público**: ni su foto, ni su incidente si no tiene otro reporte que se vea.
+
+Mismos permisos, orden y forma que `GET /api/reportes/pendientes`. `propuestaIa.explicacion` dice qué vio la IA. Para cada uno, el operador:
+- lo **rescata** si la IA se equivocó: `POST /api/reportes/:id/revision` con `VERIFICADO` (se publica, con el agradecimiento de SnapIt);
+- lo **desestima** solo: la misma revisión con `DESESTIMADO`;
+- o confirma varios a la vez con `POST /api/reportes/desestimados-pendientes/confirmacion`.
+
+### `POST /api/reportes/desestimados-pendientes/confirmacion`
+Desestima los desestimados pendientes del organismo: los de `ids`, o **todos** si no se manda `ids`. Cada uno, como una revisión con `DESESTIMADO` (reputación, incidente, bitácora y aviso al vecino), en su propia transacción.
+
+```json
+{ "ids": [16, 21] }
+```
+
+Responde **200**:
+
+```json
+{ "desestimados": [16], "omitidos": [{ "id": 21, "motivo": "Ya no está marcado para desestimar" }] }
+```
+
+- `omitidos`: los que no se desestimaron y por qué: ya no están marcados (otro operador lo revisó mientras tanto), son de otro organismo, no existen o su incidente se cerró.
+- `ids` vacío, con algo que no es un id, o con más de 1000: **400** `DATOS_INVALIDOS`. Un operador sin organismo: **403** `SIN_PERMISO`.
 
 ### `POST /api/reportes/:id/revision`
 El operador verifica o desestima un reporte pendiente. Requiere sesión de `OPERADOR` o `ADMINISTRADOR` del organismo del reporte.
@@ -546,7 +585,7 @@ Actualiza la reputación del vecino, el estado del incidente, su cantidad de rep
 ### `POST /api/ia/clasificar-foto`
 Sugiere la categoría y la gravedad a partir de la foto (F06), para precargarlas en el formulario de reporte. Requiere sesión de `VECINO`. El vecino siempre tiene la última palabra: puede cambiar lo sugerido.
 
-Va como **`multipart/form-data`** con un solo campo, `foto` (JPG o PNG, mismas reglas que en `POST /api/reportes`; una foto a la que le faltan los últimos bytes se clasifica con lo que llegó, igual que la acepta el reporte). La foto **no se guarda**: solo se usa para la consulta.
+Va como **`multipart/form-data`** con un solo campo, `foto` (mismos formatos y reglas que en `POST /api/reportes`; una foto a la que le faltan los últimos bytes se clasifica con lo que llegó, igual que la acepta el reporte). La foto **no se guarda**: solo se usa para la consulta.
 
 La respuesta puede tardar hasta `IA_TIMEOUT_MS` (30 s por defecto). El cliente **no tiene que frenar el formulario** mientras espera: el vecino puede elegir la categoría a mano y enviar sin la sugerencia.
 
@@ -601,10 +640,10 @@ Responde **200**:
 
 ### Cola de verificación con IA
 
-El operador procesa con la IA los reportes pendientes de su organismo y sigue el avance en un log (ver "Cola de verificación con IA" en `docs/calculos.md`). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, de un usuario con organismo.
+El operador procesa con la IA los reportes pendientes de su organismo: la IA mira cada foto, publica sola los que muestran lo reportado con el lugar probado, marca para desestimar los que no muestran un problema de la vía pública y deja el resto para revisión manual. El avance se sigue en un log (ver "Cola de verificación con IA" en `docs/calculos.md`). Requiere sesión de `OPERADOR` o `ADMINISTRADOR`, de un usuario con organismo.
 
 #### `POST /api/ia/procesar-cola`
-Empieza a procesar los pendientes del organismo (los mismos de `GET /api/reportes/pendientes`, sin los de incidentes cerrados), del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
+Empieza a procesar los pendientes del organismo que la IA todavía no miró (los de `GET /api/reportes/pendientes`, sin los de incidentes cerrados ni los que ya tienen un paso `CLASIFICADO`; los que fallaron vuelven a entrar), del más viejo al más nuevo, y responde enseguida con **202**: el procesamiento sigue en segundo plano.
 
 ```json
 { "procesoId": "5b1c0e4e-8f7a-4c1e-9d3b-2a6f0c9e7d11", "total": 6 }
@@ -613,7 +652,7 @@ Empieza a procesar los pendientes del organismo (los mismos de `GET /api/reporte
 | Error | Cuándo |
 |---|---|
 | 409 `PROCESO_EN_CURSO` | Ya hay un procesamiento en curso en el organismo (uno a la vez) |
-| 409 `COLA_VACIA` | No hay reportes pendientes |
+| 409 `COLA_VACIA` | No hay reportes pendientes que la IA no haya mirado |
 
 #### `GET /api/ia/procesos/:id`
 El log del procesamiento y su resumen. Mientras `enCurso` es `true`, conviene consultarlo cada 1 o 2 segundos.
@@ -628,7 +667,7 @@ El log del procesamiento y su resumen. Mientras `enCurso` es `true`, conviene co
       "id": 41,
       "creadoEn": "2026-10-20T15:02:14.733Z",
       "estado": "CLASIFICADO",
-      "detalle": "La IA propone Pozo en la calzada, GRAVE; el vecino eligió Pozo en la calzada, GRAVE. Se ve un pozo profundo en la calzada.",
+      "detalle": "La IA ve Pozo en la calzada, GRAVE; el vecino eligió Pozo en la calzada, GRAVE. Se ve un pozo profundo en la calzada.",
       "reporte": {
         "id": 16,
         "categoria": { "id": 1, "nombre": "Pozo en la calzada" },
@@ -636,17 +675,26 @@ El log del procesamiento y su resumen. Mientras `enCurso` es `true`, conviene co
         "foto": { "id": 16, "url": "/api/fotos/16" },
         "incidenteId": 13
       },
-      "propuesta": { "registroIaId": 7, "categoriaId": 1, "severidad": "GRAVE", "explicacion": "Se ve un pozo profundo en la calzada." }
+      "propuesta": {
+        "registroIaId": 7,
+        "esProblemaViaPublica": true,
+        "categoriaId": 1,
+        "severidad": "GRAVE",
+        "mismoProblema": null,
+        "datosPersonales": false,
+        "explicacion": "Se ve un pozo profundo en la calzada."
+      }
     }
   ],
-  "resumen": { "total": 6, "procesados": 6, "publicados": 3, "publicadosConSugerencia": 1, "derivados": 2, "errores": 1, "tiempoMedioMs": 3100, "costoUsd": 0.0013 }
+  "resumen": { "total": 6, "procesados": 6, "publicados": 3, "publicadosConSugerencia": 1, "derivados": 1, "desestimados": 1, "errores": 1, "tiempoMedioMs": 3100, "costoUsd": 0.0013 }
 }
 ```
 
 - `estado` de cada evento: `EN_PROCESO`, `CLASIFICADO`, `PUBLICADO`, `REVISION_MANUAL` o `ERROR`. Cada reporte termina en uno de los tres últimos.
-- `REVISION_MANUAL` dice en `detalle` por qué: no coincide con el vecino, la verificación no lo aprobaba (con su nivel y las señales en contra) o un operador lo revisó mientras la IA lo procesaba. `ERROR` es solo cuando la IA o la foto fallaron.
+- `REVISION_MANUAL` dice en `detalle` por qué: la foto no muestra un problema de la vía pública (desestimar sugerido), la IA ve otra categoría o gravedad, se ve una cara o una patente, la foto está repetida, es vieja, se sacó lejos o no trae ubicación y nada la corrobora, o un operador lo revisó mientras la IA lo procesaba. `ERROR` es solo cuando la IA o la foto fallaron. La tabla completa está en `docs/calculos.md`.
+- Un desestimar sugerido termina en `REVISION_MANUAL` y su `propuesta` dice `esProblemaViaPublica: false`. El reporte sigue `PENDIENTE_REVISION`: la IA nunca desestima, lo confirma un operador. En el resumen cuenta en `desestimados` y no en `derivados`.
 - `resumen.publicadosConSugerencia`: de los publicados, en cuántos el vecino había aceptado la sugerencia de la IA al cargarlo (ahí la IA coincide consigo misma).
-- `propuesta` viene solo en los `CLASIFICADO`: es lo que respondió la IA, para "ver la propuesta". `reporte.incidenteId` es el incidente (el principal, si se unió a otro), para "ver el reporte".
+- `propuesta` viene solo en los `CLASIFICADO`: es lo que respondió la IA, para "ver la propuesta". `mismoProblema` es `null` si no había un reporte verificado del incidente para comparar. `reporte.incidenteId` es el incidente (el principal, si se unió a otro), para "ver el reporte".
 - `resumen.costoUsd` es `null` si el modelo de `IA_MODELO` no tiene precio cargado.
 
 | Error | Cuándo |
@@ -659,7 +707,7 @@ El log del procesamiento y su resumen. Mientras `enCurso` es `true`, conviene co
 Los últimos 10 procesamientos del organismo, del más nuevo al más viejo. Sirve para que el panel retome el que está en curso.
 
 ```json
-{ "procesos": [{ "id": "5b1c0e4e-…", "iniciadoEn": "2026-10-20T15:02:11.204Z", "reportes": 6, "publicados": 3, "derivados": 2, "errores": 1, "enCurso": false }] }
+{ "procesos": [{ "id": "5b1c0e4e-…", "iniciadoEn": "2026-10-20T15:02:11.204Z", "reportes": 6, "publicados": 3, "derivados": 1, "desestimados": 1, "errores": 1, "enCurso": false }] }
 ```
 
 ## Mapa público
@@ -719,10 +767,12 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   "direccion": "Lago Huechulafquen, Villa Ceferino",
   "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
   "fotoCierre": null,
-  "resueltoEn": null
+  "resueltoEn": null,
+  "derivadoA": null
 }
 ```
 
+- `derivadoA`: el área que le corresponde, `{ "id": 4, "nombre": "Bacheo" }`, para mostrar «Le corresponde al área de Bacheo». Es la que le asignó el operador al derivarlo o, si todavía no lo derivó, la de su categoría: no quiere decir que ya se derivó (eso lo dice `estado`). `null` mientras está en revisión (`enRevision`).
 - `severidad`: la gravedad consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`).
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
 - `cantidadConfirmaciones`: cuántos vecinos distintos confirmaron que el problema sigue (el botón «Sigue estando»), sumando los incidentes que se le unieron. Cuenta también a los que lo reportaron.
@@ -764,6 +814,7 @@ Responde **200**:
       "cantidadVecinos": 1,
       "direccion": "Domingo Faustino Sarmiento 765, Área Centro Sur",
       "resueltoEn": null,
+      "derivadoA": { "id": 2, "nombre": "Veredas" },
       "fotos": [{ "id": 19, "url": "/api/fotos/19" }, { "id": 23, "url": "/api/fotos/23" }],
       "cantidadFotos": 2,
       "cantidadMeGusta": 11,
@@ -777,7 +828,7 @@ Responde **200**:
 - `siguiente` es `null` en la última página. El cursor es opaco: no hay que armarlo ni interpretarlo.
 - La paginación es por cursor y no por número de página: si entra un incidente nuevo mientras alguien scrollea, la página siguiente no repite el último que vio. Para ver los nuevos, se vuelve a pedir sin cursor.
 - `fotos`: hasta 5, las primeras que se cargaron, con la misma regla que la ficha (sin las de reportes desestimados, sumando las de los incidentes unidos). `cantidadFotos` dice cuántas hay en total, para mostrar «+3» en el carrusel.
-- `severidad` es la consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`). `cantidadVecinos` y `direccion` son los de la ficha.
+- `severidad` es la consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`). `cantidadVecinos`, `direccion` y `derivadoA` son los de la ficha.
 - `cantidadMeGusta` suma los de todos sus reportes; `cantidadComentarios`, los de sus reportes más los del incidente y los de sus unidos. Con la misma regla que las fotos: sin reportes desestimados ni eliminados, y sin comentarios eliminados. El detalle de cada uno está en [Social](#social).
 
 Un `cursor` que no se puede leer, un `limite` fuera de rango o un filtro inválido: **400** `DATOS_INVALIDOS` con `detalles`.
@@ -857,7 +908,7 @@ Responde **200** con el principal ya sin el duplicado:
 | 409 `NO_UNIDO` | El incidente no está unido a otro |
 
 ### `GET /api/fotos/:id`
-Pública, con sesión opcional. Devuelve el archivo de la foto con su `Content-Type` (`image/jpeg` o `image/png`), idéntico al que se subió (con su EXIF).
+Pública, con sesión opcional. Devuelve el archivo de la foto con su `Content-Type`: `image/webp` para las guardadas desde que se convierten, o `image/jpeg` / `image/png` para las anteriores que todavía no se pasaron a WebP. Sale sin EXIF: los datos de la cámara quedan en la base.
 
 Quién ve cada foto:
 
@@ -914,11 +965,46 @@ Traduce una pregunta con palabras propias a los filtros de [`GET /api/incidentes
 | 422 | `CONSULTA_NO_ENTENDIDA` | El texto está vacío, no es una pregunta sobre problemas de la vía pública, o la IA no respondió o respondió algo inválido. El mensaje sugiere usar los filtros: la app ofrece los filtros comunes. |
 
 ## Social
-Likes y comentarios del feed (por ahora solo para leer). Rutas públicas, sin sesión, como el mapa. Van bajo `/api/social` para no chocar con las del operador: `POST /api/incidentes/:id/comentarios` es la bitácora, no un comentario público. Lo de cada **reporte** (una foto de un vecino) va aparte de lo del **incidente** (el problema en general).
+El feed de publicaciones, los me gusta y los comentarios. **Leer es público**, como el mapa; con sesión (opcional), cada reporte dice si ya le diste me gusta (`yaMeGusta`) y cada comentario si es tuyo (`esMio`). **Dar me gusta y comentar** es solo de vecinos con sesión (#149). Van bajo `/api/social` para no chocar con las del operador: `POST /api/incidentes/:id/comentarios` es la bitácora, no un comentario público. Lo de cada **reporte** (una foto de un vecino) va aparte de lo del **incidente** (el problema en general).
 
 Valen las mismas reglas que en la ficha: un incidente unido a otro responde con el principal; los reportes desestimados o que su autor eliminó no se muestran, y los comentarios eliminados tampoco.
 
-**Del autor no se publica nada que lo identifique**, ni el nombre ni el id. Dentro de cada incidente es `{ "numero": 2, "nombre": "Vecino 2" }`: los vecinos que participan (reportaron una foto visible o comentaron en el incidente, en uno de sus unidos o en una de sus fotos) se numeran por orden de llegada, y si llegaron en el mismo instante, por id. El mismo vecino tiene el mismo número en todo el incidente, así se sigue una conversación; en otro incidente puede tener otro número, así no se puede saber si dos incidentes los reportó la misma persona. Si se unen dos incidentes o se desestima un reporte, la numeración puede correrse.
+**Del autor no se publica nada que lo identifique**, ni el nombre ni el id. Dentro de cada incidente es `{ "numero": 2, "nombre": "Vecino 2", "sistema": false }`: los vecinos que participan (reportaron una foto visible o comentaron en el incidente, en uno de sus unidos o en una de sus fotos) se numeran por orden de llegada, y si llegaron en el mismo instante, por id. El mismo vecino tiene el mismo número en todo el incidente, así se sigue una conversación; en otro incidente puede tener otro número, así no se puede saber si dos incidentes los reportó la misma persona. Si se unen dos incidentes o se desestima un reporte, la numeración puede correrse.
+
+**SnapIt también comenta**: cuando un reporte se publica, lo agradece en los comentarios del reporte («¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de Bacheo.»), y cuando su incidente se resuelve lo cuenta en cada reporte publicado del problema («¡Listo! El área de Bacheo resolvió este problema. Gracias por reportarlo.»). Su autor es `{ "numero": null, "nombre": "SnapIt", "sistema": true }`: no se numera ni le corre el número a ningún vecino. Los clientes lo muestran con el logo.
+
+### `GET /api/social/feed`
+El feed de publicaciones: **cada reporte publicado** (`VERIFICADO`, sin eliminar) de un incidente que se ve es una publicación, del más nuevo al más viejo. Un mismo problema reportado por varios vecinos sale una vez por cada uno; la línea `incidente` lleva a la ficha del problema. Acepta los mismos filtros que `GET /api/incidentes/feed` (sobre el incidente de cada reporte) y la misma paginación (`limite`, de 1 a 50, 20 por defecto, y `cursor` con el `siguiente` de la página anterior).
+
+```json
+{
+  "reportes": [
+    {
+      "id": 25,
+      "incidenteId": 21,
+      "descripcion": null,
+      "creadoEn": "2026-11-19T11:24:22.226Z",
+      "autor": { "numero": 1, "nombre": "Vecino 1", "sistema": false },
+      "fotos": [{ "id": 25, "url": "/api/fotos/25" }],
+      "cantidadMeGusta": 0,
+      "cantidadComentarios": 1,
+      "yaMeGusta": false,
+      "categoria": { "id": 1, "nombre": "Pozo en la calzada" },
+      "severidad": "MODERADA",
+      "direccion": "Antártida Argentina 3800, Huiliches",
+      "lat": -38.947136,
+      "lon": -68.111708,
+      "derivadoA": { "id": 4, "nombre": "Bacheo" },
+      "incidente": { "id": 21, "estado": "DERIVADO", "resueltoEn": null, "cantidadVecinos": 1 }
+    }
+  ],
+  "siguiente": "WzE3OTI1MDMwNTM1MDc4MTYsMjNd"
+}
+```
+
+- `categoria` es la del incidente (un operador la puede haber corregido); `severidad`, la que declaró el vecino; `direccion` y el punto, los del reporte.
+- `derivadoA`: el área que atiende el problema, como en el feed de incidentes.
+- `incidente.estado` dice en qué está el problema (`RESUELTO` con `resueltoEn` cuando se cerró) y `cantidadVecinos`, cuántos vecinos lo reportaron.
 
 ### `GET /api/social/incidentes/:id/reportes`
 Los reportes que forman el incidente, del más viejo al más nuevo:
@@ -932,10 +1018,11 @@ Los reportes que forman el incidente, del más viejo al más nuevo:
       "incidenteId": 17,
       "descripcion": "Una baldosa rota frente al kiosco",
       "creadoEn": "2026-10-20T11:46:46.388Z",
-      "autor": { "numero": 1, "nombre": "Vecino 1" },
+      "autor": { "numero": 1, "nombre": "Vecino 1", "sistema": false },
       "fotos": [{ "id": 19, "url": "/api/fotos/19" }],
       "cantidadMeGusta": 7,
-      "cantidadComentarios": 3
+      "cantidadComentarios": 3,
+      "yaMeGusta": false
     }
   ]
 }
@@ -955,7 +1042,8 @@ Los comentarios sobre el incidente en general (no los de sus fotos), también lo
       "texto": "Hay una escuela a dos cuadras, es urgente.",
       "creadoEn": "2026-10-20T16:46:46.388Z",
       "editadoEn": null,
-      "autor": { "numero": 4, "nombre": "Vecino 4" }
+      "autor": { "numero": 4, "nombre": "Vecino 4", "sistema": false },
+      "esMio": false
     }
   ]
 }
@@ -970,6 +1058,37 @@ Un reporte suelto, con la misma forma que cada elemento de `GET /api/social/inci
 Los comentarios de un reporte, con la misma forma que los del incidente (`{ "comentarios": [...] }`) y los números del incidente del reporte.
 
 En las dos: un reporte desestimado, eliminado, de un incidente que no se ve o inexistente responde **404** `REPORTE_NO_ENCONTRADO`. Un id inválido, **400** `DATOS_INVALIDOS`.
+
+### `POST` y `DELETE /api/social/reportes/:id/me-gusta`
+Da o quita el me gusta del vecino de la sesión. Darlo dos veces no lo duplica, y quitar uno que no se dio no falla. Responde **200** con el contador nuevo:
+
+```json
+{ "reporteId": 25, "cantidadMeGusta": 4, "yaMeGusta": true }
+```
+
+### `POST /api/social/reportes/:id/comentarios`
+Comenta un reporte. Cuerpo `{ "texto": "..." }`, de 1 a 1000 caracteres (se recortan los espacios de los bordes). Responde **201** con el comentario, con la misma forma que en la lista (`esMio: true`).
+
+### `POST /api/social/incidentes/:id/comentarios`
+Comenta el problema en general, en la ficha del incidente. Mismo cuerpo, mismas reglas y misma respuesta que el anterior. En un incidente unido a otro, el comentario va al **principal**, que es donde se lee. Un incidente desestimado, caducado o inexistente responde **404** `INCIDENTE_NO_ENCONTRADO`.
+
+### `PATCH /api/social/comentarios/:id`
+Su autor lo edita. Cuerpo `{ "texto": "..." }`, con las mismas reglas. Responde **200** con el comentario, con `editadoEn` completo.
+
+### `DELETE /api/social/comentarios/:id`
+Lo elimina su autor, o un operador o un administrador si es ofensivo (moderación). Baja lógica (`comentario.eliminado_en`). Responde **204**.
+
+Errores de las cinco:
+
+| Caso | Respuesta |
+|---|---|
+| Sin sesión | **401** `NO_AUTENTICADO` |
+| Me gusta o comentar con un rol que no es `VECINO` | **403** `SIN_PERMISO` |
+| Editar un comentario ajeno, o eliminarlo sin ser su autor, operador ni administrador | **403** `SIN_PERMISO` |
+| Texto vacío o de más de 1000 caracteres | **400** `DATOS_INVALIDOS` |
+| Un reporte que no se ve (como en la lectura) | **404** `REPORTE_NO_ENCONTRADO` |
+| Un incidente que no se ve (como en la lectura) | **404** `INCIDENTE_NO_ENCONTRADO` |
+| Un comentario eliminado, inexistente o de un reporte o incidente que ya no se ve | **404** `COMENTARIO_NO_ENCONTRADO` |
 
 ## Avisos al vecino
 Avisos push al celular sobre lo que le importa al vecino (F10), con Firebase Cloud Messaging (FCM). Cada aviso queda guardado en la base y se ve en la lista de la app aunque no haya llegado al celular.
@@ -1218,9 +1337,13 @@ La ficha del incidente para el operador, en cualquier estado. Si el incidente es
       "lat": -38.9516,
       "lon": -68.0591,
       "origen": "APP_MOVIL",
-      "nivelConfianza": 65,
+      "nivelConfianza": 100,
       "estadoVerificacion": "VERIFICADO",
-      "senales": [{ "tipo": "ORIGEN_APP", "valor": 15, "detalle": "La foto se sacó con la cámara de la app en el momento" }],
+      "senales": [
+        { "tipo": "EXIF_COINCIDE", "valor": 1, "detalle": "La foto se sacó a 12 m del punto reportado (máximo 100 m)" },
+        { "tipo": "FECHA_ANTIGUA", "valor": 1, "detalle": "La foto se sacó el mismo día del reporte (máximo 7 días)" },
+        { "tipo": "HASH_DUPLICADO", "valor": 1, "detalle": "La foto no se usó en otro reporte" }
+      ],
       "fotos": [{ "id": 12, "url": "/api/fotos/12" }]
     }
   ],
@@ -1328,7 +1451,7 @@ Deja un comentario en la bitácora (movimiento `COMENTARIO`) sin cambiar nada de
 | 404 `INCIDENTE_NO_ENCONTRADO` | El incidente no existe |
 
 ### `POST /api/incidentes/:id/cierre`
-Cierra un incidente `EN_EJECUCION` con la foto del después (F09). Multipart con la foto en el campo `foto` (JPG o PNG), como un reporte. Requiere sesión de `OPERADOR` o `ADMINISTRADOR` del organismo del incidente.
+Cierra un incidente `EN_EJECUCION` con la foto del después (F09). Multipart con la foto en el campo `foto` (mismos formatos que un reporte; se guarda igual, en WebP). Requiere sesión de `OPERADOR` o `ADMINISTRADOR` del organismo del incidente.
 
 1. La distancia sale del GPS de la foto (EXIF) hasta el punto del incidente.
 2. Si la foto está en el lugar (a `cierre.distancia_max_m` o menos), la IA compara las fotos del antes con la del después (`compararCierre`). Sin GPS o fuera del lugar no se le pregunta: el resultado ya está decidido.
@@ -1507,7 +1630,7 @@ Da de alta un operador o un administrador. Los vecinos no se crean acá: se regi
 
 - `email`, `clave` y `nombre`: mismas reglas que en el registro. La clave es la inicial: el administrador se la pasa al operador, que después la puede cambiar con «Olvidé mi clave».
 - `rol`: `OPERADOR` o `ADMINISTRADOR`.
-- `organismoId` y `areaId`: obligatorios para un `OPERADOR`. El organismo y el área tienen que existir y estar activos, y el área tiene que ser de ese organismo.
+- `organismoId`: obligatorio para un `OPERADOR`. `areaId` es opcional: un operador sin área ve todo su organismo. El organismo y el área tienen que existir y estar activos, y el área tiene que ser de ese organismo.
 - Para un `ADMINISTRADOR`, `organismoId` es opcional y `areaId` no se manda (o va en `null`): solo los operadores tienen área.
 
 Responde **201** con `{ "usuario": { ... } }`. El correo queda confirmado, así que la cuenta puede ingresar enseguida.
@@ -1518,4 +1641,29 @@ Responde **201** con `{ "usuario": { ... } }`. El correo queda confirmado, así 
 | 409 | `EMAIL_EN_USO` | Ya hay una cuenta con ese correo |
 
 ### `GET /api/admin/usuarios`
-Responde **200** con `{ "usuarios": [ { ... } ] }`: todos los usuarios que no están dados de baja, de cualquier rol, ordenados por nombre. Cada uno tiene la forma del [objeto `usuario`](#el-objeto-usuario).
+Responde **200** con `{ "usuarios": [ { ... } ] }`: todos los usuarios que no están dados de baja, de cualquier rol, ordenados por nombre. Cada uno tiene la forma del [objeto `usuario`](#el-objeto-usuario). No incluye al usuario de SnapIt (`sistema@snapit.invalid`), que firma los comentarios del sistema y no se administra.
+
+### `PUT /api/admin/usuarios/:id`
+Cambia el nombre, el rol y dónde trabaja un usuario. El correo y la clave no se tocan desde acá.
+
+```json
+{ "nombre": "Olga", "rol": "OPERADOR", "organismoId": 1, "areaId": null }
+```
+
+- `rol`: `VECINO`, `OPERADOR` o `ADMINISTRADOR`, con las mismas reglas que el alta para `organismoId` y `areaId`. Un `VECINO` no lleva organismo ni área.
+- Si cambian el rol, el organismo o el área, se **cierran sus sesiones**: los permisos van en el token, así que tiene que volver a ingresar. Un token de acceso ya emitido sigue valiendo hasta que vence (minutos).
+
+Responde **200** con `{ "usuario": { ... } }`.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Igual que en el alta |
+| 404 | `USUARIO_NO_ENCONTRADO` | No existe o está dado de baja |
+| 409 | `SOBRE_SI_MISMO` | Un administrador intenta quitarse su propio rol |
+| 409 | `ULTIMO_ADMINISTRADOR` | Dejaría el sistema sin administradores |
+| 409 | `USUARIO_DEL_SISTEMA` | Es el usuario de SnapIt |
+
+### `DELETE /api/admin/usuarios/:id`
+Da de baja a un usuario: **baja lógica** (`eliminado_en`). No puede volver a ingresar y se cierran sus sesiones, pero lo que hizo (reportes, revisiones, movimientos de la bitácora) sigue a su nombre. Responde **204**.
+
+Mismos errores que la modificación: `USUARIO_NO_ENCONTRADO`, `SOBRE_SI_MISMO` (darse de baja a sí mismo), `ULTIMO_ADMINISTRADOR` y `USUARIO_DEL_SISTEMA`.

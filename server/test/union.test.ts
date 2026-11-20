@@ -6,7 +6,7 @@ import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { alCambiarIncidente } from '../src/modulos/incidentes/eventos.js';
-import { borrarReportesDe, crearUsuario } from './apoyo.js';
+import { borrarReportesDe, crearUsuario, verificarReporte } from './apoyo.js';
 import { jpegLiso } from './imagenes.js';
 
 // La dirección no se consulta: no hace falta para unir.
@@ -49,7 +49,7 @@ beforeEach(async () => {
 /**
  * Un reporte en la cuadra `cuadra` de la zona del test (cada una a unos 110 m de la anterior: lejos del radio
  * de agrupación). Los reportes de la misma cuadra caen en el mismo incidente. Desde la web la foto lisa queda
- * pendiente; con la cámara de la app (`desdeLaApp`) se verifica sola (50 + 15).
+ * pendiente; con la cámara de la app (`desdeLaApp`) se verifica enseguida (verificarReporte).
  */
 async function reportar(
   cuadra: number,
@@ -72,6 +72,7 @@ async function reportar(
     .field('registradoEn', registradoEn)
     .attach('foto', await jpegLiso(128), 'foto.jpg');
   expect(res.status).toBe(201);
+  if (desdeLaApp) await verificarReporte(res.body.id as number);
   return res.body as { id: number; incidenteId: number };
 }
 

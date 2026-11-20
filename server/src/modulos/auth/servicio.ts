@@ -2,6 +2,7 @@ import type { Usuario } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { type Correo, enviarCorreo } from '../../compartido/correo.js';
 import { ErrorApp } from '../../compartido/errores.js';
+import { esCorreoDelSistema } from '../../compartido/usuarioSistema.js';
 import { logger } from '../../config/logger.js';
 import { desactivarDispositivos } from '../avisos/repositorio.js';
 import { correoConfirmacion, correoRecuperacion } from './correos.js';
@@ -105,7 +106,8 @@ export async function registrar(datos: { email: string; clave: string; nombre: s
 export async function ingresar(datos: { email: string; clave: string }) {
   const usuario = await repositorio.buscarUsuarioPorEmail(datos.email);
   const claveCorrecta = await bcrypt.compare(datos.clave, usuario?.passwordHash ?? HASH_DE_RELLENO);
-  if (!usuario || !claveCorrecta) throw credencialesInvalidas();
+  // Con SnapIt no se ingresa nunca, aunque alguien llegara a saber su clave: responde como una clave incorrecta.
+  if (!usuario || !claveCorrecta || esCorreoDelSistema(usuario.email)) throw credencialesInvalidas();
 
   // El estado de la cuenta se revela recién con la clave correcta.
   if (usuario.eliminadoEn) {
@@ -172,8 +174,8 @@ export async function obtenerUsuarioActual(id: number) {
 /** Busca el token de un link y controla que se pueda usar. Todavía no lo marca como usado. */
 async function buscarEnlace(token: string, tipo: TipoEnlace, ahora: Date) {
   const enlace = await repositorio.buscarToken(hashToken(token), tipo);
-  // Una cuenta dada de baja no confirma ni cambia la clave: su link se trata como inexistente.
-  if (!enlace || enlace.usuario.eliminadoEn) {
+  // Una cuenta dada de baja no confirma ni cambia la clave: su link se trata como inexistente. Lo mismo SnapIt.
+  if (!enlace || enlace.usuario.eliminadoEn || esCorreoDelSistema(enlace.usuario.email)) {
     throw new ErrorApp(400, 'ENLACE_INVALIDO', 'El enlace no es válido. Revisá que esté completo');
   }
   const estado = estadoToken(enlace, ahora);
@@ -200,7 +202,7 @@ export async function confirmarCorreo(token: string) {
 export async function recuperarClave(email: string) {
   try {
     const usuario = await repositorio.buscarUsuarioPorEmail(email);
-    if (!usuario || usuario.eliminadoEn) return;
+    if (!usuario || usuario.eliminadoEn || esCorreoDelSistema(usuario.email)) return;
 
     const token = generarTokenAleatorio();
     await repositorio.crearRecuperacionClave(

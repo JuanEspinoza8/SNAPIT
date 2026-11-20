@@ -1,7 +1,10 @@
 import bcrypt from 'bcryptjs';
 import { type DetalleError, ErrorApp } from '../../compartido/errores.js';
 import { COSTO_BCRYPT, usuarioPublico } from '../auth/servicio.js';
-import type { DatosAltaUsuario } from './esquemas.js';
+import { USUARIO_SISTEMA } from '../../compartido/usuarioSistema.js';
+import { validar } from '../../compartido/validar.js';
+import type { UsuarioSesion } from '../auth/tokens.js';
+import { type DatosAltaUsuario, esquemaIdUsuario, esquemaModificacionUsuario } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 
 /** Controla que el organismo y el área existan, estén activos y que el área sea de ese organismo. */
@@ -54,6 +57,81 @@ export async function crearUsuario(datos: DatosAltaUsuario) {
     }
     throw error;
   }
+}
+
+const noEncontrado = () => new ErrorApp(404, 'USUARIO_NO_ENCONTRADO', 'El usuario no existe');
+
+/**
+ * El usuario a modificar o dar de baja, bloqueado. Uno dado de baja no existe para la administración, y SnapIt no
+ * se administra: firma los comentarios del sistema.
+ */
+async function usuarioAdministrable(tx: repositorio.Tx, id: number) {
+  const usuario = await repositorio.bloquearUsuario(tx, id);
+  if (!usuario || usuario.eliminadoEn) throw noEncontrado();
+  if (usuario.email === USUARIO_SISTEMA.email) {
+    throw new ErrorApp(409, 'USUARIO_DEL_SISTEMA', 'El usuario de SnapIt no se puede modificar');
+  }
+  return usuario;
+}
+
+/** Que no quede el sistema sin nadie que lo administre. */
+async function controlarQueQuedeOtroAdministrador(tx: repositorio.Tx, usuarioId: number) {
+  if ((await repositorio.otrosAdministradoresActivos(tx, usuarioId)) === 0) {
+    throw new ErrorApp(409, 'ULTIMO_ADMINISTRADOR', 'Es el único administrador: no puede dejar de serlo');
+  }
+}
+
+/**
+ * Cambia el nombre, el rol, el organismo y el área de un usuario. Si cambia su rol o dónde trabaja, se cierran
+ * sus sesiones: los permisos van en el token, así que tiene que volver a ingresar. Nadie se quita a sí mismo el
+ * rol de administrador, y nunca queda el sistema sin uno.
+ */
+export async function modificarUsuario(sesion: UsuarioSesion, parametros: unknown, cuerpo: unknown) {
+  const { id } = validar(esquemaIdUsuario, parametros);
+  const datos = validar(esquemaModificacionUsuario, cuerpo ?? {});
+  const organismoId = datos.organismoId ?? null;
+  const areaId = datos.rol === 'OPERADOR' ? (datos.areaId ?? null) : null;
+  await controlarOrganismoYArea(organismoId, areaId);
+
+  const actualizado = await repositorio.transaccion(async (tx) => {
+    const usuario = await usuarioAdministrable(tx, id);
+    if (usuario.rol === 'ADMINISTRADOR' && datos.rol !== 'ADMINISTRADOR') {
+      if (usuario.id === sesion.id) {
+        throw new ErrorApp(409, 'SOBRE_SI_MISMO', 'No podés quitarte el rol de administrador');
+      }
+      await controlarQueQuedeOtroAdministrador(tx, usuario.id);
+    }
+    const cambiaPermisos =
+      usuario.rol !== datos.rol || usuario.organismoId !== organismoId || usuario.areaId !== areaId;
+    const nuevo = await repositorio.actualizarUsuario(tx, id, {
+      nombre: datos.nombre,
+      rol: datos.rol,
+      organismoId,
+      areaId,
+    });
+    if (cambiaPermisos) await repositorio.cerrarSesiones(tx, id, new Date());
+    return nuevo;
+  });
+  return { usuario: usuarioPublico(actualizado) };
+}
+
+/**
+ * Da de baja a un usuario (baja lógica): deja de poder ingresar y se cierran sus sesiones, pero lo que hizo
+ * (reportes, revisiones, movimientos) queda a su nombre. Nadie se da de baja a sí mismo desde acá, y nunca queda
+ * el sistema sin administradores.
+ */
+export async function darDeBaja(sesion: UsuarioSesion, parametros: unknown) {
+  const { id } = validar(esquemaIdUsuario, parametros);
+  if (id === sesion.id) {
+    throw new ErrorApp(409, 'SOBRE_SI_MISMO', 'No podés darte de baja a vos mismo');
+  }
+  await repositorio.transaccion(async (tx) => {
+    const usuario = await usuarioAdministrable(tx, id);
+    if (usuario.rol === 'ADMINISTRADOR') await controlarQueQuedeOtroAdministrador(tx, usuario.id);
+    const ahora = new Date();
+    await repositorio.darDeBaja(tx, id, ahora);
+    await repositorio.cerrarSesiones(tx, id, ahora);
+  });
 }
 
 export async function listarOrganismos() {

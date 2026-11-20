@@ -23,33 +23,58 @@ describe('analizarFoto', () => {
     const foto = await analizarFoto(jpegConExif());
 
     expect(foto).toEqual({
-      tipo: 'jpg',
+      archivo: expect.any(Buffer),
+      tipo: 'webp',
       ancho: 640,
       alto: 480,
       hashPerceptual: expect.stringMatching(/^[01]{64}$/),
       exif: EXIF_DE_PRUEBA,
     });
+    // La que se guarda es WebP y no lleva el EXIF: los datos ya se leyeron.
+    expect((await sharp(foto!.archivo).metadata()).format).toBe('webp');
+    expect((await sharp(foto!.archivo).metadata()).exif).toBeUndefined();
   });
 
   it('una foto sin EXIF deja esos campos en null sin fallar', async () => {
     const foto = await analizarFoto(jpegSinExif());
 
     expect(foto).toMatchObject({
-      tipo: 'jpg',
+      tipo: 'webp',
       exif: { latitud: null, longitud: null, tomadaEn: null, marca: null, modelo: null },
     });
     expect(foto!.hashPerceptual).toMatch(/^[01]{64}$/);
   });
 
-  it('acepta PNG', async () => {
-    expect(await analizarFoto(png1x1)).toMatchObject({ tipo: 'png', ancho: 1, alto: 1 });
+  it('acepta PNG, WebP y AVIF, y todos se guardan en WebP', async () => {
+    const webp = await sharp(jpegSinExif()).webp().toBuffer();
+    const avif = await sharp(jpegSinExif()).avif().toBuffer();
+
+    expect(await analizarFoto(png1x1)).toMatchObject({ tipo: 'webp', ancho: 1, alto: 1 });
+    expect(await analizarFoto(webp)).toMatchObject({ tipo: 'webp', ancho: 640, alto: 480 });
+    expect(await analizarFoto(avif)).toMatchObject({ tipo: 'webp', ancho: 640, alto: 480 });
   });
 
-  it('devuelve null si no es una imagen o es de otro formato', async () => {
-    const webp = await sharp(jpegSinExif()).webp().toBuffer();
+  it('lee el EXIF aunque exifr no reconozca el archivo (como las HEIC de los iPhone nuevos)', async () => {
+    // exifr no lee el EXIF de una WebP: pasa lo mismo que con esas HEIC, y sharp sí lo encuentra.
+    const webp = await sharp(jpegConExif()).keepExif().webp().toBuffer();
+
+    expect(await leerExif(webp)).toEqual(EXIF_DE_PRUEBA);
+  });
+
+  it('achica una foto grande a 1920 px del lado mayor, sin agrandar las chicas', async () => {
+    const grande = await sharp({ create: { width: 4000, height: 3000, channels: 3, background: '#557799' } })
+      .jpeg()
+      .toBuffer();
+
+    expect(await analizarFoto(grande)).toMatchObject({ ancho: 1920, alto: 1440 });
+    expect(await analizarFoto(jpegSinExif())).toMatchObject({ ancho: 640, alto: 480 });
+  });
+
+  it('devuelve null si no es una imagen o es de un formato que no se acepta', async () => {
+    const gif = await sharp(jpegSinExif()).gif().toBuffer();
 
     expect(await analizarFoto(Buffer.from('no soy una imagen'))).toBeNull();
-    expect(await analizarFoto(webp)).toBeNull();
+    expect(await analizarFoto(gif)).toBeNull();
   });
 
   it('a una foto sin los últimos bytes le calcula el mismo hash que a la entera', async () => {
@@ -58,7 +83,7 @@ describe('analizarFoto', () => {
     // Los 2 últimos bytes son el marcador de fin del JPEG: la imagen está entera.
     const sinFinal = await analizarFoto(original.subarray(0, original.length - 2));
 
-    expect(sinFinal).toMatchObject({ tipo: 'jpg', ancho: 640, alto: 480, exif: EXIF_DE_PRUEBA });
+    expect(sinFinal).toMatchObject({ tipo: 'webp', ancho: 640, alto: 480, exif: EXIF_DE_PRUEBA });
     expect(
       distanciaHamming(await calcularHashPerceptual(original), sinFinal!.hashPerceptual!),
     ).toBeLessThanOrEqual(6);
@@ -69,7 +94,7 @@ describe('analizarFoto', () => {
 
     const foto = await analizarFoto(original.subarray(0, original.length / 2));
 
-    expect(foto).toMatchObject({ tipo: 'jpg', ancho: 640, alto: 480 });
+    expect(foto).toMatchObject({ tipo: 'webp', ancho: 640, alto: 480 });
     expect(foto!.hashPerceptual).toMatch(/^[01]{64}$/);
   });
 });

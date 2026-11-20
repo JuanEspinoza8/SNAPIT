@@ -6,25 +6,16 @@ import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { listarCategoriasActivas } from '../src/modulos/catalogo/repositorio.js';
-import { clasificarImagen, type Clasificacion } from '../src/modulos/ia/clasificarFoto.js';
 import { esperarProceso } from '../src/modulos/ia/cola.js';
 import { IaNoDisponible } from '../src/modulos/ia/servicio.js';
-import { leerParametros, modoDemostracion } from '../src/modulos/verificacion/repositorio.js';
-import { borrarReportesDe, crearUsuario } from './apoyo.js';
-import { EXIF_DE_PRUEBA, fotoUnica, jpegConExif, jpegLiso } from './imagenes.js';
+import { type Verificacion, verificarFoto } from '../src/modulos/ia/verificarFoto.js';
+import type { AnalisisFoto } from '../src/modulos/verificacion/calculo.js';
+import { borrarReportesDe, crearUsuario, verificarReporte } from './apoyo.js';
+import { jpegLiso } from './imagenes.js';
 
 vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
 // La IA simulada: cada test decide qué responde para cada reporte.
-vi.mock('../src/modulos/ia/clasificarFoto.js', async (original) => ({
-  ...(await original<typeof import('../src/modulos/ia/clasificarFoto.js')>()),
-  clasificarImagen: vi.fn(),
-}));
-// El modo demostración es un parámetro de toda la base: si se prendiera de verdad, cambiaría los reportes de
-// los tests que corren en paralelo. Acá se simula.
-vi.mock('../src/modulos/verificacion/repositorio.js', async (original) => ({
-  ...(await original<typeof import('../src/modulos/verificacion/repositorio.js')>()),
-  modoDemostracion: vi.fn(async () => false),
-}));
+vi.mock('../src/modulos/ia/verificarFoto.js', () => ({ verificarFoto: vi.fn() }));
 
 // Para simular que la base falla justo al arrancar el procesamiento.
 vi.mock('../src/modulos/catalogo/repositorio.js', async (original) => {
@@ -32,7 +23,7 @@ vi.mock('../src/modulos/catalogo/repositorio.js', async (original) => {
   return { ...real, listarCategoriasActivas: vi.fn(real.listarCategoriasActivas) };
 });
 
-const clasificar = vi.mocked(clasificarImagen);
+const verificar = vi.mocked(verificarFoto);
 
 const vecinos: number[] = [];
 afterAll(() => borrarReportesDe(vecinos));
@@ -59,8 +50,7 @@ async function crearOrganismo() {
 }
 
 beforeEach(async () => {
-  clasificar.mockReset();
-  vi.mocked(modoDemostracion).mockResolvedValue(false);
+  verificar.mockReset();
   area = await crearOrganismo();
   categoria = await prisma.categoria.create({ data: { nombre: `Pozo ${randomUUID()}`, areaId: area.id } });
   otraCategoria = await prisma.categoria.create({
@@ -71,11 +61,11 @@ beforeEach(async () => {
 });
 
 /**
- * Un reporte pendiente (foto de galería sin EXIF), en su propia cuadra para que no se agrupe. Salvo que se
- * pida lo contrario, queda con confianza 85: es lo que manda a la cola el modo demostración, un reporte que la
- * verificación aprobaba. Con `aprobado: false` queda con la confianza baja que le dio la verificación.
+ * Un reporte pendiente (foto lisa sin EXIF) en la cuadra `cuadra`: los de cuadras distintas no se agrupan, los
+ * de la misma sí. Salvo con `enElPunto: false`, se simula que la foto se sacó en el punto: su control de
+ * ubicación pasa a EXIF_COINCIDE.
  */
-async function reportar(severidad: Severidad, cuadra: number, { aprobado = true } = {}) {
+async function reportar(severidad: Severidad, cuadra: number, { enElPunto = true } = {}) {
   const vecino = await crearUsuario({ rol: 'VECINO' });
   vecinos.push(vecino.id);
   const res = await request(app)
@@ -90,27 +80,41 @@ async function reportar(severidad: Severidad, cuadra: number, { aprobado = true 
     .attach('foto', await jpegLiso(100 + cuadra), 'foto.jpg');
   expect(res.status).toBe(201);
   expect(res.body.estadoVerificacion).toBe('PENDIENTE_REVISION');
-  if (aprobado) await prisma.reporte.update({ where: { id: res.body.id }, data: { nivelConfianza: 85 } });
+  if (enElPunto) {
+    await prisma.senalVerificacion.updateMany({
+      where: { reporteId: res.body.id, tipo: 'EXIF_AUSENTE' },
+      data: { tipo: 'EXIF_COINCIDE', valor: 1, detalle: 'La foto se sacó a 5 m del punto reportado' },
+    });
+  }
   return { ...(res.body as { id: number; incidenteId: number }), vecino };
 }
 
+const EXPLICACION = 'Se ve un pozo profundo en la calzada.';
+
 /** Lo que "responde la IA": deja su consulta en registro_ia, como el servicio real. */
-async function respuesta(categoriaId: number, severidad: Severidad): Promise<Clasificacion> {
+async function respuesta(cambios: Partial<AnalisisFoto> = {}): Promise<Verificacion> {
+  const analisis: AnalisisFoto = {
+    esProblemaViaPublica: true,
+    categoriaId: categoria.id,
+    severidad: 'GRAVE',
+    mismoProblema: null,
+    datosPersonales: false,
+    ...cambios,
+  };
   const registro = await prisma.registroIa.create({
     data: {
       tipo: 'CLASIFICACION_IMAGEN',
       proveedor: 'ANTHROPIC',
       modelo: 'claude-haiku-5-5',
       usuarioId: operador.id,
-      salida: { categoriaId, severidad, explicacion: 'Se ve un pozo profundo en la calzada.' },
+      salida: { ...analisis, explicacion: EXPLICACION },
       duracionMs: 3000,
     },
   });
   return {
-    categoriaId,
-    severidad,
+    ...analisis,
+    explicacion: EXPLICACION,
     registroIaId: registro.id,
-    explicacion: 'Se ve un pozo profundo en la calzada.',
     uso: { entrada: 1500, salida: 200 },
   };
 }
@@ -128,27 +132,40 @@ async function procesarYEsperar() {
   return (await verProceso(res.body.procesoId)).body;
 }
 
-const estadosDe = (log: { eventos: { estado: string; reporte: { id: number } }[] }, reporteId: number) =>
+type Log = { eventos: { estado: string; detalle: string; reporte: { id: number } }[] };
+
+const estadosDe = (log: Log, reporteId: number) =>
   log.eventos.filter((e) => e.reporte.id === reporteId).map((e) => e.estado);
 
+const ultimoDe = (log: Log, reporteId: number) =>
+  log.eventos.filter((e) => e.reporte.id === reporteId).at(-1)!;
+
+const estadoDe = async (reporteId: number) =>
+  (await prisma.reporte.findUniqueOrThrow({ where: { id: reporteId } })).estadoVerificacion;
+
 describe('POST /api/ia/procesar-cola', () => {
-  it('si la IA coincide con el vecino, publica el reporte y lo deja en el log', async () => {
+  it('si la foto muestra lo que eligió el vecino y se sacó en el punto, lo publica y lo deja en el log', async () => {
     const reporte = await reportar('GRAVE', 1);
-    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+    verificar.mockImplementation(async () => respuesta());
 
     const log = await procesarYEsperar();
 
     expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'PUBLICADO']);
-    const clasificado = log.eventos.find((e: { estado: string }) => e.estado === 'CLASIFICADO');
+    const clasificado = log.eventos.find((e: { estado: string }) => e.estado === 'CLASIFICADO')!;
     expect(clasificado.detalle).toBe(
-      `La IA propone ${categoria.nombre}, GRAVE; el vecino eligió ${categoria.nombre}, GRAVE. Se ve un pozo profundo en la calzada.`,
+      `La IA ve ${categoria.nombre}, GRAVE; el vecino eligió ${categoria.nombre}, GRAVE. ${EXPLICACION}`,
     );
-    expect(clasificado.propuesta).toMatchObject({
+    expect((clasificado as unknown as { propuesta: object }).propuesta).toMatchObject({
+      esProblemaViaPublica: true,
       categoriaId: categoria.id,
       severidad: 'GRAVE',
-      explicacion: 'Se ve un pozo profundo en la calzada.',
+      mismoProblema: null,
+      datosPersonales: false,
+      explicacion: EXPLICACION,
     });
-    expect(clasificado.reporte.foto.url).toMatch(/^\/api\/fotos\/\d+$/);
+    expect(ultimoDe(log, reporte.id).detalle).toBe(
+      'Coincide con lo que eligió el vecino y la foto se sacó en el punto: publicado',
+    );
 
     // Publicado igual que una aprobación manual (#51): reporte, incidente, reputación y bitácora.
     const guardado = await prisma.reporte.findUniqueOrThrow({
@@ -165,7 +182,7 @@ describe('POST /api/ia/procesar-cola', () => {
     expect(movimiento).toMatchObject({
       tipo: 'CAMBIO_ESTADO',
       usuarioId: operador.id,
-      comentario: `Reporte #${reporte.id} verificado por la IA al procesar la cola de verificación: coincide con la categoría y la gravedad que eligió el vecino, y la verificación le había dado 85 de confianza`,
+      comentario: `Reporte #${reporte.id} verificado por la IA al procesar la cola de verificación: coincide con la categoría y la gravedad que eligió el vecino, y la foto se sacó en el punto`,
     });
     // En el listado general figura que lo publicó la IA, y cuándo.
     const listado = await request(app).get('/api/reportes').set('Authorization', `Bearer ${token}`);
@@ -173,130 +190,235 @@ describe('POST /api/ia/procesar-cola', () => {
       estadoVerificacion: 'VERIFICADO',
       publicadoPorIaEn: expect.any(String),
     });
-    // La clasificación se pidió con explicación, a nombre del operador.
-    expect(clasificar).toHaveBeenCalledWith(operador.id, expect.any(Buffer), { conExplicacion: true });
+    // La consulta se pidió a nombre del operador, sin foto de referencia: el incidente no tenía otro reporte.
+    expect(verificar).toHaveBeenCalledWith(operador.id, expect.any(Buffer), null);
   });
 
-  it('si no coincide, lo deja pendiente para revisión manual', async () => {
+  it('si la foto no muestra un problema de la vía pública, no lo desestima: queda para que un operador lo confirme', async () => {
+    const reporte = await reportar('GRAVE', 1);
+    verificar.mockImplementation(async () =>
+      respuesta({ esProblemaViaPublica: false, categoriaId: null, severidad: null }),
+    );
+
+    const log = await procesarYEsperar();
+
+    expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
+    expect(log.eventos.find((e: { estado: string }) => e.estado === 'CLASIFICADO')!.detalle).toBe(
+      `La IA no ve un problema de la vía pública. ${EXPLICACION}`,
+    );
+    expect(ultimoDe(log, reporte.id).detalle).toContain('desestimados pendientes');
+    expect(log.resumen).toMatchObject({ desestimados: 1, derivados: 0, publicados: 0 });
+    // La IA nunca desestima: sigue pendiente, sin tocar la reputación del vecino.
+    expect(await estadoDe(reporte.id)).toBe('PENDIENTE_REVISION');
+    const vecino = await prisma.usuario.findUniqueOrThrow({ where: { id: reporte.vecino.id } });
+    expect(vecino.reportesDesestimados).toBe(0);
+  });
+
+  it('si la IA ve otra categoría u otra gravedad, lo deja para revisión manual con su propuesta', async () => {
     const otraGravedad = await reportar('LEVE', 1);
     const otraCategoriaReporte = await reportar('GRAVE', 2);
-    clasificar
-      .mockImplementationOnce(async () => respuesta(categoria.id, 'GRAVE'))
-      .mockImplementationOnce(async () => respuesta(otraCategoria.id, 'GRAVE'));
+    verificar
+      .mockImplementationOnce(async () => respuesta())
+      .mockImplementationOnce(async () => respuesta({ categoriaId: otraCategoria.id }));
 
     const log = await procesarYEsperar();
 
     expect(estadosDe(log, otraGravedad.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
     expect(estadosDe(log, otraCategoriaReporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
-    const pendientes = await prisma.reporte.findMany({
-      where: { id: { in: [otraGravedad.id, otraCategoriaReporte.id] } },
-    });
-    expect(pendientes.every((r) => r.estadoVerificacion === 'PENDIENTE_REVISION')).toBe(true);
+    expect(ultimoDe(log, otraGravedad.id).detalle).toBe(
+      'La IA ve otra categoría o gravedad que la que eligió el vecino: queda para revisión manual',
+    );
+    expect(await estadoDe(otraGravedad.id)).toBe('PENDIENTE_REVISION');
 
-    // En la cola manual, el operador ve qué propuso la IA y por qué lo derivó.
+    // En la cola manual, el operador ve qué propuso la IA.
     const cola = await request(app).get('/api/reportes/pendientes').set('Authorization', `Bearer ${token}`);
     const derivado = cola.body.reportes.find((r: { id: number }) => r.id === otraCategoriaReporte.id);
     expect(derivado.propuestaIa).toEqual({
       categoriaId: otraCategoria.id,
       severidad: 'GRAVE',
-      explicacion: 'Se ve un pozo profundo en la calzada.',
+      explicacion: EXPLICACION,
       creadoEn: expect.any(String),
+      esProblemaViaPublica: true,
+      mismoProblema: null,
+      datosPersonales: false,
     });
   });
 
-  it('si coincide pero la verificación no lo aprobaba, no lo publica: lo decide un operador', async () => {
-    const reporte = await reportar('GRAVE', 1, { aprobado: false });
-    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+  it('si se ve una cara o una patente, la propuesta que ve el operador lo avisa', async () => {
+    const reporte = await reportar('GRAVE', 1);
+    verificar.mockImplementationOnce(async () => respuesta({ datosPersonales: true }));
+
+    await procesarYEsperar();
+
+    const cola = await request(app).get('/api/reportes/pendientes').set('Authorization', `Bearer ${token}`);
+    const pendiente = cola.body.reportes.find((r: { id: number }) => r.id === reporte.id);
+    expect(pendiente.propuestaIa).toMatchObject({ datosPersonales: true, esProblemaViaPublica: true });
+  });
+
+  it('sin la ubicación de la foto ni otro reporte verificado con qué compararla, lo decide un operador', async () => {
+    const reporte = await reportar('GRAVE', 1, { enElPunto: false });
+    verificar.mockImplementation(async () => respuesta());
 
     const log = await procesarYEsperar();
 
-    expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
-    const { nivelConfianza } = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
-    const { umbralVerificado } = await leerParametros();
-    expect(nivelConfianza).toBeLessThan(umbralVerificado);
-    expect(log.eventos.at(-1).detalle).toBe(
-      `Coincide con lo que eligió el vecino, pero la verificación le dio ${nivelConfianza} de confianza y ` +
-        `hacen falta ${umbralVerificado} (La foto se eligió de la galería y no trae la ubicación donde se ` +
-        'sacó): queda para revisión manual',
-    );
-    const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
-    expect(guardado.estadoVerificacion).toBe('PENDIENTE_REVISION');
-    // El operador igual ve la propuesta de la IA al revisarlo.
-    const cola = await request(app).get('/api/reportes/pendientes').set('Authorization', `Bearer ${token}`);
-    expect(cola.body.reportes.find((r: { id: number }) => r.id === reporte.id).propuestaIa).toMatchObject({
-      categoriaId: categoria.id,
-      severidad: 'GRAVE',
+    expect(ultimoDe(log, reporte.id)).toMatchObject({
+      estado: 'REVISION_MANUAL',
+      detalle:
+        'La foto no trae ubicación y no hay un reporte verificado del incidente para compararla: queda para revisión manual',
     });
+    expect(await estadoDe(reporte.id)).toBe('PENDIENTE_REVISION');
+  });
+
+  it('sin ubicación, lo publica si es el mismo problema que un reporte ya verificado del incidente', async () => {
+    const verificado = await reportar('GRAVE', 1);
+    await verificarReporte(verificado.id);
+    const sinUbicacion = await reportar('GRAVE', 1, { enElPunto: false });
+    expect(sinUbicacion.incidenteId).toBe(verificado.incidenteId);
+    verificar.mockImplementation(async () => respuesta({ mismoProblema: true }));
+
+    const log = await procesarYEsperar();
+
+    // Se le mandó la foto del reporte verificado como referencia.
+    expect(verificar).toHaveBeenCalledWith(operador.id, expect.any(Buffer), expect.any(Buffer));
+    expect(estadosDe(log, sinUbicacion.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'PUBLICADO']);
+    expect(log.eventos.find((e: { estado: string }) => e.estado === 'CLASIFICADO')!.detalle).toContain(
+      `Es el mismo problema que el reporte #${verificado.id}, ya verificado.`,
+    );
+    expect(await estadoDe(sinUbicacion.id)).toBe('VERIFICADO');
+    const movimientos = await prisma.movimientoIncidente.findMany({
+      where: { incidenteId: verificado.incidenteId },
+      orderBy: { id: 'asc' },
+    });
+    expect(movimientos.at(-1)!.comentario).toContain(
+      `es el mismo problema que el reporte #${verificado.id}, ya verificado`,
+    );
+  });
+
+  it('un reporte que la IA publica en el procesamiento ya sirve de referencia para los siguientes', async () => {
+    const conGps = await reportar('GRAVE', 1);
+    const sinGps = await reportar('GRAVE', 1, { enElPunto: false });
+    expect(sinGps.incidenteId).toBe(conGps.incidenteId);
+    verificar
+      .mockImplementationOnce(async () => respuesta())
+      .mockImplementationOnce(async () => respuesta({ mismoProblema: true }));
+
+    const log = await procesarYEsperar();
+
+    expect(estadosDe(log, conGps.id).at(-1)).toBe('PUBLICADO');
+    expect(estadosDe(log, sinGps.id).at(-1)).toBe('PUBLICADO');
+    // El primero fue sin referencia; el segundo, con la foto del primero.
+    expect(verificar.mock.calls.map((llamada) => llamada[2] === null)).toEqual([true, false]);
+  });
+
+  it('si no parece el mismo problema que el reporte verificado, lo decide un operador', async () => {
+    const verificado = await reportar('GRAVE', 1);
+    await verificarReporte(verificado.id);
+    const sinUbicacion = await reportar('GRAVE', 1, { enElPunto: false });
+    verificar.mockImplementation(async () => respuesta({ mismoProblema: false }));
+
+    const log = await procesarYEsperar();
+
+    expect(ultimoDe(log, sinUbicacion.id).detalle).toContain('no parece el mismo problema');
+    expect(await estadoDe(sinUbicacion.id)).toBe('PENDIENTE_REVISION');
+  });
+
+  it('si se ve una cara o una patente, no lo publica aunque todo lo demás esté bien', async () => {
+    const reporte = await reportar('GRAVE', 1);
+    verificar.mockImplementation(async () => respuesta({ datosPersonales: true }));
+
+    const log = await procesarYEsperar();
+
+    expect(log.eventos.find((e: { estado: string }) => e.estado === 'CLASIFICADO')!.detalle).toContain(
+      'Se ve una cara o una patente.',
+    );
+    expect(ultimoDe(log, reporte.id).detalle).toContain('hay que revisar la foto antes de publicarla');
+    expect(await estadoDe(reporte.id)).toBe('PENDIENTE_REVISION');
   });
 
   it('si el vecino había aceptado la sugerencia de la IA, el log lo aclara y el resumen lo cuenta', async () => {
     const reporte = await reportar('GRAVE', 1);
     await prisma.reporte.update({ where: { id: reporte.id }, data: { sugerenciaAceptada: true } });
-    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+    verificar.mockImplementation(async () => respuesta());
 
     const log = await procesarYEsperar();
 
     expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'PUBLICADO']);
-    const clasificado = log.eventos.find((e: { estado: string }) => e.estado === 'CLASIFICADO');
-    expect(clasificado.detalle).toContain(
+    expect(log.eventos.find((e: { estado: string }) => e.estado === 'CLASIFICADO')!.detalle).toContain(
       `el vecino eligió ${categoria.nombre}, GRAVE (había aceptado la sugerencia de la IA).`,
     );
     expect(log.resumen).toMatchObject({ publicados: 1, publicadosConSugerencia: 1 });
   });
 
+  it('un reporte que la IA ya miró no vuelve a entrar; uno en el que falló, sí', async () => {
+    const mirado = await reportar('LEVE', 1);
+    const fallido = await reportar('GRAVE', 2);
+    verificar
+      .mockImplementationOnce(async () => respuesta())
+      .mockImplementationOnce(async () => {
+        throw new IaNoDisponible('La API tardó más de 30000 ms');
+      });
+    await procesarYEsperar();
+    verificar.mockReset();
+    verificar.mockImplementation(async () => respuesta());
+
+    const log = await procesarYEsperar();
+
+    expect(verificar).toHaveBeenCalledOnce();
+    expect(estadosDe(log, mirado.id)).toEqual([]);
+    expect(estadosDe(log, fallido.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'PUBLICADO']);
+  });
+
   it('si la IA falla, el reporte queda en la cola manual y sigue con los demás', async () => {
     const falla = await reportar('GRAVE', 1);
     const sigue = await reportar('GRAVE', 2);
-    clasificar
+    verificar
       .mockImplementationOnce(async () => {
         throw new IaNoDisponible('La API tardó más de 30000 ms');
       })
-      .mockImplementationOnce(async () => respuesta(categoria.id, 'GRAVE'));
+      .mockImplementationOnce(async () => respuesta());
 
     const log = await procesarYEsperar();
 
     expect(estadosDe(log, falla.id)).toEqual(['EN_PROCESO', 'ERROR']);
-    expect(log.eventos.find((e: { estado: string }) => e.estado === 'ERROR').detalle).toBe(
+    expect(log.eventos.find((e: { estado: string }) => e.estado === 'ERROR')!.detalle).toBe(
       'IA no disponible (La API tardó más de 30000 ms): queda en la cola manual',
     );
     expect(estadosDe(log, sigue.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'PUBLICADO']);
-    const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: falla.id } });
-    expect(guardado.estadoVerificacion).toBe('PENDIENTE_REVISION');
+    expect(await estadoDe(falla.id)).toBe('PENDIENTE_REVISION');
   });
 
   it('si un operador lo revisó mientras la IA lo procesaba, respeta su decisión', async () => {
     const reporte = await reportar('GRAVE', 1);
-    clasificar.mockImplementation(async () => {
+    verificar.mockImplementation(async () => {
       await prisma.reporte.update({ where: { id: reporte.id }, data: { estadoVerificacion: 'DESESTIMADO' } });
-      return respuesta(categoria.id, 'GRAVE');
+      return respuesta();
     });
 
     const log = await procesarYEsperar();
 
     // No es un error de la IA: lo resolvió una persona.
     expect(estadosDe(log, reporte.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
-    expect(log.eventos.at(-1).detalle).toBe(
+    expect(ultimoDe(log, reporte.id).detalle).toBe(
       'Un operador lo revisó mientras la IA lo procesaba: queda su decisión',
     );
     expect(log.resumen.errores).toBe(0);
-    const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
-    expect(guardado.estadoVerificacion).toBe('DESESTIMADO');
+    expect(await estadoDe(reporte.id)).toBe('DESESTIMADO');
   });
 
   it('si un operador lo revisó antes de que le llegue el turno, no se consulta a la IA', async () => {
     const primero = await reportar('GRAVE', 1);
     const segundo = await reportar('GRAVE', 2);
-    clasificar.mockImplementation(async () => {
+    verificar.mockImplementation(async () => {
       await prisma.reporte.update({ where: { id: segundo.id }, data: { estadoVerificacion: 'VERIFICADO' } });
-      return respuesta(categoria.id, 'LEVE');
+      return respuesta({ severidad: 'LEVE' });
     });
 
     const log = await procesarYEsperar();
 
-    expect(clasificar).toHaveBeenCalledOnce();
+    expect(verificar).toHaveBeenCalledOnce();
     expect(estadosDe(log, primero.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
     expect(estadosDe(log, segundo.id)).toEqual(['REVISION_MANUAL']);
-    expect(log.eventos.at(-1).detalle).toBe('Un operador ya lo revisó: no se consulta a la IA');
+    expect(ultimoDe(log, segundo.id).detalle).toBe('Un operador ya lo revisó: no se consulta a la IA');
     expect(log.resumen.costoUsd).toBeGreaterThan(0);
   });
 
@@ -310,37 +432,30 @@ describe('POST /api/ia/procesar-cola', () => {
     expect(res.body.error.codigo).toBe('COLA_VACIA');
   });
 
-  it('si el incidente se cierra mientras la cola corre, no clasifica ni publica sus pendientes', async () => {
+  it('si el incidente se cierra mientras la cola corre, no consulta ni publica sus pendientes', async () => {
     const antes = await reportar('GRAVE', 1);
     const despues = await reportar('GRAVE', 2);
-    clasificar.mockImplementation(async () => {
-      // Al clasificar el primero se cierran los dos: el primero ya está clasificado y el segundo, en espera.
+    verificar.mockImplementation(async () => {
+      // Al mirar el primero se cierran los dos: el primero ya está analizado y el segundo, en espera.
       await prisma.incidente.updateMany({
         where: { id: { in: [antes.incidenteId, despues.incidenteId] } },
         data: { estado: 'DESESTIMADO' },
       });
-      return respuesta(categoria.id, 'GRAVE');
+      return respuesta();
     });
 
     const log = await procesarYEsperar();
 
-    expect(clasificar).toHaveBeenCalledOnce();
+    expect(verificar).toHaveBeenCalledOnce();
     expect(estadosDe(log, antes.id)).toEqual(['EN_PROCESO', 'CLASIFICADO', 'REVISION_MANUAL']);
     expect(estadosDe(log, despues.id)).toEqual(['REVISION_MANUAL']);
-    const detalles = log.eventos
-      .filter((e: { estado: string }) => e.estado === 'REVISION_MANUAL')
-      .map((e: { detalle: string }) => e.detalle);
-    expect(detalles).toEqual([
+    expect([ultimoDe(log, antes.id).detalle, ultimoDe(log, despues.id).detalle]).toEqual([
       'El incidente se cerró mientras la IA lo procesaba: no se publica',
       'El incidente ya está cerrado: no se consulta a la IA',
     ]);
-    const guardados = await prisma.reporte.findMany({
-      where: { id: { in: [antes.id, despues.id] } },
-      select: { estadoVerificacion: true },
-    });
-    expect(guardados).toEqual([
-      { estadoVerificacion: 'PENDIENTE_REVISION' },
-      { estadoVerificacion: 'PENDIENTE_REVISION' },
+    expect([await estadoDe(antes.id), await estadoDe(despues.id)]).toEqual([
+      'PENDIENTE_REVISION',
+      'PENDIENTE_REVISION',
     ]);
   });
 
@@ -350,9 +465,9 @@ describe('POST /api/ia/procesar-cola', () => {
 
     const log = await procesarYEsperar();
 
-    expect(clasificar).not.toHaveBeenCalled();
+    expect(verificar).not.toHaveBeenCalled();
     expect(estadosDe(log, reporte.id)).toEqual(['ERROR']);
-    expect(log.eventos[0].detalle).toBe('No se pudo arrancar el procesamiento: queda en la cola manual');
+    expect(log.eventos[0]!.detalle).toBe('No se pudo arrancar el procesamiento: queda en la cola manual');
     expect(log.enCurso).toBe(false);
   });
 
@@ -360,9 +475,13 @@ describe('POST /api/ia/procesar-cola', () => {
     await reportar('GRAVE', 1);
     await reportar('LEVE', 2);
     await reportar('GRAVE', 3);
-    clasificar
-      .mockImplementationOnce(async () => respuesta(categoria.id, 'GRAVE'))
-      .mockImplementationOnce(async () => respuesta(categoria.id, 'GRAVE'))
+    await reportar('GRAVE', 4);
+    verificar
+      .mockImplementationOnce(async () => respuesta())
+      .mockImplementationOnce(async () => respuesta())
+      .mockImplementationOnce(async () =>
+        respuesta({ esProblemaViaPublica: false, categoriaId: null, severidad: null }),
+      )
       .mockImplementationOnce(async () => {
         throw new IaNoDisponible('Se superó el límite de uso de la API (429)');
       });
@@ -371,30 +490,31 @@ describe('POST /api/ia/procesar-cola', () => {
 
     expect(log.enCurso).toBe(false);
     expect(log.resumen).toEqual({
-      total: 3,
-      procesados: 3,
+      total: 4,
+      procesados: 4,
       publicados: 1,
       publicadosConSugerencia: 0,
       derivados: 1,
+      desestimados: 1,
       errores: 1,
       tiempoMedioMs: 3000,
-      // Dos clasificaciones de 1500 + 200 tokens con Haiku 5.5: 2 × (1500 × 0,10 + 200 × 0,50) / 1.000.000.
-      costoUsd: expect.closeTo(0.0005, 10),
+      // Tres consultas de 1500 + 200 tokens con Haiku 5.5: 3 × (1500 × 0,10 + 200 × 0,50) / 1.000.000.
+      costoUsd: expect.closeTo(0.00075, 10),
     });
   });
 
   it('no arranca un segundo procesamiento mientras hay uno en curso', async () => {
     await reportar('GRAVE', 1);
     let soltar = () => {};
-    clasificar.mockImplementation(async () => {
+    verificar.mockImplementation(async () => {
       await new Promise<void>((listo) => (soltar = listo));
-      return respuesta(categoria.id, 'GRAVE');
+      return respuesta();
     });
 
     const primero = await procesar();
     const segundo = await procesar();
     expect((await verProceso(primero.body.procesoId)).body.enCurso).toBe(true);
-    await vi.waitFor(() => expect(clasificar).toHaveBeenCalled());
+    await vi.waitFor(() => expect(verificar).toHaveBeenCalled());
     soltar();
     await esperarProceso(primero.body.procesoId);
 
@@ -405,7 +525,7 @@ describe('POST /api/ia/procesar-cola', () => {
 
   it('dos pedidos simultáneos arrancan un solo procesamiento', async () => {
     await reportar('GRAVE', 1);
-    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+    verificar.mockImplementation(async () => respuesta());
 
     const respuestas = await Promise.all([procesar(), procesar()]);
 
@@ -436,7 +556,7 @@ describe('POST /api/ia/procesar-cola', () => {
       .field('lon', '-68.07')
       .field('origen', 'SITIO_WEB')
       .attach('foto', await jpegLiso(90), 'foto.jpg');
-    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+    verificar.mockImplementation(async () => respuesta());
 
     const log = await procesarYEsperar();
 
@@ -457,7 +577,7 @@ describe('POST /api/ia/procesar-cola', () => {
 describe('GET /api/ia/procesos', () => {
   it('un operador de otro organismo no ve el log', async () => {
     await reportar('GRAVE', 1);
-    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+    verificar.mockImplementation(async () => respuesta());
     const res = await procesar();
     await esperarProceso(res.body.procesoId);
     const otro = await crearOperador(await crearOrganismo());
@@ -471,9 +591,14 @@ describe('GET /api/ia/procesos', () => {
     expect(invalido.status).toBe(400);
   });
 
-  it('lista los procesamientos del organismo, del más nuevo al más viejo', async () => {
+  it('lista los procesamientos del organismo, del más nuevo al más viejo, con los desestimados aparte', async () => {
     await reportar('GRAVE', 1);
-    clasificar.mockImplementation(async () => respuesta(categoria.id, 'GRAVE'));
+    await reportar('GRAVE', 2);
+    verificar
+      .mockImplementationOnce(async () => respuesta())
+      .mockImplementationOnce(async () =>
+        respuesta({ esProblemaViaPublica: false, categoriaId: null, severidad: null }),
+      );
     const primero = await procesar();
     await esperarProceso(primero.body.procesoId);
 
@@ -483,37 +608,12 @@ describe('GET /api/ia/procesos', () => {
     expect(res.body.procesos[0]).toEqual({
       id: primero.body.procesoId,
       iniciadoEn: expect.any(String),
-      reportes: 1,
+      reportes: 2,
       publicados: 1,
       derivados: 0,
+      desestimados: 1,
       errores: 0,
       enCurso: false,
     });
-  });
-});
-
-describe('modo demostración', () => {
-  it('manda a la cola un reporte que la verificación automática aprobaría', async () => {
-    vi.mocked(modoDemostracion).mockResolvedValue(true);
-    const vecino = await crearUsuario({ rol: 'VECINO' });
-    vecinos.push(vecino.id);
-
-    // Cámara de la app y GPS en el punto: sin el modo demo quedaría verificado.
-    const res = await request(app)
-      .post('/api/reportes')
-      .set('Authorization', `Bearer ${crearTokenAcceso(vecino)}`)
-      .field('categoriaId', String(categoria.id))
-      .field('severidadDeclarada', 'GRAVE')
-      .field('lat', String(EXIF_DE_PRUEBA.latitud))
-      .field('lon', String(EXIF_DE_PRUEBA.longitud))
-      .field('origen', 'APP_MOVIL')
-      .field('tomadaConCamaraApp', 'true')
-      .field('registradoEn', '2026-10-15T18:00:00Z')
-      .attach('foto', await fotoUnica(jpegConExif()), 'foto.jpg');
-
-    expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ nivelConfianza: 85, estadoVerificacion: 'PENDIENTE_REVISION' });
-    const incidente = await prisma.incidente.findUniqueOrThrow({ where: { id: res.body.incidenteId } });
-    expect(incidente.estado).toBe('REGISTRADO');
   });
 });

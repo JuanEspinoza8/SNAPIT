@@ -1,5 +1,7 @@
 import type { EstadoIncidente, Prisma } from '@prisma/client';
 import { ErrorApp } from '../../compartido/errores.js';
+import { idUsuarioSistema } from '../../compartido/usuarioSistema.js';
+import { logger } from '../../config/logger.js';
 import { estadoSegunReportes, severidadConsolidada } from '../agrupacion/calculo.js';
 import { contarReportes, severidadesDeclaradas } from '../agrupacion/repositorio.js';
 import { avisarCambioDeEstado, avisarVerificacion } from '../avisos/disparar.js';
@@ -31,6 +33,8 @@ export interface EfectoDelResultado {
  *   con su primer reporte verificado, y a DESESTIMADO si ya no le queda ningún reporte sin desestimar. Si sigue
  *   vivo después de un desestimado, se recalcula su severidad.
  * - Deja el movimiento en la bitácora del incidente.
+ * - Si quedó verificado, SnapIt le agradece al vecino con un comentario público en el reporte, que dice a qué
+ *   área se derivó. Sale siempre, lo haya publicado la IA o una persona.
  *
  * Si el incidente que manda ya está resuelto o desestimado, no aplica nada: 409 INCIDENTE_CERRADO.
  * No avisa al módulo de prioridad: lo hace quien llama, una vez que terminó con el incidente.
@@ -54,6 +58,7 @@ export async function aplicarResultado(
     );
   }
   const reputacion = await repositorio.sumarAlHistorial(tx, reporte.usuarioId, resultado.decision);
+  if (resultado.decision === 'VERIFICADO') await agradecer(tx, resultado.reporteId);
   // Al autor, si lo decidió un operador o la IA. Verificado al recibirlo, la pantalla de reportar ya se lo dice.
   if (resultado.operadorId !== null) {
     avisarVerificacion(resultado.reporteId, id, resultado.decision, resultado.operadorId);
@@ -106,6 +111,24 @@ export async function aplicarResultado(
 }
 
 const ESTADOS_CERRADOS: EstadoIncidente[] = ['RESUELTO', 'DESESTIMADO'];
+
+/**
+ * El comentario de SnapIt en un reporte recién publicado. Dice qué área le corresponde, sin decir que se derivó:
+ * el incidente no cambia de estado ni de área (derivar es cosa del operador, incidentes/gestion.ts). Sin el
+ * usuario de SnapIt (la semilla lo crea) no se comenta, pero el reporte se publica igual.
+ */
+async function agradecer(tx: Prisma.TransactionClient, reporteId: number) {
+  const sistemaId = await idUsuarioSistema(tx);
+  if (sistemaId === null) {
+    logger.warn({ reporteId }, 'No existe el usuario de SnapIt: el reporte se publica sin el comentario');
+    return;
+  }
+  const area = await repositorio.areaDelReporte(tx, reporteId);
+  const texto = area
+    ? `¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de ${area}.`
+    : '¡Gracias por tu reporte! Ya está publicado.';
+  await repositorio.comentarReporte(tx, { usuarioId: sistemaId, reporteId, texto });
+}
 
 /**
  * Lee a qué incidente pertenece el reporte y bloquea ese incidente y el que manda. Una unión que termina

@@ -9,6 +9,17 @@ if (!process.env.TEST_DATABASE_URL) {
   throw new Error('Falta TEST_DATABASE_URL en el .env');
 }
 
+/**
+ * Cada archivo de tests corre en paralelo con su propio cliente de Prisma, y cada cliente abre por defecto hasta
+ * (núcleos × 2 + 1) conexiones: en una PC con muchos núcleos se pasa del máximo de PostgreSQL (100) y los tests
+ * fallan al azar con «too many clients already». Con un tope por cliente alcanza para todos. Si la URL ya trae
+ * uno, se respeta.
+ */
+function conTopeDeConexiones(url: string) {
+  if (url.includes('connection_limit=')) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}connection_limit=5`;
+}
+
 const SEMILLA = 'test/semilla.test.ts';
 const RED = 'test/importar-red.test.ts';
 const VINCULOS = 'test/vinculos.test.ts';
@@ -19,7 +30,7 @@ export default defineConfig({
     // Los tests siempre corren contra la base de pruebas, nunca contra la de desarrollo.
     env: {
       NODE_ENV: 'test',
-      DATABASE_URL: process.env.TEST_DATABASE_URL,
+      DATABASE_URL: conTopeDeConexiones(process.env.TEST_DATABASE_URL),
       // Las fotos de los tests van a una carpeta temporal, no a la de desarrollo ni a Supabase, aunque el
       // .env apunte ahí.
       FOTOS_ALMACEN: 'disco',

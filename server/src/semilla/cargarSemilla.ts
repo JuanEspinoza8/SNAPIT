@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { asegurarUsuarioSistema } from '../compartido/usuarioSistema.js';
 import { claveRegla, type ReglaTramo } from '../modulos/recorridos/calculo.js';
 import { leerZonasPiloto } from '../modulos/red/zonaPiloto.js';
 import {
@@ -12,8 +13,10 @@ import {
   MATRIZ_CATEGORIA_PERFIL,
   ORGANISMO,
   PARAMETROS,
+  PARAMETROS_RETIRADOS,
   PERFILES,
   USUARIOS_PRUEBA,
+  USUARIOS_PRUEBA_RETIRADOS,
 } from './datos.js';
 
 async function leerArchivoZonas(archivo: string) {
@@ -115,6 +118,7 @@ export async function cargarSemilla(
           update: { valor, tipo, descripcion },
         });
       }
+      await tx.parametroSistema.deleteMany({ where: { clave: { in: PARAMETROS_RETIRADOS } } });
 
       // La clave lleva el id del perfil y no su nombre: así sigue valiendo si el administrador lo renombra.
       let atributosTramo = 0;
@@ -147,7 +151,15 @@ export async function cargarSemilla(
         }
       }
 
+      // También en producción: con él firma SnapIt sus comentarios (compartido/usuarioSistema.ts).
+      await asegurarUsuarioSistema(tx);
+
       if (usuariosPrueba) {
+        // Baja lógica, no borrado: pueden tener reportes, revisiones o movimientos a su nombre.
+        await tx.usuario.updateMany({
+          where: { email: { in: USUARIOS_PRUEBA_RETIRADOS }, eliminadoEn: null },
+          data: { eliminadoEn: new Date() },
+        });
         for (const { email, nombre, rol, area } of USUARIOS_PRUEBA) {
           const datos = {
             nombre,

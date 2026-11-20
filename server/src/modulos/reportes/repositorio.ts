@@ -1,7 +1,7 @@
 import { type OrigenReporte, Prisma, type Severidad, type TipoVigencia } from '@prisma/client';
 import { prisma } from '../../compartido/prisma.js';
-import { CADUCO_EN, INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
-import type { ResultadoConfianza, Senal } from '../verificacion/calculo.js';
+import { CADUCO_EN, INCIDENTE_VISIBLE, MARCADO_PARA_DESESTIMAR } from '../incidentes/repositorio.js';
+import type { Senal } from '../verificacion/calculo.js';
 import { conTareasAlConfirmar } from '../../compartido/despuesDeConfirmar.js';
 
 export function buscarCategoriaActiva(id: number) {
@@ -78,8 +78,8 @@ export interface NuevoReporte {
   categoriaId: number;
   severidad: Severidad;
   sugerencia: SugerenciaDelReporte | null;
-  /** El resultado de la verificación automática (#50). */
-  verificacion: Pick<ResultadoConfianza, 'nivel' | 'estado'>;
+  /** Cuántos de los controles automáticos se cumplen, de 0 a 100 (verificacion/calculo.ts). */
+  nivelConfianza: number;
   descripcion: string | null;
   lat: number;
   lon: number;
@@ -89,7 +89,7 @@ export interface NuevoReporte {
 }
 
 export async function insertarReporte(tx: Prisma.TransactionClient, datos: NuevoReporte) {
-  const { sugerencia, verificacion } = datos;
+  const { sugerencia } = datos;
   const [reporte] = await tx.$queryRaw<{ id: number; nivelConfianza: number; estadoVerificacion: string }[]>`
     INSERT INTO reporte (
       incidente_id, usuario_id, categoria_id, severidad_declarada, descripcion, ubicacion, origen,
@@ -102,7 +102,7 @@ export async function insertarReporte(tx: Prisma.TransactionClient, datos: Nuevo
       ${datos.origen}::origen_reporte, ${datos.registradoEn}, ${datos.sincronizadoEn},
       ${sugerencia?.categoriaSugeridaId ?? null}, ${sugerencia?.severidadSugerida ?? null}::severidad,
       ${sugerencia?.sugerenciaAceptada ?? null}, ${sugerencia?.registroIaId ?? null},
-      ${verificacion.nivel}, ${verificacion.estado}::estado_verificacion
+      ${datos.nivelConfianza}, 'PENDIENTE_REVISION'
     )
     RETURNING id, nivel_confianza AS "nivelConfianza", estado_verificacion::text AS "estadoVerificacion"`;
   return reporte!;
@@ -154,15 +154,16 @@ export interface PedidoFoto {
 }
 
 /**
- * Una foto que puede ver quien la pide. Cualquiera, la de un reporte no desestimado ni eliminado por
- * su autor cuyo incidente (o el principal, si se unió a otro) está en el mapa. El dueño, las de sus
+ * Una foto que puede ver quien la pide. Cualquiera, la de un reporte no desestimado, ni eliminado por
+ * su autor, ni marcado para desestimar, cuyo incidente (o el principal, si se unió a otro) está en el mapa. El dueño, las de sus
  * reportes. Un operador o administrador, las de los incidentes de su organismo: el del área a la que
  * se derivó el principal o, si todavía no se derivó, el del área de su categoría (como la bandeja).
  * Las fotos de los cierres todavía no se sirven.
  */
 export async function buscarFotoPermitida(id: number, pedido: PedidoFoto) {
   const permisos = [
-    Prisma.sql`(r.estado_verificacion <> 'DESESTIMADO' AND r.eliminado_en IS NULL AND ${INCIDENTE_VISIBLE})`,
+    Prisma.sql`(r.estado_verificacion <> 'DESESTIMADO' AND r.eliminado_en IS NULL
+                AND NOT ${MARCADO_PARA_DESESTIMAR()} AND ${INCIDENTE_VISIBLE})`,
   ];
   if (pedido.usuarioId !== null) permisos.push(Prisma.sql`r.usuario_id = ${pedido.usuarioId}`);
   if (pedido.organismoId !== null) permisos.push(Prisma.sql`a.organismo_id = ${pedido.organismoId}`);
@@ -244,5 +245,6 @@ export function listarDeUsuario(usuarioId: number) {
     LEFT JOIN incidente propio ON propio.id = r.incidente_id
     LEFT JOIN incidente i ON i.id = coalesce(propio.incidente_principal_id, propio.id)
     WHERE r.usuario_id = ${usuarioId}
+      AND r.eliminado_en IS NULL
     ORDER BY r.registrado_en DESC, r.id DESC`;
 }

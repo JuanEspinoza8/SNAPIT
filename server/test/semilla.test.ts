@@ -6,6 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/compartido/prisma.js';
+import { USUARIO_SISTEMA } from '../src/compartido/usuarioSistema.js';
 import { claveRegla, REGLAS_TRAMO } from '../src/modulos/recorridos/calculo.js';
 import { leerZonasPiloto } from '../src/modulos/red/zonaPiloto.js';
 import { cargarSemilla } from '../src/semilla/cargarSemilla.js';
@@ -18,6 +19,7 @@ import {
   PARAMETROS,
   PERFILES,
   USUARIOS_PRUEBA,
+  USUARIOS_PRUEBA_RETIRADOS,
 } from '../src/semilla/datos.js';
 import { ingresar } from './apoyo.js';
 
@@ -105,12 +107,28 @@ describe('semilla', { timeout: 60_000 }, () => {
     const { usuarios } = await leerSemilla();
     expect(usuarios.every((u) => u.emailVerificadoEn !== null)).toBe(true);
     expect(usuarios.filter((u) => u.rol === 'ADMINISTRADOR')).toHaveLength(1);
-    expect(usuarios.filter((u) => u.rol === 'OPERADOR' && u.areaId !== null)).toHaveLength(2);
+    // Un operador sin área: ve todo el organismo.
+    expect(usuarios.filter((u) => u.rol === 'OPERADOR' && u.areaId === null)).toHaveLength(1);
     expect(usuarios.filter((u) => u.rol === 'VECINO')).toHaveLength(3);
 
-    const res = await ingresar('bacheo@snapit.test', CLAVE_USUARIOS_PRUEBA);
+    const res = await ingresar('operador@snapit.test', CLAVE_USUARIOS_PRUEBA);
     expect(res.status).toBe(200);
     expect(res.body.usuario.rol).toBe('OPERADOR');
+  });
+
+  it('da de baja a los usuarios de prueba que ya no se usan', async () => {
+    const [retirado] = USUARIOS_PRUEBA_RETIRADOS;
+    await prisma.usuario.upsert({
+      where: { email: retirado! },
+      create: { email: retirado!, nombre: 'Viejo', passwordHash: 'x', rol: 'OPERADOR' },
+      update: { eliminadoEn: null },
+    });
+
+    await cargarSemilla(prisma, { usuariosPrueba: true });
+
+    expect(
+      (await prisma.usuario.findUniqueOrThrow({ where: { email: retirado! } })).eliminadoEn,
+    ).not.toBeNull();
   });
 
   it('con la clave de la demo, los usuarios ingresan con esa y no con la del repo', async () => {
@@ -165,6 +183,41 @@ describe('semilla', { timeout: 60_000 }, () => {
     expect(totales).toMatchObject({ parametros: PARAMETROS.length, usuarios: 0 });
     const vecino = await prisma.usuario.findUniqueOrThrow({ where: { email: 'vecino1@snapit.test' } });
     expect(vecino.nombre).toBe('Cambiado');
+  });
+
+  it('el usuario de SnapIt se carga siempre, también sin usuarios de prueba, y vuelve a como tiene que estar', async () => {
+    await cargarSemilla(prisma, { usuariosPrueba: false });
+    await prisma.usuario.update({
+      where: { email: USUARIO_SISTEMA.email },
+      data: { nombre: 'Cambiado', rol: 'VECINO', eliminadoEn: new Date() },
+    });
+
+    await cargarSemilla(prisma, { usuariosPrueba: false });
+
+    expect(await prisma.usuario.findUniqueOrThrow({ where: { email: USUARIO_SISTEMA.email } })).toMatchObject(
+      {
+        nombre: USUARIO_SISTEMA.nombre,
+        rol: 'ADMINISTRADOR',
+        organismoId: null,
+        eliminadoEn: null,
+      },
+    );
+  });
+
+  it('a una base que tiene a SnapIt con el correo anterior (sistema@snapit.app) se lo cambia, sin crear otro', async () => {
+    const { id } = await prisma.usuario.update({
+      where: { email: USUARIO_SISTEMA.email },
+      data: { email: 'sistema@snapit.app' },
+    });
+
+    await cargarSemilla(prisma, { usuariosPrueba: false });
+
+    expect(await prisma.usuario.findUnique({ where: { email: 'sistema@snapit.app' } })).toBeNull();
+    expect(await prisma.usuario.findUniqueOrThrow({ where: { email: USUARIO_SISTEMA.email } })).toMatchObject(
+      {
+        id,
+      },
+    );
   });
 
   it('un polígono que se cruza a sí mismo frena la carga y no cambia nada', async () => {

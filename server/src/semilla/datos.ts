@@ -383,44 +383,13 @@ export const ATRIBUTOS_TRAMO_PERFIL: Record<
 
 export const PARAMETROS: { clave: string; valor: string; tipo: 'entero' | 'decimal'; descripcion: string }[] =
   [
-    // Verificación automática del reporte (nivel de confianza de 0 a 100)
-    {
-      clave: 'verificacion.confianza_base',
-      valor: '50',
-      tipo: 'entero',
-      descripcion: 'Nivel de confianza con el que arranca todo reporte, antes de sumar las señales',
-    },
-    {
-      clave: 'verificacion.umbral_verificado',
-      valor: '60',
-      tipo: 'entero',
-      descripcion:
-        'Desde este nivel el reporte queda verificado. Por debajo queda pendiente de revisión: el sistema nunca lo desestima solo',
-    },
+    // Controles automáticos del reporte (F04)
     {
       clave: 'verificacion.distancia_exif_max_m',
       valor: '100',
       tipo: 'entero',
       descripcion:
-        'Distancia máxima, en metros, entre la ubicación EXIF de la foto y el punto enviado para considerar que coinciden',
-    },
-    {
-      clave: 'verificacion.valor_exif_coincide',
-      valor: '20',
-      tipo: 'decimal',
-      descripcion: 'Suma si la ubicación EXIF de la foto coincide con el punto enviado',
-    },
-    {
-      clave: 'verificacion.valor_exif_no_coincide',
-      valor: '-30',
-      tipo: 'decimal',
-      descripcion: 'Resta si la ubicación EXIF de la foto queda más lejos que la distancia máxima',
-    },
-    {
-      clave: 'verificacion.valor_exif_ausente',
-      valor: '-10',
-      tipo: 'decimal',
-      descripcion: 'Resta si una foto subida de la galería no trae ubicación EXIF',
+        'Distancia máxima, en metros, entre la ubicación EXIF de la foto y el punto enviado para considerar que se sacó en el lugar',
     },
     {
       clave: 'verificacion.hamming_duplicado_max',
@@ -430,34 +399,10 @@ export const PARAMETROS: { clave: string; valor: string; tipo: 'entero' | 'decim
         'Bits distintos, como máximo, entre dos hashes perceptuales para considerar que son la misma foto',
     },
     {
-      clave: 'verificacion.valor_hash_duplicado',
-      valor: '-40',
-      tipo: 'decimal',
-      descripcion: 'Resta si la misma foto ya se usó en otro reporte',
-    },
-    {
-      clave: 'verificacion.valor_origen_app',
-      valor: '15',
-      tipo: 'decimal',
-      descripcion: 'Suma si la foto se sacó con la cámara de la app',
-    },
-    {
-      clave: 'verificacion.valor_reputacion_max',
-      valor: '20',
-      tipo: 'decimal',
-      descripcion: 'Lo máximo que la reputación del vecino suma o resta',
-    },
-    {
       clave: 'verificacion.dias_foto_antigua',
       valor: '7',
       tipo: 'entero',
-      descripcion: 'Días entre la foto y el reporte a partir de los cuales la foto se considera antigua',
-    },
-    {
-      clave: 'verificacion.valor_fecha_antigua',
-      valor: '-20',
-      tipo: 'decimal',
-      descripcion: 'Resta si la foto es antigua',
+      descripcion: 'Días entre la foto y el reporte a partir de los cuales la foto se considera vieja',
     },
 
     // Agrupación de reportes en incidentes
@@ -625,23 +570,35 @@ export const PARAMETROS: { clave: string; valor: string; tipo: 'entero' | 'decim
       descripcion:
         'Ancho, en metros, por debajo del cual un tramo cuenta como angosto (reglas ruteo.angosto.perfil_<id>)',
     },
-    // Demostración de la cola de verificación con IA
-    {
-      clave: 'demo.revision_manual',
-      valor: '0',
-      tipo: 'entero',
-      descripcion:
-        'Con 1, todo reporte nuevo queda pendiente de revisión aunque la verificación automática lo aprobaría, para procesar la cola a mano o con la IA. Con 0, funciona como en producción',
-    },
   ];
+
+/**
+ * Parámetros que ya no se usan: el puntaje de confianza que reemplazaron los controles automáticos (F04) y el modo
+ * demostración. La semilla los borra, así una base cargada antes no los muestra como si siguieran vigentes.
+ */
+export const PARAMETROS_RETIRADOS = [
+  'verificacion.confianza_base',
+  'verificacion.umbral_verificado',
+  'verificacion.valor_exif_coincide',
+  'verificacion.valor_exif_no_coincide',
+  'verificacion.valor_exif_ausente',
+  'verificacion.valor_hash_duplicado',
+  'verificacion.valor_origen_app',
+  'verificacion.valor_reputacion_max',
+  'verificacion.valor_fecha_antigua',
+  'demo.revision_manual',
+];
 
 /** Clave común de los usuarios de prueba. Solo existe en este archivo y solo se carga fuera de producción. */
 export const CLAVE_USUARIOS_PRUEBA = 'snapit-desarrollo';
 
+/** Usuarios de prueba que ya no se usan: la semilla los da de baja, así una base cargada antes no los ofrece. */
+export const USUARIOS_PRUEBA_RETIRADOS = ['bacheo@snapit.test', 'veredas@snapit.test'];
+
 export const USUARIOS_PRUEBA: { email: string; nombre: string; rol: RolUsuario; area?: NombreArea }[] = [
   { email: 'admin@snapit.test', nombre: 'Administración Municipal', rol: 'ADMINISTRADOR' },
-  { email: 'bacheo@snapit.test', nombre: 'Operador de Bacheo', rol: 'OPERADOR', area: 'Bacheo' },
-  { email: 'veredas@snapit.test', nombre: 'Operadora de Veredas', rol: 'OPERADOR', area: 'Veredas' },
+  // Sin área: ve todo el organismo. Las áreas son de los incidentes (a cuál se derivan), no de las personas.
+  { email: 'operador@snapit.test', nombre: 'Operación Municipal', rol: 'OPERADOR' },
   { email: 'vecino1@snapit.test', nombre: 'Ana Vecina', rol: 'VECINO' },
   { email: 'vecino2@snapit.test', nombre: 'Bruno Vecino', rol: 'VECINO' },
   { email: 'vecino3@snapit.test', nombre: 'Carla Vecina', rol: 'VECINO' },

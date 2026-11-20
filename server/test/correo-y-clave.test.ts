@@ -1,9 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import type { TipoToken } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { type Correo, enviarCorreo } from '../src/compartido/correo.js';
 import { prisma } from '../src/compartido/prisma.js';
+import { idUsuarioSistema, USUARIO_SISTEMA } from '../src/compartido/usuarioSistema.js';
 import { env } from '../src/config/env.js';
 import * as servicio from '../src/modulos/auth/servicio.js';
 import { generarTokenAleatorio, hashToken } from '../src/modulos/auth/tokens.js';
@@ -278,5 +281,54 @@ describe('POST /api/auth/restablecer-clave', () => {
     ]);
 
     expect((await restablecer(token)).status).toBe(204);
+  });
+});
+
+describe('la cuenta de SnapIt', () => {
+  it('pedir su clave no manda nada ni guarda un link', async () => {
+    const id = await idUsuarioSistema();
+
+    await servicio.recuperarClave(USUARIO_SISTEMA.email);
+
+    expect(correosPara(USUARIO_SISTEMA.email)).toHaveLength(0);
+    expect(await prisma.tokenAcceso.count({ where: { usuarioId: id!, tipo: 'RECUPERACION_CLAVE' } })).toBe(0);
+  });
+
+  it('un link para cambiar su clave no sirve, aunque esté vigente', async () => {
+    const token = generarTokenAleatorio();
+    const { id } = await prisma.tokenAcceso.create({
+      data: {
+        usuarioId: (await idUsuarioSistema())!,
+        tipo: 'RECUPERACION_CLAVE',
+        tokenHash: hashToken(token),
+        expiraEn: new Date(Date.now() + 60_000),
+      },
+    });
+
+    try {
+      const res = await restablecer(token);
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.codigo).toBe('ENLACE_INVALIDO');
+    } finally {
+      await prisma.tokenAcceso.delete({ where: { id } });
+    }
+  });
+
+  it('no se ingresa con ella aunque se sepa la clave: responde como una clave incorrecta', async () => {
+    const id = (await idUsuarioSistema())!;
+    await prisma.usuario.update({ where: { id }, data: { passwordHash: await bcrypt.hash(CLAVE, 4) } });
+
+    try {
+      const res = await ingresar(USUARIO_SISTEMA.email);
+
+      expect(res.status).toBe(401);
+      expect(res.body.error.codigo).toBe('CREDENCIALES_INVALIDAS');
+    } finally {
+      await prisma.usuario.update({
+        where: { id },
+        data: { passwordHash: await bcrypt.hash(randomUUID(), 4) },
+      });
+    }
   });
 });

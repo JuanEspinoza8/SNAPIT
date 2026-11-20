@@ -70,18 +70,18 @@ describe('POST /api/reportes', () => {
   it('crea el reporte, su foto y un incidente propio', async () => {
     const categoria = await crearCategoria();
     const { usuario, token } = await vecino();
-    // Una foto que ningún otro test subió: con la cámara de la app y el EXIF en el punto, se verifica sola.
+    // Una foto que ningún otro test subió, con el EXIF en el punto. Igual llega pendiente: la publica la IA.
     const foto = await fotoUnica(jpegConExif());
 
     const res = await enviar(token, categoria.id, { foto });
 
     expect(res.status).toBe(201);
-    // El nivel lo calcula la verificación automática: verificacion.test.ts lo prueba en detalle.
+    // El nivel lo calculan los controles automáticos: verificacion.test.ts los prueba en detalle.
     expect(res.body).toEqual({
       id: expect.any(Number),
       incidenteId: expect.any(Number),
       nivelConfianza: expect.any(Number),
-      estadoVerificacion: 'VERIFICADO',
+      estadoVerificacion: 'PENDIENTE_REVISION',
     });
 
     const reporte = await prisma.reporte.findUniqueOrThrow({
@@ -100,7 +100,8 @@ describe('POST /api/reportes', () => {
     expect(reporte.fotografias[0]).toMatchObject({
       ancho: 640,
       alto: 480,
-      tamanoBytes: foto.length,
+      // Lo que se guardó, en WebP: menos que lo que llegó.
+      tamanoBytes: expect.any(Number),
       tomadaConCamaraApp: true,
       exifTomadaEn: EXIF_DE_PRUEBA.tomadaEn,
       exifMarca: EXIF_DE_PRUEBA.marca,
@@ -109,9 +110,11 @@ describe('POST /api/reportes', () => {
     expect(reporte.fotografias[0]!.exifLatitud?.toNumber()).toBe(EXIF_DE_PRUEBA.latitud);
     expect(reporte.fotografias[0]!.exifLongitud?.toNumber()).toBe(EXIF_DE_PRUEBA.longitud);
     expect(reporte.fotografias[0]!.hashPerceptual).toMatch(/^[01]{64}$/);
+    expect(reporte.fotografias[0]!.tamanoBytes).toBeLessThan(foto.length);
+    expect(reporte.fotografias[0]!.rutaArchivo).toMatch(/\.webp$/);
     expect(reporte.incidente).toMatchObject({
-      // Un reporte verificado al llegar verifica su incidente (#51).
-      estado: 'VERIFICADO',
+      // Con su único reporte pendiente, el incidente espera en revisión (#51).
+      estado: 'REGISTRADO',
       categoriaId: categoria.id,
       // Recién lo deriva el operador.
       areaId: null,
@@ -143,7 +146,7 @@ describe('POST /api/reportes', () => {
     });
   });
 
-  it('la foto descargada es idéntica byte a byte a la enviada, EXIF incluido', async () => {
+  it('la foto se guarda en WebP, sin EXIF: los datos de la cámara quedan en la base', async () => {
     const categoria = await crearCategoria();
     const { token } = await vecino();
     const original = jpegConExif();
@@ -160,9 +163,13 @@ describe('POST /api/reportes', () => {
       });
 
     expect(descarga.status).toBe(200);
-    expect(descarga.headers['content-type']).toBe('image/jpeg');
-    expect(Buffer.compare(descarga.body as Buffer, original)).toBe(0);
-    expect((descarga.body as Buffer).includes(Buffer.from(EXIF_DE_PRUEBA.modelo))).toBe(true);
+    expect(descarga.headers['content-type']).toBe('image/webp');
+    const servida = descarga.body as Buffer;
+    expect(servida.subarray(8, 12).toString()).toBe('WEBP');
+    expect(servida.length).toBeLessThan(original.length);
+    // El modelo del teléfono no sale con la foto pública, pero el sistema lo conoce.
+    expect(servida.includes(Buffer.from(EXIF_DE_PRUEBA.modelo))).toBe(false);
+    expect(foto.exifModelo).toBe(EXIF_DE_PRUEBA.modelo);
   });
 
   it('acepta PNG', async () => {
@@ -256,14 +263,14 @@ describe('POST /api/reportes', () => {
       expect(detalleDe(res, 'foto')).toBe('Es obligatoria');
     });
 
-    it('con un archivo que no es JPG ni PNG, aunque se llame .jpg', async () => {
+    it('con un archivo que no es una foto, aunque se llame .jpg', async () => {
       const categoria = await crearCategoria();
       const { token } = await vecino();
 
       const res = await enviar(token, categoria.id, { foto: Buffer.from('no soy una imagen') });
 
       expect(res.status).toBe(400);
-      expect(detalleDe(res, 'foto')).toBe('Tiene que ser una imagen JPG o PNG');
+      expect(detalleDe(res, 'foto')).toBe('Tiene que ser una foto JPG, PNG, WebP o HEIC');
     });
 
     it('con una foto más pesada que FOTO_MAX_MB', async () => {

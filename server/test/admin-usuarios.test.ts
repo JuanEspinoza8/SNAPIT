@@ -84,14 +84,12 @@ describe('POST /api/admin/usuarios', () => {
 
   // Un campo undefined no viaja en el JSON: es como no mandarlo.
 
-  it('un operador sin área responde 400 y no se crea', async () => {
+  it('un operador puede no tener área: ve todo su organismo', async () => {
     const datos = { ...(await datosOperador()), areaId: undefined };
     const res = await darDeAlta(await tokenDe('ADMINISTRADOR'), datos);
 
-    expect(res.status).toBe(400);
-    expect(res.body.error.codigo).toBe('DATOS_INVALIDOS');
-    expect(res.body.error.detalles).toEqual([{ campo: 'areaId', mensaje: 'Es obligatoria' }]);
-    expect(await prisma.usuario.count({ where: { email: datos.email } })).toBe(0);
+    expect(res.status).toBe(201);
+    expect(res.body.usuario).toMatchObject({ rol: 'OPERADOR', organismoId: datos.organismoId, areaId: null });
   });
 
   it('un operador sin organismo responde 400', async () => {

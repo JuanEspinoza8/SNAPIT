@@ -427,6 +427,8 @@ describe('GET /api/incidentes/:id', () => {
       // Sin cierre: no hay foto del después ni fecha de resolución (F09).
       fotoCierre: null,
       resueltoEn: null,
+      // Publicado: le corresponde el área de su categoría.
+      derivadoA: { id: categoria.areaId, nombre: expect.any(String) },
     });
   });
 
@@ -537,6 +539,7 @@ describe('GET /api/incidentes/feed', () => {
           cantidadVecinos: 2,
           direccion: 'Lanín 120, Villa Ceferino',
           resueltoEn: null,
+          derivadoA: { id: categoria.areaId, nombre: expect.any(String) },
           fotos: [foto1, foto2].map((f) => ({ id: f.id, url: `/api/fotos/${f.id}` })),
           cantidadFotos: 2,
           cantidadMeGusta: 0,
