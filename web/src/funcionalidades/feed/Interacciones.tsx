@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
+import { useFocoConfirmacion } from '../../compartido/componentes/useFocoConfirmacion.js';
 import { haceCuanto } from '../../compartido/formato/fechas.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { useSesion } from '../../compartido/sesion/sesionContexto.js';
 import type { EstadoIngreso } from '../../compartido/sesion/usuario.js';
 import { esVecino } from '../../compartido/sesion/usuario.js';
-import { useAccionesSociales, useComentariosDeReporte } from './consultas.js';
+import { useAccionesSociales, useComentarios, useMeGusta, type Comentable } from './consultas.js';
 import { Avatar, NombreAutor } from './piezas.js';
 import type { Comentario, ReportePublico } from './tipos.js';
 
@@ -37,7 +38,7 @@ function useIrAlIngreso() {
 export function BotonMeGusta({ reporte }: { reporte: ReportePublico }) {
   const { conSesion, vecino } = usePermisos();
   const { irAlIngreso } = useIrAlIngreso();
-  const { meGusta } = useAccionesSociales(reporte.id);
+  const meGusta = useMeGusta(reporte.id);
   const dado = reporte.yaMeGusta ?? false;
   const cantidad = reporte.cantidadMeGusta;
   const texto = cantidad === 1 ? '1 me gusta' : `${cantidad} me gusta`;
@@ -76,11 +77,12 @@ export function BotonMeGusta({ reporte }: { reporte: ReportePublico }) {
 }
 
 /**
- * Los comentarios de una publicación, del más viejo al más nuevo (el de SnapIt queda primero), con la caja para
- * comentar. Cada uno puede editar o eliminar los suyos; el operador y el administrador eliminan cualquiera.
+ * Los comentarios de una publicación (la foto de un vecino) o de la ficha de un problema, del más viejo al más
+ * nuevo (en una publicación, el de SnapIt queda primero), con la caja para comentar. Cada uno puede editar o
+ * eliminar los suyos; el operador y el administrador eliminan cualquiera.
  */
-export function ComentariosDelReporte({ reporteId }: { reporteId: number }) {
-  const comentarios = useComentariosDeReporte(reporteId);
+export function SeccionComentarios({ sobre }: { sobre: Comentable }) {
+  const comentarios = useComentarios(sobre);
   const { conSesion, vecino } = usePermisos();
   const { estado } = useIrAlIngreso();
   const lista = comentarios.data;
@@ -100,11 +102,11 @@ export function ComentariosDelReporte({ reporteId }: { reporteId: number }) {
       {lista && lista.length > 0 && (
         <ul className="flex flex-col gap-4">
           {lista.map((comentario) => (
-            <FilaComentario key={comentario.id} comentario={comentario} reporteId={reporteId} />
+            <FilaComentario key={comentario.id} comentario={comentario} sobre={sobre} />
           ))}
         </ul>
       )}
-      {vecino && <CajaComentario reporteId={reporteId} />}
+      {vecino && <CajaComentario sobre={sobre} />}
       {!conSesion && (
         <p className="text-sm text-texto-secundario">
           <Link to="/ingreso" state={estado} className="font-semibold text-primario hover:underline">
@@ -117,8 +119,9 @@ export function ComentariosDelReporte({ reporteId }: { reporteId: number }) {
   );
 }
 
-function CajaComentario({ reporteId }: { reporteId: number }) {
-  const { comentar } = useAccionesSociales(reporteId);
+function CajaComentario({ sobre }: { sobre: Comentable }) {
+  const { comentar } = useAccionesSociales(sobre);
+  const id = `comentario-${sobre.tipo}-${sobre.id}`;
   const [texto, setTexto] = useState('');
   const limpio = texto.trim();
 
@@ -130,10 +133,10 @@ function CajaComentario({ reporteId }: { reporteId: number }) {
 
   return (
     <form onSubmit={enviar} className="flex flex-col gap-2">
-      <label htmlFor={`comentario-${reporteId}`} className="sr-only">
+      <label htmlFor={id} className="sr-only">
         Escribí un comentario
       </label>
-      <TextoComentario id={`comentario-${reporteId}`} valor={texto} alCambiar={setTexto} />
+      <TextoComentario id={id} valor={texto} alCambiar={setTexto} />
       {comentar.isError && <AvisoError error={aErrorApi(comentar.error)} />}
       <div className="flex justify-end">
         <button
@@ -184,10 +187,11 @@ function TextoComentario({
 
 type Modo = 'ver' | 'editar' | 'confirmarEliminar';
 
-function FilaComentario({ comentario, reporteId }: { comentario: Comentario; reporteId: number }) {
+function FilaComentario({ comentario, sobre }: { comentario: Comentario; sobre: Comentable }) {
   const { modera } = usePermisos();
-  const { editar, eliminar } = useAccionesSociales(reporteId);
+  const { editar, eliminar } = useAccionesSociales(sobre);
   const [modo, setModo] = useState<Modo>('ver');
+  const { botonAbrir, botonConfirmar } = useFocoConfirmacion(modo === 'confirmarEliminar');
   const [texto, setTexto] = useState(comentario.texto);
   const propio = comentario.esMio ?? false;
   const limpio = texto.trim();
@@ -250,10 +254,11 @@ function FilaComentario({ comentario, reporteId }: { comentario: Comentario; rep
           >
             <span className="text-sm">¿Eliminar este comentario?</span>
             <button
+              ref={botonConfirmar}
               type="button"
               onClick={() => eliminar.mutate(comentario.id)}
               disabled={eliminar.isPending}
-              className="rounded-md bg-peligro px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+              className="rounded-md bg-peligro px-3 py-1 text-xs font-semibold text-sobre-peligro disabled:opacity-50"
             >
               Sí, eliminar
             </button>
@@ -272,6 +277,7 @@ function FilaComentario({ comentario, reporteId }: { comentario: Comentario; rep
               </button>
             )}
             <button
+              ref={botonAbrir}
               type="button"
               onClick={() => setModo('confirmarEliminar')}
               className={`${boton} text-peligro`}

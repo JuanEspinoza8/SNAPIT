@@ -7,7 +7,7 @@ import { useFicha } from '../mapa/consultas.js';
 import type { FichaIncidente } from '../mapa/tipos.js';
 import { useReporte } from './consultas.js';
 import { CabeceraProblema, PanelUbicacion, RecorridoDelEstado } from './FichaProblema.js';
-import { BotonMeGusta, ComentariosDelReporte } from './Interacciones.js';
+import { BotonMeGusta, SeccionComentarios } from './Interacciones.js';
 import { Avatar, Carrusel, NombreAutor, urlFoto } from './piezas.js';
 
 /**
@@ -70,7 +70,7 @@ export function PaginaReporte() {
             {ficha.data && ficha.data.cantidadVecinos > 1 && <OtrosVecinos ficha={ficha.data} />}
 
             <div className="rounded-lg border border-borde bg-superficie-alterna p-4">
-              <ComentariosDelReporte reporteId={reporte.data.id} />
+              <SeccionComentarios sobre={{ tipo: 'reporte', id: reporte.data.id }} />
             </div>
           </div>
 

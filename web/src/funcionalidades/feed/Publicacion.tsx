@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
+import type { MouseEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { haceCuanto } from '../../compartido/formato/fechas.js';
 import { DerivadoA } from '../mapa/DerivadoA.js';
@@ -19,13 +19,10 @@ interface Props {
  * cuántos vecinos lo reportaron. Si se resolvió, lo dice arriba de todo.
  *
  * Toda la tarjeta abre la publicación, salvo lo que ya hace otra cosa (el me gusta, los enlaces, las flechas de las
- * fotos). Con el teclado se entra por el nombre del autor, que es un enlace. Al pasar el mouse se marca el borde, y
- * cuando pasa por el centro de la pantalla al scrollear se agranda apenas.
+ * fotos). Con el teclado se entra por el nombre del autor, que es un enlace. Al pasar el mouse se marca el borde.
  */
 export function Publicacion({ publicacion: p, alResaltar }: Props) {
   const navegar = useNavigate();
-  const tarjeta = useRef<HTMLElement>(null);
-  const enElCentro = useEnElCentro(tarjeta);
   const resuelto = p.incidente.estado === 'RESUELTO';
   const vecinos = p.incidente.cantidadVecinos;
   const comentarios = p.cantidadComentarios;
@@ -37,16 +34,13 @@ export function Publicacion({ publicacion: p, alResaltar }: Props) {
 
   return (
     <article
-      ref={tarjeta}
       aria-label={`${p.categoria.nombre}, reporte del ${p.autor.nombre}`}
       onClick={abrir}
       onMouseEnter={() => alResaltar?.(p.id)}
       onMouseLeave={() => alResaltar?.(null)}
       onFocus={() => alResaltar?.(p.id)}
       onBlur={() => alResaltar?.(null)}
-      className={`cursor-pointer overflow-hidden rounded-lg border border-borde bg-superficie-alterna transition duration-300 ease-out hover:border-primario/50 hover:shadow-lg ${
-        enElCentro ? 'motion-safe:scale-[1.01] shadow-md' : ''
-      }`}
+      className="cursor-pointer overflow-hidden rounded-lg border border-borde bg-superficie-alterna transition-colors duration-200 hover:border-primario/50"
     >
       <header className="flex items-center gap-3 p-3">
         <Avatar autor={p.autor} />
@@ -67,7 +61,7 @@ export function Publicacion({ publicacion: p, alResaltar }: Props) {
         </div>
         {resuelto && (
           <span className="rounded-md bg-estado-resuelto px-2 py-0.5 text-xs font-semibold text-sobre-estado">
-            ✓ Resuelto
+            Resuelto
           </span>
         )}
       </header>
@@ -110,7 +104,6 @@ export function Publicacion({ publicacion: p, alResaltar }: Props) {
             to={`/incidente/${p.incidente.id}`}
             className="flex flex-wrap items-center gap-2 rounded-md border border-borde px-3 py-2 text-sm hover:bg-superficie focus-visible:ring-2 focus-visible:ring-primario"
           >
-            <span aria-hidden="true">🔗</span>
             <span className="text-texto-secundario">{vecinos} vecinos reportaron este problema</span>
             <EtiquetaEstado estado={p.incidente.estado} />
           </Link>
@@ -123,24 +116,4 @@ export function Publicacion({ publicacion: p, alResaltar }: Props) {
       </div>
     </article>
   );
-}
-
-/**
- * Si la tarjeta está pasando por la franja del medio de la pantalla. Sin IntersectionObserver (navegadores viejos,
- * los tests) queda en false: la tarjeta se ve igual, sin el efecto.
- */
-function useEnElCentro(elemento: RefObject<HTMLElement | null>) {
-  const [enElCentro, setEnElCentro] = useState(false);
-  useEffect(() => {
-    const actual = elemento.current;
-    if (!actual || typeof IntersectionObserver === 'undefined') return;
-    const observador = new IntersectionObserver(
-      ([entrada]) => setEnElCentro(entrada?.isIntersecting ?? false),
-      // Solo cuenta el 20 % del medio de la pantalla.
-      { rootMargin: '-40% 0px -40% 0px' },
-    );
-    observador.observe(actual);
-    return () => observador.disconnect();
-  }, [elemento]);
-  return enElCentro;
 }

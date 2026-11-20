@@ -158,7 +158,9 @@ describe('inicio: el feed de publicaciones', () => {
     );
     expect(within(bache).getByText('Grave')).toBeInTheDocument();
     expect(within(bache).getByText('Pozo enorme')).toBeInTheDocument();
-    expect(within(bache).getByText(/Derivado al área de/)).toHaveTextContent('Derivado al área de Bacheo');
+    expect(within(bache).getByText(/Le corresponde al área de/)).toHaveTextContent(
+      'Le corresponde al área de Bacheo',
+    );
     expect(within(bache).getByRole('button', { name: 'Me gusta (7 me gusta)' })).toBeInTheDocument();
     expect(within(bache).getByRole('link', { name: 'Ver 4 comentarios' })).toHaveAttribute(
       'href',
@@ -219,7 +221,7 @@ describe('inicio: el feed de publicaciones', () => {
     renderRuta('/', <PaginaInicio />);
 
     const articulo = await screen.findByRole('article', { name: 'Bache, reporte del Vecino 1' });
-    expect(within(articulo).getByText('✓ Resuelto')).toBeInTheDocument();
+    expect(articulo.querySelector('header')).toHaveTextContent('Resuelto');
   });
 
   it('ofrece reportar un problema, también sin sesión', async () => {
@@ -414,7 +416,9 @@ describe('la publicación: comentarios', () => {
     expect(screen.getByText('Reporte del')).toHaveTextContent('Reporte del Vecino 1');
     // El problema, sin ir a otra página: qué es, en qué está, el mapa y sus datos.
     expect(await screen.findByRole('heading', { name: 'Vereda rota', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(/Derivado al área de/)).toHaveTextContent('Derivado al área de Veredas');
+    expect(screen.getByText(/Le corresponde al área de/)).toHaveTextContent(
+      'Le corresponde al área de Veredas',
+    );
     expect(screen.getByRole('region', { name: 'Estado del problema' })).toBeInTheDocument();
     expect(await screen.findByRole('list', { name: 'Mapa simulado' })).toHaveTextContent('Vereda rota');
     const informacion = screen.getByRole('complementary', { name: 'Información' });
@@ -436,15 +440,18 @@ describe('la publicación: comentarios', () => {
     expect(enlace).toHaveAttribute('href', '/incidente/3');
   });
 
-  it('el comentario de SnapIt se ve con su nombre, su logo y la marca de cuenta oficial', async () => {
+  it('el comentario de SnapIt se ve con su nombre, su logo y que es la cuenta oficial', async () => {
     servirPublicacion([
-      comentario(3, { texto: '¡Gracias por tu reporte! Ya fue derivado al área de Bacheo.', autor: snapit }),
+      comentario(3, {
+        texto: '¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de Bacheo.',
+        autor: snapit,
+      }),
     ]);
     abrir();
 
     const fila = (await screen.findByText(/Gracias por tu reporte/)).closest('li')!;
     expect(within(fila).getByText('SnapIt')).toBeInTheDocument();
-    expect(within(fila).getByRole('img', { name: 'cuenta oficial' })).toBeInTheDocument();
+    expect(within(fila).getByText('Cuenta oficial')).toBeInTheDocument();
     expect(fila.querySelector('img')).toBeInTheDocument();
     expect(within(fila).queryByText(/Vecino/)).not.toBeInTheDocument();
   });
@@ -506,6 +513,19 @@ describe('la publicación: comentarios', () => {
     expect(recibidos.map(({ metodo, ruta }) => `${metodo} ${ruta}`)).toEqual(['PATCH 5', 'DELETE 5']);
   });
 
+  it('al pedir eliminar, el foco va a «Sí, eliminar», y con «No» vuelve a «Eliminar»', async () => {
+    ingresarComo('VECINO');
+    servirPublicacion([comentario(5, { texto: 'El mío', autor: vecino1, esMio: true })]);
+    abrir();
+
+    const mio = (await screen.findByText('El mío')).closest('li')!;
+    await userEvent.click(within(mio).getByRole('button', { name: 'Eliminar' }));
+    expect(within(mio).getByRole('button', { name: 'Sí, eliminar' })).toHaveFocus();
+    await userEvent.click(within(mio).getByRole('button', { name: 'No' }));
+
+    expect(within(mio).getByRole('button', { name: 'Eliminar' })).toHaveFocus();
+  });
+
   it('el operador elimina un comentario ajeno, pero no comenta', async () => {
     ingresarComo('OPERADOR');
     const recibidos = servirPublicacion();
@@ -523,8 +543,40 @@ describe('la publicación: comentarios', () => {
 });
 
 describe('la ficha del problema (incidente)', () => {
-  function servirIncidente(cambios: Record<string, unknown> = {}, reportes = [reporte()]) {
+  /** La ficha del incidente 3, con sus reportes y sus comentarios, que cambian según lo que recibe el servidor. */
+  function servirIncidente(
+    cambios: Record<string, unknown> = {},
+    reportes = [reporte()],
+    iniciales: Comentario[] = [],
+  ) {
+    let comentarios = [...iniciales];
+    const recibidos: { metodo: string; ruta: string; cuerpo: unknown }[] = [];
     servidor.use(
+      http.get(`${API}/social/incidentes/3/comentarios`, () =>
+        HttpResponse.json({ incidenteId: 3, comentarios }),
+      ),
+      http.post(`${API}/social/incidentes/3/comentarios`, async ({ request }) => {
+        const cuerpo = (await request.json()) as { texto: string };
+        recibidos.push({ metodo: 'POST', ruta: 'incidentes/3/comentarios', cuerpo });
+        const nuevo = comentario(99, { texto: cuerpo.texto, autor: vecino2, esMio: true });
+        comentarios = [...comentarios, nuevo];
+        return HttpResponse.json(nuevo, { status: 201 });
+      }),
+      http.patch(`${API}/social/comentarios/:id`, async ({ params, request }) => {
+        const cuerpo = (await request.json()) as { texto: string };
+        recibidos.push({ metodo: 'PATCH', ruta: String(params.id), cuerpo });
+        comentarios = comentarios.map((c) =>
+          c.id === Number(params.id)
+            ? { ...c, texto: cuerpo.texto, editadoEn: '2026-10-09T15:15:33.494Z' }
+            : c,
+        );
+        return HttpResponse.json(comentarios.find((c) => c.id === Number(params.id)));
+      }),
+      http.delete(`${API}/social/comentarios/:id`, ({ params }) => {
+        recibidos.push({ metodo: 'DELETE', ruta: String(params.id), cuerpo: null });
+        comentarios = comentarios.filter((c) => c.id !== Number(params.id));
+        return new HttpResponse(null, { status: 204 });
+      }),
       http.get(`${API}/incidentes/3`, () =>
         HttpResponse.json({
           id: 3,
@@ -547,12 +599,13 @@ describe('la ficha del problema (incidente)', () => {
       ),
       http.get(`${API}/social/incidentes/3/reportes`, () => HttpResponse.json({ incidenteId: 3, reportes })),
     );
+    return recibidos;
   }
 
   const abrir = () => renderConSesion('/incidente/3', { '/incidente/:id': <PaginaIncidente /> });
 
-  it('muestra los datos, el mapa y en qué paso está su atención, sin comentarios propios', async () => {
-    servirIncidente();
+  it('muestra los datos, el mapa, en qué paso está su atención y los comentarios del problema', async () => {
+    servirIncidente({}, [reporte()], [comentario(2, { editadoEn: '2026-10-08T15:15:33.494Z' })]);
     abrir();
 
     expect(await screen.findByRole('heading', { name: 'Vereda rota', level: 1 })).toBeInTheDocument();
@@ -571,10 +624,100 @@ describe('la ficha del problema (incidente)', () => {
     ]);
     expect(pasos[2]).toHaveAttribute('aria-current', 'step');
 
-    // Un solo vecino: no hay lista de reportes. Y lo social está en la publicación, no acá.
+    // Un solo vecino: no hay lista de reportes.
     expect(screen.queryByRole('region', { name: 'Reportes de este problema' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Fotos de los vecinos/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Comentarios/)).not.toBeInTheDocument();
+
+    // Los comentarios sobre el problema en general. Sin sesión no hay caja: invita a ingresar.
+    const comentarios = screen.getByRole('region', { name: 'Comentarios' });
+    expect(await within(comentarios).findByText('Confirmo, sigue igual')).toBeInTheDocument();
+    expect(within(comentarios).getByText(/editado/)).toBeInTheDocument();
+    expect(within(comentarios).getByRole('heading', { name: 'Comentarios (1)' })).toBeInTheDocument();
+    expect(within(comentarios).getByRole('link', { name: 'Ingresá' })).toHaveAttribute('href', '/ingreso');
+    expect(within(comentarios).queryByLabelText('Escribí un comentario')).not.toBeInTheDocument();
+  });
+
+  it('el vecino comenta el problema: va al incidente, no a una foto, y aparece en la lista', async () => {
+    ingresarComo('VECINO');
+    const recibidos = servirIncidente();
+    abrir();
+
+    expect(await screen.findByText('Todavía no hay comentarios.')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Escribí un comentario'), '  Hay una escuela cerca  ');
+    await userEvent.click(screen.getByRole('button', { name: 'Comentar' }));
+
+    expect(await screen.findByText('Hay una escuela cerca')).toBeInTheDocument();
+    expect(recibidos).toEqual([
+      { metodo: 'POST', ruta: 'incidentes/3/comentarios', cuerpo: { texto: 'Hay una escuela cerca' } },
+    ]);
+    expect(screen.getByLabelText('Escribí un comentario')).toHaveValue('');
+    expect(screen.getByRole('heading', { name: 'Comentarios (1)' })).toBeInTheDocument();
+  });
+
+  it('un comentario del problema de más de 1000 caracteres no se puede enviar', async () => {
+    ingresarComo('VECINO');
+    servirIncidente();
+    abrir();
+    const caja = await screen.findByLabelText('Escribí un comentario');
+
+    await userEvent.click(caja);
+    await userEvent.paste('a'.repeat(1001));
+
+    expect(screen.getByText('1001/1000')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Comentar' })).toBeDisabled();
+  });
+
+  it('si el servidor rechaza el comentario, lo dice y no cambia nada', async () => {
+    ingresarComo('VECINO');
+    servirIncidente({}, [reporte()], [comentario(2)]);
+    servidor.use(http.post(`${API}/social/incidentes/3/comentarios`, errorDelServidor));
+    abrir();
+
+    await userEvent.type(await screen.findByLabelText('Escribí un comentario'), 'Sigue ahí');
+    await userEvent.click(screen.getByRole('button', { name: 'Comentar' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Algo salió mal');
+    expect(screen.getByLabelText('Escribí un comentario')).toHaveValue('Sigue ahí');
+    expect(screen.getByRole('heading', { name: 'Comentarios (1)' })).toBeInTheDocument();
+  });
+
+  it('edita su comentario del problema y lo elimina con confirmación', async () => {
+    ingresarComo('VECINO');
+    const recibidos = servirIncidente(
+      {},
+      [reporte()],
+      [comentario(5, { texto: 'El mío', autor: vecino1, esMio: true })],
+    );
+    abrir();
+
+    const mio = (await screen.findByText('El mío')).closest('li')!;
+    await userEvent.click(within(mio).getByRole('button', { name: 'Editar' }));
+    await userEvent.clear(within(mio).getByLabelText('Editar el comentario'));
+    await userEvent.paste('El mío, corregido');
+    await userEvent.click(within(mio).getByRole('button', { name: 'Guardar' }));
+    const eliminar = await waitFor(() =>
+      within(screen.getByText('El mío, corregido').closest('li')!).getByRole('button', { name: 'Eliminar' }),
+    );
+    await userEvent.click(eliminar);
+    await userEvent.click(screen.getByRole('button', { name: 'Sí, eliminar' }));
+
+    expect(await screen.findByText('Todavía no hay comentarios.')).toBeInTheDocument();
+    expect(recibidos.map(({ metodo, ruta }) => `${metodo} ${ruta}`)).toEqual(['PATCH 5', 'DELETE 5']);
+  });
+
+  it('el operador elimina un comentario ajeno del problema, pero no comenta', async () => {
+    ingresarComo('OPERADOR');
+    const recibidos = servirIncidente({}, [reporte()], [comentario(2)]);
+    abrir();
+
+    const fila = (await screen.findByText('Confirmo, sigue igual')).closest('li')!;
+    expect(screen.queryByLabelText('Escribí un comentario')).not.toBeInTheDocument();
+    expect(within(fila).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    await userEvent.click(within(fila).getByRole('button', { name: 'Eliminar' }));
+    await userEvent.click(within(fila).getByRole('button', { name: 'Sí, eliminar' }));
+
+    expect(await screen.findByText('Todavía no hay comentarios.')).toBeInTheDocument();
+    expect(recibidos.map(({ metodo, ruta }) => `${metodo} ${ruta}`)).toEqual(['DELETE 2']);
   });
 
   it('si lo reportaron varios vecinos, lista sus reportes y cada uno lleva a su publicación', async () => {

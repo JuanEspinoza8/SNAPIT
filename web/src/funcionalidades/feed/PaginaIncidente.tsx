@@ -10,12 +10,14 @@ import {
   RecorridoDelEstado,
   ReportesDelProblema,
 } from './FichaProblema.js';
+import { SeccionComentarios } from './Interacciones.js';
 import { Carrusel } from './piezas.js';
 
 /**
- * La ficha del problema (el incidente): sus fotos, en qué está su atención y la lista de los reportes de los
- * vecinos. Se llega desde el mapa, los avisos y las publicaciones de un problema que reportaron varios. Lo social
- * (me gusta y comentarios) va en cada publicación, no acá.
+ * La ficha del problema (el incidente): sus fotos, en qué está su atención, la lista de los reportes de los
+ * vecinos y los comentarios sobre el problema en general (#151). Se llega desde el mapa, los avisos y las
+ * publicaciones de un problema que reportaron varios. El me gusta y los comentarios de cada foto van en su
+ * publicación.
  */
 export function PaginaIncidente() {
   const id = Number(useParams().id);
@@ -57,6 +59,10 @@ export function PaginaIncidente() {
 
             <RecorridoDelEstado ficha={ficha.data} />
             {ficha.data.cantidadVecinos > 1 && <ReportesDelProblema id={ficha.data.id} />}
+
+            <div className="rounded-lg border border-borde bg-superficie-alterna p-4">
+              <SeccionComentarios sobre={{ tipo: 'incidente', id: ficha.data.id }} />
+            </div>
           </div>
 
           <PanelUbicacion ficha={ficha.data} />

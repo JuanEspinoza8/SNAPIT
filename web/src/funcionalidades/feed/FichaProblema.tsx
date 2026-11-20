@@ -132,8 +132,8 @@ export function AntesYDespues({
 }
 
 /**
- * En qué está la atención del problema: los pasos de registrado a resuelto, con los ya cumplidos marcados y el
- * actual resaltado. Las fechas que se conocen (el primer reporte y la resolución) van debajo de su paso.
+ * En qué está la atención del problema: los pasos de registrado a resuelto, con los ya cumplidos rellenos de su
+ * color y el actual resaltado. Las fechas que se conocen (el primer reporte y la resolución) van debajo de su paso.
  */
 export function RecorridoDelEstado({ ficha }: { ficha: FichaIncidente }) {
   const actual = ORDEN_ESTADOS.indexOf(ficha.estado);
@@ -165,7 +165,7 @@ export function RecorridoDelEstado({ ficha }: { ficha: FichaIncidente }) {
                     : 'border border-borde text-texto-secundario'
                 } ${indice === actual ? 'ring-2 ring-primario ring-offset-2 ring-offset-superficie-alterna' : ''}`}
               >
-                {hecho ? '✓' : indice + 1}
+                {indice + 1}
               </span>
               <span className="text-sm">
                 <span className={hecho ? 'font-semibold text-texto' : 'text-texto-secundario'}>

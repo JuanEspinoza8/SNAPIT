@@ -164,18 +164,14 @@ export function Avatar({ autor, chico = false }: { autor: Autor; chico?: boolean
   );
 }
 
-/** El nombre de quien comentó. SnapIt lleva una marca de cuenta oficial, para que no se confunda con un vecino. */
+/** El nombre de quien comentó. SnapIt dice que es la cuenta oficial, para que no se confunda con un vecino. */
 export function NombreAutor({ autor }: { autor: Autor }) {
   return (
-    <span className="inline-flex items-center gap-1 font-semibold">
+    <span className="inline-flex items-center gap-1.5 font-semibold">
       {autor.nombre}
       {autor.sistema && (
-        <span
-          role="img"
-          aria-label="cuenta oficial"
-          className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primario text-xs leading-none text-sobre-primario"
-        >
-          ✓
+        <span className="rounded-md border border-borde px-1.5 text-xs font-semibold text-texto-secundario">
+          Cuenta oficial
         </span>
       )}
     </span>

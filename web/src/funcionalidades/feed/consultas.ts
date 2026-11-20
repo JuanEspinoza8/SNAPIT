@@ -60,47 +60,81 @@ export function useReporte(id: number) {
   });
 }
 
-export function useComentariosDeReporte(id: number) {
+/**
+ * Sobre qué se comenta: la foto de un vecino (un reporte, en su publicación) o el problema en general (el
+ * incidente, en su ficha).
+ */
+export interface Comentable {
+  tipo: 'reporte' | 'incidente';
+  id: number;
+}
+
+const RUTA_SOCIAL: Record<Comentable['tipo'], string> = {
+  reporte: 'social/reportes',
+  incidente: 'social/incidentes',
+};
+
+/** Los comentarios de un reporte o de un incidente, del más viejo al más nuevo. */
+export function useComentarios(sobre: Comentable) {
   const { pedir, quien } = usePedir();
   return useQuery({
-    queryKey: ['reporte', id, 'comentarios', quien],
+    queryKey: [sobre.tipo, sobre.id, 'comentarios', quien],
     queryFn: async () =>
-      (await pedir<{ comentarios: Comentario[] }>(`social/reportes/${id}/comentarios`)).comentarios,
+      (await pedir<{ comentarios: Comentario[] }>(`${RUTA_SOCIAL[sobre.tipo]}/${sobre.id}/comentarios`))
+        .comentarios,
   });
 }
 
-/**
- * Dar me gusta, comentar, editar y eliminar comentarios de un reporte (#151). Cada acción, al salir bien, vuelve
- * a pedir lo que muestra los contadores: el feed, la publicación y la lista del incidente. Si falla, no cambia
- * nada en pantalla: quien la usa muestra el error.
- */
-export function useAccionesSociales(reporteId: number) {
+/** Las acciones van con sesión. Si fallan, no cambia nada en pantalla: quien las usa muestra el error. */
+function usePedirConSesion() {
   const cliente = useCliente();
-  const consulta = useQueryClient();
-  const pedir = async <T>(ruta: string, opciones: OpcionesPeticion) => {
+  return async <T>(ruta: string, opciones: OpcionesPeticion) => {
     try {
       return await cliente.pedir<T>(ruta, opciones);
     } catch (error) {
       throw aErrorApi(error);
     }
   };
-  const refrescar = async () => {
+}
+
+/**
+ * Al salir bien una acción se vuelve a pedir lo que la muestra: el feed, la publicación o la ficha y sus
+ * comentarios, y las listas del incidente (sus contadores, y quién es cada «Vecino N»).
+ */
+function useRefrescar(sobre: Comentable) {
+  const consulta = useQueryClient();
+  return async () => {
     await Promise.all([
       consulta.invalidateQueries({ queryKey: ['feed'] }),
-      consulta.invalidateQueries({ queryKey: ['reporte', reporteId] }),
+      consulta.invalidateQueries({ queryKey: [sobre.tipo, sobre.id] }),
       consulta.invalidateQueries({ queryKey: ['incidente'] }),
     ]);
   };
+}
+
+/** Dar o quitar el me gusta de un reporte (#151): solo las fotos tienen me gusta. */
+export function useMeGusta(reporteId: number) {
+  const pedir = usePedirConSesion();
+  const refrescar = useRefrescar({ tipo: 'reporte', id: reporteId });
+  return useMutation({
+    mutationFn: (dar: boolean) =>
+      pedir(`social/reportes/${reporteId}/me-gusta`, { metodo: dar ? 'POST' : 'DELETE' }),
+    onSuccess: refrescar,
+  });
+}
+
+/** Comentar un reporte o un incidente, y editar o eliminar sus comentarios (#151). */
+export function useAccionesSociales(sobre: Comentable) {
+  const pedir = usePedirConSesion();
+  const refrescar = useRefrescar(sobre);
 
   return {
-    meGusta: useMutation({
-      mutationFn: (dar: boolean) =>
-        pedir(`social/reportes/${reporteId}/me-gusta`, { metodo: dar ? 'POST' : 'DELETE' }),
-      onSuccess: refrescar,
-    }),
     comentar: useMutation({
       mutationFn: (texto: string) =>
-        pedir<Comentario>(`social/reportes/${reporteId}/comentarios`, { metodo: 'POST', cuerpo: { texto } }),
+        pedir<Comentario>(`${RUTA_SOCIAL[sobre.tipo]}/${sobre.id}/comentarios`, {
+          metodo: 'POST',
+          cuerpo: { texto },
+        }),
       onSuccess: refrescar,
     }),
     editar: useMutation({
