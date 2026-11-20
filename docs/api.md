@@ -36,7 +36,7 @@ Todas las respuestas de error tienen el mismo formato:
 | 409 | Conflicto, por ejemplo un correo ya registrado |
 | 413 | El cuerpo supera 1 MB (`CUERPO_DEMASIADO_GRANDE`) |
 | 415 | Codificación o compresión del cuerpo no soportada (`FORMATO_NO_SOPORTADO`) |
-| 422 | Los datos tienen la forma correcta, pero no se puede hacer lo pedido (por ejemplo, un recorrido sin camino posible) |
+| 422 | Los datos tienen la forma correcta, pero no se puede hacer lo pedido (por ejemplo, un recorrido sin camino posible o una pregunta que no se entiende) |
 | 500 | Error inesperado (`ERROR_INTERNO`): nunca incluye detalles internos |
 | 503 | Un servicio externo no responde: la IA (`IA_NO_DISPONIBLE`) o Nominatim (`GEOCODIFICACION_NO_DISPONIBLE`) |
 
@@ -875,6 +875,43 @@ Cualquier otra responde igual que una que no existe: **404** `FOTO_NO_ENCONTRADA
 - **Con sesión**, el token va en el encabezado `Authorization: Bearer ...`, como en cualquier ruta protegida. Un `<img>` o `Image.network` no lo mandan: la web baja el archivo con su cliente y lo muestra desde una URL local (`FotoConSesion`), y la app lo baja con dio. Es lo que hace «mis reportes» y lo que va a usar la ficha de gestión del operador.
 - Si el token venció o no es válido, responde **401** (`TOKEN_VENCIDO` o `TOKEN_INVALIDO`) aunque la foto sea del mapa: el cliente renueva la sesión y la vuelve a pedir.
 - Caché de una hora: `Cache-Control: public, max-age=3600` sin sesión y `private, max-age=3600` con sesión (solo la guarda el navegador de quien la pidió). Todas llevan `Vary: Authorization`.
+
+## Consulta en lenguaje natural
+
+### `POST /api/consultas/interpretar`
+Traduce una pregunta con palabras propias a los filtros de [`GET /api/incidentes`](#get-apiincidentes) (F15). Requiere sesión, de cualquier rol. La IA **solo propone los filtros**: no busca ni ve ningún incidente. La búsqueda la hace después el cliente, con esos filtros, en el mapa.
+
+```json
+{ "texto": "¿Qué pozos hay en el centro este mes?" }
+```
+
+`texto` es obligatorio, de hasta 500 caracteres (sin contar los espacios de los bordes). Responde **200**:
+
+```json
+{
+  "filtros": {
+    "categoriaId": 1,
+    "estado": null,
+    "desde": "2026-11-01",
+    "hasta": "2026-11-13",
+    "barrio": "Área Centro Este"
+  },
+  "descripcion": "Entendí: categoría Pozo en la calzada, barrio Área Centro Este, reportados del 01/11/2026 al 13/11/2026.",
+  "registroIaId": 52
+}
+```
+
+- Un filtro que no aplica va en `null`: al llamar a `GET /api/incidentes` se manda solo el resto. Las fechas son días (`AAAA-MM-DD`), así que el mapa toma el día completo en hora de Argentina.
+- A la IA se le pasan la fecha de hoy, las categorías activas, los estados que se ven en el mapa y los barrios de [`GET /api/barrios`](#get-apibarrios). Lo que propone se valida contra esas listas, sin distinguir mayúsculas ni tildes, y se devuelve escrito como en la lista.
+- Lo que no está en las listas se **descarta** y se avisa al final de `descripcion`, por ejemplo: `No hay una categoría «semáforos»: no se filtra por categoría.` Lo mismo con un barrio sin problemas en el mapa, un estado que no se ve en el mapa o un período que termina antes de empezar. Si se descarta todo, la respuesta es igual 200 y busca todos los problemas.
+- `descripcion` la arma el servidor con los filtros ya validados: es lo que la app muestra para que el usuario confirme o corrija antes de buscar.
+- Cada llamada a la IA queda en `registro_ia` (tipo `CONSULTA_NATURAL`) con el usuario, salga bien o mal.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta `texto`, no es un texto o tiene más de 500 caracteres |
+| 401 | `NO_AUTENTICADO` | Sin sesión |
+| 422 | `CONSULTA_NO_ENTENDIDA` | El texto está vacío, no es una pregunta sobre problemas de la vía pública, o la IA no respondió o respondió algo inválido. El mensaje sugiere usar los filtros: la app ofrece los filtros comunes. |
 
 ## Social
 Likes y comentarios del feed (por ahora solo para leer). Rutas públicas, sin sesión, como el mapa. Van bajo `/api/social` para no chocar con las del operador: `POST /api/incidentes/:id/comentarios` es la bitácora, no un comentario público. Lo de cada **reporte** (una foto de un vecino) va aparte de lo del **incidente** (el problema en general).
