@@ -8,7 +8,7 @@ import { ESTADOS_BANDEJA } from './esquemas.js';
  * El incidente con su categoría (`c`) y su área responsable (`a`): la del área a la que se derivó o, si
  * todavía no se derivó, la de su categoría. El organismo del incidente es el de esa área.
  */
-const CON_AREA = Prisma.sql`
+export const CON_AREA = Prisma.sql`
   FROM incidente i
   JOIN categoria c ON c.id = i.categoria_id
   JOIN area a ON a.id = coalesce(i.area_id, c.area_id)`;
