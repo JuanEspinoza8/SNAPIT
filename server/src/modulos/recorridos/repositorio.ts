@@ -1,6 +1,12 @@
 import { Prisma } from '@prisma/client';
 import { logger } from '../../config/logger.js';
-import { type DefinicionParametros, leerParametrosNumericos, positivo } from '../../compartido/parametros.js';
+import {
+  type DefinicionParametros,
+  definirParametros,
+  leerParametrosNumericos,
+  leerTablaParametros,
+  positivo,
+} from '../../compartido/parametros.js';
 import { prisma } from '../../compartido/prisma.js';
 import { INCIDENTE_VISIBLE } from '../incidentes/repositorio.js';
 import {
@@ -14,12 +20,12 @@ import {
 import type { Punto } from './esquemas.js';
 
 // Los mismos valores que carga la semilla.
-const PARAMETROS: DefinicionParametros<keyof ParametrosRecorrido> = {
+const PARAMETROS: DefinicionParametros<keyof ParametrosRecorrido> = definirParametros({
   distanciaMaxAlNodoM: { clave: 'ruteo.distancia_max_al_nodo_m', valor: 100, valido: positivo },
   velocidadMPorMin: { clave: 'ruteo.velocidad_m_por_min', valor: 50, valido: positivo },
   pendienteMaxPorcentaje: { clave: 'ruteo.pendiente_max_porcentaje', valor: 8, valido: positivo },
   anchoMinM: { clave: 'ruteo.ancho_min_m', valor: 0.9, valido: positivo },
-};
+});
 
 export const leerParametros = () => leerParametrosNumericos(PARAMETROS);
 
@@ -28,9 +34,7 @@ export const leerParametros = () => leerParametrosNumericos(PARAMETROS);
  * sin clave no le cambia el costo: así un perfil nuevo no tiene reglas hasta que se le cargan.
  */
 export async function leerReglasPerfil(perfilId: number): Promise<ReglasPerfil> {
-  const claves = REGLAS_TRAMO.map((regla) => claveRegla(regla, perfilId));
-  const filas = await prisma.parametroSistema.findMany({ where: { clave: { in: claves } } });
-  const valores = new Map(filas.map((fila) => [fila.clave, fila.valor]));
+  const valores = await leerTablaParametros();
 
   const reglas: ReglasPerfil = {};
   for (const regla of REGLAS_TRAMO) {

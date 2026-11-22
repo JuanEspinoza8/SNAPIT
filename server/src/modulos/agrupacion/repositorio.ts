@@ -3,6 +3,7 @@ import { contarUnos, distanciaHammingSql } from '../../compartido/hashPerceptual
 import {
   bitsDelHash,
   type DefinicionParametros,
+  definirParametros,
   leerParametrosNumericos,
   noNegativo,
   positivo,
@@ -18,7 +19,7 @@ import { avisarCambioDeEstado } from '../avisos/disparar.js';
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se agrupa igual con estos. El radio y la
 // ventana dividen en el puntaje, así que tienen que ser positivos; un peso en 0 apaga ese término.
-const PARAMETROS: DefinicionParametros<keyof ParametrosAgrupacion> = {
+const PARAMETROS: DefinicionParametros<keyof ParametrosAgrupacion> = definirParametros({
   radioM: { clave: 'agrupacion.radio_m', valor: 30, valido: positivo },
   ventanaDias: { clave: 'agrupacion.ventana_dias', valor: 30, valido: positivo },
   pesoDistancia: { clave: 'agrupacion.peso_distancia', valor: 0.5, valido: noNegativo },
@@ -26,7 +27,7 @@ const PARAMETROS: DefinicionParametros<keyof ParametrosAgrupacion> = {
   pesoFoto: { clave: 'agrupacion.peso_foto', valor: 0.3, valido: noNegativo },
   umbral: { clave: 'agrupacion.umbral', valor: 0.5, valido: noNegativo },
   unosMinimosHash: { clave: 'agrupacion.unos_minimos_hash', valor: 16, valido: bitsDelHash },
-};
+});
 
 /** Los parámetros agrupacion.* de parametro_sistema. */
 export function leerParametros(): Promise<ParametrosAgrupacion> {

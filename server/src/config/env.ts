@@ -30,6 +30,9 @@ const esquema = z
       .default('fotos')
       .transform((carpeta) => path.resolve(carpeta)),
     FOTO_MAX_MB: z.coerce.number().positive().default(10),
+    // Cuánto dura la copia de parametro_sistema que leen los cálculos (#167). Guardar un parámetro la invalida;
+    // un cambio hecho a mano en la base se ve después de esto. 0 la apaga (los tests).
+    PARAMETROS_CACHE_MS: z.coerce.number().int().nonnegative().default(60_000),
     // Dónde se guardan las fotos: en FOTOS_DIR o en Supabase Storage (la demo publicada, #118).
     FOTOS_ALMACEN: z.enum(['disco', 'supabase']).default('disco'),
     // Sin barra final, para armar `${SUPABASE_URL}/storage/v1/...`. Vacía cuenta como ausente.

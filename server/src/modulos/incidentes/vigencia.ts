@@ -1,16 +1,21 @@
 import type { Categoria, Prisma } from '@prisma/client';
-import { type DefinicionParametros, leerParametrosNumericos } from '../../compartido/parametros.js';
+import {
+  type DefinicionParametros,
+  definirParametros,
+  enteroPositivo,
+  leerParametrosNumericos,
+} from '../../compartido/parametros.js';
 import { prisma } from '../../compartido/prisma.js';
 import { type Vigencia, vigenciaRenovada, vigenciaSegunCategoria } from './calculo.js';
 
 // El mismo valor que carga la semilla: si falta el parámetro, antes que rechazar el reporte se usa este.
-const PARAMETROS: DefinicionParametros<'diasPorDefecto'> = {
+const PARAMETROS: DefinicionParametros<'diasPorDefecto'> = definirParametros({
   diasPorDefecto: {
     clave: 'vigencia.dias_default',
     valor: 30,
-    valido: (dias) => Number.isInteger(dias) && dias > 0,
+    valido: enteroPositivo,
   },
-};
+});
 
 /**
  * La vigencia de la categoría contada desde `desde`, con vigencia.dias_default para un temporal que no define

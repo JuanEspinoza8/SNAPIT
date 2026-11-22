@@ -1621,6 +1621,57 @@ Lo que se puede elegir al dar de alta un operador. Responde **200** con los orga
 
 Un organismo activo sin áreas activas viene con `"areas": []`: sirve para un administrador, no para un operador.
 
+Con `?todos=true` es la lista de la administración de organismos y áreas (#165): todos los organismos, también los inactivos, y todas sus áreas, con más datos. `categoriasActivas` es cuántas categorías activas tiene el área: mientras tenga alguna, no se puede dar de baja.
+
+```json
+{
+  "organismos": [{
+    "id": 1, "nombre": "Municipalidad de Neuquén", "descripcion": null, "activo": true, "creadoEn": "2026-10-01T12:00:00.000Z",
+    "areas": [{ "id": 3, "nombre": "Bacheo", "descripcion": "Calles y pavimento", "activa": true, "creadoEn": "2026-10-01T12:00:00.000Z", "categoriasActivas": 2 }]
+  }]
+}
+```
+
+Un `todos` que no sea `true` ni `false`: **400** `DATOS_INVALIDOS`.
+
+### Organismos y áreas
+Nada se borra: dar de baja es una **baja lógica** (`organismo.activo` y `area.activa` en false). Un área inactiva no recibe derivaciones (`POST /api/incidentes/:id/derivacion` responde 400) ni se ofrece al dar de alta operadores, pero sus incidentes siguen como estaban, con su área y su estado. Los operadores de un área o un organismo dados de baja no se tocan: se les cambia el destino desde los usuarios.
+
+Los nombres se comparan sin importar mayúsculas ni los espacios de los costados: un organismo no repite el nombre de otro, y un área no repite el de otra **de su mismo organismo** (cualquiera de los dos, activo o no). La `descripcion` es opcional, hasta 1000 caracteres; vacía queda en `null`.
+
+#### `POST /api/admin/organismos`
+```json
+{ "nombre": "Vialidad Provincial", "descripcion": "Rutas provinciales" }
+```
+`nombre`, hasta 150 caracteres. Responde **201** con `{ "organismo": { "id", "nombre", "descripcion", "activo", "creadoEn" } }`.
+
+#### `PUT /api/admin/organismos/:id`
+El mismo cuerpo, más `activo` opcional: si no viene, queda como está; `true` lo reactiva y `false` es la misma baja que el `DELETE`, con sus controles. Responde **200** con `{ "organismo": { ... } }`.
+
+#### `DELETE /api/admin/organismos/:id`
+Lo da de baja. Responde **204**; si ya estaba inactivo, no hace nada y también responde 204.
+
+#### `POST /api/admin/areas`
+```json
+{ "organismoId": 1, "nombre": "Alumbrado", "descripcion": "Luminarias y columnas" }
+```
+`nombre`, hasta 120 caracteres. El organismo tiene que existir y estar activo. Responde **201** con `{ "area": { "id", "organismoId", "nombre", "descripcion", "activa", "creadoEn" } }`.
+
+#### `PUT /api/admin/areas/:id`
+`nombre`, `descripcion` y `activa` opcional, como en el organismo. El organismo de un área **no cambia**: sus incidentes y sus operadores son de ese organismo. Responde **200** con `{ "area": { ... } }`.
+
+#### `DELETE /api/admin/areas/:id`
+La da de baja. Responde **204**; si ya estaba inactiva, no hace nada.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Algún campo no cumple, o al crear un área el organismo no existe o está inactivo. `detalles` dice cuál |
+| 404 | `ORGANISMO_NO_ENCONTRADO` / `AREA_NO_ENCONTRADA` | No existe |
+| 409 | `NOMBRE_EN_USO` | Ya hay un organismo con ese nombre, o un área con ese nombre en el organismo |
+| 409 | `ORGANISMO_CON_AREAS_ACTIVAS` | Dar de baja un organismo que tiene áreas activas. El mensaje dice cuáles |
+| 409 | `AREA_CON_CATEGORIAS_ACTIVAS` | Dar de baja un área con categorías activas: los reportes de esas categorías seguirían llegando a un área que no recibe derivaciones. El mensaje dice cuáles; primero se pasan a otra área o se dan de baja |
+| 409 | `ORGANISMO_INACTIVO` | Reactivar un área de un organismo inactivo: primero se reactiva el organismo |
+
 ### `POST /api/admin/usuarios`
 Da de alta un operador o un administrador. Los vecinos no se crean acá: se registran solos.
 
@@ -1667,3 +1718,104 @@ Responde **200** con `{ "usuario": { ... } }`.
 Da de baja a un usuario: **baja lógica** (`eliminado_en`). No puede volver a ingresar y se cierran sus sesiones, pero lo que hizo (reportes, revisiones, movimientos de la bitácora) sigue a su nombre. Responde **204**.
 
 Mismos errores que la modificación: `USUARIO_NO_ENCONTRADO`, `SOBRE_SI_MISMO` (darse de baja a sí mismo), `ULTIMO_ADMINISTRADOR` y `USUARIO_DEL_SISTEMA`.
+
+### Parámetros del sistema
+Los valores con los que calculan la verificación, la agrupación, la prioridad, el cierre, la vigencia y los recorridos (`parametro_sistema`, #167). Están explicados en [`docs/calculos.md`](calculos.md).
+
+#### `GET /api/admin/parametros`
+Responde **200** con todos, ordenados por clave (así quedan juntos los de cada cálculo: `agrupacion.*`, `prioridad.*`…):
+
+```json
+{ "parametros": [{ "clave": "agrupacion.radio_m", "valor": "30", "tipo": "entero", "descripcion": "Distancia máxima, en metros, entre un reporte nuevo y un incidente candidato" }] }
+```
+
+`valor` es siempre texto. `tipo` es `entero`, `decimal` o `factor` (las reglas de los tramos por perfil, `ruteo.<regla>.perfil_<id>`: un número mayor que 0 o `intransitable`).
+
+#### `PUT /api/admin/parametros`
+Cambia el valor de uno o varios. Se guardan **todos o ninguno**: si uno no es válido, no se guarda ninguno.
+
+```json
+{ "parametros": [{ "clave": "agrupacion.radio_m", "valor": "40" }, { "clave": "ruteo.escalera.perfil_1", "valor": "intransitable" }] }
+```
+
+- `valor` puede ir como número o como texto. Se valida por su **tipo** (un `entero` sin decimales; un `decimal` con punto, no coma; un `factor` mayor que 0 o `intransitable`) y por la **regla de su clave**, la misma con la que la lee el cálculo (por ejemplo, un radio tiene que ser mayor que 0, un peso no puede ser negativo).
+- La clave y el tipo no se cambian ni se crean desde acá: los parámetros nuevos los agrega la semilla.
+- **El cambio se usa en el próximo cálculo**, sin reiniciar el servidor. Los cálculos leen los parámetros de una copia que dura 60 s (`PARAMETROS_CACHE_MS`) y que guardar invalida. Un cambio hecho a mano en la base se ve a lo sumo 60 s después.
+- Lo ya calculado no se recalcula: la prioridad de cada incidente se pone al día con el próximo cambio o con la tarea diaria. La excepción es `ruteo.radio_obstruccion_m`: si cambia, se recalculan los tramos que obstruye cada incidente.
+
+Responde **200** con `{ "parametros": [ ... ] }`: los guardados, con la forma del `GET`.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | La lista está vacía, una clave viene repetida o un valor no cumple. En `detalles`, `campo` es la **clave** del parámetro |
+| 404 | `PARAMETRO_NO_ENCONTRADO` | Alguna clave no existe. El mensaje dice cuál |
+
+### Categorías y perfiles de movilidad
+Las categorías de problemas, los perfiles de movilidad y la matriz categoría × perfil (#166). Nada se borra: dar de baja es una **baja lógica** (`categoria.activa`, `perfil_movilidad.activo`). Los nombres no se repiten, sin importar mayúsculas: **409** `NOMBRE_EN_USO`. La `descripcion` es opcional, hasta 1000 caracteres; vacía queda en `null`.
+
+#### `GET /api/admin/categorias`
+Todas, también las inactivas, ordenadas por nombre, con su fila de la matriz:
+
+```json
+{
+  "categorias": [{
+    "id": 1, "nombre": "Pozo en la calzada", "descripcion": "...",
+    "area": { "id": 3, "nombre": "Bacheo", "activa": true },
+    "tipoVigenciaDefault": "PERMANENTE", "diasCaducidadDefault": null, "pesoSeveridadBase": 1.2, "activa": true,
+    "perfiles": [{ "perfilMovilidadId": 1, "nombre": "Silla de ruedas", "activo": true, "intransitable": true, "factorPenalizacion": 1 }]
+  }]
+}
+```
+
+#### `POST /api/admin/categorias` y `PUT /api/admin/categorias/:id`
+```json
+{ "nombre": "Pozo en la calzada", "descripcion": "...", "areaId": 3, "tipoVigenciaDefault": "TEMPORAL", "diasCaducidadDefault": 30, "pesoSeveridadBase": 1.2 }
+```
+
+- `nombre`, hasta 80 caracteres. `areaId`: un área que exista y esté **activa**.
+- `tipoVigenciaDefault`: `PERMANENTE` o `TEMPORAL`. `diasCaducidadDefault` solo para una temporal (entero de 1 a 3650); sin días, usa `vigencia.dias_default`.
+- `pesoSeveridadBase`: mayor que 0, hasta 99,99, con dos decimales como máximo. Multiplica la gravedad en la prioridad.
+- En el `PUT`, `activa` opcional: sin ella queda como está; `true` la reactiva (su área tiene que estar activa) y `false` es la baja.
+
+El alta responde **201** con `{ "categoria": { ... } }` y crea su **fila de la matriz para cada perfil**, en factor 1 y transitable: sin efecto hasta que se ajuste. La modificación responde **200** con `{ "categoria": { ... }, "prioridadesRecalculadas": 4 }`:
+
+- Si cambia el **peso**, se recalcula en el momento la prioridad de sus incidentes abiertos (los mismos que el recálculo diario). `prioridadesRecalculadas` dice cuántos.
+- Si cambia la **vigencia**, vale para los incidentes nuevos: cada incidente guardó la suya al crearse.
+- Si cambia el **área**, los incidentes que todavía no se derivaron pasan a la nueva, y a su organismo.
+
+#### `DELETE /api/admin/categorias/:id`
+La da de baja: deja de ofrecerse al reportar y a la IA. Sus incidentes y reportes siguen como estaban. Responde **204**, también si ya estaba inactiva.
+
+#### `PUT /api/admin/categorias/:id/perfiles`
+Cambia celdas de la matriz: cuánto le estorba un incidente de esta categoría a cada perfil en el [recorrido](#get-apirecorridos). Las que no vienen quedan como están.
+
+```json
+{ "perfiles": [{ "perfilMovilidadId": 1, "intransitable": true, "factorPenalizacion": 1 }, { "perfilMovilidadId": 2, "intransitable": false, "factorPenalizacion": 2.5 }] }
+```
+
+`factorPenalizacion`: mayor que 0, hasta 999,99, con dos decimales como máximo (1 no cambia el costo). Responde **200** con `{ "perfiles": [ ... ] }`: la fila entera de la categoría.
+
+#### `GET /api/admin/perfiles-movilidad`
+Todos, también los inactivos, ordenados por nombre, con sus **reglas de tramo** (`ruteo.<regla>.perfil_<id>`; `valor` en null si no tiene esa regla):
+
+```json
+{ "perfiles": [{ "id": 1, "nombre": "Silla de ruedas", "descripcion": "...", "activo": true, "reglas": [{ "regla": "escalera", "clave": "ruteo.escalera.perfil_1", "valor": "intransitable" }] }] }
+```
+
+Las reglas se cambian como cualquier parámetro, con [`PUT /api/admin/parametros`](#put-apiadminparametros).
+
+#### `POST /api/admin/perfiles-movilidad` y `PUT /api/admin/perfiles-movilidad/:id`
+```json
+{ "nombre": "Muletas", "descripcion": "Camina con muletas" }
+```
+
+`nombre`, hasta 60 caracteres. En el `PUT`, `activo` opcional, como en las categorías. El alta responde **201** con `{ "perfil": { ... } }` y crea su **fila de la matriz para cada categoría** y sus **reglas de tramo**, todo en factor 1. La modificación responde **200** con `{ "perfil": { ... } }`; si cambia el nombre, se actualiza la descripción de sus reglas.
+
+#### `DELETE /api/admin/perfiles-movilidad/:id`
+Lo da de baja: deja de ofrecerse en los recorridos (pedir uno con este perfil da **400**) y quien lo tenía como perfil por defecto (`perfilMovilidadId`) queda sin perfil. Responde **204**.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Algún campo no cumple, el área no existe o está inactiva, o un perfil de la matriz no existe o viene repetido. `detalles` dice cuál |
+| 404 | `CATEGORIA_NO_ENCONTRADA` / `PERFIL_NO_ENCONTRADO` | No existe |
+| 409 | `NOMBRE_EN_USO` | Ya hay una categoría o un perfil con ese nombre |

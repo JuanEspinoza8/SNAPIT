@@ -1,6 +1,7 @@
 import { type EstadoIncidente, Prisma, type ResultadoComparacion } from '@prisma/client';
 import {
   type DefinicionParametros,
+  definirParametros,
   leerParametrosNumericos,
   noNegativo,
 } from '../../compartido/parametros.js';
@@ -12,9 +13,9 @@ import type { ParametrosCierre } from './calculo.js';
 type Tx = Prisma.TransactionClient;
 
 // El mismo valor que carga la semilla: si falta el parámetro, se decide con este.
-const PARAMETROS: DefinicionParametros<keyof ParametrosCierre> = {
+const PARAMETROS: DefinicionParametros<keyof ParametrosCierre> = definirParametros({
   distanciaMaxM: { clave: 'cierre.distancia_max_m', valor: 50, valido: noNegativo },
-};
+});
 
 /** Los parámetros cierre.* de parametro_sistema. */
 export function leerParametros(): Promise<ParametrosCierre> {

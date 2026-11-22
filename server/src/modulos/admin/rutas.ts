@@ -9,8 +9,34 @@ export const rutasAdmin = Router();
 // Todo lo que cuelga de /api/admin es solo para administradores, también las rutas que se agreguen después.
 rutasAdmin.use(autenticar, permitirRoles('ADMINISTRADOR'));
 
-rutasAdmin.get('/organismos', async (_req, res) => {
-  res.json(await servicio.listarOrganismos());
+rutasAdmin.get('/organismos', async (req, res) => {
+  res.json(await servicio.listarOrganismos(req.query));
+});
+
+rutasAdmin.post('/organismos', async (req, res) => {
+  res.status(201).json(await servicio.crearOrganismo(req.body));
+});
+
+rutasAdmin.put('/organismos/:id', async (req, res) => {
+  res.json(await servicio.modificarOrganismo(req.params, req.body));
+});
+
+rutasAdmin.delete('/organismos/:id', async (req, res) => {
+  await servicio.darDeBajaOrganismo(req.params);
+  res.status(204).end();
+});
+
+rutasAdmin.post('/areas', async (req, res) => {
+  res.status(201).json(await servicio.crearArea(req.body));
+});
+
+rutasAdmin.put('/areas/:id', async (req, res) => {
+  res.json(await servicio.modificarArea(req.params, req.body));
+});
+
+rutasAdmin.delete('/areas/:id', async (req, res) => {
+  await servicio.darDeBajaArea(req.params);
+  res.status(204).end();
 });
 
 rutasAdmin.post('/usuarios', async (req, res) => {

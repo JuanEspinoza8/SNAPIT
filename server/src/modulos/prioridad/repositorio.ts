@@ -1,6 +1,7 @@
 import { type EstadoIncidente, Prisma } from '@prisma/client';
 import {
   type DefinicionParametros,
+  definirParametros,
   leerParametrosNumericos,
   noNegativo,
   positivo,
@@ -11,7 +12,7 @@ import type { ParametrosPrioridad, PuntoCercano, ResultadoPrioridad } from './ca
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se calcula igual con estos. Los topes
 // dividen, así que tienen que ser positivos; un peso o un factor en 0 apaga esa parte.
-const PARAMETROS: DefinicionParametros<keyof ParametrosPrioridad> = {
+const PARAMETROS: DefinicionParametros<keyof ParametrosPrioridad> = definirParametros({
   pesoSeveridad: { clave: 'prioridad.peso_severidad', valor: 40, valido: noNegativo },
   pesoEvidencias: { clave: 'prioridad.peso_evidencias', valor: 25, valido: noNegativo },
   topeEvidencias: { clave: 'prioridad.tope_evidencias', valor: 15, valido: positivo },
@@ -23,7 +24,7 @@ const PARAMETROS: DefinicionParametros<keyof ParametrosPrioridad> = {
   factorCentroSalud: { clave: 'prioridad.factor_centro_salud', valor: 1, valido: noNegativo },
   factorParada: { clave: 'prioridad.factor_parada', valor: 0.6, valido: noNegativo },
   factorEdificioPublico: { clave: 'prioridad.factor_edificio_publico', valor: 0.5, valido: noNegativo },
-};
+});
 
 /** Los parámetros prioridad.* de parametro_sistema, leídos dentro de la transacción. */
 export function leerParametros(tx: Prisma.TransactionClient): Promise<ParametrosPrioridad> {

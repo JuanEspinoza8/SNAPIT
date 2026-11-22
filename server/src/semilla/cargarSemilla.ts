@@ -32,8 +32,12 @@ async function leerArchivoZonas(archivo: string) {
 
 /**
  * Carga el catálogo, los parámetros, las zonas piloto y, si se pide, los usuarios de prueba. Se puede correr
- * las veces que haga falta: cada dato se busca por su nombre o clave y se actualiza si ya existe, así que nunca
- * se duplica. Las zonas salen de `db/datos/zona-piloto.geojson` (o del archivo que se pase).
+ * las veces que haga falta: cada dato se busca por su nombre o clave, así que nunca se duplica.
+ *
+ * Lo que administra el administrador (organismo, áreas, categorías, perfiles, la matriz y los valores de los
+ * parámetros, #167) **solo se agrega si falta**: lo que ya existe no se toca, así no se pierde lo que ajustó. Las
+ * zonas piloto, los usuarios de prueba y el usuario de SnapIt sí vuelven a como están acá. Las zonas salen de
+ * `db/datos/zona-piloto.geojson` (o del archivo que se pase).
  */
 export async function cargarSemilla(
   prisma: PrismaClient,
@@ -52,18 +56,15 @@ export async function cargarSemilla(
     async (tx) => {
       // organismo y area no tienen nombre único en el modelo: se busca primero y después se crea o actualiza.
       const existente = await tx.organismo.findFirst({ where: { nombre: ORGANISMO.nombre } });
-      const organismo = existente
-        ? await tx.organismo.update({ where: { id: existente.id }, data: { ...ORGANISMO, activo: true } })
-        : await tx.organismo.create({ data: ORGANISMO });
+      const organismo = existente ?? (await tx.organismo.create({ data: ORGANISMO }));
 
       const areas = new Map<string, number>();
       for (const area of AREAS) {
         const encontrada = await tx.area.findFirst({
           where: { organismoId: organismo.id, nombre: area.nombre },
         });
-        const guardada = encontrada
-          ? await tx.area.update({ where: { id: encontrada.id }, data: { ...area, activa: true } })
-          : await tx.area.create({ data: { ...area, organismoId: organismo.id } });
+        const guardada =
+          encontrada ?? (await tx.area.create({ data: { ...area, organismoId: organismo.id } }));
         areas.set(area.nombre, guardada.id);
       }
 
@@ -75,12 +76,11 @@ export async function cargarSemilla(
           tipoVigenciaDefault: tipoVigencia,
           diasCaducidadDefault: diasCaducidad,
           pesoSeveridadBase: peso,
-          activa: true,
         };
         const categoria = await tx.categoria.upsert({
           where: { nombre },
           create: { nombre, ...datos },
-          update: datos,
+          update: {},
         });
         categorias.set(nombre, categoria.id);
       }
@@ -90,7 +90,7 @@ export async function cargarSemilla(
         const perfil = await tx.perfilMovilidad.upsert({
           where: { nombre },
           create: { nombre, descripcion },
-          update: { descripcion, activo: true },
+          update: {},
         });
         perfiles.set(nombre, perfil.id);
       }
@@ -106,16 +106,17 @@ export async function cargarSemilla(
           await tx.categoriaPerfil.upsert({
             where: { categoriaId_perfilMovilidadId: { categoriaId, perfilMovilidadId } },
             create: { categoriaId, perfilMovilidadId, ...datos },
-            update: datos,
+            update: {},
           });
         }
       }
 
+      // El tipo y la descripción son del código y se actualizan; el valor, una vez cargado, es del administrador.
       for (const { clave, valor, tipo, descripcion } of PARAMETROS) {
         await tx.parametroSistema.upsert({
           where: { clave },
           create: { clave, valor, tipo, descripcion },
-          update: { valor, tipo, descripcion },
+          update: { tipo, descripcion },
         });
       }
       await tx.parametroSistema.deleteMany({ where: { clave: { in: PARAMETROS_RETIRADOS } } });
@@ -126,11 +127,15 @@ export async function cargarSemilla(
         for (const [perfil, efecto] of Object.entries(efectos)) {
           const clave = claveRegla(regla as ReglaTramo, perfiles.get(perfil)!);
           const datos = {
-            valor: efecto === 'intransitable' ? efecto : efecto.toFixed(1),
             tipo: 'factor',
             descripcion: `Cuánto le cuesta a ${perfil} pasar por ${describe}: un número que multiplica el costo del tramo (1 no lo cambia) o «intransitable» para que el recorrido lo evite`,
           };
-          await tx.parametroSistema.upsert({ where: { clave }, create: { clave, ...datos }, update: datos });
+          const valor = efecto === 'intransitable' ? efecto : efecto.toFixed(1);
+          await tx.parametroSistema.upsert({
+            where: { clave },
+            create: { clave, valor, ...datos },
+            update: datos,
+          });
           atributosTramo++;
         }
       }

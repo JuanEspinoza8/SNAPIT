@@ -54,7 +54,7 @@ npm run semilla             # catálogo, parámetros, zona piloto y usuarios de 
 npm run dev                 # http://localhost:3000/api/salud
 ```
 
-La semilla se puede correr las veces que haga falta: no duplica nada y vuelve a dejar los valores de [`docs/calculos.md`](docs/calculos.md), aunque se hayan cambiado a mano. Toma la base de `DATABASE_URL`. La zona piloto sale de `db/datos/zona-piloto.geojson`: si el polígono no es válido (por ejemplo, si se cruza a sí mismo), la semilla no carga nada y dice por qué.
+La semilla se puede correr las veces que haga falta: no duplica nada y **solo agrega lo que falta**. El organismo, las áreas, las categorías, los perfiles, la matriz y los valores de los parámetros que ya existen no se tocan, así no se pierde lo que ajustó el administrador (los valores iniciales están en [`docs/calculos.md`](docs/calculos.md)). Las zonas piloto y los usuarios de prueba sí vuelven a como están en el repo. Toma la base de `DATABASE_URL`. La zona piloto sale de `db/datos/zona-piloto.geojson`: si el polígono no es válido (por ejemplo, si se cruza a sí mismo), la semilla no carga nada y dice por qué.
 
 Usuarios de prueba, todos con la misma clave, que la semilla muestra al terminar. Con `NODE_ENV=production` no se cargan: se cargan solo el catálogo y los parámetros.
 
@@ -71,7 +71,7 @@ Además, siempre (también en producción) carga el usuario de **SnapIt** (`sist
 | Script | Qué hace |
 |---|---|
 | `npm run dev` | Servidor con recarga automática |
-| `npm run semilla` | Carga o restaura el catálogo, los parámetros, la zona piloto y los usuarios de prueba (estos, fuera de producción) |
+| `npm run semilla` | Agrega lo que falte del catálogo y los parámetros, y carga o restaura la zona piloto y los usuarios de prueba (estos, fuera de producción) |
 | `npm run fotos:comprimir` | Pasa a WebP las fotos guardadas antes de que se guardaran así (con `-- --probar`, solo cuenta cuánto se ahorraría). En Docker: `docker compose exec server node dist/tareas/comprimirFotos.js` |
 | `npm run demo:reportes -- <carpeta>` | Carga como reportes de vecinos las fotos de una carpeta, según su `demo.json` (ver «Reportes para la demo») |
 | `npm run semilla:social` | Solo en desarrollo: suma cinco vecinos de ejemplo (`vecino4..8@snapit.test`, misma clave) y les reparte likes y comentarios sobre los incidentes que ya hay. Se puede correr varias veces: no duplica nada |
@@ -387,7 +387,7 @@ Se actualiza sola: cada merge a `main` que toca `server/` vuelve a publicar el s
 gh workflow run demo.yml
 ```
 
-La semilla no se corre sola, porque vuelve a dejar los parámetros en sus valores iniciales y pisaría lo que se haya ajustado. Si un PR cambia el catálogo, se corre a mano (paso 4).
+La semilla no se corre sola. Si un PR agrega categorías, perfiles o parámetros, se corre a mano (paso 4): agrega lo nuevo y no toca lo que ajustó el administrador. Si un PR cambia el valor de algo que ya existe, la semilla no lo aplica: se cambia desde la administración.
 
 ### Armarla desde cero
 

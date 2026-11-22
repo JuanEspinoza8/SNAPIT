@@ -1,5 +1,10 @@
 import { Prisma, type PrismaClient, type TipoTramo } from '@prisma/client';
-import { type DefinicionParametros, leerParametrosNumericos, positivo } from '../../compartido/parametros.js';
+import {
+  type DefinicionParametros,
+  definirParametros,
+  leerParametrosNumericos,
+  positivo,
+} from '../../compartido/parametros.js';
 import type { PuntoInteresOsm } from './puntosInteres.js';
 import type { Anillo, NodoRed, TramoRed } from './redPeatonal.js';
 
@@ -187,9 +192,9 @@ export function reemplazarRed(
 }
 
 // El mismo valor que carga la semilla.
-const PARAMETROS_VINCULO: DefinicionParametros<'radioM'> = {
+const PARAMETROS_VINCULO: DefinicionParametros<'radioM'> = definirParametros({
   radioM: { clave: 'ruteo.radio_obstruccion_m', valor: 15, valido: positivo },
-};
+});
 
 /**
  * Los tramos que obstruye un incidente: los que pasan a no más de `radioM` metros de su punto, si el punto
