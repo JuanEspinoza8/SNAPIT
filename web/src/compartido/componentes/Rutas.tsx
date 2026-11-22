@@ -9,6 +9,12 @@ import { PaginaConfirmarCorreo } from '../../funcionalidades/cuenta/paginaConfir
 import { PaginaRecuperarClave } from '../../funcionalidades/cuenta/paginaRecuperarClave.js';
 import { PaginaRestablecerClave } from '../../funcionalidades/cuenta/paginaRestablecerClave.js';
 import { PaginaAltaOperador } from '../../funcionalidades/administracion/paginaAltaOperador.js';
+import { PaginaCategorias } from '../../funcionalidades/administracion/catalogo/paginaCategorias.js';
+import { PaginaMatriz } from '../../funcionalidades/administracion/catalogo/paginaMatriz.js';
+import { PaginaParametros } from '../../funcionalidades/administracion/catalogo/paginaParametros.js';
+import { PaginaPerfiles } from '../../funcionalidades/administracion/catalogo/paginaPerfiles.js';
+import { PaginaOrganismos } from '../../funcionalidades/administracion/paginaOrganismos.js';
+import { SeccionAdministracion } from '../../funcionalidades/administracion/SeccionAdministracion.js';
 import { PaginaIncidente } from '../../funcionalidades/feed/PaginaIncidente.js';
 import { PaginaPerfil } from '../../funcionalidades/perfil/PaginaPerfil.js';
 import { PaginaInicio } from '../../funcionalidades/feed/PaginaInicio.js';
@@ -177,9 +183,17 @@ export const rutas: RouteObject[] = [
         path: 'administracion',
         element: (
           <RutaProtegida roles={['ADMINISTRADOR']}>
-            <PaginaAltaOperador />
+            <SeccionAdministracion />
           </RutaProtegida>
         ),
+        children: [
+          { index: true, element: <PaginaAltaOperador /> },
+          { path: 'organismos', element: <PaginaOrganismos /> },
+          { path: 'categorias', element: <PaginaCategorias /> },
+          { path: 'perfiles', element: <PaginaPerfiles /> },
+          { path: 'matriz', element: <PaginaMatriz /> },
+          { path: 'parametros', element: <PaginaParametros /> },
+        ],
       },
     ],
   },

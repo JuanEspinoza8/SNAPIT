@@ -1,6 +1,12 @@
 import { http, HttpResponse } from 'msw';
 import type { Usuario } from '../../sesion/usuario.js';
-import type { DatosAltaUsuario, Organismo } from '../../../funcionalidades/administracion/tipos.js';
+import type {
+  DatosAltaUsuario,
+  DatosArea,
+  DatosOrganismo,
+  Organismo,
+  OrganismoAdmin,
+} from '../../../funcionalidades/administracion/tipos.js';
 import type { FichaIncidente, PuntoMapa } from '../../../funcionalidades/mapa/tipos.js';
 import type { ReporteMio } from '../../../funcionalidades/misReportes/tipos.js';
 import type { ReportePendiente, ResultadoRevision } from '../../../funcionalidades/revision/tipos.js';
@@ -52,6 +58,39 @@ const organismoMunicipalidad: Organismo = {
 };
 
 const organismos: Organismo[] = [organismoMunicipalidad];
+
+// La administración de organismos y áreas (#168) trabaja sobre esta copia en memoria, con los datos que solo ve
+// el administrador. La lista de activos (la del alta de usuarios) se arma desde acá.
+const creado = '2026-10-01T12:00:00.000Z';
+let organismosAdmin: OrganismoAdmin[] = organismos.map((organismo) => ({
+  id: organismo.id,
+  nombre: organismo.nombre,
+  descripcion: null,
+  activo: true,
+  creadoEn: creado,
+  areas: organismo.areas.map((area) => ({
+    ...area,
+    descripcion: null,
+    activa: true,
+    creadoEn: creado,
+    categoriasActivas: area.id === 3 ? 0 : 1,
+  })),
+}));
+let proximoIdAdmin = 100;
+
+const organismosActivos = (): Organismo[] =>
+  organismosAdmin
+    .filter((organismo) => organismo.activo)
+    .map((organismo) => ({
+      id: organismo.id,
+      nombre: organismo.nombre,
+      areas: organismo.areas.filter((area) => area.activa).map(({ id, nombre }) => ({ id, nombre })),
+    }));
+
+const errorAdmin = (status: number, codigo: string, mensaje: string) =>
+  HttpResponse.json({ error: { codigo, mensaje, detalles: [] } }, { status });
+
+const sinAreas = ({ areas: _areas, ...organismo }: OrganismoAdmin) => organismo;
 
 // Las categorías de la semilla, ordenadas por nombre como las devuelve GET /categorias, con su área.
 const categorias = [
@@ -313,7 +352,92 @@ export const handlers = [
     return new HttpResponse(FOTO_SIMULADA, { headers: { 'Content-Type': 'image/svg+xml' } });
   }),
 
-  http.get(`${apiUrl}/admin/organismos`, () => HttpResponse.json({ organismos })),
+  http.get(`${apiUrl}/admin/organismos`, ({ request }) =>
+    new URL(request.url).searchParams.get('todos') === 'true'
+      ? HttpResponse.json({ organismos: organismosAdmin })
+      : HttpResponse.json({ organismos: organismosActivos() }),
+  ),
+  http.post(`${apiUrl}/admin/organismos`, async ({ request }) => {
+    const datos = (await request.json()) as DatosOrganismo;
+    const nuevo: OrganismoAdmin = {
+      id: proximoIdAdmin++,
+      nombre: datos.nombre,
+      descripcion: datos.descripcion,
+      activo: true,
+      creadoEn: new Date().toISOString(),
+      areas: [],
+    };
+    organismosAdmin = [...organismosAdmin, nuevo];
+    return HttpResponse.json({ organismo: sinAreas(nuevo) }, { status: 201 });
+  }),
+  http.put(`${apiUrl}/admin/organismos/:id`, async ({ params, request }) => {
+    const datos = (await request.json()) as DatosOrganismo;
+    const organismo = organismosAdmin.find((otro) => otro.id === Number(params.id));
+    if (!organismo) return errorAdmin(404, 'ORGANISMO_NO_ENCONTRADO', 'El organismo no existe');
+    Object.assign(
+      organismo,
+      { nombre: datos.nombre, descripcion: datos.descripcion },
+      datos.activo === undefined ? {} : { activo: datos.activo },
+    );
+    return HttpResponse.json({ organismo: sinAreas(organismo) });
+  }),
+  http.delete(`${apiUrl}/admin/organismos/:id`, ({ params }) => {
+    const organismo = organismosAdmin.find((otro) => otro.id === Number(params.id));
+    if (!organismo) return errorAdmin(404, 'ORGANISMO_NO_ENCONTRADO', 'El organismo no existe');
+    if (organismo.areas.some((area) => area.activa)) {
+      return errorAdmin(
+        409,
+        'ORGANISMO_CON_AREAS_ACTIVAS',
+        'Tiene áreas activas: primero hay que darlas de baja',
+      );
+    }
+    organismo.activo = false;
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.post(`${apiUrl}/admin/areas`, async ({ request }) => {
+    const datos = (await request.json()) as DatosArea & { organismoId: number };
+    const organismo = organismosAdmin.find((otro) => otro.id === datos.organismoId);
+    if (!organismo) return errorAdmin(400, 'DATOS_INVALIDOS', 'No existe ese organismo');
+    const area = {
+      id: proximoIdAdmin++,
+      nombre: datos.nombre,
+      descripcion: datos.descripcion,
+      activa: true,
+      creadoEn: new Date().toISOString(),
+      categoriasActivas: 0,
+    };
+    organismo.areas = [...organismo.areas, area];
+    return HttpResponse.json({ area: { ...area, organismoId: organismo.id } }, { status: 201 });
+  }),
+  http.put(`${apiUrl}/admin/areas/:id`, async ({ params, request }) => {
+    const datos = (await request.json()) as DatosArea;
+    const organismo = organismosAdmin.find((otro) =>
+      otro.areas.some((area) => area.id === Number(params.id)),
+    );
+    const area = organismo?.areas.find((otra) => otra.id === Number(params.id));
+    if (!organismo || !area) return errorAdmin(404, 'AREA_NO_ENCONTRADA', 'El área no existe');
+    Object.assign(
+      area,
+      { nombre: datos.nombre, descripcion: datos.descripcion },
+      datos.activa === undefined ? {} : { activa: datos.activa },
+    );
+    return HttpResponse.json({ area: { ...area, organismoId: organismo.id } });
+  }),
+  http.delete(`${apiUrl}/admin/areas/:id`, ({ params }) => {
+    const area = organismosAdmin
+      .flatMap((organismo) => organismo.areas)
+      .find((otra) => otra.id === Number(params.id));
+    if (!area) return errorAdmin(404, 'AREA_NO_ENCONTRADA', 'El área no existe');
+    if (area.categoriasActivas > 0) {
+      return errorAdmin(
+        409,
+        'AREA_CON_CATEGORIAS_ACTIVAS',
+        'Tiene categorías activas: primero hay que pasarlas a otra área o darlas de baja',
+      );
+    }
+    area.activa = false;
+    return new HttpResponse(null, { status: 204 });
+  }),
 
   http.get(`${apiUrl}/admin/usuarios`, () => HttpResponse.json({ usuarios })),
 
