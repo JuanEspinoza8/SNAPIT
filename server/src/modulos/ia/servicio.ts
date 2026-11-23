@@ -43,6 +43,8 @@ export interface ConsultaIa<T> {
   esfuerzo?: 'low' | 'medium' | 'high';
   /** Tope de tokens de la respuesta, contando lo que el modelo piensa antes de responder. */
   maxTokens?: number;
+  /** Un plazo propio para esta consulta, en lugar del del servicio (por ejemplo, para un texto largo). */
+  timeoutMs?: number;
 }
 
 export interface RespuestaIa<T> {
@@ -84,6 +86,7 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
    */
   async function consultar<T>(consulta: ConsultaIa<T>): Promise<RespuestaIa<T>> {
     const inicio = Date.now();
+    const plazoMs = consulta.timeoutMs ?? timeoutMs;
     const intento = {
       usuarioId: consulta.usuarioId ?? null,
       tipo: consulta.tipo,
@@ -96,9 +99,9 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
     let uso: RespuestaIa<T>['uso'];
     try {
       if (!cliente) throw new RespuestaInvalida('Falta ANTHROPIC_API_KEY en el .env');
-      ({ resultado, salida, uso, modelo: intento.modelo } = await pedir(cliente, consulta));
+      ({ resultado, salida, uso, modelo: intento.modelo } = await pedir(cliente, consulta, plazoMs));
     } catch (error) {
-      const motivo = motivoDelFallo(error, timeoutMs);
+      const motivo = motivoDelFallo(error, plazoMs);
       logger.warn({ err: error, tipo: consulta.tipo }, 'La IA no respondió: %s', motivo);
       // Si tampoco se puede registrar, se responde igual 503: quien llamó tiene su alternativa sin IA.
       await registrarIntento({
@@ -123,7 +126,7 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
     return { resultado, registroIaId, uso };
   }
 
-  async function pedir<T>(cliente: Anthropic, consulta: ConsultaIa<T>) {
+  async function pedir<T>(cliente: Anthropic, consulta: ConsultaIa<T>, plazoMs: number) {
     const respuesta = await cliente.messages.create(
       {
         model: modelo,
@@ -155,8 +158,8 @@ export function crearServicioIa({ apiKey, modelo, timeoutMs, fetch }: OpcionesIa
         ],
       },
       // El SDK también reintenta cuando se vence el tiempo. Con un plazo para toda la consulta, el
-      // reintento solo usa lo que queda y nadie espera más que IA_TIMEOUT_MS.
-      { signal: AbortSignal.timeout(timeoutMs) },
+      // reintento solo usa lo que queda y nadie espera más que el plazo (IA_TIMEOUT_MS si no se indica otro).
+      { signal: AbortSignal.timeout(plazoMs), timeout: plazoMs },
     );
 
     // Las respuestas pueden empezar con bloques de razonamiento: la respuesta es el texto.

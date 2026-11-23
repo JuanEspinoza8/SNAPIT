@@ -11,6 +11,7 @@ import {
 } from './calculo.js';
 import { esquemaFiltrosIndicadores } from './esquemas.js';
 import * as repositorio from './repositorio.js';
+import type { FiltrosIndicadores } from './repositorio.js';
 
 /** Los filtros de la consulta para el organismo de la sesión. Null si no tiene organismo: no hay nada que medir. */
 async function filtrosDe(sesion: UsuarioSesion, consulta: unknown) {
@@ -28,6 +29,11 @@ async function filtrosDe(sesion: UsuarioSesion, consulta: unknown) {
 /** Los indicadores de gestión del organismo (F13). Cada uno está explicado en docs/api.md. */
 export async function obtenerIndicadores(sesion: UsuarioSesion, consulta: unknown) {
   const filtros = await filtrosDe(sesion, consulta);
+  return calcularIndicadores(filtros);
+}
+
+/** Los indicadores con filtros ya validados. Sin filtros (sesión sin organismo), todo en 0. También los usa el informe. */
+export async function calcularIndicadores(filtros: FiltrosIndicadores | null) {
   const [abiertos, semanas, resueltos, barrios, reportes] = filtros
     ? await Promise.all([
         repositorio.contarAbiertosPorEstado(filtros),
