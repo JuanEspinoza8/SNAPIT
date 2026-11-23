@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -8,7 +9,11 @@ import 'package:snapit/compartido/foto/ubicacion_foto.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
 import 'package:snapit/funcionalidades/avisos/servicio_push.dart';
 import 'package:snapit/funcionalidades/mapa/ubicacion.dart';
+import 'package:snapit/funcionalidades/reportar/borrador_reporte.dart';
+import 'package:snapit/funcionalidades/reportar/cola_reportes.dart';
+import 'package:snapit/funcionalidades/reportar/repositorio_reportes.dart';
 import 'package:snapit/funcionalidades/reportar/selector_foto.dart';
+import 'package:snapit/funcionalidades/reportar/sincronizador_reportes.dart';
 
 import 'push_falso.dart';
 import 'servidor_falso.dart';
@@ -119,6 +124,15 @@ ProviderContainer contenedorDePrueba(
       }),
       if (selectorFoto != null)
         selectorFotoProvider.overrideWithValue(selectorFoto),
+      colaReportesProvider.overrideWith((ref) => ColaReportesFalsa()),
+      sincronizadorReportesProvider.overrideWith(
+        (ref) => SincronizadorReportes(
+          ref.read(repositorioReportesApiProvider),
+          ref.read(colaReportesProvider),
+          ConectividadFalsa(),
+          ref,
+        ),
+      ),
       lectorUbicacionFotoProvider.overrideWithValue(
         lectorUbicacionFoto ?? (_) async => ubicacionFoto,
       ),
@@ -157,3 +171,35 @@ Future<ProviderContainer> abrirApp(
 
 Future<Map<String, String>> tokensGuardados() =>
     const FlutterSecureStorage().readAll();
+
+class ConectividadFalsa implements ServicioConectividad {
+  @override
+  Stream<List<ConnectivityResult>> get onConnectivityChanged =>
+      const Stream<List<ConnectivityResult>>.empty();
+}
+
+class ColaReportesFalsa extends ColaReportes {
+  final _pendientes = <ReportePendiente>[];
+
+  @override
+  Future<List<ReportePendiente>> leer() async => List.unmodifiable(_pendientes);
+
+  @override
+  Future<ReportePendiente> guardar(
+    BorradorReporte borrador, {
+    required String categoriaNombre,
+  }) async {
+    final pendiente = ReportePendiente(
+      id: '${_pendientes.length + 1}',
+      categoriaNombre: categoriaNombre,
+      borrador: borrador,
+    );
+    _pendientes.add(pendiente);
+    return pendiente;
+  }
+
+  @override
+  Future<void> quitar(String id) async {
+    _pendientes.removeWhere((pendiente) => pendiente.id == id);
+  }
+}

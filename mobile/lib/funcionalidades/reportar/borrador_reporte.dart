@@ -34,6 +34,12 @@ class SugerenciaIa {
     registroIaId: json['registroIaId'] as int,
   );
 
+  Map<String, dynamic> toJson() => {
+    'categoriaId': categoriaId,
+    'severidad': severidad.valorApi,
+    'registroIaId': registroIaId,
+  };
+
   final int categoriaId;
   final Severidad severidad;
 
@@ -56,6 +62,16 @@ enum EstadoSugerencia {
 @immutable
 class FotoReporte {
   const FotoReporte({required this.ruta, required this.tomadaConCamaraApp});
+
+  Map<String, dynamic> toJson() => {
+    'ruta': ruta,
+    'tomadaConCamaraApp': tomadaConCamaraApp,
+  };
+
+  factory FotoReporte.desdeJson(Map<String, dynamic> json) => FotoReporte(
+    ruta: json['ruta'] as String,
+    tomadaConCamaraApp: json['tomadaConCamaraApp'] as bool,
+  );
 
   /// El archivo original en el teléfono, tal como lo entregó la cámara o la
   /// galería.
@@ -253,4 +269,53 @@ class BorradorReporte {
       },
     };
   }
+
+  Map<String, dynamic> toJson() => {
+    'foto': foto?.toJson(),
+    'categoriaId': categoriaId,
+    'severidad': severidad?.valorApi,
+    'descripcion': descripcion,
+    'lat': punto?.latitude,
+    'lon': punto?.longitude,
+    'origenPunto': origenPunto.name,
+    'registradoEn': registradoEn?.toUtc().toIso8601String(),
+    'sugerencia': sugerencia?.toJson(),
+    'estadoSugerencia': estadoSugerencia.name,
+    'categoriaEsSugerida': categoriaEsSugerida,
+    'severidadEsSugerida': severidadEsSugerida,
+  };
+
+  factory BorradorReporte.desdeJson(Map<String, dynamic> json) =>
+      BorradorReporte(
+        foto: json['foto'] == null
+            ? null
+            : FotoReporte.desdeJson(json['foto'] as Map<String, dynamic>),
+        categoriaId: json['categoriaId'] as int?,
+        severidad: json['severidad'] == null
+            ? null
+            : Severidad.desdeApi(json['severidad'] as String),
+        descripcion: json['descripcion'] as String? ?? '',
+        punto: json['lat'] == null || json['lon'] == null
+            ? null
+            : LatLng(
+                (json['lat'] as num).toDouble(),
+                (json['lon'] as num).toDouble(),
+              ),
+        origenPunto: OrigenPunto.values.byName(
+          json['origenPunto'] as String? ?? 'gps',
+        ),
+        registradoEn: json['registradoEn'] == null
+            ? null
+            : DateTime.parse(json['registradoEn'] as String).toLocal(),
+        sugerencia: json['sugerencia'] == null
+            ? null
+            : SugerenciaIa.desdeJson(
+                json['sugerencia'] as Map<String, dynamic>,
+              ),
+        estadoSugerencia: EstadoSugerencia.values.byName(
+          json['estadoSugerencia'] as String? ?? 'ninguna',
+        ),
+        categoriaEsSugerida: json['categoriaEsSugerida'] as bool? ?? false,
+        severidadEsSugerida: json['severidadEsSugerida'] as bool? ?? false,
+      );
 }

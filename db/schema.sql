@@ -596,7 +596,8 @@ CREATE TABLE reporte (
     CONSTRAINT reporte_categoria_id_fk FOREIGN KEY (categoria_id) REFERENCES categoria (id) ON DELETE RESTRICT,
     CONSTRAINT reporte_categoria_sugerida_id_fk FOREIGN KEY (categoria_sugerida_id) REFERENCES categoria (id) ON DELETE SET NULL,
     CONSTRAINT reporte_registro_ia_id_fk FOREIGN KEY (registro_ia_id) REFERENCES registro_ia (id) ON DELETE SET NULL,
-    CONSTRAINT reporte_confianza_rango CHECK (nivel_confianza BETWEEN 0 AND 100)
+    CONSTRAINT reporte_confianza_rango CHECK (nivel_confianza BETWEEN 0 AND 100),
+    CONSTRAINT reporte_usuario_registro_unico UNIQUE (usuario_id, registrado_en)
 );
 COMMENT ON TABLE reporte IS 'Lo que informa un vecino: una foto, una ubicación y una descripción.';
 COMMENT ON COLUMN reporte.id IS 'Identificador interno.';

@@ -24,13 +24,14 @@ class Sesion extends AsyncNotifier<Usuario?> {
     try {
       return await _repositorio.yo();
     } on ErrorApi catch (e) {
-      // 401 acá quiere decir que la renovación también se rechazó.
       if (e.status == 401) {
         await _almacen.borrar();
         return null;
       }
-      // Sin conexión o error del servidor: la sesión se conserva y la
-      // pantalla de arranque ofrece reintentar.
+      if (e.codigo == ErrorApi.sinConexion.codigo) {
+        final guardado = await _almacen.leerUsuario();
+        if (guardado != null) return guardado;
+      }
       rethrow;
     }
   }
@@ -42,6 +43,7 @@ class Sesion extends AsyncNotifier<Usuario?> {
       tokenAcceso: ingreso.tokenAcceso,
       tokenRenovacion: ingreso.tokenRenovacion,
     );
+    await _almacen.guardarUsuario(ingreso.usuario);
     state = AsyncData(ingreso.usuario);
   }
 
@@ -50,6 +52,7 @@ class Sesion extends AsyncNotifier<Usuario?> {
   void actualizarUsuario(Usuario usuario) {
     if (state.value?.id != usuario.id) return;
     state = AsyncData(usuario);
+    unawaited(_almacen.guardarUsuario(usuario));
   }
 
   /// Cierra la sesión en el teléfono enseguida y avisa al servidor sin

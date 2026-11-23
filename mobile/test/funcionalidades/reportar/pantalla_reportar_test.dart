@@ -524,7 +524,7 @@ void main() {
   });
 
   group('si falla el envío', () {
-    testWidgets('lo cargado sigue y el reintento manda lo mismo', (
+    testWidgets('sin conexión guarda el reporte y avisa que quedó pendiente', (
       tester,
     ) async {
       final servidor = ServidorDeReportes()..reportes = sinConexion;
@@ -533,25 +533,14 @@ void main() {
 
       await enviar(tester);
 
+      expect(servidor.enviados, hasLength(1));
+      expect(servidor.mios, isEmpty);
+      expect(find.text('Reporte guardado'), findsOneWidget);
       expect(
-        find.text(
-          'No se pudo conectar con el servidor. Revisá tu conexión e intentá '
-          'de nuevo.',
-        ),
+        find.text('Se va a enviar cuando vuelva la conexión.'),
         findsOneWidget,
       );
-      expect(find.text('Sacar otra'), findsOneWidget);
-      expect(find.text('Bache'), findsOneWidget);
-      expect(find.text('Pozo frente a la escuela'), findsOneWidget);
-      expect(find.text('Mover el punto'), findsOneWidget);
-
-      servidor.reportes = null;
-      await enviar(tester);
-
-      expect(find.text('Reporte enviado'), findsOneWidget);
-      final [primero, segundo] = servidor.enviados.map(campos).toList();
-      // La fecha de registro es la del primer intento.
-      expect(segundo, primero);
+      expect(find.text('Enviar reporte'), findsNothing);
     });
 
     testWidgets('el error de un campo aparece debajo de ese campo', (

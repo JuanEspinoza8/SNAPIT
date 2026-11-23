@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { almacenFotos } from '../../compartido/almacenFotos.js';
 import { analizarFoto } from '../../compartido/analisisFoto.js';
 import { ErrorApp } from '../../compartido/errores.js';
@@ -21,6 +22,16 @@ const TOLERANCIA_FUTURO_MS = 5 * 60 * 1000;
 
 const datosInvalidos = (campo: string, mensaje: string) =>
   new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [{ campo, mensaje }]);
+
+const REPORTE_UNICO = 'reporte_usuario_registro_unico';
+
+function esDuplicadoPorRegistro(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') return false;
+  const objetivo = Array.isArray(error.meta?.target)
+    ? error.meta.target.join(',')
+    : String(error.meta?.target ?? '');
+  return objetivo.includes(REPORTE_UNICO) || objetivo.includes('registrado_en');
+}
 
 /**
  * Comprueba la sugerencia de la IA que manda el cliente contra lo que quedó en registro_ia: tiene que ser
@@ -95,6 +106,8 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
       'Desde el sitio web la foto no puede ser de la cámara de la app',
     );
   }
+  const previo = await repositorio.buscarPorUsuarioYRegistro(usuarioId, registradoEn);
+  if (previo) return previo;
 
   const categoria = await repositorio.buscarCategoriaActiva(datos.categoriaId);
   if (!categoria) throw datosInvalidos('categoriaId', 'No existe o no está activa');
@@ -153,6 +166,10 @@ export async function crearReporte(usuarioId: number, cuerpo: unknown, archivo: 
     });
   } catch (error) {
     await almacenFotos.borrar(rutaArchivo).catch(() => {});
+    if (esDuplicadoPorRegistro(error)) {
+      const original = await repositorio.buscarPorUsuarioYRegistro(usuarioId, registradoEn);
+      if (original) return original;
+    }
     throw error;
   }
 

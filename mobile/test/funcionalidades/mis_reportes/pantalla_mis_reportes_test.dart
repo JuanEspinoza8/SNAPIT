@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -6,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snapit/funcionalidades/feed/pantalla_reporte.dart';
 import 'package:snapit/funcionalidades/mis_reportes/repositorio_mis_reportes.dart';
+import 'package:snapit/funcionalidades/reportar/borrador_reporte.dart';
+import 'package:snapit/funcionalidades/reportar/cola_reportes.dart';
 
 import '../../apoyo/app_de_prueba.dart';
 import '../../apoyo/reportes_mios.dart';
@@ -130,6 +133,35 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(servidor.pedidosLista, 1);
+  });
+
+  testWidgets('un reporte guardado sin conexión aparece como pendiente', (
+    tester,
+  ) async {
+    final servidor = ServidorMisReportes();
+    final contenedor = await abrirApp(tester, servidor.servidor);
+    final carpeta = Directory.systemTemp.createTempSync('snapit-pendiente');
+    addTearDown(() => carpeta.deleteSync(recursive: true));
+    final foto = File('${carpeta.path}/bache.jpg')
+      ..writeAsBytesSync([0xFF, 0xD8, 0xFF, 0xD9]);
+
+    await contenedor
+        .read(colaReportesProvider)
+        .guardar(
+          BorradorReporte(
+            foto: FotoReporte(ruta: foto.path, tomadaConCamaraApp: true),
+            registradoEn: DateTime(2026, 11, 23, 10, 30),
+          ),
+          categoriaNombre: 'Bache',
+        );
+    await contenedor.read(reportesPendientesProvider.notifier).actualizar();
+
+    await tester.tap(find.text('Mis reportes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bache'), findsOneWidget);
+    expect(find.text('Pendiente de envío'), findsOneWidget);
+    expect(find.text('Eliminar'), findsNothing);
   });
 
   testWidgets('sin reportes muestra un mensaje y lleva a reportar', (

@@ -70,6 +70,7 @@ class ErrorApi implements Exception {
         'No se pudo conectar con el servidor. Revisá tu conexión e intentá '
         'de nuevo.',
   );
+  static const sinConexion = _sinConexion;
   static const _inesperado = ErrorApi(
     codigo: 'ERROR_INESPERADO',
     mensaje: 'Ocurrió un error inesperado. Intentá de nuevo en unos minutos.',
