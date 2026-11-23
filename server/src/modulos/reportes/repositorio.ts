@@ -24,6 +24,34 @@ export async function buscarSugerencia(registroIaId: number) {
   const { _count, ...resto } = registro;
   return { ...resto, usada: _count.reportes > 0 };
 }
+export interface ResumenReporte {
+  id: number;
+  incidenteId: number;
+  nivelConfianza: number;
+  estadoVerificacion: string;
+}
+
+export async function buscarPorUsuarioYRegistro(
+  usuarioId: number,
+  registradoEn: Date,
+): Promise<ResumenReporte | null> {
+  const reporte = await prisma.reporte.findUnique({
+    where: { usuarioId_registradoEn: { usuarioId, registradoEn } },
+    select: {
+      id: true,
+      incidenteId: true,
+      nivelConfianza: true,
+      estadoVerificacion: true,
+    },
+  });
+  if (!reporte) return null;
+  return {
+    id: reporte.id,
+    incidenteId: reporte.incidenteId!,
+    nivelConfianza: reporte.nivelConfianza,
+    estadoVerificacion: reporte.estadoVerificacion,
+  };
+}
 
 /** Lo que sugirió la IA para este reporte y si el vecino lo dejó así. */
 export interface SugerenciaDelReporte {

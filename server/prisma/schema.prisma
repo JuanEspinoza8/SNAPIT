@@ -470,6 +470,7 @@ model Reporte {
 
   @@index([incidenteId])
   @@index([usuarioId])
+  @@unique([usuarioId, registradoEn], map: "reporte_usuario_registro_unico")
   @@map("reporte")
 }
 

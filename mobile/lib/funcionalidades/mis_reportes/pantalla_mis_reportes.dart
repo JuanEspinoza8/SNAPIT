@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +14,7 @@ import '../feed/estado_feed.dart';
 import '../mapa/estados.dart';
 import '../mapa/ficha_incidente.dart';
 import '../mapa/modelos.dart';
+import '../reportar/cola_reportes.dart';
 import 'modelos.dart';
 import 'repositorio_mis_reportes.dart';
 
@@ -28,12 +31,28 @@ class PantallaMisReportes extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reportes = ref.watch(misReportesProvider);
+    final pendientes =
+        ref.watch(reportesPendientesProvider).value ?? <ReportePendiente>[];
+    final cargados = [
+      for (final pendiente in pendientes)
+        ReporteMio.pendiente(
+          pendienteId: pendiente.id,
+          registradoEn:
+              pendiente.borrador.registradoEn ??
+              DateTime.fromMicrosecondsSinceEpoch(
+                int.tryParse(pendiente.id) ?? 0,
+              ),
+          categoriaNombre: pendiente.categoriaNombre,
+          fotoRuta: pendiente.borrador.foto?.ruta,
+        ),
+      ...?reportes.value,
+    ];
     // Mientras recarga, y si la recarga falla, se sigue viendo la lista que
-    // ya estaba.
-    if (reportes.value case final lista?) {
+    // ya estaba. Los pendientes se ven aunque el servidor todavía no cargó.
+    if (reportes.value != null || pendientes.isNotEmpty) {
       return RefreshIndicator(
         onRefresh: () => _recargar(context, ref),
-        child: lista.isEmpty ? _SinReportes(alReportar) : _Lista(lista),
+        child: cargados.isEmpty ? _SinReportes(alReportar) : _Lista(cargados),
       );
     }
     if (reportes.hasError && !reportes.isLoading) {
@@ -83,7 +102,9 @@ class _FilaReporte extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tema = Theme.of(context);
     final secundario = tema.colorScheme.onSurfaceVariant;
-    final VoidCallback? alTocar = reporte.publicado
+    final VoidCallback? alTocar = reporte.esPendiente
+        ? null
+        : reporte.publicado
         ? () => context.push(Rutas.reporte(reporte.id))
         : reporte.tieneFicha
         ? () => mostrarFicha(context, reporte.incidenteId!)
@@ -101,7 +122,7 @@ class _FilaReporte extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              _Miniatura(reporte.fotoIds.firstOrNull),
+              _Miniatura(reporte.fotoRuta, reporte.fotoIds.firstOrNull),
               const SizedBox(width: Espacio.md),
               Expanded(
                 child: Column(
@@ -118,7 +139,15 @@ class _FilaReporte extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: Espacio.sm),
-                    _EtiquetaReporte(reporte.estado),
+                    if (reporte.esPendiente)
+                      Text(
+                        'Pendiente de envío',
+                        style: tema.textTheme.labelLarge?.copyWith(
+                          color: tema.colorScheme.tertiary,
+                        ),
+                      )
+                    else
+                      _EtiquetaReporte(reporte.estado),
                   ],
                 ),
               ),
@@ -131,13 +160,14 @@ class _FilaReporte extends ConsumerWidget {
     return Row(
       children: [
         Expanded(child: fila),
-        PopupMenuButton<String>(
-          tooltip: 'Opciones de tu reporte de ${reporte.categoriaNombre}',
-          onSelected: (_) => _eliminar(context, ref),
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
-          ],
-        ),
+        if (!reporte.esPendiente)
+          PopupMenuButton<String>(
+            tooltip: 'Opciones de tu reporte de ${reporte.categoriaNombre}',
+            onSelected: (_) => _eliminar(context, ref),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+            ],
+          ),
       ],
     );
   }
@@ -197,8 +227,9 @@ class _EtiquetaReporte extends StatelessWidget {
 /// La foto se baja con la sesión ([fotoMiaProvider]): así el vecino ve también
 /// la de un reporte desestimado o la de un incidente que salió del mapa.
 class _Miniatura extends ConsumerWidget {
-  const _Miniatura(this.fotoId);
+  const _Miniatura(this.fotoRuta, this.fotoId);
 
+  final String? fotoRuta;
   final int? fotoId;
 
   static const _lado = 64.0;
@@ -218,34 +249,47 @@ class _Miniatura extends ConsumerWidget {
       ),
     );
 
+    final ancho = (_lado * 2 * MediaQuery.devicePixelRatioOf(context)).round();
+    final fotoLocal = switch (fotoRuta) {
+      final ruta? => Image.file(
+        File(ruta),
+        fit: BoxFit.cover,
+        excludeFromSemantics: true,
+        cacheWidth: ancho,
+        errorBuilder: (_, _, _) => noDisponible,
+      ),
+      null => null,
+    };
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(radioBorde),
       child: SizedBox.square(
         dimension: _lado,
-        child: switch (fotoId) {
-          null => noDisponible,
-          final id =>
-            ref
-                .watch(fotoMiaProvider(id))
-                .when(
-                  data: (archivo) => Image.memory(
-                    archivo,
-                    fit: BoxFit.cover,
-                    excludeFromSemantics: true,
-                    // La foto llega entera (sin recomprimir, varios MB). Se
-                    // decodifica chica para que una lista larga no llene la
-                    // memoria; el doble del lado alcanza para que una foto
-                    // apaisada cubra el cuadrado.
-                    cacheWidth:
-                        (_lado * 2 * MediaQuery.devicePixelRatioOf(context))
-                            .round(),
-                    errorBuilder: (_, _, _) => noDisponible,
-                  ),
-                  loading: () =>
-                      ColoredBox(color: tema.colorScheme.surfaceContainerLow),
-                  error: (_, _) => noDisponible,
-                ),
-        },
+        child:
+            fotoLocal ??
+            (switch (fotoId) {
+              null => noDisponible,
+              final id =>
+                ref
+                    .watch(fotoMiaProvider(id))
+                    .when(
+                      data: (archivo) => Image.memory(
+                        archivo,
+                        fit: BoxFit.cover,
+                        excludeFromSemantics: true,
+                        // La foto llega entera (sin recomprimir, varios MB). Se
+                        // decodifica chica para que una lista larga no llene la
+                        // memoria; el doble del lado alcanza para que una foto
+                        // apaisada cubra el cuadrado.
+                        cacheWidth: ancho,
+                        errorBuilder: (_, _, _) => noDisponible,
+                      ),
+                      loading: () => ColoredBox(
+                        color: tema.colorScheme.surfaceContainerLow,
+                      ),
+                      error: (_, _) => noDisponible,
+                    ),
+            }),
       ),
     );
   }

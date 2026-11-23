@@ -222,6 +222,22 @@ describe('POST /api/reportes', () => {
     expect(reporte.sincronizadoEn!.getTime()).toBeGreaterThan(reporte.registradoEn.getTime());
   });
 
+  it('reintentar con el mismo registradoEn devuelve el original y no duplica', async () => {
+    const categoria = await crearCategoria();
+    const { usuario, token } = await vecino();
+    const campos = { registradoEn: '2026-10-01T09:30:00-03:00' };
+    const foto = jpegConExif();
+
+    const primero = await enviar(token, categoria.id, { campos, foto });
+    const reintento = await enviar(token, categoria.id, { campos, foto });
+
+    expect(primero.status).toBe(201);
+    expect(reintento.status).toBe(201);
+    expect(reintento.body).toEqual(primero.body);
+    expect(await prisma.reporte.count({ where: { usuarioId: usuario.id } })).toBe(1);
+    expect(await prisma.fotografia.count({ where: { reporteId: primero.body.id } })).toBe(1);
+  });
+
   it('una categoría temporal vence a los días de la categoría, contados desde que llega el reporte', async () => {
     const categoria = await crearCategoria({ tipoVigencia: 'TEMPORAL', diasCaducidad: 10 });
     const { token } = await vecino();

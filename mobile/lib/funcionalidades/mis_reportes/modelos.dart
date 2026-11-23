@@ -68,6 +68,8 @@ class ReporteMio {
     required this.incidenteId,
     required this.estadoIncidente,
     this.caducado = false,
+    this.pendienteId,
+    this.fotoRuta,
   });
 
   factory ReporteMio.desdeJson(Map<String, dynamic> json) {
@@ -90,6 +92,23 @@ class ReporteMio {
     );
   }
 
+  factory ReporteMio.pendiente({
+    required String pendienteId,
+    required DateTime registradoEn,
+    required String categoriaNombre,
+    required String? fotoRuta,
+  }) => ReporteMio(
+    id: -1,
+    registradoEn: registradoEn,
+    categoriaNombre: categoriaNombre,
+    fotoIds: const [],
+    estadoVerificacion: EstadoVerificacion.pendienteRevision,
+    incidenteId: null,
+    estadoIncidente: null,
+    pendienteId: pendienteId,
+    fotoRuta: fotoRuta,
+  );
+
   final int id;
   final DateTime registradoEn;
   final String categoriaNombre;
@@ -102,6 +121,15 @@ class ReporteMio {
 
   /// Si su incidente caducó o venció (`caducadoEn`): ya no está en el mapa.
   final bool caducado;
+
+  /// Identificador local del reporte que espera conexión. Aún no existe en
+  /// el servidor, así que no tiene ficha ni se puede eliminar.
+  final String? pendienteId;
+
+  /// La foto copiada al almacenamiento de la app, mientras espera el envío.
+  final String? fotoRuta;
+
+  bool get esPendiente => pendienteId != null;
 
   EstadoIncidente get estado =>
       estadoParaElVecino(estadoVerificacion, estadoIncidente);

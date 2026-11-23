@@ -436,7 +436,9 @@ Va como **`multipart/form-data`**, no como JSON, porque lleva un archivo. Todos 
 
 Si se manda la sugerencia, el servidor la compara con lo que quedó registrado: tiene que ser una clasificación exitosa pedida por el mismo vecino, sin usar en otro reporte, y con la misma categoría y severidad. El reporte guarda `sugerencia_aceptada`, que es verdadero solo si `categoriaId` y `severidadDeclarada` quedaron iguales a lo sugerido.
 
-Si la sugerencia no vale (falta uno de sus tres datos, es de otro vecino o de un intento fallido, ya se usó o no coincide con lo que respondió la IA), **se descarta y el reporte se guarda igual**, sin sugerencia, y responde 201 como siempre (F06: el reporte se envía igual). Pasa, por ejemplo, si el cliente reintenta un envío cuya respuesta se perdió: la sugerencia ya figura como usada. El cliente no tiene que hacer nada distinto. Solo un dato con formato inválido (un id que no es número, una severidad que no existe) responde 400.
+Si la sugerencia no vale (falta uno de sus tres datos, es de otro vecino o de un intento fallido, ya se usó o no coincide con lo que respondió la IA), **se descarta y el reporte se guarda igual**, sin sugerencia, y responde 201 como siempre (F06: el reporte se envía igual). Solo un dato con formato inválido (un id que no es número, una severidad que no existe) responde 400.
+
+- Si el vecino reenvía el reporte con el mismo `registradoEn` porque se perdió la respuesta, se devuelve el reporte original con el mismo `id` y status `201`. No se crea otro reporte, no se cambia `sincronizadoEn` y no se vuelve a usar la sugerencia.
 
 Responde **201**:
 

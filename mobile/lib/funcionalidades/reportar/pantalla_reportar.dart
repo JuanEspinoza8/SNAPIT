@@ -14,6 +14,7 @@ import '../../compartido/tema/tema_app.dart';
 import '../mapa/repositorio_mapa.dart';
 import '../mapa/ubicacion.dart';
 import 'borrador_reporte.dart';
+import 'repositorio_reportes.dart';
 import 'reporte_en_curso.dart';
 import 'selector_foto.dart';
 
@@ -28,7 +29,7 @@ class PantallaReportar extends ConsumerStatefulWidget {
 
   /// Después de enviar: la pantalla principal vuelve al inicio y avisa
   /// arriba que se envió.
-  final VoidCallback alEnviar;
+  final ValueChanged<ReporteEnviado> alEnviar;
 
   @override
   ConsumerState<PantallaReportar> createState() => _PantallaReportarState();
@@ -147,11 +148,11 @@ class _PantallaReportarState extends ConsumerState<PantallaReportar> {
       _erroresServidor = {};
     });
     try {
-      await _reporte.enviar();
+      final enviado = await _reporte.enviar();
       if (!mounted) return;
       _descripcion.clear();
       setState(() => _mostrarFaltantes = false);
-      widget.alEnviar();
+      widget.alEnviar(enviado);
     } catch (e) {
       final error = ErrorApi.desde(e);
       if (!mounted) return;

@@ -5,16 +5,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../compartido/red/cliente_api.dart';
 import '../../compartido/red/error_api.dart';
+import '../mapa/repositorio_mapa.dart';
 import 'borrador_reporte.dart';
+import 'cola_reportes.dart';
 
-final repositorioReportesProvider = Provider<RepositorioReportes>(
+final repositorioReportesApiProvider = Provider<RepositorioReportesApi>(
   (ref) => RepositorioReportesApi(ref.watch(clienteApiProvider)),
 );
+
+final repositorioReportesProvider = Provider<RepositorioReportes>((ref) {
+  return RepositorioReportesConCola(
+    ref.watch(repositorioReportesApiProvider),
+    ref.watch(colaReportesProvider),
+    ref,
+  );
+});
 
 /// Respuesta de `POST /reportes`. Siempre llega pendiente de revisión: se
 /// verifica después, cuando el operador lo procesa.
 class ReporteEnviado {
-  const ReporteEnviado({required this.id, required this.incidenteId});
+  const ReporteEnviado({
+    required this.id,
+    required this.incidenteId,
+    this.pendienteId,
+  });
+
+  factory ReporteEnviado.pendiente(String id) =>
+      ReporteEnviado(id: -1, incidenteId: null, pendienteId: id);
 
   factory ReporteEnviado.desdeJson(Map<String, dynamic> json) => ReporteEnviado(
     id: json['id'] as int,
@@ -23,6 +40,9 @@ class ReporteEnviado {
 
   final int id;
   final int? incidenteId;
+  final String? pendienteId;
+
+  bool get pendiente => pendienteId != null;
 }
 
 /// Por dónde sale un reporte. Hoy va directo al servidor; el modo sin conexión
@@ -68,6 +88,39 @@ class RepositorioReportesApi implements RepositorioReportes {
       return ReporteEnviado.desdeJson(respuesta.data!);
     } catch (e) {
       throw ErrorApi.desde(e);
+    }
+  }
+}
+
+class RepositorioReportesConCola implements RepositorioReportes {
+  RepositorioReportesConCola(this._api, this._cola, this._ref);
+
+  final RepositorioReportesApi _api;
+  final ColaReportes _cola;
+  final Ref _ref;
+
+  @override
+  Future<ReporteEnviado> enviar(BorradorReporte borrador) async {
+    try {
+      return await _api.enviar(borrador);
+    } on ErrorApi catch (error) {
+      if (error.codigo != ErrorApi.sinConexion.codigo) rethrow;
+
+      final categorias = _ref.read(categoriasProvider).value ?? const [];
+      final categoriaNombre =
+          categorias
+              .where((categoria) => categoria.id == borrador.categoriaId)
+              .map((categoria) => categoria.nombre)
+              .firstOrNull ??
+          'Categoría';
+
+      final pendiente = await _cola.guardar(
+        borrador,
+        categoriaNombre: categoriaNombre,
+      );
+      await _ref.read(reportesPendientesProvider.notifier).actualizar();
+
+      return ReporteEnviado.pendiente(pendiente.id);
     }
   }
 }

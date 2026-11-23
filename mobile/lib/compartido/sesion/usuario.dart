@@ -33,6 +33,15 @@ class Usuario {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'email': email,
+    'nombre': nombre,
+    'rol': rol.name.toUpperCase(),
+    'perfilMovilidadId': perfilMovilidadId,
+    'notificacionesHabilitadas': notificacionesHabilitadas,
+  };
+
   final int id;
   final String email;
   final String nombre;

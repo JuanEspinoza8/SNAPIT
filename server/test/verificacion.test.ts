@@ -18,6 +18,9 @@ beforeEach(async () => {
   });
 });
 
+let ultimoRegistro = Date.parse('2026-10-15T18:00:00Z');
+const registradoEnUnico = () => new Date((ultimoRegistro += 60_000)).toISOString();
+
 async function reportar(
   vecino: Usuario,
   opciones: { foto?: Buffer; camara?: boolean; lat?: number; lon?: number; registradoEn?: string } = {},
@@ -31,7 +34,7 @@ async function reportar(
     .field('lon', String(opciones.lon ?? EXIF_DE_PRUEBA.longitud))
     .field('origen', 'APP_MOVIL')
     .field('tomadaConCamaraApp', String(opciones.camara ?? false))
-    .field('registradoEn', opciones.registradoEn ?? '2026-10-15T18:00:00Z')
+    .field('registradoEn', opciones.registradoEn ?? registradoEnUnico())
     .attach('foto', opciones.foto ?? jpegConExif(), 'foto.jpg');
   expect(res.status).toBe(201);
   return res.body as { id: number; incidenteId: number; nivelConfianza: number; estadoVerificacion: string };

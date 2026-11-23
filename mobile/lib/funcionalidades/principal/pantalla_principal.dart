@@ -25,6 +25,8 @@ import '../mis_reportes/pantalla_mis_reportes.dart';
 import '../recorrido/elegir_perfil_movilidad.dart';
 import '../recorrido/pantalla_recorrido.dart';
 import '../reportar/pantalla_reportar.dart';
+import '../reportar/repositorio_reportes.dart';
+import '../reportar/sincronizador_reportes.dart';
 
 /// Lo primero que se ve con sesión: el feed. El vecino tiene además mapa,
 /// reportar, mis reportes y recorrido; operador y administrador, inicio y
@@ -58,13 +60,17 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _iniciarAvisos());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _iniciarAvisos();
+      ref.read(sincronizadorReportesProvider).iniciar();
+    });
     // Un aviso que llega con la app en segundo plano lo muestra Android y la
     // app no se entera: al volver, se pide la lista de nuevo para que el
     // contador no quede viejo.
     _ciclo = AppLifecycleListener(
       onResume: () {
         if (mounted && _esVecino) ref.invalidate(avisosProvider);
+        unawaited(ref.read(sincronizadorReportesProvider).sincronizar());
       },
     );
   }
@@ -345,15 +351,17 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
 
   /// Después de enviar un reporte vuelve al inicio con un aviso arriba.
   /// «Reportar» se cierra: al volver arranca vacío y lee de nuevo el GPS.
-  void _alEnviarReporte() {
+  void _alEnviarReporte(ReporteEnviado enviado) {
     setState(() {
       _seccion = _inicio;
       _abiertas.remove(_reportar);
     });
     mostrarAvisoArriba(
       context,
-      titulo: 'Reporte enviado',
-      texto: 'Queda pendiente de aprobación antes de publicarse.',
+      titulo: enviado.pendiente ? 'Reporte guardado' : 'Reporte enviado',
+      texto: enviado.pendiente
+          ? 'Se va a enviar cuando vuelva la conexión.'
+          : 'Queda pendiente de aprobación antes de publicarse.',
     );
   }
 

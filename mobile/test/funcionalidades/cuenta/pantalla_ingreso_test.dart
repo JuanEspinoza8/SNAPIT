@@ -47,10 +47,10 @@ void main() {
       'email': 'ana@ejemplo.com',
       'clave': 'una-clave-segura',
     });
-    expect(await tokensGuardados(), {
-      'tokenAcceso': 'acceso-2',
-      'tokenRenovacion': 'renovacion-2',
-    });
+    final guardado = await tokensGuardados();
+    expect(guardado['tokenAcceso'], 'acceso-2');
+    expect(guardado['tokenRenovacion'], 'renovacion-2');
+    expect(guardado['usuario'], contains('"rol":"VECINO"'));
   });
 
   testWidgets('con datos incorrectos muestra el mensaje y no entra', (
