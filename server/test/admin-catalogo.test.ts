@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { claveRegla, REGLAS_TRAMO } from '../src/modulos/recorridos/calculo.js';
@@ -196,6 +196,12 @@ describe('categorías (#166)', () => {
 });
 
 describe('PUT /api/admin/categorias/:id/perfiles (la matriz)', () => {
+  // La base de tests puede no tener perfiles (en la CI no se corre la semilla): se crean dos propios.
+  beforeAll(async () => {
+    await crearPerfil({ nombre: unico('Perfil') });
+    await crearPerfil({ nombre: unico('Perfil') });
+  });
+
   it('cambia las celdas que vienen y deja las demás', async () => {
     const { area } = await crearOrganismoDePrueba();
     const { body } = await crearCategoria(datosCategoria(area.id));
