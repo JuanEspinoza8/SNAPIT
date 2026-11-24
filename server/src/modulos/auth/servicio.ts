@@ -57,11 +57,31 @@ function enviarSinEsperar(correo: Correo, usuarioId: number) {
 
 /** Los datos del usuario que se le devuelven al cliente. Nunca incluye el hash de la clave. */
 export function usuarioPublico(usuario: Usuario) {
-  const { id, email, nombre, rol, organismoId, areaId, perfilMovilidadId, notificacionesHabilitadas } =
-    usuario;
+  const {
+    id,
+    email,
+    nombre,
+    rol,
+    organismoId,
+    areaId,
+    perfilMovilidadId,
+    notificacionesHabilitadas,
+    creadoEn,
+  } = usuario;
   // perfilMovilidadId: el perfil que la app elige de entrada para calcular un recorrido (F11).
   // notificacionesHabilitadas: el interruptor general de avisos (F10).
-  return { id, email, nombre, rol, organismoId, areaId, perfilMovilidadId, notificacionesHabilitadas };
+  // creadoEn: para el «Miembro desde» del perfil.
+  return {
+    id,
+    email,
+    nombre,
+    rol,
+    organismoId,
+    areaId,
+    perfilMovilidadId,
+    notificacionesHabilitadas,
+    creadoEn,
+  };
 }
 
 async function abrirSesion(usuario: Usuario) {
@@ -169,6 +189,30 @@ export async function obtenerUsuarioActual(id: number) {
     throw new ErrorApp(401, 'TOKEN_INVALIDO', 'La sesión no es válida. Volvé a ingresar');
   }
   return { usuario: usuarioPublico(usuario) };
+}
+
+/**
+ * El usuario cambia su clave desde el perfil, con la actual. Como al restablecerla, se cierran todas las sesiones
+ * (por si alguien entró con la vieja) y se abre una nueva para este dispositivo: el cliente reemplaza sus tokens
+ * y sigue adentro.
+ */
+export async function cambiarClavePropia(id: number, datos: { claveActual: string; claveNueva: string }) {
+  const usuario = await repositorio.buscarUsuarioPorId(id);
+  if (!usuario || usuario.eliminadoEn) {
+    throw new ErrorApp(401, 'TOKEN_INVALIDO', 'La sesión no es válida. Volvé a ingresar');
+  }
+  if (!(await bcrypt.compare(datos.claveActual, usuario.passwordHash))) {
+    throw new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [
+      { campo: 'claveActual', mensaje: 'No es tu contraseña actual' },
+    ]);
+  }
+  const ahora = new Date();
+  const passwordHash = await bcrypt.hash(datos.claveNueva, COSTO_BCRYPT);
+  await repositorio.transaccion(async (tx) => {
+    await repositorio.cambiarClave(id, passwordHash, ahora, tx);
+    await repositorio.anularTokensPendientes(id, ahora, tx);
+  });
+  return abrirSesion({ ...usuario, passwordHash });
 }
 
 /** Busca el token de un link y controla que se pueda usar. Todavía no lo marca como usado. */

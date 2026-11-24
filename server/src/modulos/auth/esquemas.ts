@@ -26,6 +26,12 @@ export const nombre = z
 
 export const esquemaRegistro = z.object({ email, clave, nombre });
 
+// La actual no se valida por largo: una mal escrita tiene que dar «no es tu contraseña», no un error de formato.
+export const esquemaCambiarClave = z.object({
+  claveActual: z.string({ error: 'Es obligatoria' }).min(1, { error: 'Es obligatoria' }),
+  claveNueva: clave,
+});
+
 // En el ingreso no se validan largos: una clave mal escrita tiene que dar 401, no 400.
 export const esquemaIngreso = z.object({
   email: z.string({ error: 'Es obligatorio' }).trim().toLowerCase(),

@@ -91,10 +91,10 @@ Indica si el servidor está activo y si llega a la base de datos. Siempre respon
 Lo devuelven el registro, el ingreso, la renovación, `/yo` y la administración de usuarios. Nunca incluye la clave.
 
 ```json
-{ "id": 7, "email": "ana@ejemplo.com", "nombre": "Ana", "rol": "VECINO", "organismoId": null, "areaId": null, "perfilMovilidadId": null, "notificacionesHabilitadas": true }
+{ "id": 7, "email": "ana@ejemplo.com", "nombre": "Ana", "rol": "VECINO", "organismoId": null, "areaId": null, "perfilMovilidadId": null, "notificacionesHabilitadas": true, "creadoEn": "2026-02-10T13:00:00.000Z" }
 ```
 
-`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` viene informado en los operadores y, si se le asignó uno, en los administradores. `areaId`, solo en los operadores. `perfilMovilidadId` es el perfil con el que la app arranca el [recorrido accesible](#get-apirecorridos); null mientras el usuario no eligió uno. `notificacionesHabilitadas` es el interruptor general de los [avisos](#avisos-al-vecino); arranca en `true`. Los dos se cambian con [`PATCH /api/usuarios/yo`](#patch-apiusuariosyo).
+`rol` es `VECINO`, `OPERADOR` o `ADMINISTRADOR`. `organismoId` viene informado en los operadores y, si se le asignó uno, en los administradores. `areaId`, solo en los operadores. `perfilMovilidadId` es el perfil con el que la app arranca el [recorrido accesible](#get-apirecorridos); null mientras el usuario no eligió uno. `notificacionesHabilitadas` es el interruptor general de los [avisos](#avisos-al-vecino); arranca en `true`. Los dos se cambian con [`PATCH /api/usuarios/yo`](#patch-apiusuariosyo), igual que el `nombre`. `creadoEn` es la fecha de alta de la cuenta: el perfil la muestra como «Miembro desde».
 
 ### `POST /api/auth/registro`
 Crea una cuenta de vecino. Pública.
@@ -163,11 +163,13 @@ Responde **204** sin cuerpo, aunque el token no exista. El cliente igual borra l
 Requiere sesión. Responde **200** con `{ "usuario": { ... } }`, leído de la base en ese momento.
 
 ### `PATCH /api/usuarios/yo`
-El usuario cambia su interruptor general de avisos (F10) o su perfil de movilidad por defecto (F11). Requiere sesión, de cualquier rol. Se manda al menos uno de los dos campos:
+El usuario cambia su nombre visible (desde el perfil), su interruptor general de avisos (F10) o su perfil de movilidad por defecto (F11). Requiere sesión, de cualquier rol. Se manda al menos uno de los campos:
 
 ```json
-{ "notificacionesHabilitadas": false, "perfilMovilidadId": 2 }
+{ "nombre": "Ana Pérez", "notificacionesHabilitadas": false, "perfilMovilidadId": 2 }
 ```
+
+- `nombre`: de 1 a 120 caracteres, sin los espacios de las puntas. El correo no se cambia: es con lo que se ingresa.
 
 - `notificacionesHabilitadas`: con `false` no se crea ningún aviso, ni siquiera en la lista de la app.
 - `perfilMovilidadId`: un perfil activo de `GET /api/perfiles-movilidad`, o `null` para no tener ninguno.
@@ -176,8 +178,22 @@ Responde **200** con `{ "usuario": { ... } }`, ya cambiado.
 
 | Error | Cuándo |
 |---|---|
-| 400 `DATOS_INVALIDOS` | No vino ningún campo, alguno tiene otro tipo, o el perfil no existe o está dado de baja |
+| 400 `DATOS_INVALIDOS` | No vino ningún campo, alguno tiene otro tipo, el nombre está vacío o es muy largo, o el perfil no existe o está dado de baja |
 | 401 `TOKEN_INVALIDO` | La cuenta se dio de baja |
+
+### `POST /api/auth/cambiar-clave`
+El usuario cambia su clave desde el perfil, con la actual. Requiere sesión, de cualquier rol.
+
+```json
+{ "claveActual": "la-de-ahora", "claveNueva": "la-nueva-123" }
+```
+
+`claveNueva` sigue las mismas reglas que en el registro. Igual que al restablecerla, se cierran **todas** las sesiones abiertas (por si alguien entró con la clave vieja) y se anulan los links pendientes. Para que quien la cambió siga adentro, responde **200** como el ingreso, con una sesión nueva: `{ "tokenAcceso", "tokenRenovacion", "usuario" }`. El cliente reemplaza sus tokens.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | `claveActual` no es la clave de ahora (detalle en `claveActual`), o `claveNueva` no cumple las reglas |
+| 401 | `TOKEN_INVALIDO` | La cuenta se dio de baja |
 
 ### Links de los correos
 Los correos llevan un link a la web, armado con la variable `URL_WEB`:
@@ -406,7 +422,18 @@ Responde **200**, del más nuevo al más viejo (por `registradoEn`):
 - Los que eliminó (`DELETE /api/reportes/:id`) no vienen.
 
 ### `DELETE /api/reportes/:id`
-El vecino elimina su propio reporte (#150): baja lógica (`reporte.eliminado_en`). Requiere sesión de `VECINO`; ni el operador ni el administrador eliminan reportes (los desestiman en la revisión). Responde **204** sin cuerpo.
+El vecino elimina su propio reporte (#150): baja lógica (`reporte.eliminado_en`). Requiere sesión de `VECINO` o de `ADMINISTRADOR`; el operador no elimina reportes (los pendientes los desestima en la revisión). Responde **204** sin cuerpo.
+
+**Moderación.** El administrador puede quitar cualquier reporte, también uno publicado (por ejemplo, una foto con datos personales que la IA dejó pasar). Manda un motivo:
+
+```json
+{ "motivo": "Se ve una patente en la foto" }
+```
+
+- `motivo`: obligatorio, hasta 500 caracteres.
+- Queda en la bitácora del incidente del reporte, a nombre del administrador, como `COMENTARIO` con el texto «Reporte #N quitado por un administrador: motivo». El modelo no guarda quién eliminó un reporte: este movimiento es el registro.
+- Puede quitar el único reporte visible del incidente: si queda sin reportes válidos, el recálculo lo desestima. Si ya estaba derivado o en ejecución, sigue en la bandeja.
+- Quien abra después el link de la publicación recibe **410** `REPORTE_QUITADO` (ver [`GET /api/social/reportes/:id`](#get-apisocialreportesid)).
 
 Para el cálculo cuenta como un desestimado ([calculos.md](calculos.md#agrupación-de-reportes-en-incidentes)): se resta de `cantidad_reportes`, deja de pesar en la severidad y en el estado del incidente, y se recalcula la prioridad. La reputación del vecino no cambia. Si estaba pendiente, sale de la revisión y de la cola de la IA. Deja de verse en la ficha, el feed, lo social y Mis reportes.
 
@@ -414,6 +441,7 @@ Para el cálculo cuenta como un desestimado ([calculos.md](calculos.md#agrupaci�
 |---|---|
 | Un reporte de otro vecino, o con otro rol | **403** `SIN_PERMISO` |
 | No existe o ya está eliminado | **404** `REPORTE_NO_ENCONTRADO` |
+| Un administrador sin `motivo`, o con uno de más de 500 caracteres | **400** `DATOS_INVALIDOS` |
 | Es el único reporte visible de su incidente (sin contar los unidos ni los marcados para desestimar) | **409** `UNICO_REPORTE` |
 | Un desestimado | **204**: ya no contaba, solo deja de verse en Mis reportes |
 
@@ -1053,6 +1081,8 @@ Los comentarios sobre el incidente en general (no los de sus fotos), también lo
 
 ### `GET /api/social/reportes/:id`
 Un reporte suelto, con la misma forma que cada elemento de `GET /api/social/incidentes/:id/reportes`. `incidenteId` es el que ve el público: el principal, si el suyo se unió a otro. El número del autor es el de ese incidente.
+
+Si lo quitó un administrador (moderación), responde **410** `REPORTE_QUITADO` con el mensaje «Esta publicación fue eliminada por un administrador. Motivo: …», para que quien siga un link viejo sepa qué pasó. Si lo eliminó su autor, **404** como cualquier reporte que no se ve.
 
 ### `GET /api/social/reportes/:id/comentarios`
 Los comentarios de un reporte, con la misma forma que los del incidente (`{ "comentarios": [...] }`) y los números del incidente del reporte.
