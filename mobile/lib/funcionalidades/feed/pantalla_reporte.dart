@@ -49,6 +49,37 @@ class PantallaReporte extends ConsumerWidget {
       body: SafeArea(
         child: switch (reporte) {
           AsyncData(:final value) => _Contenido(value),
+          // Un link a una publicación que quitó un administrador lo dice, con
+          // el motivo: no es un error que se pueda reintentar.
+          AsyncError(:final error)
+              when ErrorApi.desde(error).codigo == 'REPORTE_QUITADO' =>
+            Padding(
+              padding: const EdgeInsets.all(Espacio.xl),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.shield_outlined,
+                    size: Espacio.xxxl,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(height: Espacio.lg),
+                  Text(
+                    'Publicación eliminada por un administrador',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: Espacio.sm),
+                  Text(
+                    ErrorApi.desde(error).mensaje,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           AsyncError(:final error) when !reporte.isLoading => Padding(
             padding: const EdgeInsets.all(Espacio.lg),
             child: Column(

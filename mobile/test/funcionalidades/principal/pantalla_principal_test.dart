@@ -4,6 +4,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:snapit/compartido/red/cliente_api.dart';
+import 'package:snapit/compartido/rutas/rutas_app.dart';
+import 'package:snapit/funcionalidades/perfil/pantalla_editar_perfil.dart';
 import 'package:snapit/funcionalidades/cuenta/pantalla_ingreso.dart';
 import 'package:snapit/funcionalidades/feed/pantalla_feed.dart';
 import 'package:snapit/funcionalidades/mapa/foco_mapa.dart';
@@ -48,14 +50,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Reportar un problema'), findsOneWidget);
 
-    await tester.tap(find.text('Mis reportes'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(AppBar, 'Mis reportes'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Mi perfil'), findsOneWidget);
     expect(find.text('Todavía no hiciste reportes'), findsOneWidget);
 
     await tester.tap(find.text('Recorrido'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(AppBar, 'Recorrido accesible'), findsOneWidget);
+  });
+
+  testWidgets('la barra queda fija sobre una pantalla abierta encima, y una '
+      'sección vuelve a la principal', (tester) async {
+    final contenedor = await abrirApp(tester, servidorCon());
+
+    contenedor.read(rutasProvider).push(Rutas.editarPerfil);
+    await tester.pumpAndSettle();
+    expect(find.byType(PantallaEditarPerfil), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
+
+    await tester.tap(find.text('Mapa'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PantallaEditarPerfil), findsNothing);
+    expect(find.widgetWithText(AppBar, 'Mapa de incidentes'), findsOneWidget);
   });
 
   testWidgets('el mapa no pide la ubicación hasta que se abre', (tester) async {
@@ -122,12 +145,12 @@ void main() {
   });
 
   for (final rol in ['OPERADOR', 'ADMINISTRADOR']) {
-    testWidgets('$rol ve el inicio, el mapa y el aviso del panel web', (
-      tester,
-    ) async {
+    testWidgets('$rol ve el inicio, el mapa, su perfil y el aviso del panel '
+        'web', (tester) async {
       await abrirApp(tester, servidorCon(rol: rol));
 
-      expect(find.byType(NavigationDestination), findsNWidgets(2));
+      expect(find.byType(NavigationDestination), findsNWidgets(3));
+      expect(find.text('Mi perfil'), findsOneWidget);
       expect(find.byType(PantallaFeed), findsOneWidget);
       expect(find.text('Reportar'), findsNothing);
 
@@ -143,10 +166,21 @@ void main() {
       'que queda guardado', (tester) async {
     await abrirApp(tester, servidorCon());
     Brightness brillo() =>
-        Theme.of(tester.element(find.byType(PantallaFeed))).brightness;
+        // El feed queda debajo del perfil al abrir la cuenta: igual se lee.
+        Theme.of(
+          tester.element(find.byType(PantallaFeed, skipOffstage: false)),
+        ).brightness;
     expect(brillo(), Brightness.dark);
 
-    await tester.tap(find.byTooltip('Cuenta'));
+    // Los ajustes de la cuenta están en «Mi perfil», en la rueda de arriba.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ajustes de la cuenta'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Tema oscuro'));
     await tester.pumpAndSettle();
@@ -172,7 +206,15 @@ void main() {
     final servidor = servidorCon();
     await abrirApp(tester, servidor);
 
-    await tester.tap(find.byTooltip('Cuenta'));
+    // Los ajustes de la cuenta están en «Mi perfil», en la rueda de arriba.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ajustes de la cuenta'));
     await tester.pumpAndSettle();
     expect(find.text('Ana'), findsOneWidget);
     expect(find.text('ana@ejemplo.com'), findsOneWidget);

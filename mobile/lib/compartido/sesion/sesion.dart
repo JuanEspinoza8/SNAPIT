@@ -45,6 +45,23 @@ class Sesion extends AsyncNotifier<Usuario?> {
     state = AsyncData(ingreso.usuario);
   }
 
+  /// Cambia la clave desde el perfil y sigue adentro con los tokens nuevos:
+  /// las otras sesiones quedan cerradas. Los errores llegan como [ErrorApi].
+  Future<void> cambiarClave({
+    required String claveActual,
+    required String claveNueva,
+  }) async {
+    final ingreso = await _repositorio.cambiarClave(
+      claveActual: claveActual,
+      claveNueva: claveNueva,
+    );
+    await _almacen.guardar(
+      tokenAcceso: ingreso.tokenAcceso,
+      tokenRenovacion: ingreso.tokenRenovacion,
+    );
+    actualizarUsuario(ingreso.usuario);
+  }
+
   /// Reemplaza el usuario en memoria después de un `PATCH /usuarios/yo`.
   /// Solo si sigue siendo la misma cuenta.
   void actualizarUsuario(Usuario usuario) {

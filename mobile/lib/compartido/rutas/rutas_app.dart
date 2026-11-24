@@ -15,6 +15,8 @@ import '../../funcionalidades/feed/pantalla_incidente.dart';
 import '../../funcionalidades/feed/pantalla_reporte.dart';
 import '../../funcionalidades/mapa/mapa_incidentes.dart';
 import '../../funcionalidades/mapa/pantalla_mapa_publico.dart';
+import '../../funcionalidades/perfil/pantalla_editar_perfil.dart';
+import '../../funcionalidades/principal/marco_con_barra.dart';
 import '../../funcionalidades/principal/pantalla_principal.dart';
 import '../../funcionalidades/reportar/pantalla_elegir_punto.dart';
 import '../sesion/sesion.dart';
@@ -30,6 +32,9 @@ abstract final class Rutas {
 
   /// La lista de avisos del vecino.
   static const avisos = '/avisos';
+
+  /// La edición del perfil propio («Mi perfil» es una sección de la barra).
+  static const editarPerfil = '/perfil/editar';
 
   /// Qué avisos recibe: el interruptor general, las categorías y las zonas
   /// habituales.
@@ -87,33 +92,48 @@ final rutasProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const PantallaRecuperarClave(),
       ),
       GoRoute(path: Rutas.mapa, builder: (_, _) => const PantallaMapaPublico()),
-      GoRoute(
-        path: Rutas.principal,
-        builder: (_, _) => const PantallaPrincipal(),
-      ),
-      GoRoute(path: Rutas.avisos, builder: (_, _) => const PantallaAvisos()),
-      GoRoute(
-        path: Rutas.ajustesAvisos,
-        builder: (_, _) => const PantallaAjustesAvisos(),
-      ),
-      GoRoute(
-        path: Rutas.zonaHabitual,
-        builder: (_, estado) => PantallaZonaHabitual(
-          zona: switch (estado.extra) {
-            final ZonaHabitual zona => zona,
-            _ => null,
-          },
-        ),
-      ),
-      GoRoute(
-        path: '/incidente/:id',
-        builder: (_, estado) =>
-            PantallaIncidente(int.parse(estado.pathParameters['id']!)),
-      ),
-      GoRoute(
-        path: '/reporte/:id',
-        builder: (_, estado) =>
-            PantallaReporte(int.parse(estado.pathParameters['id']!)),
+      // La barra de abajo queda fija en la principal y en lo que se abre
+      // encima de ella (MarcoConBarra). Elegir un punto, que es una pantalla
+      // de paso, va afuera: a pantalla completa.
+      ShellRoute(
+        builder: (_, _, hijo) => MarcoConBarra(child: hijo),
+        routes: [
+          GoRoute(
+            path: Rutas.principal,
+            builder: (_, _) => const PantallaPrincipal(),
+          ),
+          GoRoute(
+            path: Rutas.avisos,
+            builder: (_, _) => const PantallaAvisos(),
+          ),
+          GoRoute(
+            path: Rutas.editarPerfil,
+            builder: (_, _) => const PantallaEditarPerfil(),
+          ),
+          GoRoute(
+            path: Rutas.ajustesAvisos,
+            builder: (_, _) => const PantallaAjustesAvisos(),
+          ),
+          GoRoute(
+            path: Rutas.zonaHabitual,
+            builder: (_, estado) => PantallaZonaHabitual(
+              zona: switch (estado.extra) {
+                final ZonaHabitual zona => zona,
+                _ => null,
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/incidente/:id',
+            builder: (_, estado) =>
+                PantallaIncidente(int.parse(estado.pathParameters['id']!)),
+          ),
+          GoRoute(
+            path: '/reporte/:id',
+            builder: (_, estado) =>
+                PantallaReporte(int.parse(estado.pathParameters['id']!)),
+          ),
+        ],
       ),
       GoRoute(
         path: Rutas.elegirPunto,

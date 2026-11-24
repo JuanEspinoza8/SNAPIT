@@ -859,7 +859,12 @@ void main() {
     final servidor = ServidorDeReportes();
     await abrirReportar(tester, servidor);
     // La lista ya se había abierto, todavía vacía.
-    await tester.tap(find.text('Mis reportes'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Todavía no hiciste reportes'), findsOneWidget);
     await tester.tap(find.text('Reportar'));
@@ -867,7 +872,12 @@ void main() {
 
     await completar(tester);
     await enviar(tester);
-    await tester.tap(find.text('Mis reportes'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(servidor.servidor.cantidad('/reportes/mios'), 2);

@@ -35,6 +35,12 @@ void main() {
     expect(find.byType(PantallaZonaHabitual), findsOneWidget);
   }
 
+  /// Espera a que se vaya el cartel de abajo: tapa el botón de guardar.
+  Future<void> esperarQueSeVayaElCartel(WidgetTester tester) async {
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+  }
+
   Future<void> tocar(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
@@ -120,6 +126,7 @@ void main() {
     expect(find.text('No se pudo leer la ubicación.'), findsNothing);
     await tocar(tester, find.text('Usar mi ubicación'));
     expect(find.text('No se pudo leer la ubicación.'), findsOneWidget);
+    await esperarQueSeVayaElCartel(tester);
 
     await tester.enterText(find.byType(TextFormField), 'Casa');
     await tocar(tester, find.text('Crear zona'));
@@ -182,6 +189,7 @@ void main() {
     expect(find.byType(PantallaZonaHabitual), findsOneWidget);
 
     servidor.errorGuardarZona = null;
+    await esperarQueSeVayaElCartel(tester);
     await tocar(tester, find.text('Crear zona'));
 
     expect(find.byType(PantallaZonaHabitual), findsNothing);

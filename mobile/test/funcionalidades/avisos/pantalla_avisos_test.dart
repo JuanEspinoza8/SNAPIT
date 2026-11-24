@@ -189,7 +189,15 @@ void main() {
       'plataforma': 'ANDROID',
     });
 
-    await tester.tap(find.byTooltip('Cuenta'));
+    // Los ajustes de la cuenta están en «Mi perfil», en la rueda de arriba.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ajustes de la cuenta'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Salir'));
     await tester.pumpAndSettle();
@@ -205,7 +213,15 @@ void main() {
     final servidor = servidorConAvisos();
     await abrirApp(tester, servidor);
 
-    await tester.tap(find.byTooltip('Cuenta'));
+    // Los ajustes de la cuenta están en «Mi perfil», en la rueda de arriba.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ajustes de la cuenta'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Salir'));
     await tester.pumpAndSettle();
