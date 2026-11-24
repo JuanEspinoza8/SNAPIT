@@ -16,6 +16,7 @@ function reporte(
     registradoEn?: string;
     estado?: string;
     verificacion?: ReporteDelOrganismo['estadoVerificacion'];
+    caducadoEn?: string;
   } = {},
 ): ReporteDelOrganismo {
   return {
@@ -36,6 +37,7 @@ function reporte(
       estado: datos.estado ?? 'VERIFICADO',
       cantidadReportes: 1,
       propioId: incidente.propioId ?? incidente.id,
+      caducadoEn: datos.caducadoEn ?? null,
     },
     vecino: { reputacion: 50, reportesConfirmados: 0, reportesDesestimados: 0 },
     propuestaIa: null,
@@ -245,6 +247,32 @@ describe('corregir la agrupación de incidentes (F05)', () => {
 
     expect(await screen.findByText(/el #20 volvió a ser un incidente aparte/)).toBeInTheDocument();
     expect(pedidos).toEqual([{ metodo: 'DELETE', ruta: '/api/incidentes/20/union', cuerpo: null }]);
+  });
+
+  it('no propone unir con un incidente caducado o vencido, ni ofrece unir uno', async () => {
+    // El 40 es el más cercano al 30, pero caducó (o venció y la tarea diaria todavía no lo marcó).
+    servidor.use(
+      http.get('*/api/reportes', () =>
+        HttpResponse.json({
+          reportes: [
+            reporte(4, { id: 30 }, { lat: -38.9 }),
+            reporte(5, { id: 40 }, { lat: -38.9027, caducadoEn: '2026-11-01T03:00:00.000Z' }),
+            reporte(6, { id: 50 }, { lat: -39.0 }),
+          ],
+        }),
+      ),
+    );
+    const usuario = userEvent.setup();
+    renderRuta('/incidentes', <PaginaIncidentes />);
+
+    const caducado = await tarjeta(40);
+    expect(within(caducado).getByText(/· caducó el 1 de noviembre de 2026 ·/)).toBeInTheDocument();
+    expect(within(caducado).queryByRole('button', { name: 'Unir a otro…' })).not.toBeInTheDocument();
+
+    await usuario.click(within(await tarjeta(30)).getByRole('button', { name: 'Unir a otro…' }));
+
+    expect(screen.queryByRole('radio', { name: /^#40 ·/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^#50 ·/ })).toBeChecked();
   });
 
   it('muestra el error del servidor si no se puede unir', async () => {

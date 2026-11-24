@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FotoConSesion } from '../../compartido/componentes/FotoConSesion.js';
 import { useFocoConfirmacion } from '../../compartido/componentes/useFocoConfirmacion.js';
+import { formatearFecha } from '../../compartido/formato/fechas.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { EtiquetaReporte } from './EtiquetaReporte.js';
-import { estadoParaElVecino, estaPublicado, tieneFicha } from './tipos.js';
+import { caducoEl, estadoParaElVecino, estaPublicado, tieneFicha } from './tipos.js';
 import type { ReporteMio } from './tipos.js';
 import { useEliminarReporte } from './useMisReportes.js';
 
@@ -20,13 +21,15 @@ interface Props {
 }
 
 /**
- * Un reporte del vecino en su perfil: foto, categoría, fecha y estado. Si está publicado, toda la fila lleva a su
- * publicación, donde están el agradecimiento de SnapIt y los comentarios a su foto. Si no, pero el problema tiene
- * ficha, la abre al lado. Debajo, «Eliminar», con confirmación (#151).
+ * Un reporte del vecino en su perfil: foto, categoría, fecha y estado (o cuándo caducó). Si está publicado, toda
+ * la fila lleva a su publicación, donde están el agradecimiento de SnapIt y los comentarios a su foto. Si no, pero
+ * el problema tiene ficha, la abre al lado. Debajo, «Eliminar», con confirmación (#151).
  */
 export function FilaReporte({ reporte, alAbrirFicha }: Props) {
   const incidenteId = reporte.incidente?.id;
   const publicado = estaPublicado(reporte);
+  // Un problema caducado ya no está en el mapa: no se dice en qué estado quedó, sino desde cuándo no sigue.
+  const caducado = caducoEl(reporte);
 
   const contenido = (
     <>
@@ -35,7 +38,13 @@ export function FilaReporte({ reporte, alAbrirFicha }: Props) {
         <span className="font-semibold text-texto">{reporte.categoria.nombre}</span>
         <span className="text-sm text-texto-secundario">{fecha.format(new Date(reporte.registradoEn))}</span>
         <span className="mt-1">
-          <EtiquetaReporte estado={estadoParaElVecino(reporte)} />
+          {caducado ? (
+            <span className="rounded-md border border-borde px-2 py-0.5 text-xs font-semibold text-texto-secundario">
+              Caducó el {formatearFecha(caducado)}
+            </span>
+          ) : (
+            <EtiquetaReporte estado={estadoParaElVecino(reporte)} />
+          )}
         </span>
       </span>
       {tieneFicha(reporte) && (

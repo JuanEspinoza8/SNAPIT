@@ -3,6 +3,7 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { useFicha } from '../mapa/consultas.js';
+import { ConfirmarSigue } from './ConfirmarSigue.js';
 import {
   AntesYDespues,
   CabeceraProblema,
@@ -15,9 +16,9 @@ import { Carrusel } from './piezas.js';
 
 /**
  * La ficha del problema (el incidente): sus fotos, en qué está su atención, la lista de los reportes de los
- * vecinos y los comentarios sobre el problema en general (#151). Se llega desde el mapa, los avisos y las
- * publicaciones de un problema que reportaron varios. El me gusta y los comentarios de cada foto van en su
- * publicación.
+ * vecinos y los comentarios sobre el problema en general (#151). Acá el vecino confirma que sigue (F12). Se llega
+ * desde el mapa, los avisos y las publicaciones de un problema que reportaron varios. El me gusta y los
+ * comentarios de cada foto van en su publicación.
  */
 export function PaginaIncidente() {
   const id = Number(useParams().id);
@@ -52,8 +53,9 @@ export function PaginaIncidente() {
               ) : (
                 <Carrusel fotos={ficha.data.fotos} descripcion={ficha.data.categoria.nombre} />
               )}
-              <div className="p-4">
+              <div className="flex flex-col gap-4 p-4">
                 <CabeceraProblema ficha={ficha.data} />
+                <ConfirmarSigue ficha={ficha.data} />
               </div>
             </article>
 

@@ -13,8 +13,11 @@ import type { Comentario, ReportePublico } from './tipos.js';
 
 const MAXIMO_COMENTARIO = 1000;
 
-/** Quién puede hacer qué: el vecino da me gusta y comenta; el operador y el administrador moderan. */
-function usePermisos() {
+/**
+ * Quién puede hacer qué: el vecino da me gusta, comenta y confirma que el problema sigue; el operador y el
+ * administrador moderan.
+ */
+export function usePermisos() {
   const { usuario } = useSesion();
   return {
     conSesion: usuario !== null,
@@ -23,8 +26,8 @@ function usePermisos() {
   };
 }
 
-/** Sin sesión, el me gusta y la caja de comentarios llevan al ingreso, y al ingresar se vuelve acá. */
-function useIrAlIngreso() {
+/** Sin sesión, el me gusta, la caja de comentarios y «Sigue estando» llevan al ingreso; al ingresar se vuelve acá. */
+export function useIrAlIngreso() {
   const navegar = useNavigate();
   const { pathname, search } = useLocation();
   const estado: EstadoIngreso = { desde: `${pathname}${search}` };
