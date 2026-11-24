@@ -39,3 +39,37 @@ export type DatosModificacionUsuario =
   | { nombre: string; rol: 'VECINO'; organismoId: null; areaId: null }
   | { nombre: string; rol: 'OPERADOR'; organismoId: number; areaId: number | null }
   | { nombre: string; rol: 'ADMINISTRADOR'; organismoId: number | null; areaId: null };
+
+// Organismos y áreas para administrarlos (`GET /api/admin/organismos?todos=true`, #165): también los dados de
+// baja, con su descripción. `categoriasActivas` dice si el área se puede dar de baja.
+export interface AreaAdmin {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  activa: boolean;
+  creadoEn: string;
+  categoriasActivas: number;
+}
+
+export interface OrganismoAdmin {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  activo: boolean;
+  creadoEn: string;
+  areas: AreaAdmin[];
+}
+
+/** Alta y modificación de un organismo. Sin `activo`, queda como está; con true se reactiva. */
+export interface DatosOrganismo {
+  nombre: string;
+  descripcion: string | null;
+  activo?: boolean;
+}
+
+/** Modificación de un área. Su organismo no cambia. */
+export interface DatosArea {
+  nombre: string;
+  descripcion: string | null;
+  activa?: boolean;
+}

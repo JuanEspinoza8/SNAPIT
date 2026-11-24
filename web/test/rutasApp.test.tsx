@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
@@ -156,5 +156,18 @@ describe('rutas de la aplicación', () => {
     abrir('/administracion', 'ADMINISTRADOR');
 
     expect(await screen.findByRole('heading', { name: 'Usuarios', level: 1 })).toBeInTheDocument();
+  });
+
+  it('la administración tiene pestañas, y la de organismos y áreas abre su pantalla', async () => {
+    servidor.use(http.get('*/api/admin/organismos', () => HttpResponse.json({ organismos: [] })));
+    abrir('/administracion/organismos', 'ADMINISTRADOR');
+
+    expect(await screen.findByRole('heading', { name: 'Organismos y áreas', level: 1 })).toBeInTheDocument();
+    const pestanas = screen.getByRole('navigation', { name: 'Administración' });
+    expect(within(pestanas).getByRole('link', { name: 'Organismos y áreas' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(pestanas).getByRole('link', { name: 'Usuarios' })).not.toHaveAttribute('aria-current');
   });
 });
