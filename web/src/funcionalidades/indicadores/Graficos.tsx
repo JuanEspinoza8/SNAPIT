@@ -57,10 +57,7 @@ interface PropsTarjeta {
 /** Cada gráfico con su título, sus unidades y sus datos en una tabla que se despliega. */
 export function TarjetaGrafico({ titulo, unidad, vacio, tabla, children, controles }: PropsTarjeta) {
   return (
-    <section
-      aria-label={titulo}
-      className="flex min-w-0 flex-col gap-3 rounded-lg border border-borde bg-superficie p-4"
-    >
+    <section aria-label={titulo} className="tarjeta flex min-w-0 flex-col gap-3 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-semibold text-texto">{titulo}</h3>
@@ -87,9 +84,9 @@ export function TarjetaGrafico({ titulo, unidad, vacio, tabla, children, control
 
 function Tabla({ titulo, columnas, filas }: { titulo: string; columnas: string[]; filas: ReactNode[][] }) {
   return (
-    <table className="w-full text-left text-sm">
+    <table className="tabla text-left text-sm">
       <caption className="sr-only">{titulo}</caption>
-      <thead className="text-xs text-texto-secundario">
+      <thead className="text-xs">
         <tr>
           {columnas.map((columna, i) => (
             <th key={columna} scope="col" className={`px-2 py-1 font-semibold ${i > 0 ? 'text-right' : ''}`}>
@@ -100,7 +97,7 @@ function Tabla({ titulo, columnas, filas }: { titulo: string; columnas: string[]
       </thead>
       <tbody>
         {filas.map((fila, i) => (
-          <tr key={i} className="border-t border-borde">
+          <tr key={i}>
             {fila.map((celda, j) => (
               <td key={j} className={`px-2 py-1 text-texto ${j > 0 ? 'text-right tabular-nums' : ''}`}>
                 {celda}

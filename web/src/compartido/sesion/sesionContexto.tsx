@@ -16,6 +16,8 @@ interface ValorContexto {
   error: ErrorApi | null;
   reintentar(): void;
   guardarSesion(usuario: Usuario): void;
+  /** Los datos del usuario cambiaron (por ejemplo, su nombre): sin tocar la caché ni la sesión. */
+  actualizarUsuario(usuario: Usuario): void;
   salir(): Promise<void>;
 }
 
@@ -109,6 +111,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
         error: estado === 'error' ? error : null,
         reintentar,
         guardarSesion,
+        actualizarUsuario: setUsuario,
         salir,
       }}
     >

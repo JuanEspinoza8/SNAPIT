@@ -89,11 +89,11 @@ export function PaginaMatriz() {
 
       {filas.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-md border border-borde">
-            <table className="min-w-full text-sm">
-              <thead className="bg-superficie-alterna">
+          <div className="overflow-x-auto">
+            <table className="tabla min-w-full text-sm">
+              <thead>
                 <tr>
-                  <th scope="col" className="sticky left-0 bg-superficie-alterna p-2 text-left font-semibold">
+                  <th scope="col" className="sticky left-0 p-2 text-left font-semibold">
                     Categoría
                   </th>
                   {perfiles.map((perfil) => (
@@ -104,10 +104,10 @@ export function PaginaMatriz() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-borde">
+              <tbody>
                 {filas.map((categoria) => (
                   <tr key={categoria.id} className={categoria.activa ? '' : 'text-texto-secundario'}>
-                    <th scope="row" className="sticky left-0 bg-superficie p-2 text-left font-normal">
+                    <th scope="row" className="sticky left-0 p-2 text-left font-normal">
                       {categoria.nombre}
                       {!categoria.activa && <MarcaBaja texto="Dada de baja" />}
                     </th>

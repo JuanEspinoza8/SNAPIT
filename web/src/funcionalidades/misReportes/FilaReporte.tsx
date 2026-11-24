@@ -55,7 +55,7 @@ export function FilaReporte({ reporte, alAbrirFicha }: Props) {
     </>
   );
 
-  const clases = 'flex w-full items-center gap-3 rounded-lg border border-borde bg-superficie p-3 text-left';
+  const clases = 'tarjeta flex w-full items-center gap-3 p-3 text-left';
 
   return (
     <li className="flex flex-col gap-1">

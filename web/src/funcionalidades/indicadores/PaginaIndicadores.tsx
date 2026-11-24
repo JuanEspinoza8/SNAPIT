@@ -42,7 +42,7 @@ export function PaginaIndicadores() {
           onSubmit={(evento) => evento.preventDefault()}
           noValidate
           aria-label="Filtros de los indicadores"
-          className="grid gap-4 sm:grid-cols-3"
+          className="tarjeta grid gap-4 p-4 sm:grid-cols-3"
         >
           <Campo
             id="indicadores-desde"
@@ -102,7 +102,7 @@ function Panel({ filtros }: { filtros: FiltrosIndicadores | null }) {
   const { data } = indicadores;
   if (sinDatos(data)) {
     return (
-      <p className="rounded-lg border border-borde p-8 text-center text-sm text-texto-secundario">
+      <p className="tarjeta p-8 text-center text-sm text-texto-secundario">
         No hay datos en este período: ningún incidente entró, se resolvió ni sigue abierto, y no llegaron
         reportes. Probá con un período más largo o con otra área.
       </p>
@@ -146,7 +146,7 @@ function Tarjetas({ indicadores }: { indicadores: Indicadores }) {
   return (
     <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {tarjetas.map((tarjeta) => (
-        <div key={tarjeta.titulo} className="rounded-lg border border-borde bg-superficie p-4">
+        <div key={tarjeta.titulo} className="tarjeta p-4">
           <dt className="text-sm text-texto-secundario">{tarjeta.titulo}</dt>
           <dd className="text-3xl font-semibold tabular-nums text-texto">{tarjeta.valor}</dd>
           <dd className="text-xs text-texto-secundario">{tarjeta.detalle}</dd>
@@ -160,10 +160,7 @@ function Calor({ filtros }: { filtros: FiltrosIndicadores }) {
   const calor = useCalor(filtros);
   const puntos = calor.data ?? [];
   return (
-    <section
-      aria-label="Mapa de calor"
-      className="flex flex-col gap-3 rounded-lg border border-borde bg-superficie p-4"
-    >
+    <section aria-label="Mapa de calor" className="tarjeta flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="font-semibold text-texto">Mapa de calor</h3>

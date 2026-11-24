@@ -59,7 +59,7 @@ export function PaginaRecuperarClave() {
         </p>
       </header>
 
-      <form onSubmit={enviar} className="space-y-4" noValidate>
+      <form onSubmit={enviar} className="tarjeta space-y-4 p-6" noValidate>
         <Campo
           id="email"
           etiqueta="Correo"

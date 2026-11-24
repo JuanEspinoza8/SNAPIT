@@ -22,7 +22,7 @@ export function ListaIncidentes({ puntos, alElegir, alCerrar }: Props) {
       ref={panel}
       tabIndex={-1}
       aria-label="Incidentes en el mismo lugar"
-      className="flex flex-col gap-3 rounded-lg border border-borde bg-superficie p-4 shadow-sm outline-none"
+      className="tarjeta flex flex-col gap-3 p-4 outline-none"
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-xl font-semibold text-texto">{puntos.length} incidentes en el mismo lugar</h2>

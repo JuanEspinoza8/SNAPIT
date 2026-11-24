@@ -97,12 +97,7 @@ function FormularioInforme({
         .join('. ')
     : '';
   return (
-    <form
-      onSubmit={enviar}
-      noValidate
-      aria-busy={esperando}
-      className="flex flex-col gap-4 rounded-lg border border-borde p-4"
-    >
+    <form onSubmit={enviar} noValidate aria-busy={esperando} className="tarjeta flex flex-col gap-4 p-4">
       <h3 className="font-semibold text-texto">Nuevo informe</h3>
       <p className="text-sm text-texto-secundario">
         {filtros
@@ -179,10 +174,7 @@ function VistaInforme({ id }: { id: number }) {
 
   const { data } = informe;
   return (
-    <article
-      aria-labelledby="titulo-informe"
-      className="flex flex-col gap-4 rounded-lg border border-borde p-4"
-    >
+    <article aria-labelledby="titulo-informe" className="tarjeta flex flex-col gap-4 p-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 id="titulo-informe" className="text-lg font-semibold text-texto">
@@ -248,10 +240,10 @@ function Historial({ abierto, alAbrir }: { abierto: number | null; alAbrir: (id:
         <p className="text-sm text-texto-secundario">Todavía no se pidió ningún informe en tu organismo.</p>
       )}
       {historial.data && historial.data.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-borde">
-          <table className="w-full min-w-[40rem] text-left text-sm">
+        <div className="overflow-x-auto">
+          <table className="tabla min-w-[40rem] text-left text-sm">
             <caption className="sr-only">Informes del organismo, del más nuevo al más viejo</caption>
-            <thead className="bg-superficie-alterna text-xs text-texto-secundario">
+            <thead className="text-xs">
               <tr>
                 <th scope="col" className="px-3 py-2 font-semibold">
                   Período
@@ -272,11 +264,7 @@ function Historial({ abierto, alAbrir }: { abierto: number | null; alAbrir: (id:
             </thead>
             <tbody>
               {historial.data.map((informe) => (
-                <tr
-                  key={informe.id}
-                  aria-current={informe.id === abierto ? 'true' : undefined}
-                  className={`border-t border-borde ${informe.id === abierto ? 'bg-superficie-alterna' : ''}`}
-                >
+                <tr key={informe.id} aria-current={informe.id === abierto ? 'true' : undefined}>
                   <td className="px-3 py-2 text-texto">{periodo(informe)}</td>
                   <td className="px-3 py-2 text-texto">
                     {informe.area?.nombre ?? 'Todo el organismo'}

@@ -42,7 +42,7 @@ export function ListaMisReportes() {
 /** Lo que se ve cuando el vecino todavía no reportó nada. */
 function SinReportes() {
   return (
-    <div className="rounded-lg border border-borde bg-superficie p-6 text-center">
+    <div className="tarjeta p-6 text-center">
       <p className="font-semibold text-texto">Todavía no hiciste reportes</p>
       <p className="mt-1 text-sm text-texto-secundario">
         Cuando reportes un problema, acá vas a ver en qué estado está.

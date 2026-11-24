@@ -188,7 +188,7 @@ function Contenido({ ficha }: { ficha: FichaGestion }) {
             quitar={acciones.quitarPrioridad}
           />
           {ficha.unidos.length > 0 && (
-            <section className="flex flex-col gap-2 rounded-lg border border-borde p-4 text-sm">
+            <section className="tarjeta flex flex-col gap-2 p-4 text-sm">
               <h2 className="font-semibold text-texto">Unidos a este</h2>
               <ul className="flex flex-col gap-1">
                 {ficha.unidos.map((unido) => (

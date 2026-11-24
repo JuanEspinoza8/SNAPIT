@@ -113,7 +113,7 @@ export function PaginaAltaOperador() {
       )}
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <form onSubmit={(evento) => enviar(evento)} className="space-y-4" noValidate>
+        <form onSubmit={(evento) => enviar(evento)} className="tarjeta space-y-4 p-4" noValidate>
           <Campo
             id="nombre"
             etiqueta="Nombre"
@@ -248,7 +248,7 @@ export function PaginaAltaOperador() {
           )}
           {consultaUsuarios.isPending && <Cargando filas={4} />}
           {consultaUsuarios.data && (
-            <ul className="divide-y divide-borde rounded-md border border-borde">
+            <ul className="lista-filas">
               {consultaUsuarios.data.usuarios.map((usuario) => (
                 <li key={usuario.id} className="flex flex-col gap-2 p-3 text-sm">
                   <div className="flex items-baseline justify-between gap-4">

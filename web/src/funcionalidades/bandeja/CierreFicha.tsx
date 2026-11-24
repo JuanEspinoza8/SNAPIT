@@ -76,10 +76,7 @@ export function SeccionCierre({
   const anteriores = cierre.fotos.slice(0, -1);
 
   return (
-    <section
-      aria-labelledby="titulo-cierre"
-      className="flex flex-col gap-3 rounded-lg border border-borde p-4"
-    >
+    <section aria-labelledby="titulo-cierre" className="tarjeta flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <h2 id="titulo-cierre" className="font-semibold text-texto">
           Cierre

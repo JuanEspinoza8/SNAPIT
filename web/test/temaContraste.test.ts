@@ -57,6 +57,23 @@ const TEXTO_SOBRE_FONDO = [
   ['sobre-primario', 'primario'],
   // El botón que confirma una eliminación.
   ['sobre-peligro', 'peligro'],
+  // Las listas y tablas de los paneles (.tabla y .lista-filas): el encabezado y las dos filas.
+  ['sobre-lista-encabezado', 'lista-encabezado'],
+  ['texto', 'fila'],
+  ['texto', 'fila-alterna'],
+  ['texto', 'fila-resaltada'],
+  ['texto-secundario-fila', 'fila'],
+  ['texto-secundario-fila', 'fila-alterna'],
+  ['texto-secundario-fila', 'fila-resaltada'],
+  ['primario', 'fila'],
+  ['primario', 'fila-alterna'],
+  ['peligro', 'fila'],
+  ['peligro', 'fila-alterna'],
+  // Las tarjetas de los paneles (.tarjeta).
+  ['texto', 'tarjeta'],
+  ['texto-secundario-fila', 'tarjeta'],
+  ['primario', 'tarjeta'],
+  ['peligro', 'tarjeta'],
 ] as const;
 
 const CON_TEXTO_SOBRE_ESTADO = [

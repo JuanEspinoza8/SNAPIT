@@ -1,13 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom';
 
 // Las pantallas de la administración (F16). «Usuarios» es la de entrada: /administracion.
+// Perfiles, Matriz y Parámetros no van en el menú: son ajustes técnicos que casi nunca se tocan, y el panel
+// queda en lo de todos los días. Sus pantallas siguen andando en /administracion/perfiles, /matriz y
+// /parametros; para volver a mostrarlas alcanza con sumarlas acá.
 const PESTANAS = [
   { ruta: '/administracion', texto: 'Usuarios', exacta: true },
   { ruta: '/administracion/organismos', texto: 'Organismos y áreas', exacta: false },
   { ruta: '/administracion/categorias', texto: 'Categorías', exacta: false },
-  { ruta: '/administracion/perfiles', texto: 'Perfiles', exacta: false },
-  { ruta: '/administracion/matriz', texto: 'Matriz', exacta: false },
-  { ruta: '/administracion/parametros', texto: 'Parámetros', exacta: false },
 ];
 
 /** Las pestañas de la administración, arriba de cada pantalla. */

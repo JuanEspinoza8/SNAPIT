@@ -107,7 +107,7 @@ export function PaginaBandeja() {
         />
       )}
       {bandeja.data && bandeja.data.length === 0 && (
-        <div className="rounded-lg border border-borde p-4 text-sm text-texto-secundario">
+        <div className="tarjeta p-4 text-sm text-texto-secundario">
           <p>No hay incidentes para atender con estos filtros.</p>
           {filtros.areaId === undefined && (
             <button
@@ -153,10 +153,10 @@ function Filtro(props: {
 
 function TablaBandeja({ incidentes, desde }: { incidentes: IncidenteBandeja[]; desde: string }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-borde">
-      <table className="w-full min-w-[56rem] text-left text-sm">
+    <div className="overflow-x-auto">
+      <table className="tabla min-w-[56rem] text-left text-sm">
         <caption className="sr-only">Incidentes ordenados por prioridad</caption>
-        <thead className="bg-superficie-alterna text-xs text-texto-secundario">
+        <thead className="text-xs">
           <tr>
             <th scope="col" className="px-3 py-2 font-semibold">
               Prioridad
@@ -190,7 +190,7 @@ function FilaBandeja({ incidente, desde }: { incidente: IncidenteBandeja; desde:
   // Lo que suma cero no explica nada: se lee en la ficha.
   const motivos = incidente.motivos.filter((motivo) => motivo.valor !== 0);
   return (
-    <tr className="border-t border-borde align-top hover:bg-superficie-alterna">
+    <tr className="align-top">
       <td className="px-3 py-3">
         <p className="text-base font-semibold text-texto">
           {numero.format(manual ?? incidente.puntajePrioridad)}

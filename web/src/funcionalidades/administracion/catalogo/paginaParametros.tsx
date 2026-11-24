@@ -85,19 +85,14 @@ function GrupoEditable({ grupo }: { grupo: GrupoParametros<Parametro> }) {
 
   const tituloId = `grupo-${grupo.prefijo}`;
   return (
-    <form
-      onSubmit={enviar}
-      aria-labelledby={tituloId}
-      className="space-y-3 rounded-md border border-borde p-4"
-      noValidate
-    >
+    <form onSubmit={enviar} aria-labelledby={tituloId} className="tarjeta space-y-3 p-4" noValidate>
       <div>
         <h2 id={tituloId} className="text-lg font-semibold text-texto">
           {grupo.nombre}
         </h2>
         {grupo.explica && <p className="text-sm text-texto-secundario">{grupo.explica}</p>}
       </div>
-      <ul className="divide-y divide-borde">
+      <ul className="lista-filas">
         {grupo.parametros.map((parametro) => {
           const id = `parametro-${parametro.clave}`;
           const ayuda = `${id}-ayuda`;

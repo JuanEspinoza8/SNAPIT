@@ -7,6 +7,8 @@ export interface Usuario {
   rol: Rol;
   organismoId: number | null;
   areaId: number | null;
+  /** Fecha de alta, para el «Miembro desde» del perfil. */
+  creadoEn?: string;
 }
 
 export function esVecino(usuario: Usuario): boolean {

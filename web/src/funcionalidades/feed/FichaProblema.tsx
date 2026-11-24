@@ -45,7 +45,7 @@ export function CabeceraProblema({
 export function PanelUbicacion({ ficha }: { ficha: FichaIncidente }) {
   return (
     <aside aria-label="Información" className="flex flex-col gap-4">
-      <div className="overflow-hidden rounded-lg border border-borde">
+      <div className="tarjeta overflow-hidden">
         <div className="h-48">
           <Suspense fallback={<div className="h-full w-full animate-pulse bg-superficie-alterna" />}>
             <MapaPuntos
@@ -63,7 +63,7 @@ export function PanelUbicacion({ ficha }: { ficha: FichaIncidente }) {
           </Suspense>
         </div>
       </div>
-      <div className="rounded-lg border border-borde bg-superficie-alterna p-4">
+      <div className="tarjeta p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-texto-secundario">
           Información
         </h2>
@@ -142,10 +142,7 @@ export function RecorridoDelEstado({ ficha }: { ficha: FichaIncidente }) {
     RESUELTO: ficha.resueltoEn,
   };
   return (
-    <section
-      aria-label="Estado del problema"
-      className="rounded-lg border border-borde bg-superficie-alterna p-4"
-    >
+    <section aria-label="Estado del problema" className="tarjeta p-4">
       <h2 className="mb-4 text-xl font-semibold">Estado del problema</h2>
       <ol className="flex flex-col gap-0 sm:flex-row">
         {ORDEN_ESTADOS.map((estado, indice) => {
@@ -202,7 +199,7 @@ export function ReportesDelProblema({ id }: { id: number }) {
             <li key={reporte.id}>
               <Link
                 to={`/reporte/${reporte.id}`}
-                className="flex items-center gap-3 rounded-lg border border-borde bg-superficie-alterna p-2 hover:bg-superficie focus-visible:ring-2 focus-visible:ring-primario"
+                className="tarjeta flex items-center gap-3 p-2 hover:bg-superficie focus-visible:ring-2 focus-visible:ring-primario"
               >
                 {reporte.fotos[0] && (
                   <img
