@@ -31,13 +31,23 @@ class RepositorioConfirmaciones {
     return respuesta.data!['confirmado'] as bool;
   });
 
-  /// Devuelve cuántos vecinos confirmaron, contando esta confirmación.
-  Future<int> confirmar(int incidenteId) => _pedir(() async {
-    final respuesta = await _dio.post<Map<String, dynamic>>(
-      '/incidentes/$incidenteId/confirmaciones',
-    );
-    return respuesta.data!['cantidadConfirmaciones'] as int;
-  });
+  /// Devuelve cuántos vecinos confirmaron, contando esta confirmación, y hasta
+  /// cuándo queda vigente (null en uno permanente): en un temporal, confirmar
+  /// la renueva.
+  Future<({int cantidad, DateTime? vigenteHasta})> confirmar(int incidenteId) =>
+      _pedir(() async {
+        final respuesta = await _dio.post<Map<String, dynamic>>(
+          '/incidentes/$incidenteId/confirmaciones',
+        );
+        final datos = respuesta.data!;
+        return (
+          cantidad: datos['cantidadConfirmaciones'] as int,
+          vigenteHasta: switch (datos['vigenteHasta']) {
+            final String valor => DateTime.parse(valor),
+            _ => null,
+          },
+        );
+      });
 
   Future<T> _pedir<T>(Future<T> Function() pedido) async {
     try {

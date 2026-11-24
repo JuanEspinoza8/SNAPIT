@@ -175,10 +175,11 @@ class BotonSeguirState extends ConsumerState<BotonSeguir> {
 }
 
 /// «Sigue estando» (F12): el vecino confirma, una sola vez, que el problema
-/// sigue ahí, y debajo se ve cuántos lo confirmaron. Sin sesión invita a
+/// sigue ahí, y debajo se ve cuántos lo confirmaron y hasta cuándo está
+/// vigente, que en un temporal se renueva al confirmar. Sin sesión invita a
 /// ingresar y después vuelve acá; el operador y el administrador solo ven el
-/// contador, porque el servidor no los deja confirmar. No va en un problema
-/// resuelto.
+/// contador y la vigencia, porque el servidor no los deja confirmar. No va en
+/// un problema resuelto.
 class SigueEstando extends ConsumerStatefulWidget {
   const SigueEstando(this.ficha, {super.key});
 
@@ -191,17 +192,17 @@ class SigueEstando extends ConsumerStatefulWidget {
 class _SigueEstandoState extends ConsumerState<SigueEstando> {
   var _enviando = false;
 
-  /// El contador que devolvió el servidor al confirmar. Volver a pedir la
-  /// ficha para tenerlo pondría toda la pantalla a cargar.
-  int? _cantidad;
+  /// El contador y la vigencia que devolvió el servidor al confirmar. Volver a
+  /// pedir la ficha para tenerlos pondría toda la pantalla a cargar.
+  ({int cantidad, DateTime? vigenteHasta})? _confirmado;
 
   int get _incidenteId => widget.ficha.id;
 
   @override
   void didUpdateWidget(SigueEstando anterior) {
     super.didUpdateWidget(anterior);
-    // Una ficha pedida de nuevo ya trae el contador al día.
-    if (anterior.ficha != widget.ficha) _cantidad = null;
+    // Una ficha pedida de nuevo ya trae el contador y la vigencia al día.
+    if (anterior.ficha != widget.ficha) _confirmado = null;
   }
 
   @override
@@ -220,14 +221,23 @@ class _SigueEstandoState extends ConsumerState<SigueEstando> {
       Rol.operador || Rol.administrador => null,
     };
 
+    final vigencia = _textoVigencia(
+      widget.ficha.temporal,
+      _confirmado != null
+          ? _confirmado!.vigenteHasta
+          : widget.ficha.vigenteHasta,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (accion != null) ...[accion, const SizedBox(height: Espacio.sm)],
         Text(
-          _textoContador(_cantidad ?? widget.ficha.cantidadConfirmaciones),
+          _textoContador(
+            _confirmado?.cantidad ?? widget.ficha.cantidadConfirmaciones,
+          ),
           style: secundario,
         ),
+        if (vigencia != null) Text(vigencia, style: secundario),
       ],
     );
   }
@@ -276,11 +286,11 @@ class _SigueEstandoState extends ConsumerState<SigueEstando> {
   Future<void> _confirmar() async {
     setState(() => _enviando = true);
     try {
-      final cantidad = await ref
+      final confirmado = await ref
           .read(repositorioConfirmacionesProvider)
           .confirmar(_incidenteId);
       if (!mounted) return;
-      setState(() => _cantidad = cantidad);
+      setState(() => _confirmado = confirmado);
       ref.invalidate(confirmacionProvider(_incidenteId));
     } on ErrorApi catch (error) {
       if (!mounted) return;
@@ -301,6 +311,15 @@ String _textoContador(int cantidad) => switch (cantidad) {
   1 => '1 vecino confirmó que sigue',
   _ => '$cantidad vecinos confirmaron que sigue',
 };
+
+/// Hasta cuándo se lo considera (F12), con los mismos textos que la web. Null
+/// si el servidor todavía no lo informa.
+String? _textoVigencia(bool? temporal, DateTime? vigenteHasta) =>
+    switch ((temporal, vigenteHasta)) {
+      (true, final DateTime hasta) => 'Vigente hasta el ${fechaLarga(hasta)}',
+      (false, _) => 'Permanente: no vence',
+      _ => null,
+    };
 
 class _Dato extends StatelessWidget {
   const _Dato(this.icono, this.nombre, this.valor);

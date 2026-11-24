@@ -149,6 +149,39 @@ void main() {
       expect(ficha.cantidadConfirmaciones, 3);
       expect(ficha.fotoCierreId, isNull);
       expect(ficha.resueltoEn, isNull);
+      // Un servidor que todavía no informa la vigencia.
+      expect(ficha.temporal, isNull);
+      expect(ficha.vigenteHasta, isNull);
+    });
+
+    test('lee la vigencia de un temporal y de un permanente (F12)', () {
+      Map<String, dynamic> conVigencia(String tipo, String? hasta) => {
+        'id': 9,
+        'lat': -38.9516,
+        'lon': -68.0591,
+        'categoria': {'id': 3, 'nombre': 'Semáforo que no funciona'},
+        'estado': 'VERIFICADO',
+        'enRevision': false,
+        'primerReporteEn': '2026-10-06T15:15:33.494Z',
+        'cantidadVecinos': 1,
+        'cantidadConfirmaciones': 0,
+        'direccion': null,
+        'fotos': <Object>[],
+        'tipoVigencia': tipo,
+        'vigenteHasta': hasta,
+      };
+
+      final temporal = FichaIncidente.desdeJson(
+        conVigencia('TEMPORAL', '2026-12-01T15:00:00.000Z'),
+      );
+      final permanente = FichaIncidente.desdeJson(
+        conVigencia('PERMANENTE', null),
+      );
+
+      expect(temporal.temporal, isTrue);
+      expect(temporal.vigenteHasta, DateTime.utc(2026, 12, 1, 15));
+      expect(permanente.temporal, isFalse);
+      expect(permanente.vigenteHasta, isNull);
     });
 
     Map<String, dynamic> fichaJson({
