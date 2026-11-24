@@ -589,6 +589,7 @@ describe('la ficha del problema (incidente)', () => {
           primerReporteEn: '2026-10-06T15:15:33.494Z',
           cantidadReportes: reportes.length,
           cantidadVecinos: reportes.length,
+          cantidadConfirmaciones: 0,
           direccion: 'Lanín 120, Villa Ceferino',
           fotos: [{ id: 31, url: '/api/fotos/31' }],
           fotoCierre: null,
@@ -598,6 +599,8 @@ describe('la ficha del problema (incidente)', () => {
         }),
       ),
       http.get(`${API}/social/incidentes/3/reportes`, () => HttpResponse.json({ incidenteId: 3, reportes })),
+      // La ficha pregunta si el vecino ya confirmó que sigue (F12).
+      http.get(`${API}/incidentes/3/confirmacion`, () => HttpResponse.json({ confirmado: false })),
     );
     return recibidos;
   }
