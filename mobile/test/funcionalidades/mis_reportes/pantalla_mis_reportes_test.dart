@@ -114,7 +114,12 @@ void main() {
     ServidorMisReportes servidor,
   ) async {
     await abrirApp(tester, servidor.servidor);
-    await tester.tap(find.text('Mis reportes'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -127,7 +132,12 @@ void main() {
     await abrirApp(tester, servidor.servidor);
     expect(servidor.pedidosLista, 0);
 
-    await tester.tap(find.text('Mis reportes'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(servidor.pedidosLista, 1);
@@ -481,11 +491,24 @@ void main() {
   testWidgets('al salir de la cuenta, la lista se descarta', (tester) async {
     final servidor = ServidorMisReportes([reporteJson()]);
     final contenedor = await abrirApp(tester, servidor.servidor);
-    await tester.tap(find.text('Mis reportes'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(contenedor.exists(misReportesProvider), isTrue);
 
-    await tester.tap(find.byTooltip('Cuenta'));
+    // Los ajustes de la cuenta están en «Mi perfil», en la rueda de arriba.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ajustes de la cuenta'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Salir'));
     await tester.pumpAndSettle();

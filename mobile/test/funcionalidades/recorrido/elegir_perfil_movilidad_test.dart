@@ -18,7 +18,15 @@ void main() {
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     final contenedor = await abrirApp(tester, servidor.servidor);
-    await tester.tap(find.byTooltip('Cuenta'));
+    // Los ajustes de la cuenta están en «Mi perfil», en la rueda de arriba.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Mi perfil'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ajustes de la cuenta'));
     await tester.pumpAndSettle();
     return contenedor;
   }
@@ -138,7 +146,14 @@ void main() {
     );
 
     servidor.errorPerfiles = null;
-    await tocar(tester, find.text('Reintentar'));
+    // El de la ventana: abajo, el perfil tiene su propia lista de reportes.
+    await tocar(
+      tester,
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Reintentar'),
+      ),
+    );
 
     expect(find.text('Silla de ruedas'), findsOneWidget);
   });

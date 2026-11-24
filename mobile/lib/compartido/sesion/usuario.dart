@@ -17,6 +17,7 @@ class Usuario {
     required this.rol,
     this.perfilMovilidadId,
     this.notificacionesHabilitadas = true,
+    this.creadoEn,
   });
 
   factory Usuario.desdeJson(Map<String, dynamic> json) {
@@ -30,6 +31,10 @@ class Usuario {
       perfilMovilidadId: json['perfilMovilidadId'] as int?,
       notificacionesHabilitadas:
           json['notificacionesHabilitadas'] as bool? ?? true,
+      creadoEn: switch (json['creadoEn']) {
+        final String fecha => DateTime.tryParse(fecha),
+        _ => null,
+      },
     );
   }
 
@@ -43,6 +48,9 @@ class Usuario {
 
   /// Interruptor general de avisos (F10). Arranca encendido.
   final bool notificacionesHabilitadas;
+
+  /// Fecha de alta, para el «Miembro desde» del perfil.
+  final DateTime? creadoEn;
 
   static const _roles = {
     'VECINO': Rol.vecino,

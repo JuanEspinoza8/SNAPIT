@@ -102,6 +102,25 @@ class RepositorioAuth {
   Future<Usuario> actualizarPerfilMovilidad(int? perfilId) =>
       actualizarYo({'perfilMovilidadId': perfilId});
 
+  /// El nombre visible, desde «Editar perfil».
+  Future<Usuario> cambiarNombre(String nombre) =>
+      actualizarYo({'nombre': nombre});
+
+  /// Cambia la clave con la actual. El servidor cierra las otras sesiones y
+  /// devuelve una nueva para este teléfono.
+  Future<Ingreso> cambiarClave({
+    required String claveActual,
+    required String claveNueva,
+  }) {
+    return _pedir(() async {
+      final respuesta = await _dio.post<Map<String, dynamic>>(
+        '/auth/cambiar-clave',
+        data: {'claveActual': claveActual, 'claveNueva': claveNueva},
+      );
+      return Ingreso.desdeJson(respuesta.data!);
+    });
+  }
+
   Future<Usuario> actualizarYo(Map<String, Object?> cambios) {
     return _pedir(() async {
       final respuesta = await _dio.patch<Map<String, dynamic>>(

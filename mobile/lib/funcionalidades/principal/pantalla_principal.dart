@@ -11,7 +11,6 @@ import '../../compartido/rutas/rutas_app.dart';
 import '../../compartido/sesion/almacen_sesion.dart';
 import '../../compartido/sesion/sesion.dart';
 import '../../compartido/sesion/usuario.dart';
-import '../../compartido/tema/modo_tema.dart';
 import '../../compartido/tema/tema_app.dart';
 import '../avisos/avisos.dart';
 import '../avisos/avisos_pospuestos.dart';
@@ -21,10 +20,10 @@ import '../avisos/servicio_push.dart';
 import '../feed/pantalla_feed.dart';
 import '../mapa/mapa_incidentes.dart';
 import '../mapa/repositorio_mapa.dart';
-import '../mis_reportes/pantalla_mis_reportes.dart';
-import '../recorrido/elegir_perfil_movilidad.dart';
+import '../perfil/pantalla_perfil.dart';
 import '../recorrido/pantalla_recorrido.dart';
 import '../reportar/pantalla_reportar.dart';
+import 'seccion.dart';
 
 /// Lo primero que se ve con sesión: el feed. El vecino tiene además mapa,
 /// reportar, mis reportes y recorrido; operador y administrador, inicio y
@@ -37,8 +36,6 @@ class PantallaPrincipal extends ConsumerStatefulWidget {
 }
 
 class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
-  var _seccion = 0;
-
   StreamSubscription<String>? _tokensPush;
   StreamSubscription<MensajePush>? _avisosRecibidos;
   StreamSubscription<MensajePush>? _avisosAbiertos;
@@ -53,7 +50,7 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
   // saltaría encima del feed, sin que se entienda para qué es. Además, si los
   // dos lo pidieran juntos, Android rechaza el segundo pedido. Las otras no
   // piden nada si el vecino nunca las mira.
-  final _abiertas = {_inicio};
+  final _abiertas = {Seccion.inicio};
 
   @override
   void initState() {
@@ -226,23 +223,6 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     }
   }
 
-  static const _inicio = 0;
-  static const _mapa = 1;
-  static const _reportar = 2;
-  static const _misReportes = 3;
-  static const _recorrido = 4;
-
-  static const _seccionesVecino = [
-    _Seccion('Inicio', Icons.home_outlined, 'SnapIt'),
-    _Seccion('Mapa', Icons.map_outlined, 'Mapa de incidentes'),
-    _Seccion('Reportar', Icons.add_a_photo_outlined, 'Reportar un problema'),
-    _Seccion('Mis reportes', Icons.list_alt_outlined, 'Mis reportes'),
-    _Seccion('Recorrido', Icons.route_outlined, 'Recorrido accesible'),
-  ];
-
-  /// Operador y administrador: las dos primeras.
-  static final _seccionesOrganismo = _seccionesVecino.sublist(0, 2);
-
   @override
   Widget build(BuildContext context) {
     final usuario = ref.watch(sesionProvider).value;
@@ -250,14 +230,17 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
     if (usuario == null) return const SizedBox.shrink();
 
     final esVecino = usuario.rol == Rol.vecino;
-    final secciones = esVecino ? _seccionesVecino : _seccionesOrganismo;
-    final seccion = secciones[_seccion];
+    final secciones = Seccion.de(usuario.rol);
+    final pedida = ref.watch(seccionProvider);
+    // Una sección que este rol no tiene (por ejemplo, de otra cuenta) cae en el inicio.
+    final seccion = secciones.contains(pedida) ? pedida : Seccion.inicio;
+    _abiertas.add(seccion);
     final noLeidos = esVecino ? ref.watch(avisosNoLeidosProvider) : 0;
 
     return Scaffold(
       appBar: AppBar(
         // En el inicio va el logo; en las demás secciones, su nombre.
-        title: _seccion == _inicio
+        title: seccion == Seccion.inicio
             ? Semantics(
                 header: true,
                 label: 'SnapIt',
@@ -284,166 +267,65 @@ class _PantallaPrincipalState extends ConsumerState<PantallaPrincipal> {
                 context.push(Rutas.avisos);
               },
             ),
-          IconButton(
-            tooltip: 'Cuenta',
-            icon: const Icon(Icons.account_circle_outlined),
-            onPressed: () => _mostrarCuenta(context, usuario),
-          ),
+          // En «Mi perfil», la rueda abre los ajustes de la cuenta.
+          if (seccion == Seccion.perfil)
+            IconButton(
+              tooltip: 'Ajustes de la cuenta',
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () => mostrarAjustesCuenta(context, ref, usuario),
+            ),
         ],
       ),
+      // La barra de abajo no va acá: es del marco (MarcoConBarra), para que
+      // quede fija también sobre los detalles.
       body: SafeArea(
         // Las secciones quedan vivas al cambiar de pestaña: el feed no pierde
         // por dónde iba, ni el mapa la zona y los filtros.
         child: IndexedStack(
-          index: _seccion,
+          index: secciones.indexOf(seccion),
           children: [
-            const PantallaFeed(),
-            if (!_abiertas.contains(_mapa))
-              const SizedBox.shrink()
-            else if (esVecino)
-              const MapaIncidentes()
-            else
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _AvisoPanelWeb(),
-                  Expanded(child: MapaIncidentes()),
-                ],
-              ),
-            if (esVecino) ...[
-              if (_abiertas.contains(_reportar))
-                PantallaReportar(alEnviar: _alEnviarReporte)
+            for (final cada in secciones)
+              if (!_abiertas.contains(cada))
+                const SizedBox.shrink()
               else
-                const SizedBox.shrink(),
-              if (_abiertas.contains(_misReportes))
-                PantallaMisReportes(alReportar: () => _abrir(_reportar))
-              else
-                const SizedBox.shrink(),
-              if (_abiertas.contains(_recorrido))
-                const PantallaRecorrido()
-              else
-                const SizedBox.shrink(),
-            ],
+                switch (cada) {
+                  Seccion.inicio => const PantallaFeed(),
+                  Seccion.mapa when esVecino => const MapaIncidentes(),
+                  Seccion.mapa => const Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _AvisoPanelWeb(),
+                      Expanded(child: MapaIncidentes()),
+                    ],
+                  ),
+                  Seccion.reportar => PantallaReportar(
+                    alEnviar: _alEnviarReporte,
+                  ),
+                  Seccion.perfil => ContenidoPerfil(
+                    alReportar: () => _abrir(Seccion.reportar),
+                  ),
+                  Seccion.recorrido => const PantallaRecorrido(),
+                },
           ],
         ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _seccion,
-        onDestinationSelected: _abrir,
-        destinations: [
-          for (final s in secciones)
-            NavigationDestination(icon: Icon(s.icono), label: s.nombre),
-        ],
       ),
     );
   }
 
-  void _abrir(int seccion) => setState(() {
-    _seccion = seccion;
-    _abiertas.add(seccion);
-  });
+  void _abrir(Seccion seccion) =>
+      ref.read(seccionProvider.notifier).abrir(seccion);
 
   /// Después de enviar un reporte vuelve al inicio con un aviso arriba.
   /// «Reportar» se cierra: al volver arranca vacío y lee de nuevo el GPS.
   void _alEnviarReporte() {
-    setState(() {
-      _seccion = _inicio;
-      _abiertas.remove(_reportar);
-    });
+    setState(() => _abiertas.remove(Seccion.reportar));
+    _abrir(Seccion.inicio);
     mostrarAvisoArriba(
       context,
       titulo: 'Reporte enviado',
       texto: 'Queda pendiente de aprobación antes de publicarse.',
     );
   }
-
-  void _mostrarCuenta(BuildContext context, Usuario usuario) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (contexto) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            Espacio.lg,
-            0,
-            Espacio.lg,
-            Espacio.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                usuario.nombre,
-                style: Theme.of(contexto).textTheme.titleMedium,
-              ),
-              const SizedBox(height: Espacio.xs),
-              Text(usuario.email),
-              const SizedBox(height: Espacio.xs),
-              Text(
-                usuario.rol.etiqueta,
-                style: Theme.of(contexto).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(contexto).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: Espacio.lg),
-              Consumer(
-                builder: (_, ref, _) => SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.dark_mode_outlined),
-                  title: const Text('Tema oscuro'),
-                  value: ref.watch(modoTemaProvider) == ThemeMode.dark,
-                  onChanged: (oscuro) => ref
-                      .read(modoTemaProvider.notifier)
-                      .elegir(oscuro: oscuro),
-                ),
-              ),
-              if (usuario.rol == Rol.vecino) ...[
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.notifications_outlined),
-                  title: const Text('Avisos y zonas'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.of(contexto).pop();
-                    context.push(Rutas.ajustesAvisos);
-                  },
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.directions_walk),
-                  title: const Text('Perfil de movilidad'),
-                  subtitle: const Text(
-                    'Elegí cómo te movés en los recorridos.',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => mostrarElegirPerfilMovilidad(contexto),
-                ),
-              ],
-              const SizedBox(height: Espacio.lg),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.logout),
-                label: const Text('Salir'),
-                onPressed: () {
-                  Navigator.of(contexto).pop();
-                  ref.read(sesionProvider.notifier).salir();
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Seccion {
-  const _Seccion(this.nombre, this.icono, this.titulo);
-
-  final String nombre;
-  final IconData icono;
-  final String titulo;
 }
 
 class _AvisoPanelWeb extends StatelessWidget {
