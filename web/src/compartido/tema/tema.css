@@ -28,6 +28,11 @@
   --color-gravedad-moderada: #c2410c;
   --color-gravedad-grave: #c53030;
 
+  /* Series de los gráficos del panel de indicadores, cuando el color no es un estado. Validadas para
+     daltonismo sobre la superficie clara y la oscura (cada tema tiene sus valores). */
+  --color-serie-1: #2a78d6;
+  --color-serie-2: #eb6834;
+
   /* Fijos en los dos temas. Mismos valores que ColoresFijos en mobile/lib/compartido/tema/tema_app.dart */
   /* Texto sobre los estados y las gravedades: con todos da AA. */
   --color-sobre-estado: #ffffff;
@@ -85,4 +90,6 @@
   --color-texto-secundario: #a3a3a3;
   --color-peligro: #f87171;
   --color-sobre-peligro: #0a0a0a;
+  --color-serie-1: #3987e5;
+  --color-serie-2: #d95926;
 }

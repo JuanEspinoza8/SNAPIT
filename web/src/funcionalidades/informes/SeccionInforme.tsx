@@ -1,21 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AvisoError } from '../../compartido/componentes/AvisoError.js';
-import { Campo } from '../../compartido/componentes/Campo.js';
 import { CampoSelecto } from '../../compartido/componentes/CampoSelecto.js';
 import { Cargando } from '../../compartido/componentes/Cargando.js';
 import type { ErrorApi } from '../../compartido/red/error.js';
 import { repartirErrores } from '../../compartido/red/erroresPorCampo.js';
 import { useAreas } from '../bandeja/useGestion.js';
-import {
-  type ErroresPeriodo,
-  hoy,
-  momento,
-  partirContenido,
-  periodo,
-  periodoInicial,
-  validarPeriodo,
-} from './formato.js';
+import type { FiltrosIndicadores } from '../indicadores/tipos.js';
+import { momento, partirContenido, periodo } from './formato.js';
 import type { Informe, PedidoInforme, ResumenInforme } from './tipos.js';
 import { useBarrios, useDescargarPdf, useGenerarInforme, useHistorial, useInforme } from './useInformes.js';
 
@@ -27,24 +19,39 @@ const BOTON_SECUNDARIO =
 /** Con la IA caída, un error del servidor o sin conexión vale la pena reintentar; con datos inválidos, no. */
 const sePuedeReintentar = (error: ErrorApi) => error.status === undefined || error.status >= 500;
 
-/** F14: pedir un informe de estado y prioridades a la IA, leerlo, bajarlo en PDF y ver los anteriores. */
-export function PaginaInformes() {
+/**
+ * F14, dentro del panel de indicadores: pedir a la IA un informe de estado y prioridades con los mismos filtros
+ * que se están mirando (más el barrio, que los gráficos no tienen), leerlo, bajarlo en PDF y ver los anteriores.
+ * `filtros` es null mientras el período elegido arriba no es válido.
+ */
+export function SeccionInforme({ filtros }: { filtros: FiltrosIndicadores | null }) {
   const [parametros, setParametros] = useSearchParams();
-  const id = Number(parametros.get('id')) || null;
+  const id = Number(parametros.get('informe')) || null;
   // El informe abierto vive en la URL: el link se puede compartir y el botón «atrás» vuelve al anterior.
-  const abrir = (informeId: number) => setParametros({ id: String(informeId) });
+  const abrir = (informeId: number) =>
+    setParametros(
+      (anteriores) => {
+        const siguientes = new URLSearchParams(anteriores);
+        siguientes.set('informe', String(informeId));
+        return siguientes;
+      },
+      { preventScrollReset: true },
+    );
 
   return (
-    <section className="flex flex-col gap-6">
+    <section aria-labelledby="titulo-seccion-informe" className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-texto">Informes</h1>
+        <h2 id="titulo-seccion-informe" className="text-xl font-semibold text-texto">
+          Informe con IA
+        </h2>
         <p className="text-sm text-texto-secundario">
-          Un análisis del estado de tu organismo en un período, escrito por la IA a partir de los indicadores:
-          dónde están los problemas, qué tarda más y qué conviene atender primero.
+          Un análisis escrito por la IA a partir de estos mismos indicadores: dónde están los problemas, qué
+          tarda más y qué conviene atender primero. Los números los calcula el sistema; la IA solo los
+          redacta.
         </p>
       </div>
 
-      <FormularioInforme alGenerar={(informe) => abrir(informe.id)} />
+      <FormularioInforme filtros={filtros} alGenerar={(informe) => abrir(informe.id)} />
       {id !== null && <VistaInforme id={id} />}
       <Historial abierto={id} alAbrir={abrir} />
     </section>
@@ -53,13 +60,14 @@ export function PaginaInformes() {
 
 type CampoInforme = 'desde' | 'hasta' | 'areaId' | 'barrio';
 
-function FormularioInforme({ alGenerar }: { alGenerar: (informe: Informe) => void }) {
-  const [inicial] = useState(() => periodoInicial());
-  const [desde, setDesde] = useState(inicial.desde);
-  const [hasta, setHasta] = useState(inicial.hasta);
-  const [areaId, setAreaId] = useState('');
+function FormularioInforme({
+  filtros,
+  alGenerar,
+}: {
+  filtros: FiltrosIndicadores | null;
+  alGenerar: (informe: Informe) => void;
+}) {
   const [barrio, setBarrio] = useState('');
-  const [erroresPeriodo, setErroresPeriodo] = useState<ErroresPeriodo>({});
   const { areas } = useAreas();
   const barrios = useBarrios();
   const generar = useGenerarInforme(alGenerar);
@@ -72,23 +80,22 @@ function FormularioInforme({ alGenerar }: { alGenerar: (informe: Informe) => voi
         barrio: 'barrio',
       })
     : null;
-  const errores: Partial<Record<CampoInforme, string>> = { ...errorDelServidor?.porCampo, ...erroresPeriodo };
 
   function enviar(evento: FormEvent) {
     evento.preventDefault();
-    const encontrados = validarPeriodo(desde, hasta);
-    setErroresPeriodo(encontrados);
-    if (Object.keys(encontrados).length > 0) return;
-    const pedido: PedidoInforme = {
-      desde,
-      hasta,
-      areaId: areaId ? Number(areaId) : null,
-      barrio: barrio || null,
-    };
+    if (!filtros) return;
+    const pedido: PedidoInforme = { ...filtros, barrio: barrio || null };
     generar.mutate(pedido);
   }
 
   const esperando = generar.isPending;
+  const area = filtros?.areaId ? areas.find((otra) => otra.id === filtros.areaId)?.nombre : null;
+  // Los errores del período o del área son de los filtros de arriba: se cuentan acá, juntos.
+  const errorDeFiltros = errorDelServidor
+    ? [errorDelServidor.porCampo.desde, errorDelServidor.porCampo.hasta, errorDelServidor.porCampo.areaId]
+        .filter(Boolean)
+        .join('. ')
+    : '';
   return (
     <form
       onSubmit={enviar}
@@ -96,47 +103,20 @@ function FormularioInforme({ alGenerar }: { alGenerar: (informe: Informe) => voi
       aria-busy={esperando}
       className="flex flex-col gap-4 rounded-lg border border-borde p-4"
     >
-      <h2 className="text-lg font-semibold text-texto">Nuevo informe</h2>
+      <h3 className="font-semibold text-texto">Nuevo informe</h3>
+      <p className="text-sm text-texto-secundario">
+        {filtros
+          ? `Con los filtros de arriba: ${periodo(filtros)}, ${area ?? 'todo el organismo'}.`
+          : 'Corregí el período de arriba para pedir un informe.'}
+      </p>
       <fieldset disabled={esperando} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <legend className="sr-only">Período, área y barrio</legend>
-        <Campo
-          id="informe-desde"
-          etiqueta="Desde"
-          type="date"
-          value={desde}
-          max={hoy()}
-          onChange={(evento) => setDesde(evento.target.value)}
-          error={errores.desde}
-        />
-        <Campo
-          id="informe-hasta"
-          etiqueta="Hasta"
-          type="date"
-          value={hasta}
-          max={hoy()}
-          onChange={(evento) => setHasta(evento.target.value)}
-          error={errores.hasta}
-        />
-        <CampoSelecto
-          id="informe-area"
-          etiqueta="Área"
-          value={areaId}
-          onChange={(evento) => setAreaId(evento.target.value)}
-          error={errores.areaId}
-        >
-          <option value="">Todo el organismo</option>
-          {areas.map((area) => (
-            <option key={area.id} value={area.id}>
-              {area.nombre}
-            </option>
-          ))}
-        </CampoSelecto>
+        <legend className="sr-only">Barrio</legend>
         <CampoSelecto
           id="informe-barrio"
-          etiqueta="Barrio"
+          etiqueta="Barrio (opcional)"
           value={barrio}
           onChange={(evento) => setBarrio(evento.target.value)}
-          error={errores.barrio}
+          error={errorDelServidor?.porCampo.barrio}
         >
           <option value="">Todos los barrios</option>
           {barrios.data?.map((nombre) => (
@@ -146,10 +126,15 @@ function FormularioInforme({ alGenerar }: { alGenerar: (informe: Informe) => voi
           ))}
         </CampoSelecto>
       </fieldset>
+      {errorDeFiltros && (
+        <p role="alert" className="text-sm text-peligro">
+          {errorDeFiltros}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={esperando} className={BOTON_PRIMARIO}>
-          {esperando ? 'Generando…' : 'Generar informe'}
+        <button type="submit" disabled={esperando || !filtros} className={BOTON_PRIMARIO}>
+          {esperando ? 'Generando…' : 'Generar informe con estos filtros'}
         </button>
         {esperando && (
           <p role="status" className="flex items-center gap-2 text-sm text-texto-secundario">
@@ -200,9 +185,9 @@ function VistaInforme({ id }: { id: number }) {
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="titulo-informe" className="text-lg font-semibold text-texto">
+          <h3 id="titulo-informe" className="text-lg font-semibold text-texto">
             Informe {periodo(data)}
-          </h2>
+          </h3>
           <p className="text-sm text-texto-secundario">{descripcion(data)}</p>
         </div>
         <button
@@ -223,7 +208,7 @@ function VistaInforme({ id }: { id: number }) {
       )}
       {partirContenido(data.contenido).map((seccion, indice) => (
         <section key={indice} className="flex flex-col gap-2">
-          {seccion.titulo && <h3 className="font-semibold text-texto">{seccion.titulo}</h3>}
+          {seccion.titulo && <h4 className="font-semibold text-texto">{seccion.titulo}</h4>}
           {seccion.parrafos.map((parrafo, i) => (
             <p key={i} className="text-sm leading-relaxed text-texto">
               {parrafo}
@@ -248,9 +233,9 @@ function Historial({ abierto, alAbrir }: { abierto: number | null; alAbrir: (id:
   const historial = useHistorial();
   return (
     <section aria-labelledby="titulo-historial" className="flex flex-col gap-3">
-      <h2 id="titulo-historial" className="text-lg font-semibold text-texto">
+      <h3 id="titulo-historial" className="font-semibold text-texto">
         Informes anteriores
-      </h2>
+      </h3>
       {historial.isPending && <Cargando filas={3} />}
       {historial.isError && (
         <AvisoError

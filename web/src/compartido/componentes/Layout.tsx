@@ -38,7 +38,7 @@ function seccionesDe(usuario: Usuario): Seccion[] {
       { ruta: '/bandeja', texto: 'Bandeja' },
       { ruta: '/revision', texto: 'Revisión' },
       { ruta: '/incidentes', texto: 'Incidentes' },
-      { ruta: '/informes', texto: 'Informes' },
+      { ruta: '/indicadores', texto: 'Indicadores' },
       perfil(usuario),
     ];
   }
@@ -49,7 +49,7 @@ function seccionesDe(usuario: Usuario): Seccion[] {
       { ruta: '/bandeja', texto: 'Bandeja' },
       { ruta: '/revision', texto: 'Revisión' },
       { ruta: '/incidentes', texto: 'Incidentes' },
-      { ruta: '/informes', texto: 'Informes' },
+      { ruta: '/indicadores', texto: 'Indicadores' },
       { ruta: '/administracion', texto: 'Administración' },
       perfil(usuario),
     ];

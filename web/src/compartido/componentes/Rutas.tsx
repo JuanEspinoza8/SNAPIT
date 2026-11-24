@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useSearchParams, type RouteObject } from 'react-router-dom';
 import { Cargando } from './Cargando.js';
 import { Layout } from './Layout.js';
 import { PaginaSalud } from '../../funcionalidades/salud/paginaSalud.js';
@@ -20,6 +20,13 @@ import { PaginaPerfil } from '../../funcionalidades/perfil/PaginaPerfil.js';
 import { PaginaInicio } from '../../funcionalidades/feed/PaginaInicio.js';
 import { PaginaReporte } from '../../funcionalidades/feed/PaginaReporte.js';
 import { RutaProtegida, RutaSoloSinSesion } from './RutaProtegida.js';
+
+/** /informes?id=4 → /indicadores?informe=4: los informes se mudaron al panel de indicadores. */
+function RedirigirInforme() {
+  const [parametros] = useSearchParams();
+  const id = parametros.get('id');
+  return <Navigate to={id ? `/indicadores?informe=${encodeURIComponent(id)}` : '/indicadores'} replace />;
+}
 
 // El mapa trae Leaflet, que es pesado: se baja recién cuando alguien abre /mapa.
 const PaginaMapa = lazy(() =>
@@ -46,9 +53,10 @@ const PaginaIncidentes = lazy(() =>
     default: modulo.PaginaIncidentes,
   })),
 );
-const PaginaInformes = lazy(() =>
-  import('../../funcionalidades/informes/paginaInformes.js').then((modulo) => ({
-    default: modulo.PaginaInformes,
+// Los indicadores traen Recharts y el mapa de calor: se bajan recién cuando alguien abre /indicadores.
+const PaginaIndicadores = lazy(() =>
+  import('../../funcionalidades/indicadores/PaginaIndicadores.js').then((modulo) => ({
+    default: modulo.PaginaIndicadores,
   })),
 );
 // La revisión trae Leaflet (el mapa chico): se baja recién cuando un operador abre /revision.
@@ -184,17 +192,19 @@ export const rutas: RouteObject[] = [
           </RutaProtegida>
         ),
       },
-      // Informes de estado y prioridades escritos por la IA (#162).
+      // El panel de indicadores (#159) con el informe escrito por la IA (#162) abajo.
       {
-        path: 'informes',
+        path: 'indicadores',
         element: (
           <RutaProtegida roles={['OPERADOR', 'ADMINISTRADOR']}>
             <Suspense fallback={<Cargando />}>
-              <PaginaInformes />
+              <PaginaIndicadores />
             </Suspense>
           </RutaProtegida>
         ),
       },
+      // Los informes ahora están en el panel: un link viejo a un informe abre el mismo.
+      { path: 'informes', element: <RedirigirInforme /> },
       {
         path: 'administracion',
         element: (

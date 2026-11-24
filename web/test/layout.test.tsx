@@ -83,7 +83,7 @@ describe('layout', () => {
     expect(perfil).toHaveTextContent('Nombre');
     expect(screen.queryByRole('link', { name: 'Mis reportes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Bandeja' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Informes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Indicadores' })).not.toBeInTheDocument();
   });
 
   it('un operador ve su bandeja y no las secciones del vecino', async () => {
@@ -92,7 +92,7 @@ describe('layout', () => {
     expect(await screen.findByRole('link', { name: 'Bandeja' })).toHaveAttribute('href', '/bandeja');
     expect(screen.getByRole('link', { name: 'Mapa' })).toHaveAttribute('href', '/mapa');
     expect(screen.getByRole('link', { name: 'Nombre: tu perfil' })).toHaveAttribute('href', '/perfil');
-    expect(screen.getByRole('link', { name: 'Informes' })).toHaveAttribute('href', '/informes');
+    expect(screen.getByRole('link', { name: 'Indicadores' })).toHaveAttribute('href', '/indicadores');
     expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
   });
 
@@ -108,7 +108,7 @@ describe('layout', () => {
     expect(screen.getByRole('link', { name: 'Nombre: tu perfil' })).toHaveAttribute('href', '/perfil');
     expect(screen.getByRole('link', { name: 'Revisión' })).toHaveAttribute('href', '/revision');
     expect(screen.getByRole('link', { name: 'Incidentes' })).toHaveAttribute('href', '/incidentes');
-    expect(screen.getByRole('link', { name: 'Informes' })).toHaveAttribute('href', '/informes');
+    expect(screen.getByRole('link', { name: 'Indicadores' })).toHaveAttribute('href', '/indicadores');
     expect(screen.queryByRole('link', { name: 'Reportar' })).not.toBeInTheDocument();
   });
 
