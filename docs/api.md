@@ -768,10 +768,13 @@ La ficha que se abre al tocar un punto. Si el incidente se unió a otro, respond
   "fotos": [{ "id": 1, "url": "/api/fotos/1" }],
   "fotoCierre": null,
   "resueltoEn": null,
-  "derivadoA": null
+  "derivadoA": null,
+  "tipoVigencia": "TEMPORAL",
+  "vigenteHasta": "2026-12-01T19:02:11.000Z"
 }
 ```
 
+- `tipoVigencia` y `vigenteHasta` (F12): `TEMPORAL` vence en `vigenteHasta`; `PERMANENTE` no vence y `vigenteHasta` es `null`. La ficha muestra «Vigente hasta el …» o «Permanente».
 - `derivadoA`: el área que le corresponde, `{ "id": 4, "nombre": "Bacheo" }`, para mostrar «Le corresponde al área de Bacheo». Es la que le asignó el operador al derivarlo o, si todavía no lo derivó, la de su categoría: no quiere decir que ya se derivó (eso lo dice `estado`). `null` mientras está en revisión (`enRevision`).
 - `severidad`: la gravedad consolidada del incidente (`LEVE`, `MODERADA` o `GRAVE`).
 - `cantidadVecinos`: cuántas personas distintas lo reportaron, sumando los incidentes que se le unieron.
@@ -836,13 +839,13 @@ Un `cursor` que no se puede leer, un `limite` fuera de rango o un filtro inváli
 ### `POST /api/incidentes/:id/confirmaciones` · `GET /api/incidentes/:id/confirmacion`
 Un vecino confirma que el problema sigue (F12), una sola vez por incidente, y la ficha pregunta si ya lo hizo. Requieren sesión de `VECINO`: sin sesión, **401**; operador o administrador, **403**. Igual que la ficha, pedir un incidente unido a otro es pedir el principal.
 
-`POST` no lleva cuerpo. Responde **201** con el principal y el contador nuevo de la ficha:
+`POST` no lleva cuerpo. Responde **201** con el principal, el contador nuevo y la vigencia de la ficha:
 
 ```json
-{ "incidenteId": 9, "cantidadConfirmaciones": 3 }
+{ "incidenteId": 9, "cantidadConfirmaciones": 3, "vigenteHasta": "2026-12-01T19:02:11.000Z" }
 ```
 
-- En un incidente temporal renueva la vigencia: vence a los días de su categoría contados desde ahora, salvo que ya venciera más tarde. Uno permanente no cambia.
+- En un incidente temporal renueva la vigencia: vence a los días de su categoría contados desde ahora, salvo que ya venciera más tarde. Uno permanente no cambia. `vigenteHasta` es la fecha que queda (`null` en uno permanente), para que la ficha la muestre sin volver a pedirla.
 - Recalcula la prioridad. La confirmación de quien ya lo reportó renueva la vigencia pero no suma evidencia (EVIDENCIAS en [`calculos.md`](calculos.md)).
 - Se puede confirmar uno pendiente de revisión (`enRevision`), porque se ve en el mapa.
 

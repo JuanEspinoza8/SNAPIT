@@ -429,7 +429,22 @@ describe('GET /api/incidentes/:id', () => {
       resueltoEn: null,
       // Publicado: le corresponde el área de su categoría.
       derivadoA: { id: categoria.areaId, nombre: expect.any(String) },
+      // Permanente: no vence (F12).
+      tipoVigencia: 'PERMANENTE',
+      vigenteHasta: null,
     });
+  });
+
+  it('la ficha de un temporal dice hasta cuándo está vigente', async () => {
+    const zona = zonaNueva();
+    const categoria = await crearCategoria();
+    const vence = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    const id = await crearIncidente({ categoriaId: categoria.id, punto: zona.punto(), vigenteHasta: vence });
+
+    const res = await request(app).get(`/api/incidentes/${id}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ tipoVigencia: 'TEMPORAL', vigenteHasta: vence.toISOString() });
   });
 
   it('si se pide un incidente unido, responde con el principal y suma sus fotos', async () => {

@@ -231,6 +231,8 @@ export async function buscarVisible(id: number) {
       direccion: string | null;
       resueltoEn: Date | null;
       derivadoA: { id: number; nombre: string } | null;
+      tipoVigencia: 'TEMPORAL' | 'PERMANENTE';
+      vigenteHasta: Date | null;
     })[]
   >`
     SELECT i.id,
@@ -245,7 +247,9 @@ export async function buscarVisible(id: number) {
            i.cantidad_reportes AS "cantidadReportes",
            i.direccion,
            i.resuelto_en AS "resueltoEn",
-           ${DERIVADO_A} AS "derivadoA"
+           ${DERIVADO_A} AS "derivadoA",
+           i.tipo_vigencia::text AS "tipoVigencia",
+           i.vigente_hasta AS "vigenteHasta"
     FROM incidente i
     JOIN categoria c ON c.id = i.categoria_id
     WHERE i.id = ${id} AND ${INCIDENTE_VISIBLE}`;

@@ -35,11 +35,12 @@ export async function confirmar(sesion: UsuarioSesion, parametros: unknown) {
       if (await repositorio.yaConfirmo(sesion.id, principalId, tx)) throw yaConfirmado();
 
       await repositorio.insertarConfirmacion(tx, principalId, sesion.id);
-      await renovarVigencia(tx, principalId);
+      const vigenteHasta = await renovarVigencia(tx, principalId);
       await avisarCambioIncidente(tx, principalId);
       return {
         incidenteId: principalId,
         cantidadConfirmaciones: await repositorio.contarConfirmaciones(principalId, tx),
+        vigenteHasta,
       };
     });
   } catch (error) {
@@ -90,7 +91,10 @@ async function bloquearPrincipal(tx: Tx, id: number) {
   }
 }
 
-/** En un temporal, vigente_hasta pasa a max(actual, ahora + días de su categoría). Un permanente no cambia. */
+/**
+ * En un temporal, vigente_hasta pasa a max(actual, ahora + días de su categoría). Un permanente no cambia.
+ * Devuelve hasta cuándo queda vigente, para que la ficha lo muestre sin volver a pedirla.
+ */
 async function renovarVigencia(tx: Tx, id: number) {
   const { tipoVigencia, vigenteHasta, categoria } = await tx.incidente.findUniqueOrThrow({
     where: { id },
@@ -98,9 +102,10 @@ async function renovarVigencia(tx: Tx, id: number) {
   });
   const ahora = new Date();
   const renovada = await vigenciaAlConfirmar({ tipoVigencia, vigenteHasta }, categoria, ahora, tx);
-  if (renovada.vigenteHasta?.getTime() === vigenteHasta?.getTime()) return;
+  if (renovada.vigenteHasta?.getTime() === vigenteHasta?.getTime()) return vigenteHasta;
   await tx.incidente.update({
     where: { id },
     data: { vigenteHasta: renovada.vigenteHasta, actualizadoEn: ahora },
   });
+  return renovada.vigenteHasta;
 }
