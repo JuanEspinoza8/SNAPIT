@@ -67,7 +67,7 @@ class ReporteMio {
     required this.estadoVerificacion,
     required this.incidenteId,
     required this.estadoIncidente,
-    this.caducado = false,
+    this.caducadoEn,
   });
 
   factory ReporteMio.desdeJson(Map<String, dynamic> json) {
@@ -86,7 +86,10 @@ class ReporteMio {
       estadoIncidente: incidente == null
           ? null
           : EstadoIncidente.desdeApi(incidente['estado'] as String),
-      caducado: incidente?['caducadoEn'] != null,
+      caducadoEn: switch (incidente?['caducadoEn']) {
+        final String valor => DateTime.parse(valor),
+        _ => null,
+      },
     );
   }
 
@@ -100,8 +103,12 @@ class ReporteMio {
   final int? incidenteId;
   final EstadoIncidente? estadoIncidente;
 
-  /// Si su incidente caducó o venció (`caducadoEn`): ya no está en el mapa.
-  final bool caducado;
+  /// Cuándo caducó o venció su incidente. Null si sigue vigente o si se
+  /// resolvió o desestimó antes.
+  final DateTime? caducadoEn;
+
+  /// Un incidente caducado ya no está en el mapa.
+  bool get caducado => caducadoEn != null;
 
   EstadoIncidente get estado =>
       estadoParaElVecino(estadoVerificacion, estadoIncidente);

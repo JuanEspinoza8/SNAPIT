@@ -92,6 +92,7 @@ class ServidorPublicacion {
           'primerReporteEn': '2026-10-06T15:15:33.494Z',
           'cantidadReportes': vecinos,
           'cantidadVecinos': vecinos,
+          'cantidadConfirmaciones': vecinos,
           'direccion': 'Lanín 120, Villa Ceferino',
           'fotos': [
             {'id': 310, 'url': '/api/fotos/310'},

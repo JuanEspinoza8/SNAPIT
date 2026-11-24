@@ -89,6 +89,7 @@ class FichaIncidente {
     this.gravedad,
     required this.primerReporteEn,
     required this.cantidadVecinos,
+    required this.cantidadConfirmaciones,
     required this.direccion,
     required this.fotoIds,
     this.fotoCierreId,
@@ -109,6 +110,7 @@ class FichaIncidente {
     },
     primerReporteEn: DateTime.parse(json['primerReporteEn'] as String),
     cantidadVecinos: json['cantidadVecinos'] as int,
+    cantidadConfirmaciones: json['cantidadConfirmaciones'] as int,
     direccion: json['direccion'] as String?,
     fotoIds: [
       for (final foto in json['fotos'] as List) (foto as Map)['id'] as int,
@@ -138,6 +140,10 @@ class FichaIncidente {
   final Gravedad? gravedad;
   final DateTime primerReporteEn;
   final int cantidadVecinos;
+
+  /// Cuántos vecinos distintos confirmaron que sigue (F12), contando a los
+  /// que lo reportaron y lo de los incidentes que se le unieron.
+  final int cantidadConfirmaciones;
   final String? direccion;
 
   /// La app pide cada foto a `fotos/<id>` sobre su URL base, que ya termina

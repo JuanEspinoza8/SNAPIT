@@ -13,7 +13,11 @@ import '../../apoyo/social.dart';
 
 const cierre = {'id': 12, 'url': '/api/fotos/12'};
 
-Map<String, Object?> fichaJson({Object? fotoCierre, String? resueltoEn}) => {
+Map<String, Object?> fichaJson({
+  Object? fotoCierre,
+  String? resueltoEn,
+  int confirmaciones = 2,
+}) => {
   'id': 3,
   'lat': -38.9516,
   'lon': -68.0591,
@@ -24,6 +28,7 @@ Map<String, Object?> fichaJson({Object? fotoCierre, String? resueltoEn}) => {
   'primerReporteEn': '2026-10-06T15:15:33.494Z',
   'cantidadReportes': 2,
   'cantidadVecinos': 2,
+  'cantidadConfirmaciones': confirmaciones,
   'direccion': 'Lanín 120, Villa Ceferino',
   'fotos': [
     {'id': 5, 'url': '/api/fotos/5'},
@@ -49,13 +54,17 @@ Map<String, Object?> reporteDelProblemaJson(int id, int numero) => {
 
 /// Responde como el servidor con la ficha del incidente 3, sus reportes y
 /// [comentarios], los del problema en general: se pueden escribir, editar y
-/// eliminar, y la lista cambia como en el servidor real.
+/// eliminar, y la lista cambia como en el servidor real. Confirmar que sigue
+/// suma uno al contador de la ficha, una sola vez; con [confirmado], el
+/// vecino ya lo había hecho.
 ServidorFalso servidorCon(
   Map<String, Object?> ficha, {
   String rol = 'VECINO',
   List<Map<String, Object?>>? comentarios,
+  bool confirmado = false,
 }) {
   var siguiendo = false;
+  var confirmaciones = ficha['cantidadConfirmaciones'] as int;
   final delProblema = comentarios ?? [];
   return ServidorFalso((RequestOptions pedido) {
     switch ((pedido.method, pedido.path)) {
@@ -95,6 +104,22 @@ ServidorFalso servidorCon(
         return json(200, {'reportes': <Object>[], 'siguiente': null});
       case '/incidentes/3':
         return json(200, ficha);
+      case '/incidentes/3/confirmacion':
+        return json(200, {'confirmado': confirmado});
+      case '/incidentes/3/confirmaciones':
+        if (confirmado) {
+          return errorApi(
+            409,
+            'YA_CONFIRMADO',
+            'Ya confirmaste que este problema sigue',
+          );
+        }
+        confirmado = true;
+        confirmaciones++;
+        return json(201, {
+          'incidenteId': 3,
+          'cantidadConfirmaciones': confirmaciones,
+        });
       case '/incidentes/3/seguimiento':
         if (pedido.method == 'GET') {
           return json(200, {'siguiendo': siguiendo});
@@ -563,6 +588,221 @@ void main() {
       expect(caja, findsOneWidget);
       expect(escrituras(servidor), isEmpty);
     });
+  });
+
+  group('sigue estando', () {
+    final botonSigue = find.widgetWithText(OutlinedButton, 'Sigue estando');
+    final botonYaConfirmo = find.widgetWithText(
+      OutlinedButton,
+      'Ya confirmaste que sigue',
+    );
+    bool habilitado(WidgetTester tester, Finder boton) =>
+        tester.widget<OutlinedButton>(boton).onPressed != null;
+    Iterable<String> confirmaciones(ServidorFalso servidor) => [
+      for (final p in servidor.pedidos)
+        if (p.ruta == '/incidentes/3/confirmaciones') p.metodo,
+    ];
+
+    testWidgets('el vecino confirma: el contador suma uno y el botón queda '
+        'deshabilitado diciéndolo', (tester) async {
+      final servidor = servidorCon(fichaJson());
+      await abrirFicha(tester, servidor, alto: 3000);
+      expect(find.text('2 vecinos confirmaron que sigue'), findsOneWidget);
+      expect(habilitado(tester, botonSigue), isTrue);
+
+      await tester.tap(botonSigue);
+      await tester.pumpAndSettle();
+
+      expect(confirmaciones(servidor), ['POST']);
+      expect(find.text('3 vecinos confirmaron que sigue'), findsOneWidget);
+      expect(botonSigue, findsNothing);
+      expect(habilitado(tester, botonYaConfirmo), isFalse);
+      // La ficha no se vuelve a pedir: el contador es el que devolvió el
+      // servidor al confirmar.
+      expect(servidor.cantidad('/incidentes/3'), 1);
+    });
+
+    testWidgets('si ya confirmó, el botón aparece deshabilitado y lo dice, '
+        'también para TalkBack', (tester) async {
+      final servidor = servidorCon(fichaJson(), confirmado: true);
+      await abrirFicha(tester, servidor, alto: 3000);
+
+      expect(botonSigue, findsNothing);
+      expect(habilitado(tester, botonYaConfirmo), isFalse);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Ya confirmaste que sigue')),
+        isSemantics(
+          label: 'Ya confirmaste que sigue',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+        ),
+      );
+      expect(confirmaciones(servidor), isEmpty);
+    });
+
+    testWidgets('si el servidor dice que ya lo había confirmado, lo avisa y '
+        'el botón pasa a decirlo', (tester) async {
+      // Por ejemplo, lo confirmó desde otro celular con la ficha abierta.
+      final servidor = servidorCon(fichaJson());
+      final responder = servidor.responder;
+      var yaConfirmo = false;
+      servidor.responder = (pedido) {
+        switch (pedido.path) {
+          case '/incidentes/3/confirmaciones':
+            yaConfirmo = true;
+            return errorApi(
+              409,
+              'YA_CONFIRMADO',
+              'Ya confirmaste que este problema sigue',
+            );
+          case '/incidentes/3/confirmacion' when yaConfirmo:
+            return json(200, {'confirmado': true});
+        }
+        return responder(pedido);
+      };
+      await abrirFicha(tester, servidor, alto: 3000);
+
+      await tester.tap(botonSigue);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Ya confirmaste que este problema sigue'),
+        findsOneWidget,
+      );
+      expect(habilitado(tester, botonYaConfirmo), isFalse);
+      expect(find.text('2 vecinos confirmaron que sigue'), findsOneWidget);
+    });
+
+    testWidgets('si el servidor lo rechaza por otra cosa, lo dice y deja el '
+        'botón como estaba', (tester) async {
+      final servidor = servidorCon(fichaJson());
+      final responder = servidor.responder;
+      servidor.responder = (pedido) =>
+          pedido.path == '/incidentes/3/confirmaciones'
+          ? errorApi(
+              409,
+              'INCIDENTE_CADUCADO',
+              'El incidente caducó: ya no está vigente',
+            )
+          : responder(pedido);
+      await abrirFicha(tester, servidor, alto: 3000);
+
+      await tester.tap(botonSigue);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('El incidente caducó: ya no está vigente'),
+        findsOneWidget,
+      );
+      expect(habilitado(tester, botonSigue), isTrue);
+      expect(find.text('2 vecinos confirmaron que sigue'), findsOneWidget);
+    });
+
+    testWidgets('si no se sabe si ya lo confirmó, lo dice y deja reintentar', (
+      tester,
+    ) async {
+      final servidor = servidorCon(fichaJson());
+      final responder = servidor.responder;
+      var fallar = true;
+      servidor.responder = (pedido) {
+        if (pedido.path == '/incidentes/3/confirmacion' && fallar) {
+          fallar = false;
+          return errorApi(
+            500,
+            'ERROR_INTERNO',
+            'Ocurrió un error en el servidor',
+          );
+        }
+        return responder(pedido);
+      };
+      await abrirFicha(tester, servidor, alto: 3000);
+
+      expect(
+        find.text('No se pudo saber si ya lo confirmaste.'),
+        findsOneWidget,
+      );
+      expect(botonSigue, findsNothing);
+      // El contador se ve igual: viene con la ficha.
+      expect(find.text('2 vecinos confirmaron que sigue'), findsOneWidget);
+
+      await tester.tap(find.text('Reintentar'));
+      await tester.pumpAndSettle();
+
+      expect(habilitado(tester, botonSigue), isTrue);
+    });
+
+    testWidgets('sin sesión invita a ingresar y después vuelve al detalle, '
+        'sin confirmar solo', (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final servidor = servidorCon(fichaJson(confirmaciones: 0));
+      await abrirFicha(tester, servidor, alto: 3000);
+      expect(find.text('Nadie confirmó todavía que sigue'), findsOneWidget);
+      expect(botonSigue, findsNothing);
+      // Sin sesión no hay a quién preguntarle si confirmó.
+      expect(servidor.cantidad('/incidentes/3/confirmacion'), 0);
+
+      await tester.tap(
+        find.widgetWithText(OutlinedButton, 'Ingresá para confirmar que sigue'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(PantallaIngreso), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Correo'),
+        'vecino1@snapit.test',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Clave'),
+        'una-clave-cualquiera',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Ingresar'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PantallaIncidente), findsOneWidget);
+      expect(habilitado(tester, botonSigue), isTrue);
+      expect(confirmaciones(servidor), isEmpty);
+    });
+
+    testWidgets('el operador ve solo el contador', (tester) async {
+      final servidor = servidorCon(
+        fichaJson(confirmaciones: 1),
+        rol: 'OPERADOR',
+      );
+      await abrirFicha(tester, servidor, alto: 3000);
+
+      expect(find.text('1 vecino confirmó que sigue'), findsOneWidget);
+      expect(botonSigue, findsNothing);
+      expect(botonYaConfirmo, findsNothing);
+      expect(find.text('Ingresá para confirmar que sigue'), findsNothing);
+      expect(servidor.cantidad('/incidentes/3/confirmacion'), 0);
+    });
+
+    testWidgets('resuelto no muestra ni el botón ni el contador', (
+      tester,
+    ) async {
+      final servidor = servidorCon(
+        fichaJson(fotoCierre: cierre, resueltoEn: '2026-11-08T18:20:00.000Z'),
+      );
+      await abrirFicha(tester, servidor, alto: 3000);
+
+      expect(botonSigue, findsNothing);
+      expect(find.textContaining('confirm'), findsNothing);
+      expect(servidor.cantidad('/incidentes/3/confirmacion'), 0);
+    });
+
+    testWidgets(
+      'con letra grande (2×) en un celular de 360 dp no se desborda',
+      (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        FlutterSecureStorage.setMockInitialValues({});
+        await abrirFicha(tester, servidorCon(fichaJson()), alto: 9000);
+
+        expect(find.text('Ingresá para confirmar que sigue'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 
   testWidgets('el vecino sigue y deja de seguir el incidente', (tester) async {

@@ -118,7 +118,7 @@ class _FilaReporte extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: Espacio.sm),
-                    _EtiquetaReporte(reporte.estado),
+                    _EtiquetaReporte(reporte),
                   ],
                 ),
               ),
@@ -175,19 +175,29 @@ class _FilaReporte extends ConsumerWidget {
 }
 
 /// Los mismos textos, íconos y colores que el mapa, más «Desestimado», que el
-/// mapa nunca muestra.
+/// mapa nunca muestra. Si el incidente caducó, en vez de su estado va cuándo
+/// caducó: es lo que explica que ya no se pueda abrir. Si el reporte propio se
+/// desestimó, gana «Desestimado».
 class _EtiquetaReporte extends StatelessWidget {
-  const _EtiquetaReporte(this.estado);
+  const _EtiquetaReporte(this.reporte);
 
-  final EstadoIncidente estado;
+  final ReporteMio reporte;
 
   @override
   Widget build(BuildContext context) {
+    final estado = reporte.estado;
     if (estado == EstadoIncidente.desestimado) {
       return Etiqueta(
         texto: 'Desestimado',
         icono: Icons.block,
         color: Theme.of(context).extension<ColoresEstado>()!.desestimado,
+      );
+    }
+    // Caducar no es un estado del incidente: va sin color de estado.
+    if (reporte.caducadoEn case final caducadoEn?) {
+      return Etiqueta.neutra(
+        texto: 'Caducó el ${fechaLarga(caducadoEn)}',
+        icono: Icons.event_busy,
       );
     }
     return EtiquetaEstado(EstadoVisible.desdeApi(estado.valorApi));
