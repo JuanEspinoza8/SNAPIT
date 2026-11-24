@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { autenticar } from '../../compartido/autenticacion.js';
 import { validar } from '../../compartido/validar.js';
 import {
+  esquemaCambiarClave,
   esquemaConfirmarCorreo,
   esquemaIngreso,
   esquemaRecuperarClave,
@@ -39,6 +40,13 @@ rutasAuth.post('/salir', async (req, res) => {
 
 rutasAuth.get('/yo', autenticar, async (req, res) => {
   res.json(await servicio.obtenerUsuarioActual(req.usuario!.id));
+});
+
+// El usuario cambia su clave desde el perfil, con la actual (cualquier rol). El nombre se cambia en
+// PATCH /api/usuarios/yo.
+rutasAuth.post('/cambiar-clave', autenticar, async (req, res) => {
+  const datos = validar(esquemaCambiarClave, req.body ?? {});
+  res.json(await servicio.cambiarClavePropia(req.usuario!.id, datos));
 });
 
 rutasAuth.post('/confirmar-correo', async (req, res) => {

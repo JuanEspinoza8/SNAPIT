@@ -166,3 +166,70 @@ describe('DELETE /api/reportes/:id', () => {
     expect((await pendientesParaIa(organismoId)).map((r) => r.id)).not.toContain(pendiente.id);
   });
 });
+
+describe('DELETE /api/reportes/:id por un administrador (moderación)', () => {
+  const quitar = (id: number, token: string, cuerpo: object) =>
+    request(app).delete(`/api/reportes/${id}`).set('Authorization', `Bearer ${token}`).send(cuerpo);
+  const administrador = async () => crearTokenAcceso(await crearUsuario({ rol: 'ADMINISTRADOR' }));
+
+  it('quita un reporte ajeno con un motivo: queda en la bitácora a su nombre y el link lo dice', async () => {
+    const reporte = await reportar();
+    await reportar();
+    const admin = await crearUsuario({ rol: 'ADMINISTRADOR' });
+
+    const res = await quitar(reporte.id, crearTokenAcceso(admin), { motivo: 'Se ve una patente en la foto' });
+
+    expect(res.status).toBe(204);
+    expect(
+      (await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } })).eliminadoEn,
+    ).not.toBeNull();
+    const movimiento = await prisma.movimientoIncidente.findFirstOrThrow({
+      where: { incidenteId: reporte.incidenteId, tipo: 'COMENTARIO' },
+      orderBy: { id: 'desc' },
+    });
+    expect(movimiento).toMatchObject({
+      usuarioId: admin.id,
+      comentario: `Reporte #${reporte.id} quitado por un administrador: Se ve una patente en la foto`,
+    });
+
+    const link = await request(app).get(`/api/social/reportes/${reporte.id}`);
+    expect(link.status).toBe(410);
+    expect(link.body.error).toMatchObject({
+      codigo: 'REPORTE_QUITADO',
+      mensaje: 'Esta publicación fue eliminada por un administrador. Motivo: Se ve una patente en la foto',
+    });
+  });
+
+  it('sin motivo da 400 y no quita nada', async () => {
+    const reporte = await reportar();
+    await reportar();
+
+    const res = await quitar(reporte.id, await administrador(), { motivo: '   ' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles[0].campo).toBe('motivo');
+    expect((await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } })).eliminadoEn).toBeNull();
+  });
+
+  it('puede quitar el único reporte: el incidente queda desestimado', async () => {
+    const solo = await reportar();
+
+    const res = await quitar(solo.id, await administrador(), { motivo: 'Foto ofensiva' });
+
+    expect(res.status).toBe(204);
+    expect((await prisma.incidente.findUniqueOrThrow({ where: { id: solo.incidenteId } })).estado).toBe(
+      'DESESTIMADO',
+    );
+  });
+
+  it('el que eliminó su autor sigue diciendo que no existe', async () => {
+    const reporte = await reportar();
+    await reportar();
+    await eliminar(reporte.id, await tokenDelVecino(reporte.vecinoId));
+
+    const link = await request(app).get(`/api/social/reportes/${reporte.id}`);
+
+    expect(link.status).toBe(404);
+    expect(link.body.error.codigo).toBe('REPORTE_NO_ENCONTRADO');
+  });
+});

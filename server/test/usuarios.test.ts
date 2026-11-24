@@ -89,7 +89,8 @@ describe('PATCH /api/usuarios/yo', () => {
     const token = crearTokenAcceso(await crearUsuario());
 
     expect((await cambiarYo(token, {})).status).toBe(400);
-    expect((await cambiarYo(token, { nombre: 'Otro nombre' })).status).toBe(400);
+    // Un campo que no se puede cambiar, como el correo, se ignora: sin otro cambio, 400.
+    expect((await cambiarYo(token, { email: 'otro@snapit.test' })).status).toBe(400);
     const res = await cambiarYo(token, { notificacionesHabilitadas: 'no', perfilMovilidadId: 'uno' });
     expect(res.body.error.detalles.map((d: { campo: string }) => d.campo)).toEqual([
       'perfilMovilidadId',
@@ -229,5 +230,38 @@ describe('/api/preferencias-notificacion', () => {
       .set('Authorization', `Bearer ${operador}`);
 
     expect(res.status).toBe(403);
+  });
+});
+describe('PATCH /api/usuarios/yo: el nombre', () => {
+  const editar = (tokenAcceso: string | null, cuerpo: unknown) => {
+    const pedido = request(app).patch('/api/usuarios/yo');
+    if (tokenAcceso) pedido.set('Authorization', `Bearer ${tokenAcceso}`);
+    return pedido.send(cuerpo as object);
+  };
+
+  it('cambia el nombre visible, sin espacios de más, y devuelve el usuario', async () => {
+    const usuario = await crearUsuario();
+
+    const res = await editar(crearTokenAcceso(usuario), { nombre: '  Ana Pérez  ' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.usuario).toMatchObject({ id: usuario.id, nombre: 'Ana Pérez', email: usuario.email });
+    expect((await prisma.usuario.findUniqueOrThrow({ where: { id: usuario.id } })).nombre).toBe('Ana Pérez');
+  });
+
+  it('un nombre vacío o de más de 120 caracteres da 400 con el campo', async () => {
+    const usuario = await crearUsuario();
+
+    const vacio = await editar(crearTokenAcceso(usuario), { nombre: '   ' });
+    const largo = await editar(crearTokenAcceso(usuario), { nombre: 'a'.repeat(121) });
+
+    for (const res of [vacio, largo]) {
+      expect(res.status).toBe(400);
+      expect(res.body.error.detalles[0].campo).toBe('nombre');
+    }
+  });
+
+  it('sin sesión responde 401', async () => {
+    expect((await editar(null, { nombre: 'Ana' })).status).toBe(401);
   });
 });

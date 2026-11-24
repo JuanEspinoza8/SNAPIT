@@ -28,8 +28,9 @@ rutasReportes.get('/mios', autenticar, permitirRoles('VECINO'), async (req, res)
 });
 
 // El vecino elimina su propio reporte (#150). Solo su autor: eliminacion.ts lo controla.
-rutasReportes.delete('/:id', autenticar, permitirRoles('VECINO'), async (req, res) => {
-  await eliminarReporte(req.usuario!, req.params);
+// El vecino elimina el suyo; el administrador quita cualquiera, con un motivo (moderación).
+rutasReportes.delete('/:id', autenticar, permitirRoles('VECINO', 'ADMINISTRADOR'), async (req, res) => {
+  await eliminarReporte(req.usuario!, req.params, req.body);
   res.status(204).end();
 });
 

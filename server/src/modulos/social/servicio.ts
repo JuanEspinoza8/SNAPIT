@@ -4,6 +4,7 @@ import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
 import { codificarCursor, esquemaId, type PedidoFeed } from '../incidentes/esquemas.js';
 import { buscarVisible } from '../incidentes/servicio.js';
+import { motivoDeModeracion } from '../reportes/eliminacion.js';
 import { esquemaComentario } from './esquemas.js';
 import * as repositorio from './repositorio.js';
 import type { ReportePublico } from './repositorio.js';
@@ -71,7 +72,18 @@ export async function listarReportesDeIncidente(id: number, sesionId: number | n
 
 export async function obtenerReporte(id: number, sesionId: number | null = null) {
   const reporte = await repositorio.buscarReporte(id, sesionId);
-  if (!reporte) throw reporteNoEncontrado();
+  if (!reporte) {
+    // Un link a una publicación que quitó un administrador dice eso, con el motivo, en vez de «no existe».
+    const motivo = await motivoDeModeracion(id);
+    if (motivo !== null) {
+      throw new ErrorApp(
+        410,
+        'REPORTE_QUITADO',
+        `Esta publicación fue eliminada por un administrador. Motivo: ${motivo}`,
+      );
+    }
+    throw reporteNoEncontrado();
+  }
   return presentarReporte(await numerar(reporte.incidenteId))(reporte);
 }
 

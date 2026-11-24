@@ -128,6 +128,7 @@ describe('POST /api/auth/ingreso', () => {
         areaId: null,
         perfilMovilidadId: null,
         notificacionesHabilitadas: true,
+        creadoEn: usuario.creadoEn.toISOString(),
       },
     });
 
@@ -310,5 +311,61 @@ describe('GET /api/auth/yo', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error.codigo).toBe('TOKEN_VENCIDO');
+  });
+});
+
+describe('POST /api/auth/cambiar-clave', () => {
+  const cambiar = (tokenAcceso: string, cuerpo: unknown) =>
+    request(app)
+      .post('/api/auth/cambiar-clave')
+      .set('Authorization', `Bearer ${tokenAcceso}`)
+      .send(cuerpo as object);
+
+  it('con la actual correcta cambia la clave, cierra las otras sesiones y abre una nueva', async () => {
+    const usuario = await crearUsuario();
+    const otraSesion = (await ingresar(usuario.email)).body.tokenRenovacion as string;
+
+    const res = await cambiar(crearTokenAcceso(usuario), {
+      claveActual: CLAVE,
+      claveNueva: 'otra-clave-123',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      tokenAcceso: expect.any(String),
+      tokenRenovacion: expect.any(String),
+      usuario: { id: usuario.id },
+    });
+    expect((await ingresar(usuario.email, CLAVE)).status).toBe(401);
+    expect((await ingresar(usuario.email, 'otra-clave-123')).status).toBe(200);
+    // La sesión de otro dispositivo ya no renueva; la nueva, sí.
+    const renovar = (token: string) =>
+      request(app).post('/api/auth/renovar').send({ tokenRenovacion: token });
+    expect((await renovar(otraSesion)).status).toBe(401);
+    expect((await renovar(res.body.tokenRenovacion)).status).toBe(200);
+  });
+
+  it('con la actual incorrecta da 400 en claveActual y no cambia nada', async () => {
+    const usuario = await crearUsuario();
+
+    const res = await cambiar(crearTokenAcceso(usuario), {
+      claveActual: 'no-es-esta-123',
+      claveNueva: 'otra-clave-123',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles).toEqual([
+      { campo: 'claveActual', mensaje: 'No es tu contraseña actual' },
+    ]);
+    expect((await ingresar(usuario.email, CLAVE)).status).toBe(200);
+  });
+
+  it('una clave nueva de menos de 8 caracteres da 400 en claveNueva', async () => {
+    const usuario = await crearUsuario();
+
+    const res = await cambiar(crearTokenAcceso(usuario), { claveActual: CLAVE, claveNueva: 'corta' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.detalles[0].campo).toBe('claveNueva');
   });
 });

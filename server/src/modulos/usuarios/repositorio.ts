@@ -10,7 +10,7 @@ export async function existePerfilActivo(id: number) {
 
 export function actualizarUsuario(
   id: number,
-  cambios: { perfilMovilidadId?: number | null; notificacionesHabilitadas?: boolean },
+  cambios: { nombre?: string; perfilMovilidadId?: number | null; notificacionesHabilitadas?: boolean },
 ) {
   return prisma.usuario.update({ where: { id }, data: { ...cambios, actualizadoEn: new Date() } });
 }
