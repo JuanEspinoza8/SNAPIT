@@ -44,6 +44,7 @@ class PantallaMisReportes extends ConsumerWidget {
               ),
           categoriaNombre: pendiente.categoriaNombre,
           fotoRuta: pendiente.borrador.foto?.ruta,
+          rechazo: pendiente.rechazo,
         ),
       ...?reportes.value,
     ];
@@ -139,7 +140,14 @@ class _FilaReporte extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: Espacio.sm),
-                    if (reporte.esPendiente)
+                    if (reporte.rechazo case final motivo?)
+                      Text(
+                        'No se pudo enviar: $motivo',
+                        style: tema.textTheme.labelLarge?.copyWith(
+                          color: tema.colorScheme.error,
+                        ),
+                      )
+                    else if (reporte.esPendiente)
                       Text(
                         'Pendiente de envío',
                         style: tema.textTheme.labelLarge?.copyWith(
@@ -167,9 +175,24 @@ class _FilaReporte extends ConsumerWidget {
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
             ],
+          )
+        // Uno rechazado ya no se va a enviar: se descarta del teléfono.
+        else if (reporte.rechazo != null)
+          PopupMenuButton<String>(
+            tooltip: 'Opciones de tu reporte de ${reporte.categoriaNombre}',
+            onSelected: (_) => _descartar(ref),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'descartar', child: Text('Descartar')),
+            ],
           ),
       ],
     );
+  }
+
+  /// Lo saca del teléfono, con su copia de la foto.
+  Future<void> _descartar(WidgetRef ref) async {
+    await ref.read(colaReportesProvider).quitar(reporte.pendienteId!);
+    await ref.read(reportesPendientesProvider.notifier).actualizar();
   }
 
   /// Con confirmación. Si el servidor no deja (es el único reporte de su

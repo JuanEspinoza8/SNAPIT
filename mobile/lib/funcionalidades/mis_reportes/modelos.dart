@@ -70,6 +70,7 @@ class ReporteMio {
     this.caducado = false,
     this.pendienteId,
     this.fotoRuta,
+    this.rechazo,
   });
 
   factory ReporteMio.desdeJson(Map<String, dynamic> json) {
@@ -97,6 +98,7 @@ class ReporteMio {
     required DateTime registradoEn,
     required String categoriaNombre,
     required String? fotoRuta,
+    String? rechazo,
   }) => ReporteMio(
     id: -1,
     registradoEn: registradoEn,
@@ -107,6 +109,7 @@ class ReporteMio {
     estadoIncidente: null,
     pendienteId: pendienteId,
     fotoRuta: fotoRuta,
+    rechazo: rechazo,
   );
 
   final int id;
@@ -125,6 +128,10 @@ class ReporteMio {
   /// Identificador local del reporte que espera conexión. Aún no existe en
   /// el servidor, así que no tiene ficha ni se puede eliminar.
   final String? pendienteId;
+
+  /// Si es un pendiente que el servidor rechazó, por qué: ya no se reintenta
+  /// y el vecino lo puede descartar.
+  final String? rechazo;
 
   /// La foto copiada al almacenamiento de la app, mientras espera el envío.
   final String? fotoRuta;

@@ -187,15 +187,23 @@ class ColaReportesFalsa extends ColaReportes {
   @override
   Future<ReportePendiente> guardar(
     BorradorReporte borrador, {
+    required int usuarioId,
     required String categoriaNombre,
   }) async {
     final pendiente = ReportePendiente(
       id: '${_pendientes.length + 1}',
+      usuarioId: usuarioId,
       categoriaNombre: categoriaNombre,
       borrador: borrador,
     );
     _pendientes.add(pendiente);
     return pendiente;
+  }
+
+  @override
+  Future<void> marcarRechazado(String id, String motivo) async {
+    final indice = _pendientes.indexWhere((pendiente) => pendiente.id == id);
+    if (indice >= 0) _pendientes[indice] = _pendientes[indice].conRechazo(motivo);
   }
 
   @override

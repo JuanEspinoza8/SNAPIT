@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../compartido/red/cliente_api.dart';
 import '../../compartido/red/error_api.dart';
+import '../../compartido/sesion/sesion.dart';
 import '../mapa/repositorio_mapa.dart';
 import 'borrador_reporte.dart';
 import 'cola_reportes.dart';
@@ -105,6 +106,9 @@ class RepositorioReportesConCola implements RepositorioReportes {
       return await _api.enviar(borrador);
     } on ErrorApi catch (error) {
       if (error.codigo != ErrorApi.sinConexion.codigo) rethrow;
+      // Sin sesión no hay a nombre de quién guardarlo.
+      final usuario = _ref.read(sesionProvider).value;
+      if (usuario == null) rethrow;
 
       final categorias = _ref.read(categoriasProvider).value ?? const [];
       final categoriaNombre =
@@ -116,6 +120,7 @@ class RepositorioReportesConCola implements RepositorioReportes {
 
       final pendiente = await _cola.guardar(
         borrador,
+        usuarioId: usuario.id,
         categoriaNombre: categoriaNombre,
       );
       await _ref.read(reportesPendientesProvider.notifier).actualizar();

@@ -152,6 +152,7 @@ void main() {
             foto: FotoReporte(ruta: foto.path, tomadaConCamaraApp: true),
             registradoEn: DateTime(2026, 11, 23, 10, 30),
           ),
+          usuarioId: 7,
           categoriaNombre: 'Bache',
         );
     await contenedor.read(reportesPendientesProvider.notifier).actualizar();
@@ -162,6 +163,61 @@ void main() {
     expect(find.text('Bache'), findsOneWidget);
     expect(find.text('Pendiente de envío'), findsOneWidget);
     expect(find.text('Eliminar'), findsNothing);
+  });
+
+  testWidgets('el pendiente de otro usuario del teléfono no aparece', (
+    tester,
+  ) async {
+    final servidor = ServidorMisReportes();
+    final contenedor = await abrirApp(tester, servidor.servidor);
+
+    await contenedor
+        .read(colaReportesProvider)
+        .guardar(
+          BorradorReporte(registradoEn: DateTime(2026, 11, 23, 10, 30)),
+          usuarioId: 99,
+          categoriaNombre: 'Bache de otro',
+        );
+    await contenedor.read(reportesPendientesProvider.notifier).actualizar();
+
+    await tester.tap(find.text('Mis reportes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bache de otro'), findsNothing);
+    expect(find.text('Pendiente de envío'), findsNothing);
+  });
+
+  testWidgets('un pendiente rechazado muestra el motivo y se puede descartar', (
+    tester,
+  ) async {
+    final servidor = ServidorMisReportes();
+    final contenedor = await abrirApp(tester, servidor.servidor);
+    final cola = contenedor.read(colaReportesProvider);
+
+    final pendiente = await cola.guardar(
+      BorradorReporte(registradoEn: DateTime(2026, 11, 23, 10, 30)),
+      usuarioId: 7,
+      categoriaNombre: 'Bache',
+    );
+    await cola.marcarRechazado(pendiente.id, 'La categoría no está activa');
+    await contenedor.read(reportesPendientesProvider.notifier).actualizar();
+
+    await tester.tap(find.text('Mis reportes'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('No se pudo enviar: La categoría no está activa'),
+      findsOneWidget,
+    );
+    expect(find.text('Pendiente de envío'), findsNothing);
+
+    await tester.tap(find.byTooltip('Opciones de tu reporte de Bache'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Descartar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bache'), findsNothing);
+    expect(await cola.leer(), isEmpty);
   });
 
   testWidgets('sin reportes muestra un mensaje y lleva a reportar', (
