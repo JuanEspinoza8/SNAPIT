@@ -168,13 +168,13 @@ export function PaginaIncidentes() {
 
       {principales.length === 0 && <p className="text-texto-secundario">Todavía no hay incidentes.</p>}
 
-      <ul className="space-y-4">
+      <ul className="lista-filas gap-2">
         {principales.map((incidente) => {
           const unidos = unidosA(incidente.id);
           const reportesTotales =
             incidente.reportes.length + unidos.reduce((n, u) => n + u.reportes.length, 0);
           return (
-            <li key={incidente.id} className="rounded-lg border border-borde bg-superficie p-4">
+            <li key={incidente.id} className="p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold text-texto">

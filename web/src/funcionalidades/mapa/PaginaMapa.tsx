@@ -5,7 +5,7 @@ import { AvisoError } from '../../compartido/componentes/AvisoError.js';
 import { BotonReportar } from '../../compartido/componentes/BotonReportar.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import { useIncidentes } from './consultas.js';
-import { ESTADOS, ORDEN_ESTADOS } from './estados.js';
+import { ESTADOS } from './estados.js';
 import { FichaIncidente } from './FichaIncidente.js';
 import { FiltrosMapa } from './FiltrosMapa.js';
 import { ListaIncidentes } from './ListaIncidentes.js';
@@ -34,17 +34,24 @@ export function PaginaMapa() {
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-semibold text-texto">Mapa</h1>
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-texto-secundario" aria-live="polite">
+        <BotonReportar />
+      </div>
+
+      <FiltrosMapa
+        filtros={filtros}
+        categorias={categorias.data ?? []}
+        alCambiar={setFiltros}
+        resumen={
+          <p
+            className="rounded-full bg-superficie px-3 py-1 text-sm font-semibold text-texto"
+            aria-live="polite"
+          >
             {incidentes.data
               ? `${incidentes.data.length} ${incidentes.data.length === 1 ? 'incidente' : 'incidentes'} en esta zona`
               : 'Cargando…'}
           </p>
-          <BotonReportar />
-        </div>
-      </div>
-
-      <FiltrosMapa filtros={filtros} categorias={categorias.data ?? []} alCambiar={setFiltros} />
+        }
+      />
 
       {incidentes.isError && (
         <AvisoError
@@ -54,8 +61,9 @@ export function PaginaMapa() {
         />
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-        <div className="h-[60vh] min-h-80 overflow-hidden rounded-lg border border-borde">
+      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+        {/* El mapa ocupa casi toda la altura de la pantalla; el panel de la derecha queda fijo al bajar. */}
+        <div className="tarjeta h-[calc(100dvh-16rem)] min-h-96 overflow-hidden">
           <MapaIncidentes
             puntos={incidentes.data ?? []}
             foco={foco}
@@ -64,7 +72,12 @@ export function PaginaMapa() {
             alElegirVarios={abrirLista}
           />
         </div>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto">
+          {seleccion === null && (
+            <p className="tarjeta p-4 text-sm text-texto-secundario">
+              Tocá un punto del mapa para ver qué problema es, en qué estado está y sus fotos.
+            </p>
+          )}
           {seleccion?.tipo === 'ficha' && (
             <FichaIncidente id={seleccion.id} alCerrar={() => setSeleccion(null)} />
           )}
@@ -75,20 +88,17 @@ export function PaginaMapa() {
               alCerrar={() => setSeleccion(null)}
             />
           )}
-          <section aria-label="Referencias" className="rounded-lg border border-borde p-4 text-sm">
+          <section aria-label="Referencias" className="tarjeta p-4 text-sm">
             <h2 className="mb-2 font-semibold text-texto">Referencias</h2>
+            {/* Los colores de cada estado están en los botones de los filtros. */}
             <ul className="flex flex-col gap-1.5">
-              {ORDEN_ESTADOS.map((estado) => (
-                <li key={estado} className="flex items-center gap-2">
-                  <span
-                    aria-hidden="true"
-                    className={`marcador-punto marcador-punto--chico ${ESTADOS[estado].clase}${
-                      estado === 'REGISTRADO' ? ' marcador-punto--revision' : ''
-                    }`}
-                  />
-                  {ESTADOS[estado].etiqueta}
-                </li>
-              ))}
+              <li className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={`marcador-punto marcador-punto--chico ${ESTADOS.REGISTRADO.clase} marcador-punto--revision`}
+                />
+                Borde punteado: todavía en revisión
+              </li>
               <li className="flex items-center gap-2">
                 <span aria-hidden="true" className="marcador-grupo marcador-grupo--chico">
                   3

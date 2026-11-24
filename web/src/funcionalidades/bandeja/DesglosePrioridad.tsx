@@ -21,7 +21,7 @@ const conSigno = (valor: number) => `${valor > 0 ? '+' : ''}${numeroCorto.format
 export function DesglosePrioridad({ prioridad, puedeFijar, puedeQuitar, alFijar, quitar }: Props) {
   const manual = prioridad.prioridadManual;
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-borde p-4">
+    <section className="tarjeta flex flex-col gap-3 p-4">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-semibold text-texto">Prioridad</h2>
         <p className="text-2xl font-semibold text-texto">

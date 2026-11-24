@@ -139,7 +139,7 @@ export function PaginaOrganismos() {
             <li
               key={organismo.id}
               aria-label={organismo.nombre}
-              className={`rounded-md border border-borde ${organismo.activo ? '' : 'bg-superficie-alterna'}`}
+              className={`tarjeta ${organismo.activo ? '' : 'text-texto-secundario'}`}
             >
               <div className="space-y-2 p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -223,7 +223,7 @@ export function PaginaOrganismos() {
                 {organismo.areas.length === 0 ? (
                   <p className="text-sm text-texto-secundario">Sin áreas.</p>
                 ) : (
-                  <ul className="divide-y divide-borde">
+                  <ul className="lista-filas">
                     {organismo.areas.map((area) => (
                       <FilaArea
                         key={area.id}

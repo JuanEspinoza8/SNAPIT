@@ -12,6 +12,22 @@
   /* Texto sobre peligro (el botón que confirma una eliminación). Cambia con el tema, como el peligro. */
   --color-sobre-peligro: #ffffff;
 
+  /* Las listas y tablas de los paneles (.tabla y .lista-filas en estilos.css): el encabezado oscuro y las filas
+     alternando un tono más claro y uno más oscuro, para seguir cada renglón. Sobre las filas el texto secundario
+     va un poco más oscuro, para que dé AA también sobre la más oscura. Solo web: la app no tiene estos paneles. */
+  --color-lista-encabezado: #262626;
+  --color-sobre-lista-encabezado: #fafafa;
+  --color-fila: #fafafa;
+  --color-fila-alterna: #f0f0f0;
+  --color-fila-resaltada: #e5e5e5;
+  --color-texto-secundario-fila: #5c5c5c;
+
+  /* Las tarjetas de los paneles (.tarjeta en estilos.css): un tono apenas distinto del fondo, el contorno más
+     marcado que el borde común y una sombra suave, para que cada bloque se separe del resto. En el claro van un
+     poco más oscuras que el fondo; en el oscuro, un poco más claras. */
+  --color-tarjeta: #f5f5f5;
+  --color-borde-tarjeta: #d4d4d4;
+
   /* Colores de los estados de un incidente (enum EstadoIncidente).
      Mismos valores que mobile/lib/compartido/tema/tema_app.dart */
   --color-estado-registrado: #975a16;
@@ -92,4 +108,12 @@
   --color-sobre-peligro: #0a0a0a;
   --color-serie-1: #3987e5;
   --color-serie-2: #d95926;
+  --color-lista-encabezado: #3a3a3a;
+  --color-sobre-lista-encabezado: #fafafa;
+  --color-fila: #121212;
+  --color-fila-alterna: #1c1c1c;
+  --color-fila-resaltada: #2a2a2a;
+  --color-texto-secundario-fila: #a3a3a3;
+  --color-tarjeta: #171717;
+  --color-borde-tarjeta: #333333;
 }

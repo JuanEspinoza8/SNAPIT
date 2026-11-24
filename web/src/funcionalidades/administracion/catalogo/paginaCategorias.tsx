@@ -63,7 +63,7 @@ export function PaginaCategorias() {
         <h1 className="text-2xl font-semibold text-texto">Categorías</h1>
         <p className="text-texto-secundario">
           Los tipos de problema que se pueden reportar, el área que los atiende, cuánto duran y cuánto pesan
-          en la prioridad. Lo que le estorba cada una a cada perfil está en la Matriz.
+          en la prioridad.
         </p>
       </div>
 
@@ -110,12 +110,12 @@ export function PaginaCategorias() {
         </p>
       )}
 
-      <ul className="divide-y divide-borde rounded-md border border-borde">
+      <ul className="lista-filas">
         {visibles.map((categoria) => (
           <li
             key={categoria.id}
             aria-label={categoria.nombre}
-            className={`space-y-2 p-3 text-sm ${categoria.activa ? '' : 'bg-superficie-alterna'}`}
+            className={`space-y-2 p-3 text-sm ${categoria.activa ? '' : 'text-texto-secundario'}`}
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <div className="min-w-0">

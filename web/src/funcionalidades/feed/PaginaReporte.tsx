@@ -8,6 +8,7 @@ import type { FichaIncidente } from '../mapa/tipos.js';
 import { useReporte } from './consultas.js';
 import { CabeceraProblema, PanelUbicacion, RecorridoDelEstado } from './FichaProblema.js';
 import { BotonMeGusta, SeccionComentarios } from './Interacciones.js';
+import { QuitarPublicacion } from './QuitarPublicacion.js';
 import { Avatar, Carrusel, NombreAutor, urlFoto } from './piezas.js';
 
 /**
@@ -28,7 +29,14 @@ export function PaginaReporte() {
       </Link>
 
       {reporte.isPending && <Cargando filas={6} />}
-      {reporte.isError && (
+      {reporte.isError && aErrorApi(reporte.error).codigo === 'REPORTE_QUITADO' && (
+        // El link a una publicación que quitó un administrador lo dice, con el motivo: no es un error.
+        <section aria-label="Publicación eliminada" className="tarjeta flex flex-col gap-2 p-6">
+          <h1 className="text-lg font-semibold text-texto">Publicación eliminada por un administrador</h1>
+          <p className="text-sm text-texto-secundario">{aErrorApi(reporte.error).mensaje}</p>
+        </section>
+      )}
+      {reporte.isError && aErrorApi(reporte.error).codigo !== 'REPORTE_QUITADO' && (
         <AvisoError
           error={aErrorApi(reporte.error)}
           alReintentar={() => void reporte.refetch()}
@@ -39,15 +47,16 @@ export function PaginaReporte() {
       {reporte.data && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="flex flex-col gap-6">
-            <article className="overflow-hidden rounded-lg border border-borde bg-superficie-alterna">
+            <article className="tarjeta overflow-hidden">
               <header className="flex items-center gap-3 p-4">
                 <Avatar autor={reporte.data.autor} />
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold">
                     Reporte del <NombreAutor autor={reporte.data.autor} />
                   </p>
                   <p className="text-sm text-texto-secundario">{haceCuanto(reporte.data.creadoEn)}</p>
                 </div>
+                <QuitarPublicacion reporteId={reporte.data.id} />
               </header>
               <Carrusel
                 fotos={reporte.data.fotos}
@@ -69,7 +78,7 @@ export function PaginaReporte() {
             {ficha.data && <RecorridoDelEstado ficha={ficha.data} />}
             {ficha.data && ficha.data.cantidadVecinos > 1 && <OtrosVecinos ficha={ficha.data} />}
 
-            <div className="rounded-lg border border-borde bg-superficie-alterna p-4">
+            <div className="tarjeta p-4">
               <SeccionComentarios sobre={{ tipo: 'reporte', id: reporte.data.id }} />
             </div>
           </div>
@@ -84,7 +93,7 @@ export function PaginaReporte() {
 /** Si el problema se resolvió: la foto que lo cerró, para compararla con la del vecino. */
 function ComoQuedo({ ficha, fotoId }: { ficha: FichaIncidente; fotoId: number }) {
   return (
-    <figure className="overflow-hidden rounded-lg border border-borde bg-superficie-alterna">
+    <figure className="tarjeta overflow-hidden">
       <figcaption className="px-4 py-3 text-sm font-semibold">
         Así quedó{ficha.resueltoEn ? ` · resuelto el ${formatearFecha(ficha.resueltoEn)}` : ''}
       </figcaption>
@@ -103,7 +112,7 @@ function OtrosVecinos({ ficha }: { ficha: FichaIncidente }) {
   return (
     <Link
       to={`/incidente/${ficha.id}`}
-      className="flex items-center justify-between gap-3 rounded-lg border border-borde bg-superficie-alterna p-4 hover:border-primario/50 focus-visible:ring-2 focus-visible:ring-primario"
+      className="tarjeta flex items-center justify-between gap-3 p-4 hover:border-primario/50 focus-visible:ring-2 focus-visible:ring-primario"
     >
       <span>
         {otros === 1

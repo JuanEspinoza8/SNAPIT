@@ -14,6 +14,89 @@ body {
   font-size: 1rem;
 }
 
+/* Listas y tablas de los paneles: el encabezado con su color y las filas alternando dos tonos, separadas y con
+   las puntas redondeadas, para seguir cada renglón de un vistazo. Van en la capa de componentes: las utilidades
+   de cada pantalla (un padding, un color de texto) siguen mandando. Sobre las filas, el texto secundario toma el
+   tono que da AA también sobre la más oscura. */
+@layer components {
+  .tabla {
+    --color-texto-secundario: var(--color-texto-secundario-fila);
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 0.25rem;
+  }
+  .tabla thead th {
+    background-color: var(--color-lista-encabezado);
+    color: var(--color-sobre-lista-encabezado);
+    font-weight: 600;
+  }
+  .tabla tbody tr > * {
+    background-color: var(--color-fila);
+    transition: background-color 150ms;
+  }
+  .tabla tbody tr:nth-child(even) > * {
+    background-color: var(--color-fila-alterna);
+  }
+  /* La fila abierta (el informe que se está leyendo) queda marcada, y también al pasar el mouse. */
+  .tabla tbody tr:hover > *,
+  .tabla tbody tr[aria-current] > * {
+    background-color: var(--color-fila-resaltada);
+  }
+  .tabla tr > :first-child {
+    border-top-left-radius: 0.375rem;
+    border-bottom-left-radius: 0.375rem;
+  }
+  .tabla tr > :last-child {
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+  }
+
+  /* Lo mismo para una lista hecha con <ul>/<ol>: cada <li> es una fila. Un encabezado opcional va antes, con
+     .lista-encabezado. */
+  .lista-filas {
+    --color-texto-secundario: var(--color-texto-secundario-fila);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .lista-filas > li {
+    border-radius: 0.375rem;
+    background-color: var(--color-fila);
+    padding-inline: 0.75rem;
+    transition: background-color 150ms;
+  }
+  .lista-filas > li:nth-child(even) {
+    background-color: var(--color-fila-alterna);
+  }
+  .lista-filas > li:hover {
+    background-color: var(--color-fila-resaltada);
+  }
+  /* Un bloque de un panel (un gráfico, una tarjeta de números, el informe). Con el texto secundario de las filas,
+     que da AA sobre su tono. */
+  .tarjeta {
+    --color-texto-secundario: var(--color-texto-secundario-fila);
+    border: 1px solid var(--color-borde-tarjeta);
+    border-radius: 0.5rem;
+    background-color: var(--color-tarjeta);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.06),
+      0 2px 8px rgb(0 0 0 / 0.06);
+  }
+  :root[data-tema='oscuro'] .tarjeta {
+    /* Sobre un fondo casi negro la sombra no se ve: se marca más. */
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.5),
+      0 4px 12px rgb(0 0 0 / 0.5);
+  }
+
+  .lista-encabezado {
+    border-radius: 0.375rem;
+    background-color: var(--color-lista-encabezado);
+    color: var(--color-sobre-lista-encabezado);
+    font-weight: 600;
+  }
+}
+
 /* Marcadores del mapa: HTML dentro de un divIcon de Leaflet. El color de fondo sale de ESTADOS (estados.ts).
    El mapa es claro en los dos temas: lo que va encima usa los colores fijos (marcador-*), nunca los del tema. */
 .marcador-punto {

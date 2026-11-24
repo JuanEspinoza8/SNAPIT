@@ -121,7 +121,8 @@ describe('mapa público', () => {
     expect(await screen.findByText('0 incidentes en esta zona')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Punto 1' })).not.toBeInTheDocument();
 
-    await usuario.selectOptions(screen.getByLabelText('Estado'), 'Resuelto');
+    await usuario.click(screen.getByRole('button', { name: 'Resuelto' }));
+    expect(screen.getByRole('button', { name: 'Resuelto' })).toHaveAttribute('aria-pressed', 'true');
     await usuario.type(screen.getByLabelText('Desde'), '2026-10-01');
     await usuario.type(screen.getByLabelText('Hasta'), '2026-10-05');
 
@@ -197,13 +198,33 @@ describe('mapa público', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('las referencias explican cada estado con texto', async () => {
+  it('cada estado es un botón con su color y su nombre, que también sirve de referencia', async () => {
     renderRuta('/mapa', <PaginaMapa />);
 
-    const referencias = screen.getByRole('region', { name: 'Referencias' });
+    const estados = screen.getByRole('group', { name: 'Estado' });
     for (const texto of ['En revisión', 'Verificado', 'Derivado al área', 'En ejecución', 'Resuelto']) {
-      expect(within(referencias).getByText(texto)).toBeInTheDocument();
+      expect(within(estados).getByRole('button', { name: texto })).toHaveAttribute('aria-pressed', 'false');
     }
+    expect(screen.getByRole('region', { name: 'Referencias' })).toHaveTextContent('todavía en revisión');
+  });
+
+  it('tocar el estado elegido otra vez quita el filtro', async () => {
+    const usuario = userEvent.setup();
+    renderRuta('/mapa', <PaginaMapa />);
+    await screen.findByText('2 incidentes en esta zona');
+
+    await usuario.click(screen.getByRole('button', { name: 'Verificado' }));
+    await waitFor(() => expect(pedidos.at(-1)!.searchParams.get('estado')).toBe('VERIFICADO'));
+    await usuario.click(screen.getByRole('button', { name: 'Verificado' }));
+
+    await waitFor(() => expect(pedidos.at(-1)!.searchParams.get('estado')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Verificado' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('sin nada elegido, el panel explica qué hacer', () => {
+    renderRuta('/mapa', <PaginaMapa />);
+
+    expect(screen.getByText(/Tocá un punto del mapa/)).toBeInTheDocument();
   });
 
   it('sin foco arranca en el centro de Neuquén', async () => {

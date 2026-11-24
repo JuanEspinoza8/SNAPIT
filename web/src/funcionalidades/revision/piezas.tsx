@@ -39,9 +39,9 @@ export function Etiqueta({ punto, children }: { punto?: string; children: ReactN
   );
 }
 
-/** Una lista de reportes: filas separadas por una línea, sin cajas alrededor de cada una. */
+/** Una lista de reportes: filas con fondo alterno (.lista-filas), para seguir cada una. */
 export function Lista({ children }: { children: ReactNode }) {
-  return <ul className="divide-y divide-borde">{children}</ul>;
+  return <ul className="lista-filas">{children}</ul>;
 }
 
 export function Vacio({ children }: { children: ReactNode }) {

@@ -15,6 +15,10 @@ export interface RepositorioAuth {
   confirmarCorreo(token: string): Promise<void>;
   recuperarClave(email: string): Promise<void>;
   restablecerClave(token: string, clave: string): Promise<void>;
+  /** Cambia el nombre visible (PATCH /usuarios/yo). */
+  cambiarNombre(nombre: string): Promise<{ usuario: Usuario }>;
+  /** Cambia la clave con la actual: cierra las otras sesiones y devuelve una nueva para seguir adentro. */
+  cambiarClave(claveActual: string, claveNueva: string): Promise<Ingreso>;
 }
 
 // Autenticarse y registrarse son peticiones públicas: el 401 de "credenciales
@@ -48,6 +52,12 @@ export function crearRepositorioAuth(cliente: ClienteApi): RepositorioAuth {
         ...publico,
         cuerpo: { token, clave },
       });
+    },
+    cambiarNombre(nombre) {
+      return cliente.pedir('/usuarios/yo', { metodo: 'PATCH', cuerpo: { nombre } });
+    },
+    cambiarClave(claveActual, claveNueva) {
+      return cliente.pedir('/auth/cambiar-clave', { metodo: 'POST', cuerpo: { claveActual, claveNueva } });
     },
   };
 }

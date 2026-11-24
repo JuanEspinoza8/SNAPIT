@@ -78,7 +78,7 @@ export function PaginaRestablecerClave() {
         <p className="text-texto-secundario">Escribí la clave nueva de tu cuenta.</p>
       </header>
 
-      <form onSubmit={enviar} className="space-y-4" noValidate>
+      <form onSubmit={enviar} className="tarjeta space-y-4 p-6" noValidate>
         <Campo
           id="clave"
           etiqueta="Clave nueva"

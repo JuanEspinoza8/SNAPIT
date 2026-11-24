@@ -42,7 +42,7 @@ export function PaginaIncidente() {
       {ficha.data && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="flex flex-col gap-6">
-            <article className="overflow-hidden rounded-lg border border-borde bg-superficie-alterna">
+            <article className="tarjeta overflow-hidden">
               {ficha.data.fotoCierre ? (
                 <AntesYDespues
                   fotos={ficha.data.fotos}
@@ -62,7 +62,7 @@ export function PaginaIncidente() {
             <RecorridoDelEstado ficha={ficha.data} />
             {ficha.data.cantidadVecinos > 1 && <ReportesDelProblema id={ficha.data.id} />}
 
-            <div className="rounded-lg border border-borde bg-superficie-alterna p-4">
+            <div className="tarjeta p-4">
               <SeccionComentarios sobre={{ tipo: 'incidente', id: ficha.data.id }} />
             </div>
           </div>

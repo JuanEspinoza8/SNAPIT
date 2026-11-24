@@ -27,7 +27,7 @@ export function FichaIncidente({ id, alCerrar }: Props) {
       ref={panel}
       tabIndex={-1}
       aria-label="Ficha del incidente"
-      className="flex flex-col gap-3 rounded-lg border border-borde bg-superficie p-4 shadow-sm outline-none"
+      className="tarjeta flex flex-col gap-3 p-4 outline-none"
     >
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-xl font-semibold text-texto">{ficha?.categoria.nombre ?? 'Incidente'}</h2>
@@ -56,6 +56,23 @@ export function FichaIncidente({ id, alCerrar }: Props) {
 
       {ficha && (
         <>
+          {/* Las fotos arriba: la primera grande, el resto chicas debajo. */}
+          {ficha.fotos.length > 0 && (
+            <ul className="grid grid-cols-3 gap-2">
+              {ficha.fotos.map((foto, indice) => (
+                <li key={foto.id} className={indice === 0 ? 'col-span-3' : ''}>
+                  <img
+                    src={`${apiUrl}/fotos/${foto.id}`}
+                    alt={`Foto ${indice + 1} de ${ficha.fotos.length} de ${ficha.categoria.nombre}`}
+                    loading="lazy"
+                    className={`w-full rounded-md border border-borde object-cover ${
+                      indice === 0 ? 'aspect-video' : 'aspect-square'
+                    }`}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
           <div>
             <EtiquetaEstado estado={ficha.estado} />
           </div>
@@ -84,20 +101,6 @@ export function FichaIncidente({ id, alCerrar }: Props) {
               </>
             )}
           </dl>
-          {ficha.fotos.length > 0 && (
-            <ul className="grid grid-cols-2 gap-2">
-              {ficha.fotos.map((foto, indice) => (
-                <li key={foto.id}>
-                  <img
-                    src={`${apiUrl}/fotos/${foto.id}`}
-                    alt={`Foto ${indice + 1} de ${ficha.fotos.length} de ${ficha.categoria.nombre}`}
-                    loading="lazy"
-                    className="aspect-square w-full rounded-md border border-borde object-cover"
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
         </>
       )}
     </aside>

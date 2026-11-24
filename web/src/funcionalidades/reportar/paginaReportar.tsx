@@ -215,7 +215,7 @@ export function PaginaReportar() {
         </p>
       </div>
 
-      <form onSubmit={(evento) => enviar(evento)} className="space-y-4" noValidate>
+      <form onSubmit={(evento) => enviar(evento)} className="tarjeta space-y-4 p-4" noValidate>
         <div className="space-y-1">
           <Campo
             id="foto"
@@ -340,7 +340,7 @@ export function PaginaReportar() {
               Usar donde se sacó la foto
             </button>
           )}
-          <div className="mt-1 h-72 overflow-hidden rounded-lg border border-borde">
+          <div className="tarjeta mt-1 h-72 overflow-hidden">
             <MapaElegirPunto
               punto={punto}
               centrar={origenPunto === 'foto'}

@@ -15,7 +15,7 @@ export function ReportesFicha({
   reportes: ReporteGestion[];
 }) {
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-borde p-4">
+    <section className="tarjeta flex flex-col gap-3 p-4">
       <h2 className="font-semibold text-texto">Reportes ({reportes.length})</h2>
       <ul className="flex flex-col gap-3">
         {reportes.map((reporte) => (

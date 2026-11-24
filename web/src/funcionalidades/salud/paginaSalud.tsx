@@ -18,7 +18,7 @@ export function PaginaSalud() {
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-semibold text-texto">Estado del servidor</h1>
-      <dl className="grid gap-2 rounded-lg border border-borde bg-superficie p-4 text-texto">
+      <dl className="tarjeta grid gap-2 p-4 text-texto">
         <div className="flex gap-2">
           <dt className="font-semibold">API</dt>
           <dd>{data.estado}</dd>
