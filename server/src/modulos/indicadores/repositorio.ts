@@ -12,13 +12,15 @@ export interface FiltrosIndicadores {
   areaId?: number;
   desde?: Date;
   hasta?: Date;
+  /** Un barrio, escrito como en GET /api/barrios (lo usa el informe, F14). Sin dirección no entra en ninguno. */
+  barrio?: string;
 }
 
 /**
  * Abierto: lo que se ve en el mapa y todavía no se resolvió. Así quedan afuera los unidos a otro, los
  * caducados y los temporales vencidos aunque la tarea diaria no los haya marcado. Va con el alias `i`.
  */
-const ABIERTO = Prisma.sql`${INCIDENTE_VISIBLE} AND i.estado <> 'RESUELTO'`;
+export const ABIERTO = Prisma.sql`${INCIDENTE_VISIBLE} AND i.estado <> 'RESUELTO'`;
 
 /** Un incidente que no está unido a otro (lo suyo cuenta en el principal) y que se resolvió. */
 const RESUELTO = Prisma.sql`i.incidente_principal_id IS NULL AND i.estado = 'RESUELTO' AND i.resuelto_en IS NOT NULL`;
@@ -27,15 +29,16 @@ const RESUELTO = Prisma.sql`i.incidente_principal_id IS NULL AND i.estado = 'RES
  * El organismo, el área responsable (alias `a`) y el período, mirado sobre la fecha que le da sentido a cada
  * indicador: el primer reporte, la resolución o la carga del reporte.
  */
-function filtrar(filtros: FiltrosIndicadores, fecha: Prisma.Sql) {
+export function filtrar(filtros: FiltrosIndicadores, fecha: Prisma.Sql) {
   const condiciones = [Prisma.sql`a.organismo_id = ${filtros.organismoId}`];
   if (filtros.areaId) condiciones.push(Prisma.sql`a.id = ${filtros.areaId}`);
+  if (filtros.barrio) condiciones.push(Prisma.sql`${BARRIO} = ${filtros.barrio}`);
   if (filtros.desde) condiciones.push(Prisma.sql`${fecha} >= ${filtros.desde}`);
   if (filtros.hasta) condiciones.push(Prisma.sql`${fecha} <= ${filtros.hasta}`);
   return Prisma.join(condiciones, ' AND ');
 }
 
-const PRIMER_REPORTE = Prisma.sql`i.primer_reporte_en`;
+export const PRIMER_REPORTE = Prisma.sql`i.primer_reporte_en`;
 const RESOLUCION = Prisma.sql`i.resuelto_en`;
 
 /** Los abiertos cuyo primer reporte cae en el período, por estado. Un estado sin incidentes no viene. */

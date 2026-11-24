@@ -250,6 +250,18 @@ describe('servicio de IA', () => {
       expect(registro.duracionMs).toBeLessThan(300);
     });
 
+    it('con un plazo propio en la consulta, se corta en ese y no en el del servicio', async () => {
+      fetchSimulado.mockImplementation(nuncaResponde);
+
+      const error = await servicio({ timeoutMs: 5_000 })
+        .consultar(consulta({ timeoutMs: 50 }))
+        .catch((e: unknown) => e);
+
+      expect((error as IaNoDisponible).motivo).toMatch(/tardó más de 50 ms/);
+      const [registro] = await registros();
+      expect(registro!.duracionMs).toBeLessThan(1_000);
+    });
+
     it('si el reintento no termina dentro del plazo de la consulta', async () => {
       // El primero tarda 300 ms en fallar y el segundo nunca responde: el plazo de 400 ms es para los dos.
       fetchSimulado

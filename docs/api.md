@@ -1609,6 +1609,82 @@ Los puntos del mapa de calor: los mismos abiertos de `abiertosPorEstado` (abiert
 
 `peso` va de 0 a 1: la prioridad del incidente (la manual, si la hay; si no, la calculada) dividida por la mayor de la lista, con dos decimales. El más urgente pesa 1. No se divide por 100 porque la prioridad puede pasar de 100 (por el peso de la categoría o por una prioridad manual). Si todos tienen prioridad 0, todos pesan 1. Sirve tal cual como intensidad de leaflet.heat.
 
+## Informes de estado y prioridades
+Un análisis escrito por la IA a partir de los indicadores, para que el responsable del área lo lea en lugar de una tabla (F14). Las cuatro rutas requieren sesión de `OPERADOR` o `ADMINISTRADOR` (sin sesión, 401; otro rol, 403 `SIN_PERMISO`) y trabajan solo con **su organismo**. Responden con `Cache-Control: private, no-store`: en la demo publicada pasan por el reenvío de Vercel, que si no guardaría la respuesta 60 s.
+
+### `POST /api/informes`
+Genera un informe, lo guarda y lo devuelve. El pedido **espera la respuesta de la IA** (no hay cola), así que puede tardar varios segundos: la web tiene que mostrar que está esperando.
+
+```json
+{ "desde": "2026-10-01", "hasta": "2026-10-31", "areaId": 2, "barrio": "Centro" }
+```
+
+- `desde` y `hasta`: obligatorios, solo el día (`AAAA-MM-DD`), en hora de Argentina y completos. El período puede tener hasta 366 días.
+- `areaId`: opcional. **Sin área, todo el organismo**; con área, queda guardada en el informe.
+- `barrio`: opcional, escrito como en [`GET /api/barrios`](#get-apibarrios). Un incidente sin dirección no entra en ningún barrio.
+
+Cómo se arma:
+
+1. **Las métricas.** Son los mismos indicadores de [`GET /api/indicadores`](#get-apiindicadores), con el período, el área y el barrio. Las listas se recortan a las primeras 10 filas. Se agregan dos listas:
+   - `categoriasFrecuentes`: las 10 categorías con más incidentes nuevos en el período (contados como en los indicadores), con cuántos siguen abiertos.
+   - `masPrioritarios`: los 10 incidentes abiertos hoy con mayor prioridad, reportados **hasta** el fin del período. No hay límite hacia atrás: un incidente de antes del período que sigue abierto también hay que atenderlo. Cada uno trae categoría, área, estado, prioridad, dirección, barrio, días abierto y reportes (sin los eliminados).
+2. **La IA redacta** usando solo esas métricas, que van en el pedido tal cual. Escribe cinco secciones: estado general, zonas críticas, categorías frecuentes, demoras y orden de intervención con su justificación. Las instrucciones le piden no inventar datos y están en [`server/src/modulos/ia/redactarInforme.ts`](../server/src/modulos/ia/redactarInforme.ts). La IA tiene su propio plazo, `IA_TIMEOUT_INFORME_MS` (60 s por defecto), porque escribe mucho más que en una clasificación.
+3. **El servidor arma el texto.** En el orden de intervención, cada incidente se describe con sus datos (número, categoría, dirección, prioridad y días abierto), seguido de la justificación de la IA. Un incidente que no está en `masPrioritarios`, o que viene repetido, se descarta. Si la IA no propone ningún orden válido y hay abiertos, se listan de mayor a menor prioridad.
+4. **Se guarda** en `informe` el contenido, las métricas exactas que se mandaron a la IA (incluidos los filtros), quién lo pidió y la llamada a la IA (`registro_ia`, tipo `INFORME`).
+
+Responde **201**:
+
+```json
+{
+  "informe": {
+    "id": 4,
+    "desde": "2026-10-01",
+    "hasta": "2026-10-31",
+    "area": { "id": 2, "nombre": "Bacheo" },
+    "barrio": "Centro",
+    "solicitante": { "id": 7, "nombre": "Olga" },
+    "creadoEn": "2026-11-23T14:05:00.000Z",
+    "contenido": "## Estado general\n\nQuedan 12 incidentes abiertos...\n\n## Zonas críticas\n\n...\n\n## Orden de intervención\n\n1. Incidente #31: Pozo en la calzada, Lanín 200, Centro (prioridad 90, 40,2 días abierto). Lleva más de un mes y tiene 6 reportes.",
+    "metricas": {
+      "filtros": { "organismoId": 1, "organismo": "Municipalidad", "areaId": 2, "area": "Bacheo", "barrio": "Centro", "desde": "2026-10-01", "hasta": "2026-10-31" },
+      "abiertosPorEstado": [],
+      "nuevosYResueltosPorSemana": [],
+      "tiempoDeResolucion": { "porCategoria": [], "porArea": [], "porBarrio": [] },
+      "barriosConMasAbiertos": [],
+      "categoriasFrecuentes": [{ "id": 1, "nombre": "Pozo en la calzada", "nuevos": 9, "abiertos": 5 }],
+      "reportesDesestimados": { "total": 20, "desestimados": 3, "porcentaje": 15 },
+      "masPrioritarios": [{ "id": 31, "categoria": "Pozo en la calzada", "area": "Bacheo", "estado": "DERIVADO", "prioridad": 90, "direccion": "Lanín 200, Centro", "barrio": "Centro", "diasAbierto": 40.2, "reportes": 6 }]
+    },
+    "registroIaId": 88
+  }
+}
+```
+
+`contenido` va en secciones que empiezan con `## Título`, siempre las mismas cinco y en el mismo orden: así la web y el PDF lo pueden partir.
+
+| Status | Código | Cuándo |
+|---|---|---|
+| 400 | `DATOS_INVALIDOS` | Falta el período, una fecha trae hora, `hasta` es anterior a `desde`, el período pasa de 366 días, una fecha es anterior al 2000 o el área es de otro organismo |
+| 403 | `SIN_ORGANISMO` | Un administrador sin organismo: no hay datos para el informe |
+| 503 | `IA_NO_DISPONIBLE` | La IA no respondió a tiempo o respondió algo que no sirve. **No se guarda ningún informe**; el intento queda en `registro_ia`. El mensaje invita a reintentar |
+
+### `GET /api/informes`
+El historial del organismo: los últimos 50, del más nuevo al más viejo, **sin** `contenido`, `metricas` ni `registroIaId`. Responde **200** con `{ "informes": [{ "id", "desde", "hasta", "area", "barrio", "solicitante", "creadoEn" }] }`. `solicitante` es `null` si su cuenta se borró. Un administrador sin organismo recibe la lista vacía.
+
+### `GET /api/informes/:id`
+Un informe completo, con la misma forma que la respuesta de `POST`. Si no existe o es de otro organismo, **404** `INFORME_NO_ENCONTRADO`. Un id que no es un número válido, **400**.
+
+### `GET /api/informes/:id/pdf`
+El informe en PDF (A4), para presentarlo o archivarlo. Responde **200** con `Content-Type: application/pdf` y `Content-Disposition: attachment; filename="informe-2026-10-01-al-2026-10-31.pdf"`: el nombre lleva el período.
+
+- **Primera página:** el encabezado (organismo, área o «todas», período, barrio o «todos», fecha y hora de generación en hora de Argentina, y el número de informe) y el contenido. Cada `## Título` es un subtítulo.
+- **Página aparte:** las métricas que se le pasaron a la IA, en tres tablas:
+  - un resumen: abiertos por estado, nuevos, resueltos y reportes desestimados;
+  - las categorías más frecuentes;
+  - los incidentes más prioritarios.
+
+Usa Helvetica, una de las fuentes estándar de PDF: no hace falta incrustar nada y cualquier visor la muestra. Su codificación (WinAnsi) tiene todo el castellano: acentos, eñes, diéresis, ¿, ¡, «», comillas tipográficas y rayas. Un carácter que no está en esa tabla se cambia por un equivalente (→ por ->, ≥ por >=) o se saca (un emoji). Los errores son los mismos que en `GET /api/informes/:id`.
+
 ## Administración
 Todas las rutas de `/api/admin` requieren sesión de `ADMINISTRADOR`. Sin sesión responden 401; con otro rol, 403 `SIN_PERMISO`.
 
