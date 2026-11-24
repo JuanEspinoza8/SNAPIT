@@ -337,6 +337,8 @@ export const handlers = [
       fotos: [],
       fotoCierre: null,
       resueltoEn: null,
+      tipoVigencia: 'PERMANENTE',
+      vigenteHasta: null,
     } satisfies FichaIncidente);
   }),
 

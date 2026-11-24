@@ -1,3 +1,4 @@
+import { formatearFecha } from '../../compartido/formato/fechas.js';
 import { aErrorApi } from '../../compartido/red/error.js';
 import type { FichaIncidente } from '../mapa/tipos.js';
 import { useConfirmacion, useConfirmar } from './consultas.js';
@@ -10,10 +11,17 @@ const contador = (cantidad: number) =>
       ? '1 vecino confirmó que sigue'
       : `${cantidad} vecinos confirmaron que sigue`;
 
+/** Hasta cuándo se lo considera (F12). Los mismos textos que vigencia() en la app. */
+const vigencia = ({ tipoVigencia, vigenteHasta }: FichaIncidente) =>
+  tipoVigencia === 'TEMPORAL' && vigenteHasta
+    ? `Vigente hasta el ${formatearFecha(vigenteHasta)}`
+    : 'Permanente: no vence';
+
 /**
- * «Sigue estando» (F12): el vecino confirma, una sola vez, que el problema sigue ahí. Sin sesión lleva al ingreso
- * y se vuelve a la ficha. El operador y el administrador no confirman: ven solo el contador. En un problema
- * resuelto no hay nada que confirmar y no se muestra nada, igual que en la app.
+ * «Sigue estando» (F12): el vecino confirma, una sola vez, que el problema sigue ahí, y en un temporal eso renueva
+ * la vigencia que se muestra debajo. Sin sesión lleva al ingreso y se vuelve a la ficha. El operador y el
+ * administrador no confirman: ven el contador y la vigencia. En un problema resuelto no hay nada que confirmar y
+ * no se muestra nada, igual que en la app.
  */
 export function ConfirmarSigue({ ficha }: { ficha: FichaIncidente }) {
   const { conSesion, vecino } = usePermisos();
@@ -55,6 +63,7 @@ export function ConfirmarSigue({ ficha }: { ficha: FichaIncidente }) {
       <p role="status" className="text-sm text-texto-secundario">
         {contador(ficha.cantidadConfirmaciones)}
       </p>
+      <p className="text-sm text-texto-secundario">{vigencia(ficha)}</p>
       {error && !confirmado && (
         <p role="alert" className="text-sm text-peligro">
           {error.mensaje}

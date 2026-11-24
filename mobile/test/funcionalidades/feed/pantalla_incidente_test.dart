@@ -13,10 +13,12 @@ import '../../apoyo/social.dart';
 
 const cierre = {'id': 12, 'url': '/api/fotos/12'};
 
+/// Sin [vigenteHasta] es permanente; con ella, temporal.
 Map<String, Object?> fichaJson({
   Object? fotoCierre,
   String? resueltoEn,
   int confirmaciones = 2,
+  String? vigenteHasta,
 }) => {
   'id': 3,
   'lat': -38.9516,
@@ -36,6 +38,8 @@ Map<String, Object?> fichaJson({
   ],
   'fotoCierre': fotoCierre,
   'resueltoEn': resueltoEn,
+  'tipoVigencia': vigenteHasta == null ? 'PERMANENTE' : 'TEMPORAL',
+  'vigenteHasta': vigenteHasta,
 };
 
 /// Un reporte de la lista del problema (`GET /social/incidentes/3/reportes`).
@@ -55,13 +59,15 @@ Map<String, Object?> reporteDelProblemaJson(int id, int numero) => {
 /// Responde como el servidor con la ficha del incidente 3, sus reportes y
 /// [comentarios], los del problema en general: se pueden escribir, editar y
 /// eliminar, y la lista cambia como en el servidor real. Confirmar que sigue
-/// suma uno al contador de la ficha, una sola vez; con [confirmado], el
-/// vecino ya lo había hecho.
+/// suma uno al contador de la ficha, una sola vez, y deja la vigencia en
+/// [vigenciaRenovada] (si no, la de la ficha); con [confirmado], el vecino ya
+/// lo había hecho.
 ServidorFalso servidorCon(
   Map<String, Object?> ficha, {
   String rol = 'VECINO',
   List<Map<String, Object?>>? comentarios,
   bool confirmado = false,
+  String? vigenciaRenovada,
 }) {
   var siguiendo = false;
   var confirmaciones = ficha['cantidadConfirmaciones'] as int;
@@ -119,6 +125,7 @@ ServidorFalso servidorCon(
         return json(201, {
           'incidenteId': 3,
           'cantidadConfirmaciones': confirmaciones,
+          'vigenteHasta': vigenciaRenovada ?? ficha['vigenteHasta'],
         });
       case '/incidentes/3/seguimiento':
         if (pedido.method == 'GET') {
@@ -620,6 +627,35 @@ void main() {
       // La ficha no se vuelve a pedir: el contador es el que devolvió el
       // servidor al confirmar.
       expect(servidor.cantidad('/incidentes/3'), 1);
+    });
+
+    testWidgets('en un temporal muestra hasta cuándo está vigente y, al '
+        'confirmar, la fecha renovada', (tester) async {
+      final servidor = servidorCon(
+        fichaJson(vigenteHasta: '2026-11-26T15:00:00.000Z'),
+        vigenciaRenovada: '2026-12-01T15:00:00.000Z',
+      );
+      await abrirFicha(tester, servidor, alto: 3000);
+      expect(
+        find.text('Vigente hasta el 26 de noviembre de 2026'),
+        findsOneWidget,
+      );
+
+      await tester.tap(botonSigue);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Vigente hasta el 1 de diciembre de 2026'),
+        findsOneWidget,
+      );
+      // La fecha nueva es la que devolvió el servidor al confirmar.
+      expect(servidor.cantidad('/incidentes/3'), 1);
+    });
+
+    testWidgets('en un permanente dice que no vence', (tester) async {
+      await abrirFicha(tester, servidorCon(fichaJson()), alto: 3000);
+
+      expect(find.text('Permanente: no vence'), findsOneWidget);
     });
 
     testWidgets('si ya confirmó, el botón aparece deshabilitado y lo dice, '

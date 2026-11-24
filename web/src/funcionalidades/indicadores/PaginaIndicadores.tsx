@@ -131,8 +131,16 @@ function Panel({ filtros }: { filtros: FiltrosIndicadores | null }) {
 function Tarjetas({ indicadores }: { indicadores: Indicadores }) {
   const { abiertos, nuevos, resueltos, desestimados } = resumen(indicadores);
   const tarjetas = [
-    { titulo: 'Abiertos', valor: String(abiertos), detalle: 'Entraron en el período y siguen abiertos' },
-    { titulo: 'Nuevos', valor: String(nuevos), detalle: 'Incidentes que entraron en el período' },
+    {
+      titulo: 'Abiertos',
+      valor: String(abiertos),
+      detalle: 'Entraron en el período y siguen abiertos (sin los caducados)',
+    },
+    {
+      titulo: 'Nuevos',
+      valor: String(nuevos),
+      detalle: 'Entraron en el período, también los que después caducaron',
+    },
     { titulo: 'Resueltos', valor: String(resueltos), detalle: 'Incidentes resueltos en el período' },
     {
       titulo: 'Reportes desestimados',

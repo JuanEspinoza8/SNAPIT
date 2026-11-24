@@ -96,7 +96,8 @@ describe('POST /api/incidentes/:id/confirmaciones', () => {
     const res = await ana.confirmar(id);
 
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ incidenteId: id, cantidadConfirmaciones: 1 });
+    // Permanente: sigue sin vencer.
+    expect(res.body).toEqual({ incidenteId: id, cantidadConfirmaciones: 1, vigenteHasta: null });
     expect(await confirmacionesDe(ana.id)).toEqual([{ incidenteId: id }]);
   });
 
@@ -257,20 +258,25 @@ describe('vigencia al confirmar', () => {
     const id = await incidente({ categoriaId: obra.id, vigenteHasta: new Date(Date.now() + 2 * DIA_MS) });
 
     const antes = Date.now();
-    expect((await (await vecino()).confirmar(id)).status).toBe(201);
+    const res = await (await vecino()).confirmar(id);
+    expect(res.status).toBe(201);
 
     const { vigenteHasta } = await vigenciaDe(id);
     expect(vigenteHasta!.getTime()).toBeGreaterThanOrEqual(antes + 10 * DIA_MS);
     expect(vigenteHasta!.getTime()).toBeLessThanOrEqual(Date.now() + 10 * DIA_MS);
+    // La respuesta trae la fecha nueva, para que la ficha la muestre sin volver a pedirla.
+    expect(res.body.vigenteHasta).toBe(vigenteHasta!.toISOString());
   });
 
   it('si ya vencía más tarde, conserva su fecha', async () => {
     const vence = new Date(Date.now() + 20 * DIA_MS);
     const id = await incidente({ categoriaId: obra.id, vigenteHasta: vence });
 
-    expect((await (await vecino()).confirmar(id)).status).toBe(201);
+    const res = await (await vecino()).confirmar(id);
+    expect(res.status).toBe(201);
 
     expect((await vigenciaDe(id)).vigenteHasta).toEqual(vence);
+    expect(res.body.vigenteHasta).toBe(vence.toISOString());
   });
 
   it('con una categoría sin días, renueva con vigencia.dias_default', async () => {

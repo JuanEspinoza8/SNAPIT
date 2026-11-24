@@ -595,6 +595,8 @@ describe('la ficha del problema (incidente)', () => {
           fotoCierre: null,
           resueltoEn: null,
           derivadoA: { id: 2, nombre: 'Veredas' },
+          tipoVigencia: 'PERMANENTE',
+          vigenteHasta: null,
           ...cambios,
         }),
       ),

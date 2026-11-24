@@ -95,6 +95,8 @@ class FichaIncidente {
     this.fotoCierreId,
     this.resueltoEn,
     this.derivadoA,
+    this.temporal,
+    this.vigenteHasta,
   });
 
   factory FichaIncidente.desdeJson(Map<String, dynamic> json) => FichaIncidente(
@@ -125,6 +127,14 @@ class FichaIncidente {
     },
     derivadoA: switch (json['derivadoA']) {
       final Map area => area['nombre'] as String,
+      _ => null,
+    },
+    temporal: switch (json['tipoVigencia']) {
+      final String tipo => tipo == 'TEMPORAL',
+      _ => null,
+    },
+    vigenteHasta: switch (json['vigenteHasta']) {
+      final String valor => DateTime.parse(valor),
       _ => null,
     },
   );
@@ -159,6 +169,13 @@ class FichaIncidente {
 
   /// El nombre del área que le corresponde. Null mientras está en revisión.
   final String? derivadoA;
+
+  /// F12: si vence (temporal) o no (permanente). Null si el servidor es
+  /// anterior a que la ficha lo incluyera.
+  final bool? temporal;
+
+  /// Hasta cuándo está vigente un temporal. Null en uno permanente.
+  final DateTime? vigenteHasta;
 }
 
 class Categoria {

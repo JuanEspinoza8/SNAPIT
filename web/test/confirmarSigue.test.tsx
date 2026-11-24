@@ -38,20 +38,24 @@ function ingresarComo(rol: Rol) {
 
 /**
  * La ficha del incidente 3 y sus confirmaciones, que cambian con lo que recibe el servidor. `alConfirmar` dice qué
- * contesta el POST; por defecto la guarda y devuelve el contador nuevo.
+ * contesta el POST; por defecto la guarda y devuelve el contador nuevo. Sin `vigencia` es permanente; con ella,
+ * temporal: vence en `hasta` y, al confirmar, pasa a `renovada`.
  */
 function servirIncidente({
   estado = 'DERIVADO',
   confirmaciones = 0,
   yaConfirmo = false,
   alConfirmar,
+  vigencia,
 }: {
   estado?: string;
   confirmaciones?: number;
   yaConfirmo?: boolean;
   alConfirmar?: () => Response;
+  vigencia?: { hasta: string; renovada: string };
 } = {}) {
   let cantidad = confirmaciones;
+  let vigenteHasta = vigencia?.hasta ?? null;
   const pedidos: string[] = [];
   servidor.use(
     http.get(`${API}/incidentes/3`, () =>
@@ -72,6 +76,8 @@ function servirIncidente({
         fotoCierre: null,
         resueltoEn: null,
         derivadoA: { id: 2, nombre: 'Veredas' },
+        tipoVigencia: vigencia ? 'TEMPORAL' : 'PERMANENTE',
+        vigenteHasta,
       }),
     ),
     http.get(`${API}/social/incidentes/3/comentarios`, () =>
@@ -86,7 +92,11 @@ function servirIncidente({
       if (alConfirmar) return alConfirmar();
       cantidad += 1;
       yaConfirmo = true;
-      return HttpResponse.json({ incidenteId: 3, cantidadConfirmaciones: cantidad }, { status: 201 });
+      vigenteHasta = vigencia?.renovada ?? null;
+      return HttpResponse.json(
+        { incidenteId: 3, cantidadConfirmaciones: cantidad, vigenteHasta },
+        { status: 201 },
+      );
     }),
   );
   return {
@@ -124,6 +134,29 @@ describe('confirmar que el problema sigue (F12)', () => {
     expect(await screen.findByText('3 vecinos confirmaron que sigue')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ya confirmaste que sigue' })).toBeDisabled();
     expect(pedidos).toEqual(['GET confirmacion', 'POST confirmaciones']);
+  });
+
+  it('en un temporal muestra hasta cuándo está vigente, y al confirmar la fecha renovada', async () => {
+    ingresarComo('VECINO');
+    servirIncidente({
+      vigencia: { hasta: '2026-11-26T15:00:00.000Z', renovada: '2026-12-01T15:00:00.000Z' },
+    });
+    const usuarioEvento = userEvent.setup();
+    abrir();
+
+    expect(await screen.findByText('Vigente hasta el 26 de noviembre de 2026')).toBeInTheDocument();
+    await usuarioEvento.click(await boton('Sigue estando'));
+
+    // La fecha nueva sale de la respuesta del POST: la ficha no se vuelve a pedir.
+    expect(await screen.findByText('Vigente hasta el 1 de diciembre de 2026')).toBeInTheDocument();
+  });
+
+  it('en un permanente dice que no vence', async () => {
+    ingresarComo('VECINO');
+    servirIncidente();
+    abrir();
+
+    expect(await screen.findByText('Permanente: no vence')).toBeInTheDocument();
   });
 
   it('si ya confirmó, el botón aparece deshabilitado y lo dice', async () => {
