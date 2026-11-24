@@ -20,6 +20,9 @@ function conTopeDeConexiones(url: string) {
   return `${url}${url.includes('?') ? '&' : '?'}connection_limit=5`;
 }
 
+// Crear un perfil o una categoría agrega filas a la matriz de todas las categorías o perfiles, también las de
+// otros tests que las están borrando: corre sola, después de los generales.
+const CATALOGO = 'test/admin-catalogo.test.ts';
 const SEMILLA = 'test/semilla.test.ts';
 const RED = 'test/importar-red.test.ts';
 const VINCULOS = 'test/vinculos.test.ts';
@@ -41,6 +44,8 @@ export default defineConfig({
       CLAVE_USUARIOS_DEMO: '',
       // Chico, para probar el límite sin mandar archivos enormes.
       FOTO_MAX_MB: '1',
+      // Muchos tests cambian un parámetro en la base y lo leen enseguida: sin caché lo ven al instante.
+      PARAMETROS_CACHE_MS: '0',
       // Los tests simulan Nominatim. Si alguno se olvida, falla contra esta dirección local y no le
       // pega al servicio público.
       NOMINATIM_URL: 'http://127.0.0.1:9',
@@ -62,14 +67,15 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'general',
-          exclude: [...configDefaults.exclude, SEMILLA, RED, VINCULOS, RECORRIDOS],
+          exclude: [...configDefaults.exclude, CATALOGO, SEMILLA, RED, VINCULOS, RECORRIDOS],
           sequence: { groupOrder: 0 },
         },
       },
-      { extends: true, test: { name: 'semilla', include: [SEMILLA], sequence: { groupOrder: 1 } } },
-      { extends: true, test: { name: 'red', include: [RED], sequence: { groupOrder: 2 } } },
-      { extends: true, test: { name: 'vinculos', include: [VINCULOS], sequence: { groupOrder: 3 } } },
-      { extends: true, test: { name: 'recorridos', include: [RECORRIDOS], sequence: { groupOrder: 4 } } },
+      { extends: true, test: { name: 'catalogo', include: [CATALOGO], sequence: { groupOrder: 1 } } },
+      { extends: true, test: { name: 'semilla', include: [SEMILLA], sequence: { groupOrder: 2 } } },
+      { extends: true, test: { name: 'red', include: [RED], sequence: { groupOrder: 3 } } },
+      { extends: true, test: { name: 'vinculos', include: [VINCULOS], sequence: { groupOrder: 4 } } },
+      { extends: true, test: { name: 'recorridos', include: [RECORRIDOS], sequence: { groupOrder: 5 } } },
     ],
   },
 });

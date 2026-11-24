@@ -9,6 +9,7 @@ import { distanciaHammingSql } from '../../compartido/hashPerceptual.js';
 import {
   bitsDelHash,
   type DefinicionParametros,
+  definirParametros,
   leerParametrosNumericos,
   noNegativo,
 } from '../../compartido/parametros.js';
@@ -17,11 +18,11 @@ import { CADUCO_EN, MARCADO_PARA_DESESTIMAR } from '../incidentes/repositorio.js
 import { calcularReputacion, type ParametrosVerificacion } from './calculo.js';
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se verifica igual con estos.
-const PARAMETROS: DefinicionParametros<keyof ParametrosVerificacion> = {
+const PARAMETROS: DefinicionParametros<keyof ParametrosVerificacion> = definirParametros({
   distanciaExifMaxM: { clave: 'verificacion.distancia_exif_max_m', valor: 100, valido: noNegativo },
   hammingDuplicadoMax: { clave: 'verificacion.hamming_duplicado_max', valor: 6, valido: bitsDelHash },
   diasFotoAntigua: { clave: 'verificacion.dias_foto_antigua', valor: 7, valido: noNegativo },
-};
+});
 
 /** Los parámetros verificacion.* de parametro_sistema. */
 export function leerParametros(): Promise<ParametrosVerificacion> {

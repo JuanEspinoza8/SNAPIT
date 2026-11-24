@@ -4,7 +4,17 @@ import { COSTO_BCRYPT, usuarioPublico } from '../auth/servicio.js';
 import { USUARIO_SISTEMA } from '../../compartido/usuarioSistema.js';
 import { validar } from '../../compartido/validar.js';
 import type { UsuarioSesion } from '../auth/tokens.js';
-import { type DatosAltaUsuario, esquemaIdUsuario, esquemaModificacionUsuario } from './esquemas.js';
+import {
+  type DatosAltaUsuario,
+  esquemaAltaArea,
+  esquemaAltaOrganismo,
+  esquemaId,
+  esquemaIdUsuario,
+  esquemaListaOrganismos,
+  esquemaModificacionArea,
+  esquemaModificacionOrganismo,
+  esquemaModificacionUsuario,
+} from './esquemas.js';
 import * as repositorio from './repositorio.js';
 
 /** Controla que el organismo y el área existan, estén activos y que el área sea de ese organismo. */
@@ -134,11 +144,163 @@ export async function darDeBaja(sesion: UsuarioSesion, parametros: unknown) {
   });
 }
 
-export async function listarOrganismos() {
-  return { organismos: await repositorio.listarOrganismosActivos() };
+/**
+ * Sin parámetros, lo que se puede elegir al dar de alta un operador: organismos activos con sus áreas activas.
+ * Con `todos=true`, la administración de organismos y áreas: también los inactivos, con más datos.
+ */
+export async function listarOrganismos(consulta: unknown) {
+  const { todos } = validar(esquemaListaOrganismos, consulta ?? {});
+  return {
+    organismos: todos
+      ? await repositorio.listarTodosLosOrganismos()
+      : await repositorio.listarOrganismosActivos(),
+  };
 }
 
 export async function listarUsuarios() {
   const usuarios = await repositorio.listarUsuarios();
   return { usuarios: usuarios.map(usuarioPublico) };
+}
+
+// --- Organismos y áreas (#165) ---
+// Nada se borra: dar de baja es marcarlo inactivo. Un área inactiva no recibe derivaciones ni se ofrece al dar de
+// alta operadores, pero sus incidentes siguen como están. Las altas y los cambios bloquean el organismo, así que
+// nunca queda un organismo inactivo con áreas activas.
+
+const organismoNoEncontrado = () => new ErrorApp(404, 'ORGANISMO_NO_ENCONTRADO', 'El organismo no existe');
+const areaNoEncontrada = () => new ErrorApp(404, 'AREA_NO_ENCONTRADA', 'El área no existe');
+const nombreEnUso = (mensaje: string) =>
+  new ErrorApp(409, 'NOMBRE_EN_USO', mensaje, [{ campo: 'nombre', mensaje }]);
+const organismoInvalido = (mensaje: string) =>
+  new ErrorApp(400, 'DATOS_INVALIDOS', 'Hay datos inválidos', [{ campo: 'organismoId', mensaje }]);
+const lista = (filas: { nombre: string }[]) => filas.map((fila) => fila.nombre).join(', ');
+
+async function controlarNombreDeOrganismo(tx: repositorio.Tx, nombre: string, excepto?: number) {
+  await repositorio.bloquearNombresDeOrganismos(tx);
+  if (await repositorio.organismoConNombre(tx, nombre, excepto)) {
+    throw nombreEnUso('Ya hay un organismo con ese nombre');
+  }
+}
+
+async function controlarNombreDeArea(
+  tx: repositorio.Tx,
+  organismoId: number,
+  nombre: string,
+  excepto?: number,
+) {
+  if (await repositorio.areaConNombre(tx, organismoId, nombre, excepto)) {
+    throw nombreEnUso('El organismo ya tiene un área con ese nombre');
+  }
+}
+
+/** Un organismo con áreas activas no se da de baja: quedarían áreas recibiendo trabajo de un organismo inactivo. */
+async function controlarBajaDeOrganismo(tx: repositorio.Tx, organismoId: number) {
+  const areas = await repositorio.areasActivas(tx, organismoId);
+  if (areas.length > 0) {
+    throw new ErrorApp(
+      409,
+      'ORGANISMO_CON_AREAS_ACTIVAS',
+      `Tiene áreas activas (${lista(areas)}): primero hay que darlas de baja`,
+    );
+  }
+}
+
+/**
+ * Un área con categorías activas no se da de baja: los reportes de esas categorías seguirían llegando a un área
+ * que ya no recibe derivaciones. Primero se pasan las categorías a otra área o se dan de baja.
+ */
+async function controlarBajaDeArea(tx: repositorio.Tx, areaId: number) {
+  const categorias = await repositorio.categoriasActivas(tx, areaId);
+  if (categorias.length > 0) {
+    throw new ErrorApp(
+      409,
+      'AREA_CON_CATEGORIAS_ACTIVAS',
+      `Tiene categorías activas (${lista(categorias)}): primero hay que pasarlas a otra área o darlas de baja`,
+    );
+  }
+}
+
+export async function crearOrganismo(cuerpo: unknown) {
+  const datos = validar(esquemaAltaOrganismo, cuerpo ?? {});
+  const organismo = await repositorio.transaccion(async (tx) => {
+    await controlarNombreDeOrganismo(tx, datos.nombre);
+    return repositorio.crearOrganismo(tx, datos);
+  });
+  return { organismo };
+}
+
+export async function modificarOrganismo(parametros: unknown, cuerpo: unknown) {
+  const { id } = validar(esquemaId, parametros);
+  const datos = validar(esquemaModificacionOrganismo, cuerpo ?? {});
+  const organismo = await repositorio.transaccion(async (tx) => {
+    await controlarNombreDeOrganismo(tx, datos.nombre, id);
+    const actual = await repositorio.bloquearOrganismo(tx, id);
+    if (!actual) throw organismoNoEncontrado();
+    if (datos.activo === false && actual.activo) await controlarBajaDeOrganismo(tx, id);
+    return repositorio.actualizarOrganismo(tx, id, datos);
+  });
+  return { organismo };
+}
+
+/** Baja lógica. Dar de baja uno que ya está inactivo no hace nada. */
+export async function darDeBajaOrganismo(parametros: unknown) {
+  const { id } = validar(esquemaId, parametros);
+  await repositorio.transaccion(async (tx) => {
+    const organismo = await repositorio.bloquearOrganismo(tx, id);
+    if (!organismo) throw organismoNoEncontrado();
+    if (!organismo.activo) return;
+    await controlarBajaDeOrganismo(tx, id);
+    await repositorio.actualizarOrganismo(tx, id, { activo: false });
+  });
+}
+
+export async function crearArea(cuerpo: unknown) {
+  const datos = validar(esquemaAltaArea, cuerpo ?? {});
+  const area = await repositorio.transaccion(async (tx) => {
+    const organismo = await repositorio.bloquearOrganismo(tx, datos.organismoId);
+    if (!organismo) throw organismoInvalido('No existe ese organismo');
+    if (!organismo.activo) throw organismoInvalido('El organismo está inactivo');
+    await controlarNombreDeArea(tx, organismo.id, datos.nombre);
+    return repositorio.crearArea(tx, datos);
+  });
+  return { area };
+}
+
+/** El área, con su organismo bloqueado: el organismo primero, igual que en el alta, para no trabarse. */
+async function bloquearArea(tx: repositorio.Tx, id: number) {
+  const area = await repositorio.buscarAreaEn(tx, id);
+  if (!area) throw areaNoEncontrada();
+  const organismo = (await repositorio.bloquearOrganismo(tx, area.organismoId))!;
+  // Se vuelve a leer ya con el lock: otro pudo cambiarla mientras se esperaba.
+  return { area: (await repositorio.buscarAreaEn(tx, id))!, organismo };
+}
+
+export async function modificarArea(parametros: unknown, cuerpo: unknown) {
+  const { id } = validar(esquemaId, parametros);
+  const datos = validar(esquemaModificacionArea, cuerpo ?? {});
+  const area = await repositorio.transaccion(async (tx) => {
+    const { area: actual, organismo } = await bloquearArea(tx, id);
+    await controlarNombreDeArea(tx, organismo.id, datos.nombre, id);
+    if (datos.activa === true && !actual.activa && !organismo.activo) {
+      throw new ErrorApp(
+        409,
+        'ORGANISMO_INACTIVO',
+        'El organismo está inactivo: primero hay que reactivarlo',
+      );
+    }
+    if (datos.activa === false && actual.activa) await controlarBajaDeArea(tx, id);
+    return repositorio.actualizarArea(tx, id, datos);
+  });
+  return { area };
+}
+
+/** Baja lógica. Dar de baja una que ya está inactiva no hace nada. */
+export async function darDeBajaArea(parametros: unknown) {
+  const { id } = validar(esquemaId, parametros);
+  await repositorio.transaccion(async (tx) => {
+    const { area } = await bloquearArea(tx, id);
+    if (!area.activa) return;
+    await controlarBajaDeArea(tx, id);
+    await repositorio.actualizarArea(tx, id, { activa: false });
+  });
 }

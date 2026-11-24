@@ -73,3 +73,40 @@ export const esquemaModificacionUsuario = z.discriminatedUnion(
 );
 
 export type DatosModificacionUsuario = z.output<typeof esquemaModificacionUsuario>;
+
+// Organismos y áreas (#165). La descripción es optativa: vacía queda en null.
+const textoNombre = (maximo: number) =>
+  z
+    .string({ error: 'Es obligatorio' })
+    .trim()
+    .min(1, { error: 'Es obligatorio' })
+    .max(maximo, { error: `Tiene que tener hasta ${maximo} caracteres` });
+
+const descripcion = z
+  .string({ error: 'Tiene que ser un texto' })
+  .trim()
+  .max(1000, { error: 'Tiene que tener hasta 1000 caracteres' })
+  .nullish()
+  .transform((valor) => (valor ? valor : null));
+
+const activo = z.boolean({ error: 'Tiene que ser true o false' }).optional();
+
+export const esquemaId = esquemaIdUsuario;
+
+export const esquemaListaOrganismos = z.object({
+  todos: z.stringbool({ error: 'Tiene que ser true o false' }).optional(),
+});
+
+export const esquemaAltaOrganismo = z.object({ nombre: textoNombre(150), descripcion });
+
+// Si no viene `activo`, queda como está. Con true se reactiva; con false, es la misma baja que DELETE.
+export const esquemaModificacionOrganismo = esquemaAltaOrganismo.extend({ activo });
+
+export const esquemaAltaArea = z.object({
+  organismoId: id('Es obligatorio'),
+  nombre: textoNombre(120),
+  descripcion,
+});
+
+// El organismo de un área no cambia: sus incidentes y operadores son de ese organismo.
+export const esquemaModificacionArea = z.object({ nombre: textoNombre(120), descripcion, activa: activo });

@@ -4,6 +4,7 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { Prisma } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/compartido/prisma.js';
 import { USUARIO_SISTEMA } from '../src/compartido/usuarioSistema.js';
@@ -38,7 +39,11 @@ async function leerSemilla() {
     orderBy: { id: 'asc' },
   });
   const matriz = await prisma.categoriaPerfil.findMany({
-    where: { categoriaId: { in: categorias.map((c) => c.id) } },
+    // Los perfiles y categorías que crean otros tests también tienen fila: solo cuentan las de la semilla.
+    where: {
+      categoriaId: { in: categorias.map((c) => c.id) },
+      perfilMovilidadId: { in: perfiles.map((p) => p.id) },
+    },
     orderBy: [{ categoriaId: 'asc' }, { perfilMovilidadId: 'asc' }],
   });
   const parametros = await prisma.parametroSistema.findMany({
@@ -145,33 +150,93 @@ describe('semilla', { timeout: 60_000 }, () => {
   });
 
   // No modifica categorías ni perfiles: los tests de otros módulos los leen de la misma base, en paralelo.
-  it('restaura lo que se haya cambiado a mano', async () => {
+  it('no pisa lo que ajustó el administrador, pero restaura las zonas piloto (#167)', async () => {
     await cargarSemilla(prisma, { usuariosPrueba: true });
+    const categoria = await prisma.categoria.findUniqueOrThrow({ where: { nombre: 'Vereda rota' } });
+    const perfil = await prisma.perfilMovilidad.findUniqueOrThrow({ where: { nombre: 'Silla de ruedas' } });
+    const area = await prisma.area.findFirstOrThrow({ where: { id: categoria.areaId } });
     const celda = {
-      categoriaId_perfilMovilidadId: {
-        categoriaId: (await prisma.categoria.findUniqueOrThrow({ where: { nombre: 'Vereda rota' } })).id,
-        perfilMovilidadId: (
-          await prisma.perfilMovilidad.findUniqueOrThrow({ where: { nombre: 'Silla de ruedas' } })
-        ).id,
-      },
+      categoriaId_perfilMovilidadId: { categoriaId: categoria.id, perfilMovilidadId: perfil.id },
     };
-    await prisma.categoriaPerfil.update({
-      where: celda,
-      data: { intransitable: false, factorPenalizacion: '9.00' },
+    const reglaPerfil = claveRegla(REGLAS_TRAMO[0]!, perfil.id);
+    const antes = await leerSemilla();
+    const reglaAntes = await prisma.parametroSistema.findUniqueOrThrow({ where: { clave: reglaPerfil } });
+
+    try {
+      await prisma.categoriaPerfil.update({
+        where: celda,
+        data: { intransitable: false, factorPenalizacion: '9.00' },
+      });
+      await prisma.parametroSistema.update({
+        where: { clave: 'agrupacion.radio_m' },
+        data: { valor: '999' },
+      });
+      await prisma.parametroSistema.update({ where: { clave: reglaPerfil }, data: { valor: '7.0' } });
+      await prisma.categoria.update({ where: { id: categoria.id }, data: { pesoSeveridadBase: '3.00' } });
+      await prisma.perfilMovilidad.update({ where: { id: perfil.id }, data: { activo: false } });
+      await prisma.area.update({ where: { id: area.id }, data: { descripcion: 'Ajustada' } });
+      await prisma.$executeRaw`
+        UPDATE zona_piloto SET activa = false, geometria = ST_Buffer(geometria, 500) WHERE id = ${antes.zonas[0]!.id}`;
+
+      await cargarSemilla(prisma, { usuariosPrueba: true });
+
+      expect((await leerSemilla()).zonas).toEqual(antes.zonas);
+      expect(await prisma.categoriaPerfil.findUnique({ where: celda })).toMatchObject({
+        intransitable: false,
+        factorPenalizacion: new Prisma.Decimal('9.00'),
+      });
+      const valor = async (clave: string) =>
+        (await prisma.parametroSistema.findUniqueOrThrow({ where: { clave } })).valor;
+      expect(await valor('agrupacion.radio_m')).toBe('999');
+      expect(await valor(reglaPerfil)).toBe('7.0');
+      expect(
+        (await prisma.categoria.findUniqueOrThrow({ where: { id: categoria.id } })).pesoSeveridadBase,
+      ).toEqual(new Prisma.Decimal('3.00'));
+      expect((await prisma.perfilMovilidad.findUniqueOrThrow({ where: { id: perfil.id } })).activo).toBe(
+        false,
+      );
+      expect((await prisma.area.findUniqueOrThrow({ where: { id: area.id } })).descripcion).toBe('Ajustada');
+    } finally {
+      // Los proyectos que corren después (la red y los recorridos) usan estos valores.
+      await prisma.categoriaPerfil.update({
+        where: celda,
+        data: antes.matriz.find(
+          (fila) => fila.categoriaId === categoria.id && fila.perfilMovilidadId === perfil.id,
+        )!,
+      });
+      await prisma.parametroSistema.update({ where: { clave: 'agrupacion.radio_m' }, data: { valor: '30' } });
+      await prisma.parametroSistema.update({
+        where: { clave: reglaPerfil },
+        data: { valor: reglaAntes.valor },
+      });
+      await prisma.categoria.update({
+        where: { id: categoria.id },
+        data: { pesoSeveridadBase: categoria.pesoSeveridadBase },
+      });
+      await prisma.perfilMovilidad.update({ where: { id: perfil.id }, data: { activo: perfil.activo } });
+      await prisma.area.update({ where: { id: area.id }, data: { descripcion: area.descripcion } });
+    }
+  });
+
+  it('agrega lo que falta: un parámetro o una fila de la matriz borrados vuelven con su valor inicial', async () => {
+    await cargarSemilla(prisma, { usuariosPrueba: true });
+    const antes = await leerSemilla();
+    const fila = antes.matriz[0]!;
+    await prisma.categoriaPerfil.delete({
+      where: {
+        categoriaId_perfilMovilidadId: {
+          categoriaId: fila.categoriaId,
+          perfilMovilidadId: fila.perfilMovilidadId,
+        },
+      },
     });
-    await prisma.parametroSistema.update({ where: { clave: 'agrupacion.radio_m' }, data: { valor: '999' } });
-    const { zonas } = await leerSemilla();
-    await prisma.$executeRaw`
-      UPDATE zona_piloto SET activa = false, geometria = ST_Buffer(geometria, 500) WHERE id = ${zonas[0]!.id}`;
+    await prisma.parametroSistema.delete({ where: { clave: 'cierre.distancia_max_m' } });
 
     await cargarSemilla(prisma, { usuariosPrueba: true });
 
-    expect((await leerSemilla()).zonas).toEqual(zonas);
-
-    expect(await prisma.categoriaPerfil.findUnique({ where: celda })).toMatchObject({ intransitable: true });
-    expect(
-      (await prisma.parametroSistema.findUnique({ where: { clave: 'agrupacion.radio_m' } }))?.valor,
-    ).toBe('30');
+    const despues = await leerSemilla();
+    expect(despues.matriz).toEqual(antes.matriz);
+    expect(despues.parametros).toEqual(antes.parametros);
   });
 
   it('sin usuarios de prueba carga el resto y no toca a esos usuarios', async () => {

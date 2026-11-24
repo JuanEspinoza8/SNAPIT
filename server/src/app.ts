@@ -7,12 +7,14 @@ import { rutasAuth } from './modulos/auth/rutas.js';
 import { rutasAvisos } from './modulos/avisos/rutas.js';
 import { rutasBandeja } from './modulos/bandeja/rutas.js';
 import { rutasCatalogo } from './modulos/catalogo/rutas.js';
+import { rutasCategoriasAdmin, rutasPerfilesAdmin } from './modulos/catalogoAdmin/rutas.js';
 import { rutasConsultas } from './modulos/consultas/rutas.js';
 import { rutasGeocodificacion } from './modulos/geocodificacion/rutas.js';
 import { rutasIa } from './modulos/ia/rutas.js';
 import { rutasIndicadores } from './modulos/indicadores/rutas.js';
 import { alCambiarIncidente } from './modulos/incidentes/eventos.js';
 import { rutasIncidentes } from './modulos/incidentes/rutas.js';
+import { rutasParametros } from './modulos/parametros/rutas.js';
 import { recalcularPrioridad } from './modulos/prioridad/servicio.js';
 import { rutasRecorridos } from './modulos/recorridos/rutas.js';
 import { rutasRed } from './modulos/red/rutas.js';
@@ -34,6 +36,10 @@ app.use(express.json({ limit: '1mb' }));
 
 app.use('/api/salud', rutasSalud);
 app.use('/api/auth', rutasAuth);
+// Antes que /api/admin: así no pasa dos veces por la autenticación.
+app.use('/api/admin/parametros', rutasParametros);
+app.use('/api/admin/categorias', rutasCategoriasAdmin);
+app.use('/api/admin/perfiles-movilidad', rutasPerfilesAdmin);
 app.use('/api/admin', rutasAdmin);
 app.use('/api', rutasCatalogo);
 app.use('/api', rutasRed);

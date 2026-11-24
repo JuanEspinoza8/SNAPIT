@@ -2,6 +2,8 @@
 
 Valores iniciales que carga la semilla (`npm run semilla`, en `server/`). Se guardan en la base (`parametro_sistema`, `categoria`, `categoria_perfil`), así que se pueden ajustar sin tocar código.
 
+El administrador los ajusta desde la administración (`PUT /api/admin/parametros`, #167). La semilla solo agrega los que faltan: una vez cargado, un valor no vuelve al de esta página aunque se corra de nuevo.
+
 Si cambiás un valor en `server/src/semilla/datos.ts`, actualizalo también acá.
 
 > **Valores de partida (05/10/2026).** No salen de mediciones: se revisan con los datos de la prueba piloto. Las fórmulas que usan estos parámetros se documentan acá con la issue de cada cálculo (verificación, reputación, agrupación, prioridad, cierre, vigencia y recorridos).
