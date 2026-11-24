@@ -30,6 +30,10 @@ final categoriasProvider = FutureProvider<List<Categoria>>(
   (ref) => ref.watch(repositorioMapaProvider).categorias(),
 );
 
+final barriosProvider = FutureProvider<List<String>>(
+  (ref) => ref.watch(repositorioMapaProvider).barrios(),
+);
+
 /// Parámetros de `GET /incidentes` (contrato en `docs/api.md`).
 Map<String, String> parametrosIncidentes(ConsultaIncidentes consulta) {
   final ConsultaIncidentes(:filtros, :vista) = consulta;
@@ -44,6 +48,7 @@ Map<String, String> parametrosIncidentes(ConsultaIncidentes consulta) {
     if (filtros.estado case final estado?) 'estado': estado.valorApi,
     if (filtros.desde case final desde?) 'desde': fechaApi(desde),
     if (filtros.hasta case final hasta?) 'hasta': fechaApi(hasta),
+    'barrio': ?filtros.barrio,
   };
 }
 
@@ -89,6 +94,19 @@ class RepositorioMapa {
       return [
         for (final categoria in respuesta.data!['categorias'] as List)
           Categoria.desdeJson(categoria as Map<String, dynamic>),
+      ];
+    });
+  }
+
+  Future<List<String>> barrios() {
+    return _pedir(() async {
+      final respuesta = await _dio.get<Map<String, dynamic>>(
+        '/barrios',
+        options: _sinSesion,
+      );
+      return [
+        for (final barrio in respuesta.data!['barrios'] as List)
+          barrio as String,
       ];
     });
   }

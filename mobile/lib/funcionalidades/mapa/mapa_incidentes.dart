@@ -10,6 +10,7 @@ import '../../compartido/mapa/capa_osm.dart';
 import '../../compartido/red/error_api.dart';
 import '../../compartido/tema/tema_app.dart';
 import 'agrupar.dart';
+import 'barra_consulta.dart';
 import 'estados.dart';
 import 'ficha_incidente.dart';
 import 'filtros_mapa.dart';
@@ -135,6 +136,10 @@ class _MapaIncidentesState extends ConsumerState<MapaIncidentes> {
           },
           filtrosActivos: _filtros.cantidadActivos,
           alAbrirFiltros: _abrirFiltros,
+        ),
+        BarraConsulta(
+          filtrosActuales: _filtros,
+          alAplicar: (filtros) => setState(() => _filtros = filtros),
         ),
         if (error != null)
           _AvisoError(

@@ -175,15 +175,51 @@ class Categoria {
 /// hora de Argentina.
 @immutable
 class FiltrosMapa {
-  const FiltrosMapa({this.categoriaId, this.estado, this.desde, this.hasta});
+  static const _sinCambio = Object();
+
+  const FiltrosMapa({
+    this.categoriaId,
+    this.estado,
+    this.desde,
+    this.hasta,
+    this.barrio,
+  });
 
   final int? categoriaId;
   final EstadoVisible? estado;
   final DateTime? desde;
   final DateTime? hasta;
+  final String? barrio;
 
-  int get cantidadActivos =>
-      [categoriaId, estado, desde, hasta].where((f) => f != null).length;
+  int get cantidadActivos => [
+        categoriaId,
+        estado,
+        desde,
+        hasta,
+        barrio,
+      ].where((f) => f != null).length;
+
+  FiltrosMapa copyWith({
+    Object? categoriaId = _sinCambio,
+    Object? estado = _sinCambio,
+    Object? desde = _sinCambio,
+    Object? hasta = _sinCambio,
+    Object? barrio = _sinCambio,
+  }) =>
+      FiltrosMapa(
+        categoriaId: identical(categoriaId, _sinCambio)
+            ? this.categoriaId
+            : categoriaId as int?,
+        estado: identical(estado, _sinCambio)
+            ? this.estado
+            : estado as EstadoVisible?,
+        desde:
+            identical(desde, _sinCambio) ? this.desde : desde as DateTime?,
+        hasta:
+            identical(hasta, _sinCambio) ? this.hasta : hasta as DateTime?,
+        barrio:
+            identical(barrio, _sinCambio) ? this.barrio : barrio as String?,
+      );
 
   @override
   bool operator ==(Object other) =>
@@ -191,10 +227,11 @@ class FiltrosMapa {
       other.categoriaId == categoriaId &&
       other.estado == estado &&
       other.desde == desde &&
-      other.hasta == hasta;
+      other.hasta == hasta &&
+      other.barrio == barrio;
 
   @override
-  int get hashCode => Object.hash(categoriaId, estado, desde, hasta);
+  int get hashCode => Object.hash(categoriaId, estado, desde, hasta, barrio);
 }
 
 /// El rectángulo visible del mapa, en grados.

@@ -32,6 +32,7 @@ class _HojaFiltrosState extends ConsumerState<_HojaFiltros> {
   late EstadoVisible? _estado = widget.actuales.estado;
   late DateTime? _desde = widget.actuales.desde;
   late DateTime? _hasta = widget.actuales.hasta;
+  late String? _barrio = widget.actuales.barrio;
 
   // Los primeros reportes son de 2026; el margen no molesta.
   static final _primerDia = DateTime(2020);
@@ -51,18 +52,24 @@ class _HojaFiltrosState extends ConsumerState<_HojaFiltros> {
           _campoCategoria(),
           const SizedBox(height: Espacio.lg),
           DropdownButtonFormField<EstadoVisible?>(
+            isExpanded: true,
             initialValue: _estado,
             style: tema.textTheme.bodyLarge,
             decoration: const InputDecoration(labelText: 'Estado'),
             items: [
               const DropdownMenuItem(value: null, child: Text('Todos')),
               for (final estado in EstadoVisible.values)
-                DropdownMenuItem(value: estado, child: Text(estado.etiqueta)),
+                DropdownMenuItem(
+                  value: estado,
+                  child: Text(estado.etiqueta, overflow: TextOverflow.ellipsis),
+                ),
             ],
             onChanged: (estado) => setState(() => _estado = estado),
           ),
           const SizedBox(height: Espacio.lg),
-          _CampoFecha(
+          _campoBarrio(),
+          const SizedBox(height: Espacio.lg),
+          CampoFecha(
             etiqueta: 'Desde',
             valor: _desde,
             primerDia: _primerDia,
@@ -70,7 +77,7 @@ class _HojaFiltrosState extends ConsumerState<_HojaFiltros> {
             alCambiar: (dia) => setState(() => _desde = dia),
           ),
           const SizedBox(height: Espacio.lg),
-          _CampoFecha(
+          CampoFecha(
             etiqueta: 'Hasta',
             valor: _hasta,
             primerDia: _desde ?? _primerDia,
@@ -85,6 +92,7 @@ class _HojaFiltrosState extends ConsumerState<_HojaFiltros> {
                 estado: _estado,
                 desde: _desde,
                 hasta: _hasta,
+                barrio: _barrio,
               ),
             ),
             child: const Text('Aplicar filtros'),
@@ -115,6 +123,7 @@ class _HojaFiltrosState extends ConsumerState<_HojaFiltros> {
         DropdownButtonFormField<int?>(
           // Cambia de clave al llegar las categorías, para que tome el valor.
           key: ValueKey(lista.length),
+          isExpanded: true,
           initialValue: lista.any((c) => c.id == _categoriaId)
               ? _categoriaId
               : null,
@@ -128,7 +137,7 @@ class _HojaFiltrosState extends ConsumerState<_HojaFiltros> {
             for (final categoria in lista)
               DropdownMenuItem(
                 value: categoria.id,
-                child: Text(categoria.nombre),
+                child: Text(categoria.nombre, overflow: TextOverflow.ellipsis),
               ),
           ],
           onChanged: categorias.hasValue
@@ -146,11 +155,58 @@ class _HojaFiltrosState extends ConsumerState<_HojaFiltros> {
       ],
     );
   }
+
+  Widget _campoBarrio() {
+    final barrios = ref.watch(barriosProvider);
+    final lista = barrios.value ?? const <String>[];
+    final ayuda = switch (barrios) {
+      AsyncData() => null,
+      AsyncError() when !barrios.isLoading =>
+        'No se pudieron cargar los barrios.',
+      _ => 'Cargando barrios…',
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<String?>(
+          key: ValueKey(lista.length),
+          isExpanded: true,
+          initialValue: lista.contains(_barrio) ? _barrio : null,
+          style: Theme.of(context).textTheme.bodyLarge,
+          decoration: InputDecoration(
+            labelText: 'Barrio',
+            helperText: ayuda,
+          ),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('Todos')),
+            for (final barrio in lista)
+              DropdownMenuItem(
+                value: barrio,
+                child: Text(barrio, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: barrios.hasValue
+              ? (barrio) => setState(() => _barrio = barrio)
+              : null,
+        ),
+        if (barrios.hasError && !barrios.isLoading)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => ref.invalidate(barriosProvider),
+              child: const Text('Reintentar'),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 /// Un día elegido con el calendario, con un botón para borrarlo.
-class _CampoFecha extends StatelessWidget {
-  const _CampoFecha({
+class CampoFecha extends StatelessWidget {
+  const CampoFecha({
+    super.key,
     required this.etiqueta,
     required this.valor,
     required this.primerDia,
