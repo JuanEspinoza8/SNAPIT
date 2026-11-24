@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <!-- Avisos push (F10): desde Android 13 el usuario tiene que habilitarlos. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Dictar la consulta en lenguaje natural (F15). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- Sin backup: al restaurarlo, los tokens cifrados vuelven sin su clave
          y flutter_secure_storage no los puede leer. -->
@@ -50,6 +51,12 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- El dictado (speech_to_text): desde Android 11 la app solo ve el
+             servicio de reconocimiento de voz si lo declara acá. Sin esto el
+             micrófono no arranca. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
         </intent>
     </queries>
 </manifest>

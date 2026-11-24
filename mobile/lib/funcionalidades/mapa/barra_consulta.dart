@@ -33,6 +33,10 @@ class _BarraConsultaState extends ConsumerState<BarraConsulta> {
   final _controlador = TextEditingController();
   final _voz = SpeechToText();
   var _vozLista = false;
+
+  /// El castellano que tenga el teléfono para dictar; null si no tiene
+  /// ninguno (se usa el idioma del sistema).
+  String? _idiomaVoz;
   var _escuchando = false;
   var _interpretando = false;
   String? _errorVoz;
@@ -107,8 +111,14 @@ class _BarraConsultaState extends ConsumerState<BarraConsulta> {
   }
 
   Future<void> _consultar() async {
+    // Buscar mientras se dicta corta el dictado y busca lo que ya se escuchó.
+    if (_escuchando) {
+      await _voz.stop();
+      if (!mounted) return;
+      setState(() => _escuchando = false);
+    }
     final texto = _controlador.text.trim();
-    if (texto.isEmpty || _interpretando || _escuchando) return;
+    if (texto.isEmpty || _interpretando) return;
 
     FocusScope.of(context).unfocus();
     setState(() => _interpretando = true);
@@ -134,6 +144,20 @@ class _BarraConsultaState extends ConsumerState<BarraConsulta> {
     } finally {
       if (mounted) setState(() => _interpretando = false);
     }
+  }
+
+  /// El castellano del teléfono para dictar: el de Argentina si está, si no
+  /// cualquier otro. Android y iOS escriben el código con «_» o con «-».
+  Future<String?> _castellano() async {
+    final idiomas = await _voz.locales();
+    String normalizar(String id) => id.replaceAll('-', '_').toLowerCase();
+    for (final idioma in idiomas) {
+      if (normalizar(idioma.localeId) == 'es_ar') return idioma.localeId;
+    }
+    for (final idioma in idiomas) {
+      if (normalizar(idioma.localeId).startsWith('es')) return idioma.localeId;
+    }
+    return null;
   }
 
   Future<void> _dictar() async {
@@ -167,6 +191,8 @@ class _BarraConsultaState extends ConsumerState<BarraConsulta> {
       );
     }
 
+    if (_vozLista) _idiomaVoz ??= await _castellano();
+
     if (!_vozLista) {
       if (mounted) {
         setState(() {
@@ -176,6 +202,7 @@ class _BarraConsultaState extends ConsumerState<BarraConsulta> {
       return;
     }
 
+    if (!mounted) return;
     setState(() => _escuchando = true);
     try {
       await _voz.listen(
@@ -184,6 +211,7 @@ class _BarraConsultaState extends ConsumerState<BarraConsulta> {
           setState(() => _controlador.text = result.recognizedWords);
         },
         listenOptions: SpeechListenOptions(
+          localeId: _idiomaVoz,
           listenMode: ListenMode.dictation,
           partialResults: true,
           cancelOnError: true,
