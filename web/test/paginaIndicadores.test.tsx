@@ -344,6 +344,11 @@ describe('panel de indicadores', () => {
     );
     expect(screen.getByText('Nuevos', { selector: 'dt' }).nextElementSibling).toHaveTextContent('8');
     expect(screen.getByText('Resueltos', { selector: 'dt' }).nextElementSibling).toHaveTextContent('3');
+    // Los nuevos pueden ser más que los abiertos y los resueltos: los caducados (F12) no cuentan como abiertos.
+    expect(
+      screen.getByText('Entraron en el período y siguen abiertos (sin los caducados)'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Entraron en el período, también los que después caducaron')).toBeInTheDocument();
     expect(screen.getByText('15 %')).toBeInTheDocument();
     expect(screen.getByText('3 de 20 reportes recibidos')).toBeInTheDocument();
     const { desde, hasta } = periodoInicial();

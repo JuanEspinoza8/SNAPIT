@@ -151,14 +151,15 @@ export function useConfirmar(incidenteId: number) {
 
   return useMutation({
     mutationFn: () =>
-      pedir<{ incidenteId: number; cantidadConfirmaciones: number }>(
+      pedir<{ incidenteId: number; cantidadConfirmaciones: number; vigenteHasta: string | null }>(
         `incidentes/${incidenteId}/confirmaciones`,
         { metodo: 'POST' },
       ),
-    onSuccess: ({ cantidadConfirmaciones }) => {
+    // Confirmar renueva la vigencia de un temporal (F12): la ficha muestra la fecha nueva sin volver a pedirla.
+    onSuccess: ({ cantidadConfirmaciones, vigenteHasta }) => {
       consulta.setQueryData<FichaIncidente>(
         ficha,
-        (actual) => actual && { ...actual, cantidadConfirmaciones },
+        (actual) => actual && { ...actual, cantidadConfirmaciones, vigenteHasta },
       );
       marcarConfirmado();
     },

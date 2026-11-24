@@ -36,6 +36,9 @@ export interface FichaIncidente {
   resueltoEn: string | null;
   /** El área a la que quedó derivado. Null mientras está en revisión. */
   derivadoA?: { id: number; nombre: string } | null;
+  /** F12: un temporal vence en `vigenteHasta`; un permanente no vence y `vigenteHasta` es null. */
+  tipoVigencia: 'TEMPORAL' | 'PERMANENTE';
+  vigenteHasta: string | null;
 }
 
 export interface FiltrosMapa {
