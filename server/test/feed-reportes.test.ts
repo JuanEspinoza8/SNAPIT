@@ -57,7 +57,7 @@ describe('GET /api/social/feed', () => {
       cantidadComentarios: 1,
       cantidadMeGusta: 0,
       yaMeGusta: false,
-      incidente: { id: primero.incidenteId, estado: 'VERIFICADO', resueltoEn: null, cantidadVecinos: 2 },
+      incidente: { id: primero.incidenteId, estado: 'DERIVADO', resueltoEn: null, cantidadVecinos: 2 },
     });
     expect(res.body.reportes[2].autor.numero).toBe(1);
     expect(res.body.siguiente).toBeNull();

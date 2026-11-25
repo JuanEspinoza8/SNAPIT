@@ -129,8 +129,19 @@ export async function verificarReporte(reporteId: number) {
 }
 
 /**
+ * Deja un incidente verificado como VERIFICADO sin derivar, directo en la base: al verificarse, se deriva solo al
+ * área de su categoría. Así queda como uno de antes de la derivación automática (o con el área de su categoría
+ * dada de baja), para los tests que prueban lo que hace el operador con un incidente sin derivar.
+ */
+export async function dejarSinDerivar(incidenteId: number) {
+  await prisma.movimientoIncidente.deleteMany({ where: { incidenteId, tipo: 'DERIVACION' } });
+  await prisma.incidente.update({ where: { id: incidenteId }, data: { estado: 'VERIFICADO', areaId: null } });
+}
+
+/**
  * Un reporte de un vecino nuevo en ese punto. Todo reporte llega pendiente; salvo con `pendiente`, se verifica
- * enseguida (verificarReporte) y su incidente queda VERIFICADO. Con `pendiente` el incidente sigue REGISTRADO.
+ * enseguida (verificarReporte) y su incidente queda DERIVADO al área de su categoría. Con `pendiente` el
+ * incidente sigue REGISTRADO.
  * Los tests que lo usan simulan la geocodificación.
  */
 export async function reportarEn(

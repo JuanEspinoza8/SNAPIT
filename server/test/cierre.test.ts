@@ -48,11 +48,11 @@ async function enEjecucion({ lejos = false, otraCuadra = false } = {}) {
   const reporte = await reportarEn(punto, { categoriaId: categoria.id });
   vecinos.push(reporte.vecinoId);
   const id = reporte.incidenteId;
-  const derivado = await request(app)
-    .post(`/api/incidentes/${id}/derivacion`)
-    .set('Authorization', `Bearer ${token}`)
-    .send({ areaId: area.id });
-  expect(derivado.status).toBe(200);
+  // Verificado al recibirlo, ya queda derivado al área de su categoría.
+  expect(await prisma.incidente.findUnique({ where: { id } })).toMatchObject({
+    estado: 'DERIVADO',
+    areaId: area.id,
+  });
   const enCurso = await request(app)
     .post(`/api/incidentes/${id}/estado`)
     .set('Authorization', `Bearer ${token}`)

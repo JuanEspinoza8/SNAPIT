@@ -32,7 +32,9 @@ export interface EfectoDelResultado {
  * - El incidente toma el estado que dicen sus reportes (estadoSegunReportes): pasa de REGISTRADO a VERIFICADO
  *   con su primer reporte verificado, y a DESESTIMADO si ya no le queda ningún reporte sin desestimar. Si sigue
  *   vivo después de un desestimado, se recalcula su severidad.
- * - Deja el movimiento en la bitácora del incidente.
+ * - Si quedó VERIFICADO por un reporte verificado, se deriva enseguida al área de su categoría (DERIVADO), sin
+ *   esperar al operador. El operador lo puede re-derivar después (incidentes/gestion.ts).
+ * - Deja los movimientos en la bitácora del incidente: el cambio de estado y, si se derivó, la derivación.
  * - Si quedó verificado, SnapIt le agradece al vecino con un comentario público en el reporte, que dice a qué
  *   área se derivó. Sale siempre, lo haya publicado la IA o una persona.
  *
@@ -58,15 +60,25 @@ export async function aplicarResultado(
     );
   }
   const reputacion = await repositorio.sumarAlHistorial(tx, reporte.usuarioId, resultado.decision);
-  if (resultado.decision === 'VERIFICADO') await agradecer(tx, resultado.reporteId);
   // Al autor, si lo decidió un operador o la IA. Verificado al recibirlo, la pantalla de reportar ya se lo dice.
   if (resultado.operadorId !== null) {
     avisarVerificacion(resultado.reporteId, id, resultado.decision, resultado.operadorId);
   }
-  if (id === null || anterior === null) return { reputacion, incidente: null };
+  if (id === null || anterior === null) {
+    if (resultado.decision === 'VERIFICADO') await agradecer(tx, resultado.reporteId, null);
+    return { reputacion, incidente: null };
+  }
 
   if (resultado.decision === 'DESESTIMADO') await repositorio.restarReporte(tx, incidentes);
-  const nuevo = estadoSegunReportes(anterior, await contarReportes(tx, id));
+  const verificado = estadoSegunReportes(anterior, await contarReportes(tx, id));
+
+  // Un reporte verificado deja el incidente derivado al área de su categoría, sin esperar al operador. Si esa
+  // área está dada de baja, queda VERIFICADO y lo deriva el operador desde la bandeja.
+  const derivadaA =
+    resultado.decision === 'VERIFICADO' && verificado === 'VERIFICADO'
+      ? await repositorio.areaParaDerivar(tx, id)
+      : null;
+  const nuevo: EstadoIncidente = derivadaA ? 'DERIVADO' : verificado;
 
   // Un desestimado deja de contar para la severidad consolidada (#53). Si no quedó ninguno, se conserva.
   const declaradas = resultado.decision === 'DESESTIMADO' ? await severidadesDeclaradas(tx, id) : [];
@@ -74,6 +86,7 @@ export async function aplicarResultado(
   if (nuevo !== anterior || severidad) {
     await repositorio.actualizarIncidente(tx, id, {
       ...(nuevo !== anterior && { estado: nuevo }),
+      ...(derivadaA && { areaId: derivadaA.id }),
       ...(severidad && { severidad }),
     });
   }
@@ -81,7 +94,8 @@ export async function aplicarResultado(
   const comentario = describir(resultado, reporte.nivelConfianza);
   if (nuevo !== anterior) {
     // Al recibirlo, el que lo cambió es el autor del reporte: no se avisa a sí mismo. En una revisión, el autor
-    // ya recibe el aviso de verificación: no recibe otro por el mismo hecho.
+    // ya recibe el aviso de verificación: no recibe otro por el mismo hecho. Un solo aviso con el estado final,
+    // aunque en la bitácora queden dos pasos.
     avisarCambioDeEstado(
       id,
       anterior,
@@ -89,12 +103,14 @@ export async function aplicarResultado(
       resultado.operadorId ?? reporte.usuarioId,
       resultado.operadorId === null ? [] : [reporte.usuarioId],
     );
+  }
+  if (verificado !== anterior) {
     await repositorio.registrarMovimiento(tx, {
       incidenteId: id,
       usuarioId: resultado.operadorId,
       tipo: 'CAMBIO_ESTADO',
       estadoAnterior: anterior,
-      estadoNuevo: nuevo,
+      estadoNuevo: verificado,
       comentario,
     });
   } else if (resultado.operadorId !== null) {
@@ -106,27 +122,52 @@ export async function aplicarResultado(
       comentario,
     });
   }
+  if (derivadaA) {
+    await repositorio.registrarMovimiento(tx, {
+      incidenteId: id,
+      usuarioId: resultado.operadorId,
+      tipo: 'DERIVACION',
+      areaId: derivadaA.id,
+      estadoAnterior: 'VERIFICADO',
+      estadoNuevo: 'DERIVADO',
+      comentario: `Derivado a ${derivadaA.nombre} automáticamente al verificarse el reporte #${resultado.reporteId}`,
+    });
+  }
 
+  if (resultado.decision === 'VERIFICADO') await agradecer(tx, resultado.reporteId, derivadaA);
   return { reputacion, incidente: { id, estado: nuevo } };
 }
 
 const ESTADOS_CERRADOS: EstadoIncidente[] = ['RESUELTO', 'DESESTIMADO'];
 
 /**
- * El comentario de SnapIt en un reporte recién publicado. Dice qué área le corresponde, sin decir que se derivó:
- * el incidente no cambia de estado ni de área (derivar es cosa del operador, incidentes/gestion.ts). Sin el
- * usuario de SnapIt (la semilla lo crea) no se comenta, pero el reporte se publica igual.
+ * El comentario de SnapIt en un reporte recién publicado, con lo que pasó con su incidente:
+ * - Si al verificarlo se derivó (`derivadaA`), a qué área.
+ * - Si el incidente ya estaba derivado o en ejecución, qué área lo está atendiendo (la derivada, que puede no ser
+ *   la de su categoría).
+ * - Si no se pudo derivar (el área de la categoría está dada de baja) o no tiene incidente, qué área le corresponde.
+ * Sin el usuario de SnapIt (la semilla lo crea) no se comenta, pero el reporte se publica igual.
  */
-async function agradecer(tx: Prisma.TransactionClient, reporteId: number) {
+async function agradecer(
+  tx: Prisma.TransactionClient,
+  reporteId: number,
+  derivadaA: { nombre: string } | null,
+) {
   const sistemaId = await idUsuarioSistema(tx);
   if (sistemaId === null) {
     logger.warn({ reporteId }, 'No existe el usuario de SnapIt: el reporte se publica sin el comentario');
     return;
   }
-  const area = await repositorio.areaDelReporte(tx, reporteId);
-  const texto = area
-    ? `¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de ${area}.`
-    : '¡Gracias por tu reporte! Ya está publicado.';
+  const base = '¡Gracias por tu reporte! Ya está publicado';
+  let texto: string;
+  if (derivadaA) {
+    texto = `${base} y se derivó al área de ${derivadaA.nombre}.`;
+  } else {
+    const area = await repositorio.areaDelReporte(tx, reporteId);
+    if (!area) texto = `${base}.`;
+    else if (area.enGestion) texto = `${base}. Lo está atendiendo el área de ${area.nombre}.`;
+    else texto = `${base}. Le corresponde al área de ${area.nombre}.`;
+  }
   await repositorio.comentarReporte(tx, { usuarioId: sistemaId, reporteId, texto });
 }
 

@@ -363,20 +363,32 @@ export async function bloquearIncidente(tx: Tx, id: number) {
 export function actualizarIncidente(
   tx: Tx,
   id: number,
-  datos: { estado?: EstadoIncidente; severidad?: Severidad },
+  datos: { estado?: EstadoIncidente; areaId?: number; severidad?: Severidad },
 ) {
   return tx.incidente.update({ where: { id }, data: { ...datos, actualizadoEn: new Date() } });
 }
 
 /**
- * El nombre del área que atiende el reporte: la del incidente que manda (la derivada o, si no, la de su
- * categoría) o, si el reporte no tiene incidente, la de su categoría.
+ * El área a la que se deriva el incidente al verificarse: la de su categoría, si está activa. Null si está dada
+ * de baja: un área inactiva no recibe derivaciones.
+ */
+export async function areaParaDerivar(tx: Tx, incidenteId: number) {
+  const { categoria } = await tx.incidente.findUniqueOrThrow({
+    where: { id: incidenteId },
+    select: { categoria: { select: { area: { select: { id: true, nombre: true, activa: true } } } } },
+  });
+  return categoria.area.activa ? { id: categoria.area.id, nombre: categoria.area.nombre } : null;
+}
+
+/**
+ * El área que atiende el reporte: la del incidente que manda (la derivada o, si no, la de su categoría) o, si el
+ * reporte no tiene incidente, la de su categoría. `enGestion` dice si el incidente ya está derivado o en ejecución.
  */
 export async function areaDelReporte(tx: Tx, reporteId: number) {
-  const [fila] = await tx.$queryRaw<{ nombre: string }[]>`
-    SELECT a.nombre ${DEL_ORGANISMO}
+  const [fila] = await tx.$queryRaw<{ nombre: string; enGestion: boolean }[]>`
+    SELECT a.nombre, coalesce(i.estado IN ('DERIVADO', 'EN_EJECUCION'), false) AS "enGestion" ${DEL_ORGANISMO}
     WHERE r.id = ${reporteId}`;
-  return fila?.nombre ?? null;
+  return fila ?? null;
 }
 
 export function comentarReporte(tx: Tx, comentario: { usuarioId: number; reporteId: number; texto: string }) {
@@ -388,7 +400,9 @@ export function registrarMovimiento(
   movimiento: {
     incidenteId: number;
     usuarioId: number | null;
-    tipo: 'CAMBIO_ESTADO' | 'COMENTARIO';
+    tipo: 'CAMBIO_ESTADO' | 'COMENTARIO' | 'DERIVACION';
+    /** El área destino, en una derivación. */
+    areaId?: number;
     estadoAnterior?: EstadoIncidente;
     estadoNuevo?: EstadoIncidente;
     comentario: string;

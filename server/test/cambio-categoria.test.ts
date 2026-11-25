@@ -9,6 +9,7 @@ import {
   borrarReportesDe,
   crearOrganismoDePrueba,
   crearUsuario,
+  dejarSinDerivar,
   diasVigenciaPorDefecto,
   reportarEn,
   tokenDe,
@@ -56,6 +57,7 @@ describe('PUT /api/incidentes/:id/categoria', () => {
   it('cambia la categoría, deja el antes y el después en la bitácora y recalcula la prioridad', async () => {
     const reporte = await reportar();
     const id = reporte.incidenteId;
+    await dejarSinDerivar(id);
 
     const res = await cambiar(id, { categoriaId: nueva.id, comentario: 'Es la vereda, no la calle' });
 

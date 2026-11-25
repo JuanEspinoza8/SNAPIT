@@ -5,7 +5,14 @@ import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { alCambiarIncidente } from '../src/modulos/incidentes/eventos.js';
-import { borrarReportesDe, crearOrganismoDePrueba, crearUsuario, reportarEn, tokenDe } from './apoyo.js';
+import {
+  borrarReportesDe,
+  crearOrganismoDePrueba,
+  crearUsuario,
+  dejarSinDerivar,
+  reportarEn,
+  tokenDe,
+} from './apoyo.js';
 
 // La dirección no se consulta: no hace falta para la gestión.
 vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
@@ -37,13 +44,17 @@ beforeEach(async () => {
 
 afterEach(() => bajaAvisos());
 
-/** Un incidente VERIFICADO (o REGISTRADO, con `pendiente`) en la cuadra `cuadra` del lugar del test. */
+/**
+ * Un incidente VERIFICADO sin derivar (dejarSinDerivar), o REGISTRADO con `pendiente`, en la cuadra `cuadra` del
+ * lugar del test: para probar la derivación del operador.
+ */
 async function incidente(cuadra = 0, pendiente = false, enCategoria = categoria) {
   const reporte = await reportarEn(
     { lat: lat - cuadra * 0.001, lon },
     { categoriaId: enCategoria.id, pendiente },
   );
   vecinos.push(reporte.vecinoId);
+  if (!pendiente) await dejarSinDerivar(reporte.incidenteId);
   return reporte.incidenteId;
 }
 

@@ -173,12 +173,14 @@ describe('POST /api/ia/procesar-cola', () => {
       include: { incidente: true },
     });
     expect(guardado.estadoVerificacion).toBe('VERIFICADO');
-    expect(guardado.incidente!.estado).toBe('VERIFICADO');
+    expect(guardado.incidente!).toMatchObject({ estado: 'DERIVADO', areaId: categoria.areaId });
     const vecino = await prisma.usuario.findUniqueOrThrow({ where: { id: reporte.vecino.id } });
     expect(Number(vecino.reputacion)).toBe(66.67);
-    const [movimiento] = await prisma.movimientoIncidente.findMany({
+    const [movimiento, derivacion] = await prisma.movimientoIncidente.findMany({
       where: { incidenteId: reporte.incidenteId },
+      orderBy: { id: 'asc' },
     });
+    expect(derivacion).toMatchObject({ tipo: 'DERIVACION', usuarioId: operador.id, estadoNuevo: 'DERIVADO' });
     expect(movimiento).toMatchObject({
       tipo: 'CAMBIO_ESTADO',
       usuarioId: operador.id,

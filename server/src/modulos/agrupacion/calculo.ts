@@ -149,13 +149,17 @@ export interface ReportesDelIncidente {
  * - Sin verificados pero con alguno pendiente, REGISTRADO («En revisión» en el mapa).
  * - Sin ningún reporte válido, DESESTIMADO.
  *
- * Solo decide sobre REGISTRADO y VERIFICADO. Desde DERIVADO el organismo ya lo está trabajando y el estado
- * lo cambia el operador; RESUELTO y DESESTIMADO son finales.
+ * Decide sobre REGISTRADO y VERIFICADO. Desde DERIVADO el organismo ya lo está trabajando y el estado lo cambia
+ * el operador, salvo que no le quede ningún reporte válido: entonces pasa a DESESTIMADO (al verificarse, el
+ * incidente se deriva solo, así que un derivado puede quedarse sin reportes al quitarlos o desestimarlos).
+ * EN_EJECUCION lo maneja el operador; RESUELTO y DESESTIMADO son finales.
  */
 export function estadoSegunReportes(
   estado: EstadoIncidente,
   reportes: ReportesDelIncidente,
 ): EstadoIncidente {
+  // Derivado sin ningún reporte válido (se desestimaron o se quitaron todos): no queda nada que atender.
+  if (estado === 'DERIVADO') return reportes.validos === 0 ? 'DESESTIMADO' : estado;
   if (estado !== 'REGISTRADO' && estado !== 'VERIFICADO') return estado;
   if (reportes.validos === 0) return 'DESESTIMADO';
   return reportes.verificados > 0 ? 'VERIFICADO' : 'REGISTRADO';

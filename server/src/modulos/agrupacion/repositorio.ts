@@ -16,6 +16,7 @@ import {
   type ReportesDelIncidente,
 } from './calculo.js';
 import { avisarCambioDeEstado } from '../avisos/disparar.js';
+import { areaParaDerivar } from '../verificacion/repositorio.js';
 
 // Los mismos valores que carga la semilla: si falta un parámetro, se agrupa igual con estos. El radio y la
 // ventana dividen en el puntaje, así que tienen que ser positivos; un peso en 0 apaga ese término.
@@ -113,19 +114,22 @@ export async function contarReportes(tx: Prisma.TransactionClient, incidenteId: 
 
 /**
  * Le pone al incidente el estado que dicen sus reportes (estadoSegunReportes), si cambió, y lo deja en la
- * bitácora como un cambio del sistema (sin usuario). Va dentro de la transacción de quien lo llama, con el
- * incidente ya bloqueado. Devuelve el estado con que queda.
+ * bitácora como un cambio del sistema (sin usuario). Si pasa a VERIFICADO, se deriva enseguida al área de su
+ * categoría, igual que al verificar un reporte (verificacion/resultado.ts). Va dentro de la transacción de quien
+ * lo llama, con el incidente ya bloqueado. Devuelve el estado con que queda.
  */
 export async function recalcularEstado(tx: Prisma.TransactionClient, incidenteId: number, motivo: string) {
   const { estado } = await tx.incidente.findUniqueOrThrow({
     where: { id: incidenteId },
     select: { estado: true },
   });
-  const nuevo: EstadoIncidente = estadoSegunReportes(estado, await contarReportes(tx, incidenteId));
-  if (nuevo === estado) return estado;
+  const verificado: EstadoIncidente = estadoSegunReportes(estado, await contarReportes(tx, incidenteId));
+  if (verificado === estado) return estado;
+  const derivadaA = verificado === 'VERIFICADO' ? await areaParaDerivar(tx, incidenteId) : null;
+  const nuevo: EstadoIncidente = derivadaA ? 'DERIVADO' : verificado;
   await tx.incidente.update({
     where: { id: incidenteId },
-    data: { estado: nuevo, actualizadoEn: new Date() },
+    data: { estado: nuevo, ...(derivadaA && { areaId: derivadaA.id }), actualizadoEn: new Date() },
   });
   await tx.movimientoIncidente.create({
     data: {
@@ -133,10 +137,23 @@ export async function recalcularEstado(tx: Prisma.TransactionClient, incidenteId
       usuarioId: null,
       tipo: 'CAMBIO_ESTADO',
       estadoAnterior: estado,
-      estadoNuevo: nuevo,
+      estadoNuevo: verificado,
       comentario: motivo,
     },
   });
+  if (derivadaA) {
+    await tx.movimientoIncidente.create({
+      data: {
+        incidenteId,
+        usuarioId: null,
+        tipo: 'DERIVACION',
+        areaId: derivadaA.id,
+        estadoAnterior: 'VERIFICADO',
+        estadoNuevo: 'DERIVADO',
+        comentario: `Derivado a ${derivadaA.nombre} automáticamente al quedar verificado`,
+      },
+    });
+  }
   // Lo decidió el sistema: nadie queda afuera del aviso.
   avisarCambioDeEstado(incidenteId, estado, nuevo, null);
   return nuevo;
