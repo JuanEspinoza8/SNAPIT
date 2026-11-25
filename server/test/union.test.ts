@@ -230,7 +230,7 @@ describe('POST /api/incidentes/:id/union', () => {
     it('un duplicado más avanzado que el principal: hay que unir al revés', async () => {
       const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z');
       const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z', categoria, true);
-      expect((await foto(duplicado.incidenteId)).estado).toBe('VERIFICADO');
+      expect((await foto(duplicado.incidenteId)).estado).toBe('DERIVADO');
 
       const res = await unir(duplicado.incidenteId, { principalId: principal.incidenteId });
 
@@ -238,7 +238,7 @@ describe('POST /api/incidentes/:id/union', () => {
       expect(res.body.error).toEqual({
         codigo: 'DUPLICADO_MAS_AVANZADO',
         mensaje:
-          `El #${duplicado.incidenteId} está más avanzado (VERIFICADO) que el #${principal.incidenteId} ` +
+          `El #${duplicado.incidenteId} está más avanzado (DERIVADO) que el #${principal.incidenteId} ` +
           `(REGISTRADO): uní el #${principal.incidenteId} al #${duplicado.incidenteId}`,
       });
       expect((await foto(duplicado.incidenteId)).incidentePrincipalId).toBeNull();
@@ -378,9 +378,9 @@ describe('revisar mientras se une', () => {
     const res = await revision;
 
     expect(res.status).toBe(200);
-    expect(res.body.incidente).toEqual({ id: principal.incidenteId, estado: 'VERIFICADO' });
+    expect(res.body.incidente).toEqual({ id: principal.incidenteId, estado: 'DERIVADO' });
     // El caso que prohíbe D3: un duplicado verificado unido a un principal sin verificar.
-    expect((await foto(principal.incidenteId)).estado).toBe('VERIFICADO');
+    expect((await foto(principal.incidenteId)).estado).toBe('DERIVADO');
     expect((await foto(duplicado.incidenteId)).estado).toBe('REGISTRADO');
   });
 });
@@ -455,27 +455,24 @@ describe('DELETE /api/incidentes/:id/union', () => {
     expect(mapa.body.incidentes.map((i: { id: number }) => i.id)).not.toContain(duplicado.incidenteId);
   });
 
-  it('si mientras estaban unidos se verificó un reporte del duplicado, al deshacer cada uno queda con el suyo', async () => {
+  it('si mientras estaban unidos se verificó un reporte del duplicado, al deshacer el duplicado queda derivado', async () => {
     const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z');
     const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z');
     await unir(duplicado.incidenteId, { principalId: principal.incidenteId });
     await revisar(duplicado.id, 'VERIFICADO');
-    // Unidos, el reporte verificado del duplicado verifica al principal.
-    expect((await foto(principal.incidenteId)).estado).toBe('VERIFICADO');
+    // Unidos, el reporte verificado del duplicado verifica al principal, que se deriva enseguida.
+    expect((await foto(principal.incidenteId)).estado).toBe('DERIVADO');
 
     const res = await deshacer(duplicado.incidenteId);
 
     expect(res.status).toBe(200);
-    // El principal solo tiene su reporte pendiente; el verificado era del duplicado.
-    expect(res.body.principal.estado).toBe('REGISTRADO');
-    expect((await foto(principal.incidenteId)).estado).toBe('REGISTRADO');
-    expect((await foto(duplicado.incidenteId)).estado).toBe('VERIFICADO');
-    const vuelta = await prisma.movimientoIncidente.findMany({
-      where: { incidenteId: principal.incidenteId, tipo: 'CAMBIO_ESTADO', estadoNuevo: 'REGISTRADO' },
+    // Desde DERIVADO el estado no cambia por los reportes: el principal sigue en manos del área.
+    expect(res.body.principal.estado).toBe('DERIVADO');
+    // El duplicado vuelve con su reporte verificado: queda verificado y derivado al área de su categoría.
+    expect(await prisma.incidente.findUniqueOrThrow({ where: { id: duplicado.incidenteId } })).toMatchObject({
+      estado: 'DERIVADO',
+      areaId: categoria.areaId,
     });
-    expect(vuelta).toEqual([
-      expect.objectContaining({ estadoAnterior: 'VERIFICADO', estadoNuevo: 'REGISTRADO', usuarioId: null }),
-    ]);
   });
 
   it('si mientras estaban unidos se desestimó el reporte más grave del duplicado, vuelve con la severidad del otro', async () => {
@@ -498,12 +495,9 @@ describe('DELETE /api/incidentes/:id/union', () => {
   });
 
   it('un principal derivado sigue derivado al deshacer: solo el duplicado vuelve a lo suyo', async () => {
+    // Verificado al recibirlo: queda derivado al área de su categoría.
     const principal = await reportar(0, 'LEVE', '2026-10-12T10:00:00Z', categoria, true);
-    const derivacion = await request(app)
-      .post(`/api/incidentes/${principal.incidenteId}/derivacion`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ areaId: area.id });
-    expect(derivacion.status).toBe(200);
+    expect((await foto(principal.incidenteId)).estado).toBe('DERIVADO');
     const duplicado = await reportar(1, 'GRAVE', '2026-10-12T11:00:00Z');
     await unir(duplicado.incidenteId, { principalId: principal.incidenteId });
 

@@ -4,7 +4,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../src/app.js';
 import { prisma } from '../src/compartido/prisma.js';
 import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
-import { borrarReportesDe, crearOrganismoDePrueba, crearUsuario, reportarEn, tokenDe } from './apoyo.js';
+import {
+  borrarReportesDe,
+  crearOrganismoDePrueba,
+  crearUsuario,
+  dejarSinDerivar,
+  reportarEn,
+  tokenDe,
+} from './apoyo.js';
 
 // La dirección no se consulta: no hace falta para la bandeja.
 vi.mock('../src/modulos/geocodificacion/servicio.js', () => ({ completarDireccionSinEsperar: vi.fn() }));
@@ -29,7 +36,10 @@ beforeEach(async () => {
   lat = -38.9 - Math.random() * 0.2;
 });
 
-/** Un reporte en la cuadra `cuadra` del lugar del test (cada una a unos 110 m: no se agrupan entre sí). */
+/**
+ * Un reporte en la cuadra `cuadra` del lugar del test (cada una a unos 110 m: no se agrupan entre sí). Verificado,
+ * su incidente queda VERIFICADO sin derivar (dejarSinDerivar), para que cada test elija a qué área derivarlo.
+ */
 async function reportar(
   cuadra: number,
   opciones: Partial<Parameters<typeof reportarEn>[1]> = {},
@@ -40,6 +50,7 @@ async function reportar(
     { categoriaId: enCategoria.id, ...opciones },
   );
   vecinos.push(reporte.vecinoId);
+  if (!opciones.pendiente) await dejarSinDerivar(reporte.incidenteId);
   return reporte;
 }
 

@@ -19,7 +19,7 @@ async function pendienteConOperador() {
   const punto = { lat: -38.8 - Math.random() * 0.05, lon: -68.2 - Math.random() * 0.05 };
   const reporte = await reportarEn(punto, { categoriaId: categoria.id, pendiente: true });
   vecinos.push(reporte.vecinoId);
-  return { area, reporte, token: crearTokenAcceso(operador) };
+  return { area, categoria, punto, reporte, token: crearTokenAcceso(operador) };
 }
 
 const revisar = (id: number, decision: string, token: string) =>
@@ -32,16 +32,36 @@ const comentariosDe = (reporteId: number) =>
   prisma.comentario.findMany({ where: { reporteId }, orderBy: { id: 'asc' } });
 
 describe('agradecimiento de SnapIt al publicar un reporte', () => {
-  it('al verificarlo, SnapIt le comenta al vecino qué área le corresponde', async () => {
+  it('al verificarlo, lo deriva y SnapIt le comenta al vecino a qué área', async () => {
     const { area, reporte, token } = await pendienteConOperador();
 
     const res = await revisar(reporte.id, 'VERIFICADO', token);
 
     expect(res.status).toBe(200);
+    expect(res.body.incidente.estado).toBe('DERIVADO');
     expect(await comentariosDe(reporte.id)).toEqual([
       expect.objectContaining({
         usuarioId: await idUsuarioSistema(),
-        texto: `¡Gracias por tu reporte! Ya está publicado. Le corresponde al área de ${area.nombre}.`,
+        texto: `¡Gracias por tu reporte! Ya está publicado y se derivó al área de ${area.nombre}.`,
+      }),
+    ]);
+  });
+
+  it('si el incidente ya estaba derivado a otra área, nombra la que lo está atendiendo', async () => {
+    const { area, categoria, punto, reporte, token } = await pendienteConOperador();
+    await revisar(reporte.id, 'VERIFICADO', token);
+    const otra = await prisma.area.create({ data: { organismoId: area.organismoId, nombre: 'Otra área' } });
+    await prisma.incidente.update({ where: { id: reporte.incidenteId }, data: { areaId: otra.id } });
+    // Otro reporte en el mismo punto y de la misma categoría: se suma al mismo incidente.
+    const segundo = await reportarEn(punto, { categoriaId: categoria.id, pendiente: true });
+    vecinos.push(segundo.vecinoId);
+    expect(segundo.incidenteId).toBe(reporte.incidenteId);
+
+    await revisar(segundo.id, 'VERIFICADO', token);
+
+    expect(await comentariosDe(segundo.id)).toEqual([
+      expect.objectContaining({
+        texto: '¡Gracias por tu reporte! Ya está publicado. Lo está atendiendo el área de Otra área.',
       }),
     ]);
   });

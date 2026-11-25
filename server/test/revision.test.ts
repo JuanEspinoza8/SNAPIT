@@ -56,11 +56,14 @@ beforeEach(async () => {
  * Manda un reporte en el punto del EXIF de la foto de prueba. Todo reporte llega pendiente; con `verificado`
  * (foto con GPS) se verifica enseguida, como lo haría la IA (verificarReporte). Sin, queda pendiente.
  */
-async function reportar(vecino: Usuario, opciones: { verificado: boolean; severidad?: Severidad }) {
+async function reportar(
+  vecino: Usuario,
+  opciones: { verificado: boolean; severidad?: Severidad; categoriaId?: number },
+) {
   const res = await request(app)
     .post('/api/reportes')
     .set('Authorization', `Bearer ${crearTokenAcceso(vecino)}`)
-    .field('categoriaId', String(categoria.id))
+    .field('categoriaId', String(opciones.categoriaId ?? categoria.id))
     .field('severidadDeclarada', opciones.severidad ?? 'MODERADA')
     .field('lat', String(EXIF_DE_PRUEBA.latitud))
     .field('lon', String(EXIF_DE_PRUEBA.longitud))
@@ -107,7 +110,7 @@ describe('reputación', () => {
 });
 
 describe('verificación sin un operador de por medio', () => {
-  it('un reporte verificado suma a la reputación y verifica el incidente', async () => {
+  it('un reporte verificado suma a la reputación, verifica el incidente y lo deriva al área de su categoría', async () => {
     const vecino = await crearVecino();
 
     const reporte = await reportar(vecino, { verificado: true });
@@ -116,7 +119,7 @@ describe('verificación sin un operador de por medio', () => {
     expect(vecinoDespues).toMatchObject({ reportesConfirmados: 1, reportesDesestimados: 0 });
     expect(Number(vecinoDespues.reputacion)).toBe(66.67);
     const incidente = await prisma.incidente.findUniqueOrThrow({ where: { id: reporte.incidenteId } });
-    expect(incidente.estado).toBe('VERIFICADO');
+    expect(incidente).toMatchObject({ estado: 'DERIVADO', areaId: area.id });
     expect(await movimientos(reporte.incidenteId)).toEqual([
       expect.objectContaining({
         tipo: 'CAMBIO_ESTADO',
@@ -125,7 +128,30 @@ describe('verificación sin un operador de por medio', () => {
         estadoNuevo: 'VERIFICADO',
         comentario: expect.stringMatching(new RegExp(`^Reporte #${reporte.id} verificado automáticamente`)),
       }),
+      expect.objectContaining({
+        tipo: 'DERIVACION',
+        usuarioId: null,
+        areaId: area.id,
+        estadoAnterior: 'VERIFICADO',
+        estadoNuevo: 'DERIVADO',
+        comentario: `Derivado a ${area.nombre} automáticamente al verificarse el reporte #${reporte.id}`,
+      }),
     ]);
+  });
+
+  it('si el área de la categoría está dada de baja, queda VERIFICADO sin derivar', async () => {
+    const otro = await crearOrganismo();
+    const reporte = await reportar(await crearVecino(), {
+      verificado: false,
+      categoriaId: otro.categoria.id,
+    });
+    await prisma.area.update({ where: { id: otro.area.id }, data: { activa: false } });
+
+    await verificarReporte(reporte.id);
+
+    const incidente = await prisma.incidente.findUniqueOrThrow({ where: { id: reporte.incidenteId } });
+    expect(incidente).toMatchObject({ estado: 'VERIFICADO', areaId: null });
+    expect((await movimientos(reporte.incidenteId)).map((m) => m.tipo)).toEqual(['CAMBIO_ESTADO']);
   });
 
   it('un reporte pendiente no cambia la reputación ni el incidente', async () => {
@@ -188,7 +214,7 @@ describe('GET /api/reportes/pendientes', () => {
 });
 
 describe('POST /api/reportes/:id/revision', () => {
-  it('verificar un pendiente suma a la reputación, verifica el incidente y lo deja en la bitácora', async () => {
+  it('verificar un pendiente suma a la reputación, verifica y deriva el incidente y lo deja en la bitácora', async () => {
     const vecino = await crearVecino();
     const reporte = await reportar(vecino, { verificado: false });
     const recalcular = vi.fn(async () => {});
@@ -201,7 +227,7 @@ describe('POST /api/reportes/:id/revision', () => {
     expect(res.body).toEqual({
       id: reporte.id,
       estadoVerificacion: 'VERIFICADO',
-      incidente: { id: reporte.incidenteId, estado: 'VERIFICADO' },
+      incidente: { id: reporte.incidenteId, estado: 'DERIVADO' },
       vecino: { reputacion: 66.67 },
     });
     const guardado = await prisma.reporte.findUniqueOrThrow({ where: { id: reporte.id } });
@@ -214,6 +240,13 @@ describe('POST /api/reportes/:id/revision', () => {
         estadoAnterior: 'REGISTRADO',
         estadoNuevo: 'VERIFICADO',
         comentario: `Reporte #${reporte.id} verificado por el operador: Se ve claro en la foto`,
+      }),
+      expect.objectContaining({
+        tipo: 'DERIVACION',
+        usuarioId: operador.id,
+        areaId: area.id,
+        estadoAnterior: 'VERIFICADO',
+        estadoNuevo: 'DERIVADO',
       }),
     ]);
     // Avisa al módulo de prioridad (#61), dentro de la transacción.
@@ -250,14 +283,14 @@ describe('POST /api/reportes/:id/revision', () => {
     expect(pendiente.incidenteId).toBe(verificado.incidenteId);
     const antes = await prisma.incidente.findUniqueOrThrow({ where: { id: verificado.incidenteId } });
     // Empate entre MODERADA y GRAVE: la consolidada es la más alta.
-    expect(antes).toMatchObject({ estado: 'VERIFICADO', severidad: 'GRAVE', cantidadReportes: 2 });
+    expect(antes).toMatchObject({ estado: 'DERIVADO', severidad: 'GRAVE', cantidadReportes: 2 });
 
     const res = await revisar(pendiente.id, { decision: 'DESESTIMADO', comentario: 'No es acá' });
 
     expect(res.status).toBe(200);
     const despues = await prisma.incidente.findUniqueOrThrow({ where: { id: verificado.incidenteId } });
     // El desestimado deja de contar en la cantidad de reportes, que ve el mapa.
-    expect(despues).toMatchObject({ estado: 'VERIFICADO', severidad: 'MODERADA', cantidadReportes: 1 });
+    expect(despues).toMatchObject({ estado: 'DERIVADO', severidad: 'MODERADA', cantidadReportes: 1 });
     expect((await movimientos(verificado.incidenteId)).at(-1)).toMatchObject({
       tipo: 'COMENTARIO',
       usuarioId: operador.id,

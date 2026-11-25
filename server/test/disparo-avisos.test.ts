@@ -8,7 +8,13 @@ import { crearTokenAcceso } from '../src/modulos/auth/tokens.js';
 import { avisarCambioDeEstado } from '../src/modulos/avisos/disparar.js';
 import { alCambiarIncidente } from '../src/modulos/incidentes/eventos.js';
 import { transaccion } from '../src/modulos/reportes/repositorio.js';
-import { borrarReportesDe, crearOrganismoDePrueba, crearUsuario, reportarEn } from './apoyo.js';
+import {
+  borrarReportesDe,
+  crearOrganismoDePrueba,
+  crearUsuario,
+  dejarSinDerivar,
+  reportarEn,
+} from './apoyo.js';
 import { fotoUnica, jpegSinExif } from './imagenes.js';
 
 // Sin red: la dirección no se consulta y Firebase no está configurado (el aviso se guarda igual).
@@ -78,6 +84,8 @@ describe('aviso de cambio de estado', () => {
     const segundo = await reportar();
     expect(segundo.incidenteId).toBe(primero.incidenteId);
     const id = primero.incidenteId;
+    // Como uno sin derivar, para que lo derive el operador.
+    await dejarSinDerivar(id);
     const seguidor = await crearUsuario({ rol: 'VECINO' });
     // El segundo vecino reportó y además lo sigue; el operador también lo sigue.
     await Promise.all([seguir(id, segundo.vecinoId), seguir(id, seguidor.id), seguir(id, operador.id)]);
@@ -136,6 +144,7 @@ describe('aviso de cambio de estado', () => {
     const primero = await reportar();
     const segundo = await reportar();
     expect(segundo.incidenteId).toBe(primero.incidenteId);
+    await dejarSinDerivar(primero.incidenteId);
     await borrarAvisos([primero.vecinoId, segundo.vecinoId]);
     fallas.proximas = 1;
 

@@ -196,11 +196,12 @@ describe('POST /api/reportes/:id/separacion', () => {
     expect(recalcular).toHaveBeenCalledWith(expect.anything(), res.body.incidenteNuevo.id);
   });
 
-  it('el único reporte verificado se lleva el estado: el nuevo pasa a VERIFICADO y el original vuelve a REGISTRADO', async () => {
+  it('el único reporte verificado se lleva el estado: el nuevo queda verificado y derivado, y el original sigue derivado', async () => {
     const verificado = await reportar('MODERADA', '2026-10-10T10:00:00Z', 0, { desdeLaApp: true });
     await reportar('MODERADA', '2026-10-11T10:00:00Z');
+    // Verificado al recibirlo: ya quedó derivado al área de su categoría.
     expect(await incidente(verificado.incidenteId)).toMatchObject({
-      estado: 'VERIFICADO',
+      estado: 'DERIVADO',
       cantidadReportes: 2,
     });
 
@@ -208,28 +209,35 @@ describe('POST /api/reportes/:id/separacion', () => {
 
     expect(res.status).toBe(200);
     const nuevoId = res.body.incidenteNuevo.id;
-    expect(res.body.incidenteNuevo.estado).toBe('VERIFICADO');
-    expect(res.body.incidenteOriginal.estado).toBe('REGISTRADO');
-    // Los dos cambios quedan en la bitácora como cambios del sistema, después de la SEPARACION.
+    expect(res.body.incidenteNuevo.estado).toBe('DERIVADO');
+    expect(await incidente(nuevoId)).toMatchObject({ areaId: categoria.areaId });
+    // Desde DERIVADO el estado no cambia por los reportes: el área ya lo está trabajando.
+    expect(res.body.incidenteOriginal.estado).toBe('DERIVADO');
+    // El cambio y la derivación del nuevo quedan en la bitácora como del sistema, después de la SEPARACION.
     expect(await cambiosDeEstado(nuevoId)).toEqual([
       expect.objectContaining({ estadoAnterior: 'REGISTRADO', estadoNuevo: 'VERIFICADO', usuarioId: null }),
     ]);
-    expect((await cambiosDeEstado(verificado.incidenteId)).at(-1)).toMatchObject({
-      estadoAnterior: 'VERIFICADO',
-      estadoNuevo: 'REGISTRADO',
-      usuarioId: null,
-    });
+    expect(
+      await prisma.movimientoIncidente.findMany({ where: { incidenteId: nuevoId, tipo: 'DERIVACION' } }),
+    ).toEqual([
+      expect.objectContaining({
+        estadoAnterior: 'VERIFICADO',
+        estadoNuevo: 'DERIVADO',
+        areaId: categoria.areaId,
+        usuarioId: null,
+      }),
+    ]);
   });
 
-  it('si al original le queda otro reporte verificado, sigue VERIFICADO', async () => {
+  it('si al original le queda otro reporte verificado, los dos quedan derivados', async () => {
     const primero = await reportar('MODERADA', '2026-10-10T10:00:00Z', 0, { desdeLaApp: true });
     await reportar('MODERADA', '2026-10-11T10:00:00Z', 0, { desdeLaApp: true });
 
     const res = await separar(primero.id);
 
     expect(res.status).toBe(200);
-    expect(res.body.incidenteOriginal.estado).toBe('VERIFICADO');
-    expect(res.body.incidenteNuevo.estado).toBe('VERIFICADO');
+    expect(res.body.incidenteOriginal.estado).toBe('DERIVADO');
+    expect(res.body.incidenteNuevo.estado).toBe('DERIVADO');
   });
 
   it('si se separa el reporte que ubicó al incidente, el original pasa al punto del siguiente', async () => {

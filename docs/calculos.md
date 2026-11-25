@@ -250,7 +250,11 @@ Una sola regla decide el estado de un incidente `REGISTRADO` o `VERIFICADO` a pa
 | Alguno | Ninguno | `REGISTRADO` («En revisión» en el mapa) |
 | Alguno | Alguno | `VERIFICADO` |
 
-Desde `DERIVADO` el estado no cambia por los reportes: el organismo ya lo está trabajando. `RESUELTO` y `DESESTIMADO` son finales.
+Desde `DERIVADO` el estado no cambia por los reportes: el organismo ya lo está trabajando. La excepción es que no le quede ningún reporte válido (se quitaron o desestimaron todos): entonces pasa a `DESESTIMADO`. `EN_EJECUCION` lo maneja el operador; `RESUELTO` y `DESESTIMADO` son finales.
+
+**Derivación automática.** Cuando un reporte se verifica (lo apruebe un operador, la IA al procesar la cola o el sistema al recibirlo) y el incidente queda `VERIFICADO`, en la misma transacción se deriva al área de su categoría: pasa a `DERIVADO` con esa área. En la bitácora quedan dos movimientos, el `CAMBIO_ESTADO` a `VERIFICADO` y la `DERIVACION`, y los vecinos reciben un solo aviso, con el estado final. Si el área de la categoría está dada de baja, el incidente queda `VERIFICADO` y lo deriva el operador. Separar o deshacer una unión no deriva: el incidente que queda `VERIFICADO` lo deriva el operador desde la bandeja.
+
+El comentario de SnapIt en el reporte verificado dice qué pasó: «se derivó al área de X», «lo está atendiendo el área de X» (si el incidente ya estaba derivado o en ejecución) o «le corresponde al área de X» (si no se pudo derivar).
 
 Se aplica:
 - **Al verificar o desestimar un reporte** (arriba).
@@ -279,9 +283,11 @@ Qué cambios de estado se permiten y por qué vía, según el diagrama de estado
 | `VERIFICADO` | `REGISTRADO` | reportes | Se le separa o se le desune el único reporte verificado |
 | `REGISTRADO` o `VERIFICADO` | `DESESTIMADO` | reportes | Ya no le queda ningún reporte sin desestimar |
 | `REGISTRADO` o `VERIFICADO` | `DESESTIMADO` | operador | Lo desestima con un motivo |
+| `VERIFICADO` | `DERIVADO` | reportes | Se verifica un reporte: se deriva al área de su categoría |
 | `VERIFICADO` | `DERIVADO` | operador | Lo deriva a un área |
 | `DERIVADO` | `DERIVADO` | operador | Lo re-deriva a otra área |
 | `DERIVADO` | `EN_EJECUCION` | operador | Registra que empezó el trabajo |
+| `DERIVADO` | `DESESTIMADO` | reportes | Ya no le queda ningún reporte sin desestimar |
 | `DERIVADO` o `EN_EJECUCION` | `DESESTIMADO` | operador | Lo desestima con un motivo |
 | `EN_EJECUCION` | `RESUELTO` | cierre | El cierre da `VALIDADO`, o se confirma uno `OBSERVADO` |
 

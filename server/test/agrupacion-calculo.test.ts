@@ -211,13 +211,23 @@ describe('estadoSegunReportes', () => {
     expect(estadoSegunReportes('VERIFICADO', { validos: 0, verificados: 0 })).toBe('DESESTIMADO');
   });
 
-  it.each(['DERIVADO', 'EN_EJECUCION', 'RESUELTO', 'DESESTIMADO'] as const)(
+  it.each(['EN_EJECUCION', 'RESUELTO', 'DESESTIMADO'] as const)(
     'un incidente %s no cambia: lo maneja el operador o ya terminó',
     (estado) => {
       expect(estadoSegunReportes(estado, { validos: 0, verificados: 0 })).toBe(estado);
       expect(estadoSegunReportes(estado, { validos: 2, verificados: 1 })).toBe(estado);
     },
   );
+
+  it('un incidente DERIVADO no cambia mientras le quede algún reporte válido', () => {
+    expect(estadoSegunReportes('DERIVADO', { validos: 2, verificados: 1 })).toBe('DERIVADO');
+    // Sin verificados (se le separó el único) sigue en manos del área.
+    expect(estadoSegunReportes('DERIVADO', { validos: 1, verificados: 0 })).toBe('DERIVADO');
+  });
+
+  it('un incidente DERIVADO sin ningún reporte válido queda DESESTIMADO', () => {
+    expect(estadoSegunReportes('DERIVADO', { validos: 0, verificados: 0 })).toBe('DESESTIMADO');
+  });
 });
 
 describe('estaMasAvanzado', () => {

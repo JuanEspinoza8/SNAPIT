@@ -15,8 +15,14 @@ export type ViaTransicion = 'OPERADOR' | 'REPORTES' | 'CIERRE';
 const TRANSICIONES: Record<EstadoIncidente, Partial<Record<EstadoIncidente, ViaTransicion[]>>> = {
   REGISTRADO: { VERIFICADO: ['REPORTES'], DESESTIMADO: ['REPORTES', 'OPERADOR'] },
   // A REGISTRADO vuelve solo cuando se le separa o desune el único reporte verificado (decisión del 21/10).
-  VERIFICADO: { REGISTRADO: ['REPORTES'], DERIVADO: ['OPERADOR'], DESESTIMADO: ['REPORTES', 'OPERADOR'] },
-  DERIVADO: { DERIVADO: ['OPERADOR'], EN_EJECUCION: ['OPERADOR'], DESESTIMADO: ['OPERADOR'] },
+  // A DERIVADO por REPORTES: al verificarse un reporte, el incidente se deriva solo al área de su categoría.
+  VERIFICADO: {
+    REGISTRADO: ['REPORTES'],
+    DERIVADO: ['REPORTES', 'OPERADOR'],
+    DESESTIMADO: ['REPORTES', 'OPERADOR'],
+  },
+  // A DESESTIMADO por REPORTES: no le queda ningún reporte válido.
+  DERIVADO: { DERIVADO: ['OPERADOR'], EN_EJECUCION: ['OPERADOR'], DESESTIMADO: ['REPORTES', 'OPERADOR'] },
   EN_EJECUCION: { RESUELTO: ['CIERRE'], DESESTIMADO: ['OPERADOR'] },
   RESUELTO: {},
   DESESTIMADO: {},
